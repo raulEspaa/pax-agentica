@@ -1,0 +1,46 @@
+[project]
+name = "pax-agentica"
+version = "0.1.0"
+description = "A strategy game where every nation is ruled by an AI agent: they trade, negotiate, betray each other and go to war."
+readme = "README.md"
+authors = [{ name = "Raúl Fernández España" }]
+requires-python = ">=3.13"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+# E/F: pycodestyle + pyflakes   I: import sorting      B: bugbear (likely bugs)
+# UP: modern syntax             S: bandit (security)   PT: pytest style
+# SIM: simplifications          RUF: ruff-specific
+select = ["E", "F", "I", "B", "UP", "S", "PT", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S311"] # pytest asserts; seeded random numbers are intended in tests
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["src", "tests"]
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --import-mode=importlib"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.169.0",
+    "mypy>=2.4.0",
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><style>
+  * { margin: 0; padding: 0; }
+  html { zoom: 2; }
+  html, body { width: 1200px; height: 627px; overflow: hidden; background: #e6d5ae; }
+  svg { display: block; width: 100%; height: 100%; }
+  svg text { font-family: "C059", "DejaVu Serif", serif; }
+</style></head><body>
+<svg viewBox="0 0 1200 627" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- paper grain and stains -->
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" seed="7"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.42  0 0 0 0 0.30  0 0 0 0 0.16  0 0 0 0.16 0"/>
+    </filter>
+    <filter id="stains" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.006" numOctaves="4" seed="11"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.55  0 0 0 0 0.38  0 0 0 0 0.18  0 0 0 0.55 -0.12"/>
+    </filter>
+    <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
+      <stop offset="55%" stop-color="#7a5326" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#5e3d17" stop-opacity="0.55"/>
+    </radialGradient>
+    <!-- hand-drawn wobble for ink lines -->
+    <filter id="ink">
+      <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" seed="4" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="9"/>
+    </filter>
+    <filter id="seal">
+      <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="2" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="7"/>
+    </filter>
+    <marker id="march" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto">
+      <path d="M0,0 L10,5 L0,10 L3,5 z" fill="#8b2b1f"/>
+    </marker>
+    <path id="coast" d="M 520 150 C 560 110, 620 120, 650 95 C 690 70, 740 92, 780 80 C 830 68, 870 100, 910 94 C 960 88, 1000 118, 1040 140 C 1080 160, 1102 200, 1086 240 C 1074 272, 1102 300, 1090 340 C 1080 380, 1040 398, 1052 440 C 1062 480, 1020 520, 970 515 C 930 511, 900 540, 860 530 C 820 520, 790 546, 750 535 C 700 524, 680 490, 640 496 C 600 502, 560 470, 566 430 C 571 395, 540 372, 546 330 C 551 290, 514 262, 525 220 C 532 190, 504 176, 520 150 Z"/>
+    <path id="isle" d="M 1108 92 C 1124 78, 1150 84, 1152 102 C 1155 120, 1132 128, 1118 120 C 1104 114, 1098 102, 1108 92 Z"/>
+  </defs>
+
+  <!-- parchment -->
+  <rect width="1200" height="627" fill="#e9d8b1"/>
+  <rect width="1200" height="627" filter="url(#stains)"/>
+  <rect width="1200" height="627" filter="url(#grain)"/>
+
+  <!-- graticule frame -->
+  <g fill="none" stroke="#5b4122">
+    <rect x="14" y="14" width="1172" height="599" stroke-width="1.4"/>
+    <rect x="22" y="22" width="1156" height="583" stroke-width="5" stroke-dasharray="24 24" stroke-opacity=".75"/>
+    <rect x="25" y="25" width="1150" height="577" stroke-width="1"/>
+    <rect x="19" y="19" width="1162" height="589" stroke-width="1"/>
+  </g>
+  <!-- faint lines of latitude/longitude -->
+  <g stroke="#7a5a32" stroke-opacity=".18" stroke-width="1">
+    <line x1="25" y1="170" x2="1175" y2="170"/><line x1="25" y1="320" x2="1175" y2="320"/><line x1="25" y1="470" x2="1175" y2="470"/>
+    <line x1="560" y1="25" x2="560" y2="602"/><line x1="760" y1="25" x2="760" y2="602"/><line x1="960" y1="25" x2="960" y2="602"/>
+  </g>
+
+  <!-- coastline with water-lining -->
+  <g filter="url(#ink)">
+    <use href="#coast" fill="none" stroke="#6d4f2a" stroke-width="26" stroke-opacity=".06"/>
+    <use href="#coast" fill="none" stroke="#6d4f2a" stroke-width="15" stroke-opacity=".08"/>
+    <use href="#coast" fill="none" stroke="#6d4f2a" stroke-width="7" stroke-opacity=".12"/>
+    <use href="#coast" fill="#f0e2bd" stroke="#4e3519" stroke-width="1.8"/>
+    <use href="#isle" fill="none" stroke="#6d4f2a" stroke-width="10" stroke-opacity=".1"/>
+    <use href="#isle" fill="#f0e2bd" stroke="#4e3519" stroke-width="1.5"/>
+
+    <!-- realm tints -->
+    <path d="M 520 150 C 560 110, 620 120, 650 95 C 690 70, 740 92, 780 80 L 800 82 Q 780 170 805 250 Q 828 318 760 330 Q 650 322 548 345 C 551 290, 514 262, 525 220 C 532 190, 504 176, 520 150 Z" fill="#3c5a86" fill-opacity=".10"/>
+    <path d="M 800 82 C 830 68, 870 100, 910 94 C 960 88, 1000 118, 1040 140 C 1080 160, 1102 200, 1086 240 C 1074 272, 1102 300, 1090 340 C 1080 380, 1052 400, 1054 420 Q 900 345 760 330 Q 828 318 805 250 Q 780 170 800 82 Z" fill="#3f6b3a" fill-opacity=".11"/>
+    <path d="M 548 345 Q 650 322 760 330 Q 900 345 1054 420 C 1062 480, 1020 520, 970 515 C 930 511, 900 540, 860 530 C 820 520, 790 546, 750 535 C 700 524, 680 490, 640 496 C 600 502, 560 470, 566 430 C 571 395, 540 372, 548 345 Z" fill="#8b2b1f" fill-opacity=".09"/>
+
+    <!-- realm borders -->
+    <g fill="none" stroke="#7a3b1e" stroke-width="1.8" stroke-dasharray="2 5" stroke-linecap="round">
+      <path d="M 800 82 Q 780 170 805 250 Q 828 318 760 330"/>
+      <path d="M 548 345 Q 650 322 760 330 Q 900 345 1054 420"/>
+    </g>
+
+    <!-- mountains along the north-east border -->
+    <g fill="none" stroke="#4e3519" stroke-width="1.3">
+      <path d="M1000 170 l9 -16 l9 16 M1016 182 l11 -20 l11 20 M1036 166 l8 -14 l8 14 M1044 196 l10 -18 l10 18 M1020 206 l9 -15 l9 15"/>
+      <path d="M1009 154 l-3 16 M1027 162 l-4 20 M1044 152 l-3 14 M1054 178 l-4 18 M1029 191 l-3 15" stroke-opacity=".45"/>
+    </g>
+    <!-- forests in the south -->
+    <g fill="#4e3519" fill-opacity=".55">
+      <circle cx="640" cy="390" r="3.2"/><circle cx="650" cy="384" r="3.2"/><circle cx="648" cy="396" r="3.2"/><circle cx="660" cy="390" r="3.2"/>
+      <circle cx="930" cy="470" r="3.2"/><circle cx="940" cy="463" r="3.2"/><circle cx="946" cy="474" r="3.2"/>
+      <circle cx="610" cy="300" r="3.2"/><circle cx="620" cy="294" r="3.2"/><circle cx="622" cy="306" r="3.2"/>
+    </g>
+    <!-- river -->
+    <path d="M 1030 214 C 1050 245, 1035 290, 1088 330" fill="none" stroke="#5b6f86" stroke-width="1.6" stroke-opacity=".7"/>
+  </g>
+
+  <!-- envoy route: pact proposed -->
+  <path d="M 628 178 Q 790 40 968 176" fill="none" stroke="#9a7a2a" stroke-width="2" stroke-dasharray="1 7" stroke-linecap="round"/>
+  <text x="838" y="160" font-size="13" font-style="italic" fill="#6a4f1c">envoy · a pact is proposed</text>
+  <!-- army on the march -->
+  <path d="M 818 470 Q 790 400 765 344" fill="none" stroke="#8b2b1f" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#march)"/>
+  <text x="800" y="404" font-size="12.5" font-style="italic" fill="#8b2b1f">the march, turn xiv</text>
+
+  <!-- free city at the crossroads -->
+  <circle cx="760" cy="330" r="6.5" fill="#f0e2bd" stroke="#4e3519" stroke-width="1.6"/>
+  <circle cx="760" cy="330" r="2.2" fill="#4e3519"/>
+  <text x="748" y="316" font-size="12" font-style="italic" fill="#4e3519" text-anchor="end">the Free City</text>
+
+  <!-- capitals -->
+  <g font-family="DejaVu Sans" font-size="20" text-anchor="middle">
+    <text x="622" y="186" fill="#2f4a73">♜</text>
+    <text x="974" y="186" fill="#35592f">♜</text>
+    <text x="822" y="488" fill="#7d2417">♜</text>
+  </g>
+
+  <!-- realm names -->
+  <g font-size="21" letter-spacing="7" fill="#3a2a16">
+    <text x="566" y="252" letter-spacing="5.5" transform="rotate(-8 566 252)">NORTHREACH</text>
+    <text x="895" y="282" transform="rotate(7 895 282)">OSTMARK</text>
+    <text x="590" y="458" transform="rotate(-3 590 458)">SOUTHVALE</text>
+  </g>
+
+  <!-- sea -->
+  <g fill="#5b4122" font-style="italic">
+    <text x="770" y="588" font-size="17" letter-spacing="6">MARE AGENTICVM</text>
+  </g>
+  <g fill="none" stroke="#6d4f2a" stroke-opacity=".5" stroke-width="1.2">
+    <path d="M1092 520 q6 -5 12 0 t12 0 M1040 552 q6 -5 12 0 t12 0 M1126 470 q6 -5 12 0 t12 0"/>
+  </g>
+
+  <!-- compass rose -->
+  <g transform="translate(1110 520)">
+    <circle r="38" fill="none" stroke="#4e3519" stroke-width="1"/>
+    <circle r="31" fill="none" stroke="#4e3519" stroke-width=".6" stroke-dasharray="2 3"/>
+    <path d="M0 -44 L7 -7 L0 0 Z" fill="#4e3519"/><path d="M0 -44 L-7 -7 L0 0 Z" fill="#f0e2bd" stroke="#4e3519" stroke-width=".8"/>
+    <path d="M0 44 L-7 7 L0 0 Z" fill="#4e3519"/><path d="M0 44 L7 7 L0 0 Z" fill="#f0e2bd" stroke="#4e3519" stroke-width=".8"/>
+    <path d="M44 0 L7 7 L0 0 Z" fill="#4e3519"/><path d="M44 0 L7 -7 L0 0 Z" fill="#f0e2bd" stroke="#4e3519" stroke-width=".8"/>
+    <path d="M-44 0 L-7 -7 L0 0 Z" fill="#4e3519"/><path d="M-44 0 L-7 7 L0 0 Z" fill="#f0e2bd" stroke="#4e3519" stroke-width=".8"/>
+    <text y="-49" font-size="12" text-anchor="middle" fill="#4e3519">N</text>
+  </g>
+
+  <!-- cartouche -->
+  <g>
+    <rect x="44" y="50" width="424" height="392" fill="#f3e8cb" fill-opacity=".93" stroke="#4e3519" stroke-width="1.6"/>
+    <rect x="52" y="58" width="408" height="376" fill="none" stroke="#4e3519" stroke-width=".8"/>
+    <g fill="#8b2b1f"><path d="M52 58 l8 0 l-8 8 z"/><path d="M460 58 l-8 0 l8 8 z"/><path d="M52 434 l8 0 l-8 -8 z"/><path d="M460 434 l-8 0 l8 -8 z"/></g>
+    <text x="256" y="98" font-size="12.5" letter-spacing="4.5" text-anchor="middle" fill="#8b2b1f">AN ATLAS OF NATIONS RULED BY AI</text>
+    <text x="256" y="158" font-size="48" letter-spacing="3" text-anchor="middle" fill="#2e2112">PAX</text>
+    <text x="256" y="210" font-size="48" letter-spacing="3" text-anchor="middle" fill="#2e2112">AGENTICA</text>
+    <g stroke="#4e3519" stroke-width="1"><line x1="120" y1="232" x2="236" y2="232"/><line x1="276" y1="232" x2="392" y2="232"/></g>
+    <path d="M256 225 l7 7 l-7 7 l-7 -7 z" fill="#8b2b1f"/>
+    <text x="256" y="266" font-size="16.5" font-style="italic" text-anchor="middle" fill="#3a2a16">A strategy game where every nation</text>
+    <text x="256" y="288" font-size="16.5" font-style="italic" text-anchor="middle" fill="#3a2a16">is ruled by an AI agent. They trade,</text>
+    <text x="256" y="310" font-size="16.5" font-style="italic" text-anchor="middle" fill="#3a2a16">sign pacts, betray each other</text>
+    <text x="256" y="332" font-size="16.5" font-style="italic" text-anchor="middle" fill="#3a2a16">and go to war.</text>
+    <text x="256" y="372" font-size="15" text-anchor="middle" fill="#2e2112">The AI proposes, the engine decides.</text>
+    <text x="256" y="410" font-size="11.5" letter-spacing="2.2" text-anchor="middle" fill="#5b4122">PYTHON · GEMINI · GOOGLE ADK · TDD</text>
+  </g>
+  <!-- wax seal -->
+  <g transform="translate(446 436)">
+    <circle r="27" fill="#8f2418" filter="url(#seal)"/>
+    <circle r="19" fill="none" stroke="#c4553f" stroke-width="1.2"/>
+    <text y="6" font-size="16" text-anchor="middle" fill="#f3d3c5" letter-spacing="1">PA</text>
+  </g>
+
+  <!-- uncharted waters -->
+  <text x="76" y="512" font-size="22" font-style="italic" fill="#4e3519">Hic sunt agentes</text>
+  <text x="78" y="538" font-size="12" letter-spacing="2.5" fill="#6d4f2a">ANNO MMXXVI · IN PROGRESS</text>
+  <g fill="none" stroke="#6d4f2a" stroke-opacity=".5" stroke-width="1.2">
+    <path d="M300 486 q6 -5 12 0 t12 0 t12 0 M430 560 q6 -5 12 0 t12 0"/>
+  </g>
+  <text x="78" y="578" font-size="12" fill="#6d4f2a" letter-spacing="1">github.com/raulEspaa/pax-agentica</text>
+
+  <!-- vignette on top -->
+  <rect width="1200" height="627" fill="url(#vignette)"/>
+</svg>
+</body></html>
