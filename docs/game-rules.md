@@ -236,14 +236,40 @@ your realm. He moves with the regiments he leads, takes command of a province he
 |---|---|
 | `propose_alliance` | if accepted: allies share vision, and each is **called to arms** when war is declared on the other |
 | `propose_non_aggression` | if accepted: a pact for 10 turns |
-| `propose_peace` | if accepted: the war ends and a **truce** of 5 turns begins. It can carry reparations either way (`give`, `receive`); whoever cannot pay everything pays what they have |
+| `propose_peace` | if accepted: the war ends, a **truce** of 5 turns begins, and its **terms** are carried out (see below) |
 | `propose_trade` | if accepted: the goods change hands, provided both sides still have them (giving nothing is a demand for tribute) |
 | `call_to_arms` | ask an ally to join your war against someone; refusing or ignoring dissolves the alliance |
-| `respond` | accept or reject a proposal addressed to you, **on the turn after** it was made |
+| `respond` | accept or reject a proposal addressed to you, **on the turn after** it was made; or reject a peace or a trade with a **counter-offer** |
 | `cancel_treaty` | end an alliance or pact openly, at no cost |
 | `declare_war` | starts a war; see below |
 | `gift` | give resources at once |
 | `send_message` | a private letter of up to 500 characters, read next turn. **Words have no effect on the rules.** |
+
+### Peace terms and haggling
+
+A peace can settle any mix of:
+
+| Term | Meaning |
+|---|---|
+| `give` / `receive` | a lump sum of any resources, either way; whoever cannot pay everything pays what they have |
+| `cede` / `demand` | provinces either way. A capital cannot change hands, and every province must border the realm that receives it (or another province it receives in the same peace). The garrison goes home and the province settles for 2 years |
+| `pay_tribute` / `ask_tribute` | ducats a year, either way, for **10 years**, paid at the end of each year as far as the payer can |
+| `limit_army` | the recipient may not recruit beyond this many regiments while the truce lasts |
+| `note` | words to go with the offer, up to 300 characters. They bind nobody |
+
+No terms at all is a white peace. The recipient can accept, reject, or reject with a
+`counter`: their own terms, written from their side, which reach the first court as a new
+proposal next turn. Trades can be countered too (goods only). Back and forth, one turn at a time,
+two courts can haggle a war to its end; that is the table an AI ruler negotiates at.
+
+### Opinion
+
+Every court has an opinion of every other, from −100 to 100, and sees what each court thinks of
+it (`opinion_of_you`). Gifts raise it (+1 for every 4 ducats' worth, up to +25), as do trades
+(+5), pacts (+10), alliances (+20), peace (+5), an answered call to arms (+20) and a common enemy
+(+3 a year). A declaration of war costs −40 with its victim, a lost province −10, an ignored call
+to arms −30, and breaking a treaty −10 with **every** court (−20 more with the victim). Opinions
+fade by a tenth every year. The rules never act on opinion; rulers do.
 
 **Treaties are promises, not rules.** You can declare war on an ally, a pact partner or a nation
 under truce. That breaks the treaty in front of everyone and costs **2 stability**.

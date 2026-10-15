@@ -88,6 +88,8 @@ class TreatyView(_View):
     kind: TreatyKind
     partner: NationId
     until_turn: int | None
+    payer: NationId | None = None  # tribute and army limit: the side bound by it
+    amount: int = 0  # tribute: ducats a year; army limit: regiments
 
 
 class WarView(_View):
@@ -129,6 +131,7 @@ class MyNation(_View):
     ruler: Ruler | None
     advisors: dict[AdvisorRole, Advisor]
     advisor_candidates: tuple[CandidateView, ...]  # who you can hire right now
+    opinions: dict[NationId, int]  # what you think of each court, from -100 to 100
 
 
 class NationSummary(_View):
@@ -143,6 +146,7 @@ class NationSummary(_View):
     technology: dict[TechBranch, int]  # public, as in any court of Europe
     generals: int
     ruler: Ruler | None  # public too: every court knows who reigns where
+    opinion_of_you: int  # what this court thinks of you, from -100 to 100
 
 
 class ProposalView(_View):
@@ -151,9 +155,16 @@ class ProposalView(_View):
     sender: NationId
     recipient: NationId
     turn: int
-    give: Resources  # trade: what the sender gives
-    receive: Resources  # trade: what the sender asks for
+    give: Resources  # trade and peace: what the sender gives
+    receive: Resources  # trade and peace: what the sender asks for
     enemy: NationId | None  # call to arms: who the sender is fighting
+    cede: list[ProvinceId]  # peace: provinces the sender hands over
+    demand: list[ProvinceId]  # peace: provinces the sender asks for
+    pay_tribute: int  # peace: ducats a year the sender pays, for rules.tribute_years
+    ask_tribute: int  # peace: ducats a year the sender asks for
+    limit_army: int | None  # peace: the recipient's army may not grow beyond this
+    note: str  # the sender's words
+    reply_to: int | None  # the proposal of yours this one counters
 
 
 class NationView(_View):
@@ -230,6 +241,8 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             kind=t.kind,
             partner=t.parties[1] if t.parties[0] == nation else t.parties[0],
             until_turn=t.until,
+            payer=t.payer,
+            amount=t.amount,
         )
         for t in state.treaties
         if nation in t.parties
@@ -280,6 +293,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             for c in advisor_candidates(state, nation)
             if c.name not in {a.name for a in me.advisors.values()}
         ),
+        opinions={n: state.opinion(nation, n) for n in state.nations if n != nation},
         generals=tuple(
             GeneralView.model_validate(g.model_dump()) for g in state.generals_of(nation)
         ),
@@ -298,6 +312,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             technology=dict(ns.technology),
             generals=len(state.generals_of(nid)),
             ruler=ns.ruler,
+            opinion_of_you=state.opinion(nid, nation),
         )
         for nid, ns in state.nations.items()
         if nid != nation

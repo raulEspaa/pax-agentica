@@ -35,6 +35,7 @@ from pax_agentica.engine.actions import (
     Recruit,
     Research,
     Respond,
+    Terms,
     UpgradeMonument,
 )
 from pax_agentica.engine.events import EventKind
@@ -186,7 +187,30 @@ class _Planner:
             if accept and p.kind == ProposalKind.PEACE:
                 self.enemies.discard(p.sender)
                 self.old_enemies.discard(p.sender)
-            self.actions.append(Respond(proposal_id=p.id, accept=accept))
+            counter = None if accept else self._counter(p)
+            self.actions.append(Respond(proposal_id=p.id, accept=accept, counter=counter))
+
+    def _counter(self, p: ProposalView) -> Terms | None:
+        """Haggle: a beaten court offers gold for land; a trader asks for a fairer deal."""
+        if p.kind == ProposalKind.PEACE and self._losing_to(p.sender):
+            gold = min(self.budget.ducats // 4, 60)
+            return Terms(give=Resources(ducats=gold), note="Take gold, not our land.")
+        if p.kind == ProposalKind.TRADE and value(p.give) >= 0.7 * value(p.receive) > 0:
+            fair = Resources(
+                **{k: v * 7 // 10 for k, v in p.receive.amounts().items()}
+            )  # what we would hand over
+            if self.budget.covers(fair) and not fair.is_empty():
+                return Terms(give=fair, receive=p.give, note="A fairer price.")
+        return None
+
+    def _cost_of_peace(self, p: ProposalView) -> int:
+        """What a peace's terms take from us, in ducats, minus what they bring."""
+        dev = {pid: self.provinces[pid].development for pid in p.cede + p.demand}
+        years = self.v.rules.tribute_years
+        cost = value(p.receive) + sum(dev[x] for x in p.demand) * 30 + p.ask_tribute * years
+        cost += 60 if p.limit_army is not None else 0
+        gain = value(p.give) + sum(dev[x] for x in p.cede) * 30 + p.pay_tribute * years
+        return cost - gain
 
     def _fears(self, nation: str) -> bool:
         their = next((n for n in self.v.nations if n.id == nation), None)
@@ -197,16 +221,21 @@ class _Planner:
             case ProposalKind.PEACE:
                 overstretched = len(self.old_enemies) >= 2
                 losing = overstretched or self._losing_to(p.sender)
-                if not p.receive.is_empty():  # they demand reparations: only when beaten
-                    return losing
-                return losing or value(p.give) > 0 or self.rng.random() < 0.4
+                cost = self._cost_of_peace(p)
+                if cost > 0:  # they ask for something: only when beaten, and not everything
+                    return losing and cost <= 40 * self.me.score // max(1, len(self.mine))
+                return losing or cost < 0 or self.rng.random() < 0.4
             case ProposalKind.ALLIANCE:
                 if len(self.allies) >= 2:
                     return False
-                return p.sender not in self._border_nations() or self.rng.random() < 0.3
+                liked = self.me.opinions.get(p.sender, 0) >= 25
+                return liked or p.sender not in self._border_nations() or self.rng.random() < 0.3
             case ProposalKind.NON_AGGRESSION:
-                # Peace with the strong, or while busy elsewhere; the weak are prey.
-                return self._fears(p.sender) or bool(self.enemies) or self.rng.random() < 0.2
+                # Peace with the strong, the liked, or while busy elsewhere; the weak are prey.
+                liked = self.me.opinions.get(p.sender, 0) >= 15
+                return (
+                    self._fears(p.sender) or liked or bool(self.enemies) or self.rng.random() < 0.2
+                )
             case ProposalKind.TRADE:
                 return value(p.give) >= value(p.receive) and self.budget.covers(p.receive)
             case ProposalKind.CALL_TO_ARMS:
@@ -512,6 +541,33 @@ class _Planner:
 
     # ------------------------------------------------------------ 7. diplomacy
 
+    def _peace_terms(self, enemy: str) -> ProposePeace:
+        """Winning: ask for their best province on our border and some gold. Losing: pay."""
+        if self._losing_to(enemy):
+            gold = min(self.budget.ducats // 4, 50)
+            return ProposePeace(
+                target=enemy, give=Resources(ducats=gold), note="Let this end. We will pay."
+            )
+        their = next((n for n in self.v.nations if n.id == enemy), None)
+        if their is not None and their.score * 1.3 < self.me.score:
+            border = sorted(
+                (
+                    self.provinces[n]
+                    for pid in self.mine
+                    for n in self._neighbors(pid)
+                    if self.provinces[n].owner == enemy and not self.provinces[n].is_capital
+                ),
+                key=lambda p: (-p.development, p.id),
+            )
+            if border:
+                return ProposePeace(
+                    target=enemy,
+                    demand=[border[0].id],
+                    receive=Resources(ducats=30),
+                    note=f"Give us {border[0].name} and this war ends.",
+                )
+        return ProposePeace(target=enemy)
+
     def _war_value(self, enemy: str) -> float:
         return sum(v for v, _o, t, _n in self._targets() if self.provinces[t].owner == enemy)
 
@@ -526,7 +582,7 @@ class _Planner:
             if (ProposalKind.PEACE, enemy) not in pending and (
                 overstretched or self._losing_to(enemy) or (stalled and self.rng.random() < 0.3)
             ):
-                self.actions.append(ProposePeace(target=enemy))
+                self.actions.append(self._peace_terms(enemy))
 
         others = sorted(n.id for n in self.v.nations if n.alive and n.id not in self.enemies)
         if not others:

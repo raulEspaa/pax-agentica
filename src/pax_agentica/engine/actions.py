@@ -25,6 +25,7 @@ from pax_agentica.engine.model import (
 
 MAX_ACTIONS_PER_TURN = 50
 MAX_MESSAGE_CHARS = 500
+MAX_NOTE_CHARS = 300
 
 Regiments = Annotated[int, Field(gt=0, le=500, description="Number of regiments (1 or more).")]
 
@@ -192,16 +193,52 @@ class ProposeNonAggression(_Action):
     target: NationId
 
 
-class ProposePeace(_Action):
-    """Offer peace to a nation you are at war with. Accepted peace starts a truce.
+Note = Annotated[
+    str,
+    Field(
+        max_length=MAX_NOTE_CHARS,
+        description="Your words to go with the offer: arguments, threats, promises. They bind "
+        "nobody.",
+    ),
+]
 
-    Leave both bundles empty for a white peace, offer reparations with `give`, or demand them
-    with `receive`. Whoever cannot pay everything pays what they have."""
+
+class Terms(BaseModel):
+    """What a peace (or a counter-offer) settles. Everything is optional: no terms at all is a
+    white peace. Lump sums are capped by what the payer has; provinces must belong to the side
+    that hands them over, cannot be a capital, and must border the realm that receives them (or
+    another province it receives in the same peace)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    give: Resources = Field(default_factory=Resources, description="A lump sum you pay.")
+    receive: Resources = Field(default_factory=Resources, description="A lump sum you demand.")
+    cede: list[ProvinceId] = Field(
+        default_factory=list, max_length=8, description="Your provinces you hand over."
+    )
+    demand: list[ProvinceId] = Field(
+        default_factory=list, max_length=8, description="Their provinces you ask for."
+    )
+    pay_tribute: int = Field(
+        default=0, ge=0, le=500, description="Ducats a year you pay them, for 10 years."
+    )
+    ask_tribute: int = Field(
+        default=0, ge=0, le=500, description="Ducats a year they pay you, for 10 years."
+    )
+    limit_army: int | None = Field(
+        default=None,
+        ge=0,
+        description="Their army may not grow beyond this many regiments while the truce lasts.",
+    )
+    note: Note = ""
+
+
+class ProposePeace(Terms, _Action):
+    """Offer peace to a nation you are at war with. Accepted peace starts a five-year truce and
+    carries out the terms. The recipient may accept, reject, or answer with a counter-offer."""
 
     type: Literal["propose_peace"] = "propose_peace"
     target: NationId
-    give: Resources = Field(default_factory=Resources, description="Reparations you pay.")
-    receive: Resources = Field(default_factory=Resources, description="Reparations you demand.")
 
 
 class ProposeTrade(_Action):
@@ -213,6 +250,7 @@ class ProposeTrade(_Action):
     target: NationId
     give: Resources = Field(default_factory=Resources, description="What you hand over.")
     receive: Resources = Field(default_factory=Resources, description="What you ask for.")
+    note: Note = ""
 
 
 class RequestCallToArms(_Action):
@@ -226,11 +264,17 @@ class RequestCallToArms(_Action):
 
 class Respond(_Action):
     """Accept or reject a proposal addressed to you. Unanswered proposals expire; ignoring a call
-    to arms from an ally dissolves the alliance."""
+    to arms from an ally dissolves the alliance.
+
+    To haggle over a peace or a trade, reject it with a `counter`: your own terms, written from
+    your side (`give` is what you would pay). It reaches them as a new proposal next turn, and
+    they can accept, reject or counter again. A trade's counter may only use `give`, `receive`
+    and `note`."""
 
     type: Literal["respond"] = "respond"
     proposal_id: int
     accept: bool
+    counter: Terms | None = None
 
 
 class CancelTreaty(_Action):

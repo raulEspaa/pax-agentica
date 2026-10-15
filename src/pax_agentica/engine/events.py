@@ -18,6 +18,7 @@ class EventKind(StrEnum):
     PROPOSAL_MADE = "proposal_made"
     PROPOSAL_REJECTED = "proposal_rejected"
     PROPOSAL_EXPIRED = "proposal_expired"
+    PROPOSAL_COUNTERED = "proposal_countered"
     TREATY_SIGNED = "treaty_signed"
     TREATY_CANCELLED = "treaty_cancelled"
     TREATY_BROKEN = "treaty_broken"  # a betrayal: war declared despite a treaty
@@ -26,6 +27,8 @@ class EventKind(StrEnum):
     JOINED_WAR = "joined_war"  # an ally answered a call to arms
     CALL_TO_ARMS_IGNORED = "call_to_arms_ignored"  # an ally refused: alliance dissolved
     PEACE_SIGNED = "peace_signed"
+    PROVINCE_CEDED = "province_ceded"
+    TRIBUTE_PAID = "tribute_paid"
     TRADE_COMPLETED = "trade_completed"
     TRADE_FAILED = "trade_failed"
     GIFT = "gift"

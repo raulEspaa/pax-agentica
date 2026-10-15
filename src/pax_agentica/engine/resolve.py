@@ -44,6 +44,7 @@ from pax_agentica.engine.actions import (
     Research,
     Respond,
     SendMessage,
+    Terms,
     UpgradeMonument,
 )
 from pax_agentica.engine.events import Event, EventKind, EventValue
@@ -216,6 +217,59 @@ class _Resolver:
             delta=delta,
         )
 
+    def _opine(self, of: NationId, about: NationId, delta: int) -> None:
+        """Change what `of` thinks of `about`, within -100 and 100."""
+        if of == about or not delta:
+            return
+        opinions = self.s.opinions.setdefault(of, {})
+        opinions[about] = max(-100, min(100, opinions.get(about, 0) + delta))
+
+    def _terms_error(self, sender: NationId, recipient: NationId, t: Terms) -> str | None:
+        """Why a peace's provinces cannot change hands, if they cannot."""
+        moving = t.cede + t.demand
+        if len(set(moving)) != len(moving):
+            return "a province appears twice in the terms"
+        capitals = {n.capital for n in self.s.nations.values() if n.alive}
+        for pids, owner in ((t.cede, sender), (t.demand, recipient)):
+            for pid in pids:
+                if pid not in self.s.provinces:
+                    return f"there is no province '{pid}'"
+                if self.s.provinces[pid].owner != owner:
+                    return f"{self._pname(pid)} does not belong to {self._name(owner)}"
+                if pid in capitals:
+                    return f"{self._pname(pid)} is a capital and cannot be handed over"
+        for pids, receiver in ((t.cede, recipient), (t.demand, sender)):
+            held = set(self.s.provinces_of(receiver))
+            waiting = set(pids)
+            while waiting:
+                joined = {p for p in waiting if any(self.s.map.adjacent(p, h) for h in held)}
+                if not joined:
+                    lost = ", ".join(self._pname(p) for p in sorted(waiting))
+                    return f"{lost} does not border {self._name(receiver)}"
+                held |= joined
+                waiting -= joined
+        return None
+
+    def _describe_terms(self, p: Proposal) -> str:
+        s, r = self._name(p.sender), self._name(p.recipient)
+        parts = []
+        if not p.give.is_empty():
+            parts.append(f"{s} pays {p.give}")
+        if not p.receive.is_empty():
+            parts.append(f"{r} pays {p.receive}")
+        if p.cede:
+            parts.append(f"{s} cedes {', '.join(self._pname(x) for x in p.cede)}")
+        if p.demand:
+            parts.append(f"{r} cedes {', '.join(self._pname(x) for x in p.demand)}")
+        years = self.s.rules.tribute_years
+        if p.pay_tribute:
+            parts.append(f"{s} pays {p.pay_tribute} ducats a year for {years} years")
+        if p.ask_tribute:
+            parts.append(f"{r} pays {p.ask_tribute} ducats a year for {years} years")
+        if p.limit_army is not None:
+            parts.append(f"{r} keeps no more than {p.limit_army} regiments during the truce")
+        return "; ".join(parts) if parts else "white peace"
+
     def _pending(self, kind: ProposalKind, sender: NationId, recipient: NationId) -> bool:
         return any(
             p.kind == kind and p.sender == sender and p.recipient == recipient
@@ -240,8 +294,11 @@ class _Resolver:
         terms_text = ""
         if kind == ProposalKind.TRADE:
             terms_text = f": gives {proposal.give}, asks for {proposal.receive}"
+        elif kind == ProposalKind.PEACE:
+            terms_text = f": {self._describe_terms(proposal)}"
         elif kind == ProposalKind.CALL_TO_ARMS and proposal.enemy:
             terms_text = f" against {self._name(proposal.enemy)}"
+        extra: dict[str, EventValue] = {"note": proposal.note} if proposal.note else {}
         self._emit(
             EventKind.PROPOSAL_MADE,
             f"{self._name(sender)} proposes {kind.value.replace('_', ' ')} to "
@@ -250,6 +307,7 @@ class _Resolver:
             audience=(sender, recipient),
             proposal_id=proposal.id,
             proposal_kind=kind.value,
+            extra=extra,
         )
 
     # ------------------------------------------------------------ phase 1: answers
@@ -266,6 +324,8 @@ class _Resolver:
                 self.s.proposals.remove(proposal)
                 if action.accept:
                     self._accept(proposal)
+                elif action.counter is not None:
+                    self._counter(nation, proposal, action, action.counter)
                 else:
                     self._decline(proposal)
 
@@ -288,6 +348,8 @@ class _Resolver:
                     Treaty(kind=kind, parties=pair(s, r), since=self.turn, until=until)
                 )
                 label = "an alliance" if kind == TreatyKind.ALLIANCE else "a non-aggression pact"
+                self._opine(s, r, self.s.rules.opinion_treaty[kind.value])
+                self._opine(r, s, self.s.rules.opinion_treaty[kind.value])
                 self._emit(
                     EventKind.TREATY_SIGNED,
                     f"{names} sign {label}",
@@ -297,6 +359,9 @@ class _Resolver:
             case ProposalKind.PEACE:
                 if not self.s.at_war(s, r):
                     self._expired(p, "they are no longer at war")
+                    return
+                if error := self._terms_error(s, r, _as_terms(p)):
+                    self._expired(p, error)
                     return
                 self._make_peace(s, r, p)
             case ProposalKind.TRADE:
@@ -308,6 +373,39 @@ class _Resolver:
                     return
                 if not self.s.at_war(r, enemy):
                     self._start_war(r, enemy, joined_for=s)
+
+    def _counter(self, nation: NationId, p: Proposal, a: Respond, t: Terms) -> None:
+        """Reject `p` and send its sender our own terms `t` instead."""
+        other = p.sender
+        error = None
+        if p.kind == ProposalKind.PEACE:
+            if not self.s.at_war(nation, other):
+                error = "you are no longer at war"
+            else:
+                error = self._terms_error(nation, other, t)
+        elif p.kind == ProposalKind.TRADE:
+            if t.cede or t.demand or t.pay_tribute or t.ask_tribute or t.limit_army is not None:
+                error = "a trade's counter-offer can only give and receive"
+            elif t.give.is_empty() and t.receive.is_empty():
+                error = "an empty trade"
+        else:
+            error = f"a {p.kind.value.replace('_', ' ')} proposal cannot be countered"
+        if not error and not self.s.nations[nation].resources.covers(t.give):
+            error = f"you cannot pay {t.give}"
+        if error:
+            self._reject(nation, a, error)
+            self._decline(p)
+            return
+        self._emit(
+            EventKind.PROPOSAL_COUNTERED,
+            f"{self._name(nation)} answers {self._name(other)}'s "
+            f"{p.kind.value.replace('_', ' ')} proposal (#{p.id}) with a counter-offer",
+            nations=(nation, other),
+            audience=(nation, other),
+            proposal_id=p.id,
+            proposal_kind=p.kind.value,
+        )
+        self._propose(p.kind, nation, other, **_terms(t, p.kind), reply_to=p.id)
 
     def _decline(self, p: Proposal) -> None:
         if p.kind == ProposalKind.CALL_TO_ARMS:
@@ -343,6 +441,7 @@ class _Resolver:
         if alliance is None:
             return
         self.s.treaties.remove(alliance)
+        self._opine(p.sender, p.recipient, self.s.rules.opinion_call_ignored)
         self._emit(
             EventKind.CALL_TO_ARMS_IGNORED,
             f"{self._name(p.recipient)} abandons its ally {self._name(p.sender)} in the war "
@@ -376,11 +475,72 @@ class _Resolver:
                 paid += f"; {sender.name} pays {give}"
             if not receive.is_empty():
                 paid += f"; {recipient.name} pays {receive}"
+            for pid in terms.cede:
+                self._cede(pid, a, b)
+            for pid in terms.demand:
+                self._cede(pid, b, a)
+            if terms.cede or terms.demand:
+                moved = ", ".join(self._pname(x) for x in terms.cede + terms.demand)
+                paid += f"; {moved} change hands"
+            years = self.s.rules.tribute_years
+            for payer, amount in ((a, terms.pay_tribute), (b, terms.ask_tribute)):
+                if amount:
+                    self.s.treaties.append(
+                        Treaty(
+                            kind=TreatyKind.TRIBUTE,
+                            parties=key,
+                            since=self.turn,
+                            until=self.turn + years,
+                            payer=payer,
+                            amount=amount,
+                        )
+                    )
+                    paid += f"; {self._name(payer)} pays {amount} ducats a year for {years} years"
+            if terms.limit_army is not None:
+                self.s.treaties.append(
+                    Treaty(
+                        kind=TreatyKind.ARMY_LIMIT,
+                        parties=key,
+                        since=self.turn,
+                        until=until,
+                        payer=b,
+                        amount=terms.limit_army,
+                    )
+                )
+                paid += f"; {self._name(b)} keeps at most {terms.limit_army} regiments"
+        for x, y in ((a, b), (b, a)):
+            self._opine(x, y, self.s.rules.opinion_treaty["peace"])
         self._emit(
             EventKind.PEACE_SIGNED,
             f"{self._name(a)} and {self._name(b)} make peace{paid}; "
             f"truce until {self._year(until)}",
             nations=(a, b),
+        )
+
+    def _cede(self, province: ProvinceId, frm: NationId, to: NationId) -> None:
+        """Hand a province over by treaty: its garrison goes home, its general rides back."""
+        state = self.s.provinces[province]
+        giver = self.s.nations[frm]
+        giver.resources = giver.resources + self.s.rules.disband_refund.times(state.troops)
+        state.set_army({})
+        general = self.s.general_in(province)
+        if general is not None:
+            free = [
+                p for p in self.s.provinces_of(frm) if p != province and not self.s.general_in(p)
+            ]
+            home = giver.capital if giver.capital in free else (free[0] if free else None)
+            if home is None:
+                self.s.generals.remove(general)
+            else:
+                general.province = home
+        state.owner = to
+        state.unrest = self.s.rules.ceded_unrest_turns
+        self._opine(frm, to, self.s.rules.opinion_province_taken // 2)
+        self._emit(
+            EventKind.PROVINCE_CEDED,
+            f"{self._name(frm)} cedes {self._pname(province)} to {self._name(to)}",
+            nations=(frm, to),
+            province=province,
         )
 
     def _trade(self, p: Proposal) -> None:
@@ -402,6 +562,8 @@ class _Resolver:
             return
         s.resources = s.resources - p.give + p.receive
         r.resources = r.resources - p.receive + p.give
+        self._opine(p.sender, p.recipient, self.s.rules.opinion_trade)
+        self._opine(p.recipient, p.sender, self.s.rules.opinion_trade)
         self._emit(
             EventKind.TRADE_COMPLETED,
             f"{s.name} trades {p.give} to {r.name} for {p.receive}",
@@ -423,9 +585,17 @@ class _Resolver:
                 nations=(attacker, defender),
                 treaty=treaty.kind.value,
             )
+        rules = self.s.rules
         if broken:
             penalty = modifiers(self.s, attacker).treaty_break_penalty
             self._change_stability(attacker, -penalty, "broke a treaty")
+            for other in self.s.alive_nations():
+                if other not in key:
+                    self._opine(other, attacker, rules.opinion_betrayal)
+            self._opine(defender, attacker, rules.opinion_betrayal * 2)
+        self._opine(defender, attacker, rules.opinion_war_declared)
+        if joined_for is not None:
+            self._opine(joined_for, attacker, rules.opinion_call_answered)
         self.s.wars.append(War(parties=key, since=self.turn))
         if joined_for is not None:
             self._emit(
@@ -522,7 +692,10 @@ class _Resolver:
             if not self.s.nations[nation].resources.covers(a.give):
                 self._reject(nation, a, f"you cannot pay {a.give}")
                 return
-            self._propose(kind, nation, a.target, give=a.give, receive=a.receive)
+            if error := self._terms_error(nation, a.target, a):
+                self._reject(nation, a, error)
+                return
+            self._propose(kind, nation, a.target, **_terms(a, kind))
             return
         self._propose(kind, nation, a.target)
 
@@ -551,7 +724,9 @@ class _Resolver:
         elif not self.s.nations[nation].resources.covers(a.give):
             self._reject(nation, a, f"you cannot pay {a.give}")
         else:
-            self._propose(ProposalKind.TRADE, nation, a.target, give=a.give, receive=a.receive)
+            self._propose(
+                ProposalKind.TRADE, nation, a.target, give=a.give, receive=a.receive, note=a.note
+            )
 
     def _gift(self, nation: NationId, a: Gift) -> None:
         if error := self._target_error(nation, a.target):
@@ -565,6 +740,13 @@ class _Resolver:
             return
         target = self.s.nations[a.target]
         target.resources = target.resources + a.resources
+        rules = self.s.rules
+        worth = sum(
+            n * w for n, w in zip(a.resources.amounts().values(), (1, 3, 2, 1, 2), strict=True)
+        )
+        self._opine(
+            a.target, nation, min(rules.opinion_gift_max, worth // rules.opinion_gift_per_ducats)
+        )
         self._emit(
             EventKind.GIFT,
             f"{self._name(nation)} sends {a.resources} to {target.name}",
@@ -636,6 +818,17 @@ class _Resolver:
             needed = rules.buildings[spec.requires].name.lower()
             self._reject(nation, a, f"{spec.name.lower()} need {_article(needed)} in the province")
             return
+        for limit in self.s.treaties:
+            bound = limit.kind == TreatyKind.ARMY_LIMIT and limit.payer == nation
+            if bound and self.s.troops_of(nation) + a.regiments > limit.amount:
+                other = limit.parties[1] if limit.parties[0] == nation else limit.parties[0]
+                self._reject(
+                    nation,
+                    a,
+                    f"the peace with {self._name(other)} limits your army to "
+                    f"{limit.amount} regiments",
+                )
+                return
         cost = recruit_cost(rules, a.regiments, province.buildings, a.unit)
         if error := self._pay(nation, cost):
             self._reject(nation, a, error)
@@ -1111,6 +1304,8 @@ class _Resolver:
         state.set_army(troops)
         state.unrest = self.s.rules.unrest_turns
         loser = self._name(previous) if previous else "independence"
+        if previous is not None:
+            self._opine(previous, nation, self.s.rules.opinion_province_taken)
         self._emit(
             EventKind.PROVINCE_CAPTURED,
             f"{self._name(nation)} takes {self._pname(province)} from {loser}",
@@ -1166,6 +1361,8 @@ class _Resolver:
     def _end_of_turn(self) -> None:
         for nation in self.s.alive_nations():
             self._produce_and_feed(nation)
+        self._pay_tributes()
+        self._drift_opinions()
         for province in self.s.provinces.values():
             settles = 2 if BuildingKind.CATHEDRAL in province.buildings else 1
             province.unrest = max(0, province.unrest - settles)
@@ -1183,6 +1380,40 @@ class _Resolver:
         self._check_victory()
         if not self.s.finished:
             self.s.turn += 1
+
+    def _pay_tributes(self) -> None:
+        for t in self.s.treaties:
+            if t.kind != TreatyKind.TRIBUTE or t.payer is None:
+                continue
+            payee = t.parties[1] if t.parties[0] == t.payer else t.parties[0]
+            payer = self.s.nations[t.payer]
+            amount = min(t.amount, payer.resources.ducats)
+            if not amount:
+                continue
+            payer.resources = payer.resources - Resources(ducats=amount)
+            receiver = self.s.nations[payee]
+            receiver.resources = receiver.resources + Resources(ducats=amount)
+            self._emit(
+                EventKind.TRIBUTE_PAID,
+                f"{payer.name} pays {self._name(payee)} its tribute of {amount} ducats",
+                nations=(t.payer, payee),
+                audience=(t.payer, payee),
+                ducats=amount,
+            )
+
+    def _drift_opinions(self) -> None:
+        """Grudges and friendships fade; a common enemy brings courts together."""
+        rules = self.s.rules
+        for opinions in self.s.opinions.values():
+            for other, value in list(opinions.items()):
+                fade = max(1, round(abs(value) * rules.opinion_decay)) if value else 0
+                opinions[other] = value - fade if value > 0 else value + fade
+        alive = self.s.alive_nations()
+        for a in alive:
+            enemies = set(self.s.enemies_of(a))
+            for b in alive:
+                if a != b and enemies & set(self.s.enemies_of(b)):
+                    self._opine(a, b, rules.opinion_shared_enemy)
 
     def _produce_and_feed(self, nation: NationId) -> None:
         """Income arrives, the manpower pool is capped, and the army is fed and paid. Every
@@ -1260,6 +1491,17 @@ class _Resolver:
 
     def _year(self, turn: int) -> int:
         return self.s.rules.start_year + turn - 1
+
+
+def _terms(t: Terms, kind: ProposalKind) -> dict[str, object]:
+    """A proposal's fields from an action's terms."""
+    if kind == ProposalKind.TRADE:
+        return {"give": t.give, "receive": t.receive, "note": t.note}
+    return t.model_dump(include=set(Terms.model_fields))
+
+
+def _as_terms(p: Proposal) -> Terms:
+    return Terms(cede=p.cede, demand=p.demand)
 
 
 def _article(name: str) -> str:

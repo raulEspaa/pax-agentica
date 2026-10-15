@@ -713,6 +713,23 @@ class Rules(BaseModel):
     treaty_break_stability_penalty: int = 2
     non_aggression_turns: int = 10
     truce_turns: int = 5
+    tribute_years: int = 10  # a peace's yearly tribute is paid this long
+    ceded_unrest_turns: int = 2  # a province handed over by treaty settles faster than a conquest
+
+    # opinion: what each court thinks of each other, from -100 to 100
+    opinion_gift_per_ducats: int = 4  # +1 for every this many ducats' worth
+    opinion_gift_max: int = 25
+    opinion_trade: int = 5
+    opinion_treaty: dict[str, int] = Field(
+        default_factory=lambda: {"alliance": 20, "non_aggression": 10, "peace": 5}
+    )
+    opinion_war_declared: int = -40  # the victim's opinion of the aggressor
+    opinion_betrayal: int = -10  # everyone else's opinion of a treaty breaker
+    opinion_province_taken: int = -10
+    opinion_call_answered: int = 20
+    opinion_call_ignored: int = -30
+    opinion_shared_enemy: int = 3  # a year, fighting the same enemy
+    opinion_decay: float = 0.1  # a year, towards zero
 
     # victory
     domination_share: float = 0.5  # own this share of all provinces to win outright
@@ -807,6 +824,8 @@ class TreatyKind(StrEnum):
     ALLIANCE = "alliance"
     NON_AGGRESSION = "non_aggression"
     TRUCE = "truce"
+    TRIBUTE = "tribute"  # a peace term: `payer` pays `amount` ducats a year
+    ARMY_LIMIT = "army_limit"  # a peace term: `payer` may not recruit beyond `amount` regiments
 
 
 class Treaty(BaseModel):
@@ -814,6 +833,8 @@ class Treaty(BaseModel):
     parties: tuple[NationId, NationId]  # sorted, see `pair`
     since: int
     until: int | None = None  # last turn it is in force; None: until cancelled
+    payer: NationId | None = None  # tribute and army limit: the side bound by it
+    amount: int = 0
 
 
 class War(BaseModel):
@@ -837,9 +858,16 @@ class Proposal(BaseModel):
     sender: NationId
     recipient: NationId
     turn: int  # when it was made
-    give: Resources = Resources()  # trade: what the sender gives
-    receive: Resources = Resources()  # trade: what the sender asks for
+    give: Resources = Resources()  # trade and peace: what the sender gives
+    receive: Resources = Resources()  # trade and peace: what the sender asks for
     enemy: NationId | None = None  # call to arms: who the sender is fighting
+    cede: list[ProvinceId] = Field(default_factory=list)  # peace: provinces the sender hands over
+    demand: list[ProvinceId] = Field(default_factory=list)  # peace: provinces it asks for
+    pay_tribute: int = 0  # peace: ducats a year the sender pays
+    ask_tribute: int = 0  # peace: ducats a year the sender asks for
+    limit_army: int | None = None  # peace: the recipient's army may not grow beyond this
+    note: str = ""  # the sender's words, for the recipient to weigh
+    reply_to: int | None = None  # the proposal this one counters
 
 
 class GameState(BaseModel):
@@ -856,6 +884,7 @@ class GameState(BaseModel):
     next_proposal_id: int = 1
     generals: list[General] = Field(default_factory=list)
     next_general_id: int = 1
+    opinions: dict[NationId, dict[NationId, int]] = Field(default_factory=dict)  # a's of b
     last_events: list[Event] = Field(default_factory=list)  # what happened last turn
     finished: bool = False
     winner: NationId | None = None
@@ -899,6 +928,10 @@ class GameState(BaseModel):
 
     def troops_of(self, nation: NationId) -> int:
         return sum(s.troops for s in self.provinces.values() if s.owner == nation)
+
+    def opinion(self, of: NationId, about: NationId) -> int:
+        """What `of` thinks of `about`, from -100 to 100."""
+        return self.opinions.get(of, {}).get(about, 0)
 
     def general(self, general_id: int) -> General | None:
         return next((g for g in self.generals if g.id == general_id), None)
