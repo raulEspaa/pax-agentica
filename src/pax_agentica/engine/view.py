@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict
 
 from pax_agentica.engine.events import Event
 from pax_agentica.engine.mechanics import (
+    army_of,
     building_cost,
     building_output,
     building_slots,
@@ -41,6 +42,7 @@ from pax_agentica.engine.model import (
     TechBranch,
     Terrain,
     TreatyKind,
+    UnitKind,
 )
 from pax_agentica.engine.realm import Modifiers, advisor_candidates, advisor_hire_cost, modifiers
 
@@ -72,9 +74,12 @@ class ProvinceView(_View):
     unrest: int  # turns before a recently conquered province produces again
     is_capital: bool
     troops: int | None  # None: hidden by the fog of war
+    army: dict[UnitKind, int] | None  # the same regiments by kind; None when hidden
     general: GeneralView | None  # the general here, if you can see this province
     develop_cost: Resources  # for its owner, after universities and engineering
-    recruit_cost: Resources  # per regiment, for its owner, after an armory
+    recruit_cost: Resources  # per pikeman, for its owner, after an armory
+    recruit_costs: dict[UnitKind, Resources]  # yours only: per regiment of each kind raisable here
+    monument: int | None  # level of its monument (see rules.monuments); None if it has none
     neighbors: tuple[ProvinceId, ...]
     sea_neighbors: tuple[ProvinceId, ...]
 
@@ -110,6 +115,7 @@ class MyNation(_View):
     army_upkeep_per_turn: Resources  # what the army eats and is paid, plus advisors' salaries
     manpower_cap: int  # the pool never grows beyond this; barracks raise it
     regiments: int
+    army: dict[UnitKind, int]  # every regiment you have, by kind
     provinces: tuple[ProvinceId, ...]
     score: int
     at_war_with: tuple[NationId, ...]
@@ -198,11 +204,20 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             unrest=ps.unrest,
             is_capital=pid in capitals and ps.owner is not None,
             troops=ps.troops if pid in seen else None,
+            army=ps.army() if pid in seen else None,
             general=_general(state, pid) if pid in seen else None,
             develop_cost=develop_cost(
                 state.rules, ps.development, ps.buildings, _mods(state, ps.owner).building_discount
             ),
             recruit_cost=recruit_cost(state.rules, 1, ps.buildings),
+            recruit_costs={
+                kind: recruit_cost(state.rules, 1, ps.buildings, kind)
+                for kind, spec in state.rules.units.items()
+                if spec.requires is None or spec.requires in ps.buildings
+            }
+            if ps.owner == nation
+            else {},
+            monument=ps.monument if pid in state.rules.monuments else None,
             neighbors=definition.neighbors,
             sea_neighbors=definition.sea_neighbors,
         )
@@ -230,6 +245,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         army_upkeep_per_turn=nation_upkeep(state, nation),
         manpower_cap=manpower_cap(state, nation),
         regiments=state.troops_of(nation),
+        army=army_of(state, nation),
         provinces=tuple(state.provinces_of(nation)),
         score=state.score(nation),
         at_war_with=tuple(state.enemies_of(nation)),

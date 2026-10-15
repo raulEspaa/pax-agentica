@@ -2,7 +2,7 @@
 
 import math
 import random
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 
 from pax_agentica.engine.model import (
@@ -14,6 +14,8 @@ from pax_agentica.engine.model import (
     Resources,
     Rules,
     TechBranch,
+    Terrain,
+    UnitKind,
 )
 from pax_agentica.engine.realm import advisor_salaries, modifiers
 
@@ -162,6 +164,36 @@ def research_cost(
     )
 
 
+def unit_cost(rules: Rules, kind: UnitKind) -> Resources:
+    return rules.units[kind].cost or rules.recruit_cost
+
+
+def army_strength(
+    rules: Rules, army: Mapping[UnitKind, int], terrain: Terrain, *, attacking: bool
+) -> float:
+    """What a mix of regiments is worth in battle on this ground, combined arms included. A
+    pikeman on plains is worth 1."""
+    total = sum(army.values())
+    if total == 0:
+        return 0.0
+    power = 0.0
+    for kind, n in army.items():
+        spec = rules.units[kind]
+        power += n * (spec.attack if attacking else spec.defence) * spec.terrain.get(terrain, 1.0)
+    kinds = sum(1 for n in army.values() if n and n / total >= rules.combined_arms_share)
+    bonus = max((b for k, b in rules.combined_arms_bonus.items() if kinds >= k), default=0.0)
+    return power * (1 + bonus)
+
+
+def siege_levels(rules: Rules, army: Mapping[UnitKind, int]) -> int:
+    """How many fort levels an attacking army's guns knock off."""
+    total = sum(army.values())
+    if not total:
+        return 0
+    share = army.get(UnitKind.ARTILLERY, 0) / total
+    return math.floor(share / rules.artillery_share_per_fort_level + 1e-9)
+
+
 def battle_factor(state: GameState, nation: NationId | None, general_skill: int = 0) -> float:
     """How much harder an army fights thanks to its nation's military technology and its
     general. Independent levies have neither."""
@@ -169,18 +201,33 @@ def battle_factor(state: GameState, nation: NationId | None, general_skill: int 
     return (1 + mods.battle_power) * (1 + state.rules.general_bonus_per_skill * general_skill)
 
 
-def army_upkeep(rules: Rules, regiments: int, grain_factor: float = 1.0) -> Resources:
-    """What an army eats and is paid each year."""
+def army_upkeep(
+    rules: Rules, regiments: int | Mapping[UnitKind, int], grain_factor: float = 1.0
+) -> Resources:
+    """What an army eats and is paid each year. A plain number is that many pikemen."""
+    army = {UnitKind.INFANTRY: regiments} if isinstance(regiments, int) else regiments
+    pay = sum(n * rules.units[k].pay for k, n in army.items())
+    rations = sum(n * rules.units[k].rations for k, n in army.items())
     return Resources(
-        grain=math.ceil(regiments * rules.grain_upkeep_per_regiment * grain_factor),
-        ducats=math.ceil(regiments * rules.ducat_upkeep_per_regiment),
+        grain=math.ceil(rations * rules.grain_upkeep_per_regiment * grain_factor - 1e-9),
+        ducats=math.ceil(pay * rules.ducat_upkeep_per_regiment - 1e-9),
     )
+
+
+def army_of(state: GameState, nation: NationId) -> dict[UnitKind, int]:
+    """Every regiment of a nation, by kind."""
+    total = dict.fromkeys(UnitKind, 0)
+    for p in state.provinces.values():
+        if p.owner == nation:
+            for kind, n in p.army().items():
+                total[kind] += n
+    return total
 
 
 def nation_upkeep(state: GameState, nation: NationId) -> Resources:
     """The army's food and pay, plus the advisors' salaries."""
     mods = modifiers(state, nation)
-    army = army_upkeep(state.rules, state.troops_of(nation), mods.grain_upkeep_factor)
+    army = army_upkeep(state.rules, army_of(state, nation), mods.grain_upkeep_factor)
     salaries = advisor_salaries(state.rules, state.nations[nation].advisors)
     return army + Resources(ducats=salaries)
 
@@ -213,9 +260,12 @@ def develop_cost(
 
 
 def recruit_cost(
-    rules: Rules, regiments: int, buildings: Collection[BuildingKind] = ()
+    rules: Rules,
+    regiments: int,
+    buildings: Collection[BuildingKind] = (),
+    kind: UnitKind = UnitKind.INFANTRY,
 ) -> Resources:
-    cost = rules.recruit_cost.times(regiments)
+    cost = unit_cost(rules, kind).times(regiments)
     if BuildingKind.ARMORY in buildings:
         iron = math.ceil(cost.iron * (1 - rules.armory_iron_discount))
         cost = cost.model_copy(update={"iron": iron})
@@ -229,14 +279,17 @@ def stability_cost(rules: Rules, discount: float = 0.0) -> Resources:
 # ---------------------------------------------------------------- combat
 
 
-def defense_multiplier(state: GameState, origin: ProvinceId, target: ProvinceId) -> float:
-    """How much harder the defenders of `target` fight against an attack from `origin`."""
+def defense_multiplier(
+    state: GameState, origin: ProvinceId, target: ProvinceId, siege: int = 0
+) -> float:
+    """How much harder the defenders of `target` fight against an attack from `origin`.
+    `siege`: fort levels the attackers' guns knock off."""
     rules = state.rules
     target_state = state.provinces[target]
     terrain = rules.terrain_defense[state.map.provinces[target].terrain]
     owner = target_state.owner
     attacker = modifiers(state, state.provinces[origin].owner)
-    forts = max(0, target_state.fort - attacker.ignores_fort_levels)
+    forts = max(0, target_state.fort - attacker.ignores_fort_levels - siege)
     bonus = modifiers(state, owner).fort_bonus_per_level * forts
     if BuildingKind.TRAINING_GROUNDS in target_state.buildings:
         bonus += 0.2
@@ -264,14 +317,23 @@ def fight(
     rng: random.Random,
     attack_factor: float = 1.0,
     defence_factor: float = 1.0,
+    attack_quality: float = 1.0,
+    defence_quality: float = 1.0,
 ) -> BattleResult:
     """Resolve one battle. The loser's committed regiments are destroyed; the winner loses a share
     proportional to how close the fight was, but always keeps at least one regiment.
 
     `multiplier` is the ground (terrain, forts, capital, strait); the factors are technology and
-    generals on each side."""
-    att = attackers * attack_factor * rng.uniform(rules.roll_min, rules.roll_max)
-    dfn = defenders * multiplier * defence_factor * rng.uniform(rules.roll_min, rules.roll_max)
+    generals on each side; the qualities are what an average regiment of each army is worth
+    (its mix of kinds on this ground, see `army_strength`)."""
+    att = attackers * attack_quality * attack_factor * rng.uniform(rules.roll_min, rules.roll_max)
+    dfn = (
+        defenders
+        * defence_quality
+        * multiplier
+        * defence_factor
+        * rng.uniform(rules.roll_min, rules.roll_max)
+    )
     if att > dfn:
         losses = min(attackers - 1, math.ceil(attackers * rules.winner_loss_factor * dfn / att))
         return BattleResult(True, att, dfn, losses, defenders)

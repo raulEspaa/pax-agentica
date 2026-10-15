@@ -35,6 +35,7 @@ from pax_agentica.engine.actions import (
     Recruit,
     Research,
     Respond,
+    UpgradeMonument,
 )
 from pax_agentica.engine.events import EventKind
 from pax_agentica.engine.model import (
@@ -45,6 +46,7 @@ from pax_agentica.engine.model import (
     ProvinceId,
     TechBranch,
     TreatyKind,
+    UnitKind,
 )
 from pax_agentica.engine.view import ProposalView, ProvinceView
 
@@ -278,9 +280,27 @@ class _Planner:
         if regiments <= 0 or not self.mine:
             return
         where = self._staging_province()
-        self.actions.append(Recruit(province=where, regiments=regiments))
-        self.troops[where] += regiments
-        self.budget = self.budget - cost.times(regiments)
+        offered = self.provinces[where].recruit_costs
+        # A balanced army: a quarter archers, a fifth horse where there are stables, a tenth
+        # guns in war where there is a foundry; pikemen for the rest.
+        mix = {
+            UnitKind.ARTILLERY: 0.1 if self.enemies else 0.0,
+            UnitKind.CAVALRY: 0.2,
+            UnitKind.ARCHERS: 0.25,
+        }
+        left = regiments
+        for kind, part in [*mix.items(), (UnitKind.INFANTRY, 1.0)]:
+            price = offered.get(kind, cost if kind == UnitKind.INFANTRY else None)
+            if price is None:
+                continue
+            n = left if kind == UnitKind.INFANTRY else min(round(regiments * part), left)
+            while n > 0 and not self.budget.covers(price.times(n)):
+                n -= 1
+            if n > 0:
+                self.actions.append(Recruit(province=where, regiments=n, unit=kind))
+                self.budget = self.budget - price.times(n)
+                self.troops[where] += n
+                left -= n
 
     # ------------------------------------------------------------ 4. attack
 
@@ -334,6 +354,7 @@ class _Planner:
         self._research(reserve)
         self._council(reserve)
         self._build(reserve)
+        self._monument(reserve)
         starving = self.me.income_per_turn.grain < self.me.army_upkeep_per_turn.grain
         candidates = sorted(
             (
@@ -380,15 +401,22 @@ class _Planner:
         staging = self._staging_province()
         if self.enemies:
             wishes.append((BuildingKind.ARMORY, [staging]))
+        if self.enemies:
+            wishes.append((BuildingKind.CANNON_FOUNDRY, [staging]))
         wishes += [
             (BuildingKind.MARKETPLACE, richest[:2]),
+            (BuildingKind.ROYAL_EXCHANGE, richest[:1]),
             (BuildingKind.BANK, richest[:2]),
+            (BuildingKind.STABLES, [staging]),
+            (BuildingKind.OBSERVATORY, richest[1:2]),
             (BuildingKind.UNIVERSITY, richest[:1]),
             (BuildingKind.MARKETPLACE, richest),
+            (BuildingKind.MILITARY_ACADEMY, [me.capital]),
             (BuildingKind.TRAINING_GROUNDS, [staging]),
             (BuildingKind.CATHEDRAL, richest[:1]),
             (BuildingKind.BANK, richest),
         ]
+        owned = {b for pid in self.mine for b in self.provinces[pid].buildings}
         cost = me.building_costs
         for kind, places in wishes:
             spec = rules.buildings[kind]
@@ -396,6 +424,7 @@ class _Planner:
                 p = self.provinces[pid]
                 if (
                     kind not in p.buildings
+                    and not (spec.unique and kind in owned)
                     and (spec.requires is None or spec.requires in p.buildings)
                     and len(p.buildings) < p.building_slots
                     and not p.unrest
@@ -405,6 +434,19 @@ class _Planner:
                     self.actions.append(Build(province=pid, building=kind))
                     self.budget = self.budget - cost[kind]
                     return
+
+    def _monument(self, reserve: int) -> None:
+        """Raise a monument when the treasury is comfortably full."""
+        rules = self.v.rules
+        for pid in sorted(self.mine):
+            level = self.provinces[pid].monument
+            if level is None or level >= rules.max_monument_level or self.provinces[pid].unrest:
+                continue
+            cost = rules.monument_cost.times(level + 1)
+            if self.budget.covers(cost + Resources(ducats=reserve + 60)):
+                self.actions.append(UpgradeMonument(province=pid))
+                self.budget = self.budget - cost
+                return
 
     def _unlocked(self, requirement: tuple[TechBranch, int] | None) -> bool:
         return requirement is None or self.me.technology[requirement[0]] >= requirement[1]

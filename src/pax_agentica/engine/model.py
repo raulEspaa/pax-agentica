@@ -103,6 +103,12 @@ class BuildingKind(StrEnum):
     TRAINING_GROUNDS = "training_grounds"
     FORT = "fort"
     CITADEL = "citadel"
+    STABLES = "stables"
+    CANNON_FOUNDRY = "cannon_foundry"
+    # great works: one per realm, felt across all of it
+    MILITARY_ACADEMY = "military_academy"
+    ROYAL_EXCHANGE = "royal_exchange"
+    OBSERVATORY = "observatory"
 
 
 class TechBranch(StrEnum):
@@ -126,15 +132,18 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
     return {
         TechBranch.MILITARY: [
             t(name="Pike and Shot", unlocks="the armory"),
-            t(name="Bastions", unlocks="the citadel"),
-            t(name="Tercios", unlocks="training grounds"),
+            t(name="Bastions", unlocks="the citadel and the cannon foundry"),
+            t(name="Tercios", unlocks="training grounds and the military academy"),
             t(name="Field Artillery", unlocks="your attacks ignore one level of enemy forts"),
-            t(name="Military Revolution", unlocks="a fourth general"),
+            t(name="Military Revolution", unlocks="one more general"),
         ],
         TechBranch.ECONOMY: [
             t(name="Banking", unlocks="the bank"),
-            t(name="Printing Press", unlocks="the university"),
-            t(name="Mercantilism", unlocks="marketplaces yield +150% instead of +100%"),
+            t(name="Printing Press", unlocks="the university and the observatory"),
+            t(
+                name="Mercantilism",
+                unlocks="marketplaces yield +150% instead of +100%, and the royal exchange",
+            ),
             t(name="Humanism", unlocks="the cathedral"),
             t(name="Cameralism", unlocks="one more building slot in every province"),
         ],
@@ -196,6 +205,7 @@ class BuildingSpec(BaseModel):
     effect: str
     requires: BuildingKind | None = None
     requires_tech: tuple[TechBranch, int] | None = None  # a technology level to unlock it
+    unique: bool = False  # a great work: one per realm, its effect felt across all of it
 
 
 def default_buildings() -> dict[BuildingKind, BuildingSpec]:
@@ -281,6 +291,282 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             effect="defenders here fight another 25% harder",
             requires=BuildingKind.FORT,
             requires_tech=(TechBranch.MILITARY, 2),
+        ),
+        BuildingKind.STABLES: BuildingSpec(
+            name="Stables",
+            category=military,
+            cost=Resources(ducats=45, timber=8),
+            effect="lets this province raise cavalry",
+        ),
+        BuildingKind.CANNON_FOUNDRY: BuildingSpec(
+            name="Cannon foundry",
+            category=military,
+            cost=Resources(ducats=90, iron=10, timber=6),
+            effect="lets this province cast artillery",
+            requires_tech=(TechBranch.MILITARY, 2),
+        ),
+        BuildingKind.MILITARY_ACADEMY: BuildingSpec(
+            name="Military academy",
+            category=military,
+            cost=Resources(ducats=140, iron=6, timber=12),
+            effect="one more general for the realm; generals appointed here start a star higher",
+            requires_tech=(TechBranch.MILITARY, 3),
+            unique=True,
+        ),
+        BuildingKind.ROYAL_EXCHANGE: BuildingSpec(
+            name="Royal exchange",
+            category=civil,
+            cost=Resources(ducats=160, iron=4, timber=14),
+            effect="+10% ducat income across the realm",
+            requires_tech=(TechBranch.ECONOMY, 3),
+            unique=True,
+        ),
+        BuildingKind.OBSERVATORY: BuildingSpec(
+            name="Observatory",
+            category=civil,
+            cost=Resources(ducats=120, iron=4, timber=10),
+            effect="research 15% cheaper",
+            requires_tech=(TechBranch.ECONOMY, 2),
+            unique=True,
+        ),
+    }
+
+
+# ---------------------------------------------------------------- regiments
+
+
+class UnitKind(StrEnum):
+    INFANTRY = "infantry"
+    ARCHERS = "archers"
+    CAVALRY = "cavalry"
+    ARTILLERY = "artillery"
+
+
+class UnitSpec(BaseModel):
+    """One kind of regiment: what it costs, what it eats and how it fights. A regiment's strength
+    is its attack (or defence) times the terrain it fights on."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    cost: Resources | None = None  # None: the rules' recruit_cost, the price of a pikeman
+    pay: float = 1.0  # times the rules' yearly pay per regiment
+    rations: float = 1.0  # times the rules' yearly grain per regiment
+    attack: float
+    defence: float
+    terrain: dict[Terrain, float] = Field(default_factory=dict)  # strength on that ground
+    requires: BuildingKind | None = None  # in the province that raises it
+    role: str  # one line, for humans and prompts
+
+
+def default_units() -> dict[UnitKind, UnitSpec]:
+    return {
+        UnitKind.INFANTRY: UnitSpec(
+            name="Pikemen",
+            attack=1.0,
+            defence=1.0,
+            role="the backbone of every army: cheap and steady on any ground",
+        ),
+        UnitKind.ARCHERS: UnitSpec(
+            name="Archers and arquebusiers",
+            cost=Resources(ducats=7, manpower=2, iron=1, timber=2),
+            attack=0.8,
+            defence=1.3,
+            terrain={Terrain.FOREST: 1.2, Terrain.HILLS: 1.2},
+            role="hold the line: strong in defence, best in forests and hills",
+        ),
+        UnitKind.CAVALRY: UnitSpec(
+            name="Cavalry",
+            cost=Resources(ducats=14, manpower=2, iron=3),
+            pay=2.0,
+            rations=2.0,
+            attack=1.5,
+            defence=0.9,
+            terrain={
+                Terrain.PLAINS: 1.25,
+                Terrain.FOREST: 0.75,
+                Terrain.MARSH: 0.6,
+                Terrain.MOUNTAINS: 0.6,
+            },
+            requires=BuildingKind.STABLES,
+            role="the charge: the strongest attack, deadly on open plains, lost in marsh and "
+            "mountains",
+        ),
+        UnitKind.ARTILLERY: UnitSpec(
+            name="Artillery",
+            cost=Resources(ducats=20, manpower=1, iron=6, timber=2),
+            pay=2.0,
+            attack=1.1,
+            defence=1.2,
+            requires=BuildingKind.CANNON_FOUNDRY,
+            role="breaks walls: every tenth of an attacking army in guns knocks one fort level off",
+        ),
+    }
+
+
+# ---------------------------------------------------------------- monuments
+
+
+class MonumentSpec(BaseModel):
+    """A great building of its age, standing in one province: whoever holds the province enjoys
+    it, and can raise it level by level (0 is a site where it is not yet built)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    bonus: str  # the `Modifiers` field it raises
+    per_level: float
+    effect: str  # per level, in words
+    lore: str
+    level_1500: int = Field(ge=0, le=3)
+
+
+def default_monuments() -> dict[str, MonumentSpec]:
+    m = MonumentSpec
+    return {
+        "london": m(
+            name="Westminster Abbey",
+            bonus="stability_discount",
+            per_level=0.08,
+            effect="stability 8% cheaper",
+            level_1500=2,
+            lore="Where every English monarch since the Conqueror has been crowned; a crown "
+            "blessed here sits easier.",
+        ),
+        "paris": m(
+            name="Notre-Dame de Paris",
+            bonus="research_discount",
+            per_level=0.05,
+            effect="research 5% cheaper",
+            level_1500=2,
+            lore="The cathedral on the Île de la Cité, beside the schools that made Paris the "
+            "lecture hall of Christendom.",
+        ),
+        "constantinople": m(
+            name="Hagia Sophia",
+            bonus="ducat_income",
+            per_level=0.03,
+            effect="+3% ducats",
+            level_1500=3,
+            lore="Justinian's dome, a mosque since 1453: the jewel of the city that sits "
+            "astride two continents and their trade.",
+        ),
+        "andalusia": m(
+            name="The Alhambra",
+            bonus="ducat_income",
+            per_level=0.04,
+            effect="+4% ducats",
+            level_1500=2,
+            lore="The red palace of the Nasrid sultans, surrendered to Ferdinand and Isabella "
+            "in 1492 with all the silk trade of Granada.",
+        ),
+        "madrid": m(
+            name="El Escorial",
+            bonus="building_discount",
+            per_level=0.06,
+            effect="buildings and development 6% cheaper",
+            level_1500=0,
+            lore="Philip II will raise it in the 1560s: monastery, palace and library in grey "
+            "granite. In 1500 it is only a hillside.",
+        ),
+        "vienna": m(
+            name="St. Stephen's Cathedral",
+            bonus="fort_bonus_per_level",
+            per_level=0.05,
+            effect="forts +5% stronger",
+            level_1500=2,
+            lore="Its south tower watches the Danube road; when the Turk comes, the city's "
+            "defence is directed from its height.",
+        ),
+        "moscow": m(
+            name="The Kremlin",
+            bonus="battle_power",
+            per_level=0.03,
+            effect="+3% battle power",
+            level_1500=2,
+            lore="Ivan III has just rebuilt its red walls with Italian masons: the fortress "
+            "heart of a Russia that calls itself the Third Rome.",
+        ),
+        "stockholm": m(
+            name="Tre Kronor",
+            bonus="fort_bonus_per_level",
+            per_level=0.05,
+            effect="forts +5% stronger",
+            level_1500=1,
+            lore="The castle of the Three Crowns on the islet of Stockholm, keep of whoever "
+            "rules Sweden.",
+        ),
+        "venice": m(
+            name="The Arsenal of Venice",
+            bonus="battle_power",
+            per_level=0.03,
+            effect="+3% battle power",
+            level_1500=2,
+            lore="The greatest workshop in Europe: sixteen thousand men can fit out a galley "
+            "in a day.",
+        ),
+        "florence": m(
+            name="Santa Maria del Fiore",
+            bonus="research_discount",
+            per_level=0.05,
+            effect="research 5% cheaper",
+            level_1500=3,
+            lore="Brunelleschi's dome, the largest since antiquity, over the city of the "
+            "Medici, of Leonardo and of Machiavelli.",
+        ),
+        "rome": m(
+            name="St. Peter's Basilica",
+            bonus="stability_discount",
+            per_level=0.08,
+            effect="stability 8% cheaper",
+            level_1500=0,
+            lore="Old St. Peter's is crumbling; in 1506 Pope Julius II will lay the first "
+            "stone of a new basilica, and it will take a century.",
+        ),
+        "krakow": m(
+            name="Wawel Castle",
+            bonus="fort_bonus_per_level",
+            per_level=0.05,
+            effect="forts +5% stronger",
+            level_1500=2,
+            lore="The Jagiellonian seat on its rock over the Vistula, crowning a kingdom that "
+            "stretches to the Black Sea.",
+        ),
+        "rhineland": m(
+            name="Cologne Cathedral",
+            bonus="building_discount",
+            per_level=0.05,
+            effect="buildings and development 5% cheaper",
+            level_1500=1,
+            lore="Begun in 1248 and still unfinished, a crane standing on its south tower for "
+            "centuries.",
+        ),
+        "prussia": m(
+            name="Marienburg",
+            bonus="battle_power",
+            per_level=0.03,
+            effect="+3% battle power",
+            level_1500=2,
+            lore="The brick castle of the Teutonic Knights, the largest in the world, lost to "
+            "Poland and still a soldier's school.",
+        ),
+        "zealand": m(
+            name="Kronborg",
+            bonus="ducat_income",
+            per_level=0.03,
+            effect="+3% ducats",
+            level_1500=0,
+            lore="Where the Øresund narrows to a cannon shot, every ship pays the Sound Dues; "
+            "the great castle comes in 1574.",
+        ),
+        "galicia": m(
+            name="Santiago de Compostela",
+            bonus="stability_discount",
+            per_level=0.06,
+            effect="stability 6% cheaper",
+            level_1500=2,
+            lore="The end of the Way of St. James, where pilgrims from all of Europe come to "
+            "the apostle's tomb.",
         ),
     }
 
@@ -382,9 +668,26 @@ class Rules(BaseModel):
     marshal_battle_bonus: float = 0.03  # battle power per point of skill
     advisor_pool_years: int = 5  # new candidates come to court this often
 
+    # regiments
+    units: dict[UnitKind, UnitSpec] = Field(default_factory=default_units)
+    combined_arms_share: float = 0.1  # a kind counts towards combined arms from this share
+    combined_arms_bonus: dict[int, float] = Field(
+        default_factory=lambda: {3: 0.1, 4: 0.15}  # kinds present -> battle power
+    )
+    artillery_share_per_fort_level: float = 0.1  # this share of guns ignores one fort level
+
+    # monuments: raising one to level n costs n times these
+    monuments: dict[str, MonumentSpec] = Field(default_factory=default_monuments)
+    monument_cost: Resources = Resources(ducats=90, timber=10)
+    max_monument_level: int = 3
+
+    # great works
+    royal_exchange_income_bonus: float = 0.1
+    observatory_research_discount: float = 0.15
+
     # generals
     general_cost: Resources = Resources(ducats=50)
-    max_generals: int = 3
+    max_generals: int = 4
     general_bonus_per_skill: float = 0.1  # battle power per point of skill (1 to 3)
 
     # combat
@@ -421,15 +724,60 @@ class Rules(BaseModel):
 
 class ProvinceState(BaseModel):
     owner: NationId | None  # None: an independent minor, defended by its own garrison
-    troops: NonNegativeInt  # regiments stationed here
+    troops: NonNegativeInt  # regiments stationed here, of every kind
     development: int = Field(ge=1)
     buildings: list[BuildingKind] = Field(default_factory=list)
     unrest: NonNegativeInt = 0  # turns left before a conquered province produces anything
+    # Regiments of each kind other than infantry; whatever else `troops` counts is infantry.
+    units: dict[UnitKind, NonNegativeInt] = Field(default_factory=dict)
+    monument: NonNegativeInt = 0  # level of the province's monument, if it has one (0: a site)
 
     @property
     def fort(self) -> int:
         """Fort level: how many fortifications (fort, citadel) stand here."""
         return sum(b in (BuildingKind.FORT, BuildingKind.CITADEL) for b in self.buildings)
+
+    def army(self) -> dict[UnitKind, int]:
+        """The garrison by kind, every kind listed."""
+        left = self.troops
+        out = dict.fromkeys(UnitKind, 0)
+        for kind in (UnitKind.ARTILLERY, UnitKind.CAVALRY, UnitKind.ARCHERS):
+            out[kind] = min(self.units.get(kind, 0), left)
+            left -= out[kind]
+        out[UnitKind.INFANTRY] = left
+        return out
+
+    def set_army(self, army: dict[UnitKind, int]) -> None:
+        self.troops = sum(army.values())
+        self.units = {k: n for k, n in army.items() if k != UnitKind.INFANTRY and n}
+
+    def add(self, army: dict[UnitKind, int]) -> None:
+        mine = self.army()
+        self.set_army({k: mine[k] + army.get(k, 0) for k in UnitKind})
+
+    def take(
+        self, regiments: int, wanted: dict[UnitKind, int] | None = None
+    ) -> dict[UnitKind, int]:
+        """Remove regiments: exactly `wanted` if given (the caller checked it is here), else a
+        proportional mix. Returns what left."""
+        mine = self.army()
+        out = dict(wanted) if wanted is not None else share(mine, regiments)
+        self.set_army({k: mine[k] - out.get(k, 0) for k in UnitKind})
+        return {k: out.get(k, 0) for k in UnitKind}
+
+
+def share(army: dict[UnitKind, int], regiments: int) -> dict[UnitKind, int]:
+    """`regiments` drawn from `army` in proportion (largest remainders), never more than it has."""
+    total = sum(army.values())
+    regiments = min(regiments, total)
+    if total == 0 or regiments == 0:
+        return dict.fromkeys(UnitKind, 0)
+    exact = {k: army.get(k, 0) * regiments / total for k in UnitKind}
+    out = {k: int(v) for k, v in exact.items()}
+    rest = regiments - sum(out.values())
+    for k in sorted(UnitKind, key=lambda k: (-(exact[k] - out[k]), list(UnitKind).index(k)))[:rest]:
+        out[k] += 1
+    return out
 
 
 class NationState(BaseModel):

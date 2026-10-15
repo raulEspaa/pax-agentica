@@ -20,6 +20,7 @@ from pax_agentica.engine.model import (
     ProvinceId,
     Resources,
     TechBranch,
+    UnitKind,
 )
 
 MAX_ACTIONS_PER_TURN = 50
@@ -35,12 +36,21 @@ class _Action(BaseModel):
 # ---------------------------------------------------------------- economy
 
 
+Composition = Annotated[
+    dict[UnitKind, Annotated[int, Field(ge=0, le=500)]],
+    Field(description='Regiments of each kind, e.g. {"infantry": 6, "cavalry": 2}.'),
+]
+
+
 class Recruit(_Action):
-    """Raise new regiments in one of your provinces. Each costs the rules' recruit_cost."""
+    """Raise new regiments of one kind in one of your provinces. Pikemen (infantry) can be
+    raised anywhere; cavalry needs stables in the province and artillery a cannon foundry. See
+    `rules.units` for what each kind costs and how it fights."""
 
     type: Literal["recruit"] = "recruit"
     province: ProvinceId
     regiments: Regiments
+    unit: UnitKind = UnitKind.INFANTRY
 
 
 class Develop(_Action):
@@ -67,6 +77,9 @@ class Disband(_Action):
     type: Literal["disband"] = "disband"
     province: ProvinceId
     regiments: Regiments
+    unit: UnitKind | None = Field(
+        default=None, description="Only this kind; leave out for a proportional mix."
+    )
 
 
 class Research(_Action):
@@ -126,6 +139,11 @@ class Move(_Action):
     general: int | None = Field(
         default=None, description="Id of one of your generals in `origin` to lead them."
     )
+    units: Composition | None = Field(
+        default=None,
+        description="Exactly which regiments go, by kind, adding up to `regiments`. Leave out "
+        "to send a proportional mix of what stands in `origin`.",
+    )
 
 
 class Attack(_Action):
@@ -140,6 +158,12 @@ class Attack(_Action):
     regiments: Regiments
     general: int | None = Field(
         default=None, description="Id of one of your generals in `origin` to lead them."
+    )
+    units: Composition | None = Field(
+        default=None,
+        description="Exactly which regiments attack, by kind, adding up to `regiments`. Leave "
+        "out to send a proportional mix. Cavalry charges best on plains; every tenth of the "
+        "army in artillery knocks a fort level off.",
     )
 
 
@@ -217,6 +241,14 @@ class CancelTreaty(_Action):
     kind: Literal["alliance", "non_aggression"]
 
 
+class UpgradeMonument(_Action):
+    """Raise the monument of one of your provinces by a level (from a bare site to level 1, up
+    to the rules' maximum). Its bonus grows with every level and serves whoever holds it."""
+
+    type: Literal["upgrade_monument"] = "upgrade_monument"
+    province: ProvinceId
+
+
 class Gift(_Action):
     """Give resources to another nation, no strings attached."""
 
@@ -239,6 +271,7 @@ type Action = Annotated[
     | Develop
     | Disband
     | Build
+    | UpgradeMonument
     | BoostStability
     | Research
     | HireGeneral

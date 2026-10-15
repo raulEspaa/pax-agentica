@@ -85,6 +85,7 @@ def test_hiring_generals_costs_ducats_and_has_a_limit(state: GameState, play: Pl
             HireGeneral(province="lyon"),
             HireGeneral(province="normandy"),
             HireGeneral(province="brittany"),
+            HireGeneral(province="gascony"),
         ],
     )
     assert len(new.generals_of("france")) == state.rules.max_generals

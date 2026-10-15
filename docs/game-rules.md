@@ -60,7 +60,8 @@ breaks the rules is skipped, and the engine tells its author why next turn.
 **A conquered province is in unrest** for 5 turns and produces nothing.
 
 **Armies cost every year.** At the end of each turn every regiment eats 1 grain, and the army is
-paid half a ducat per regiment (rounded up for the whole army). Regiments that cannot
+paid half a ducat per regiment (rounded up for the whole army; cavalry and artillery cost
+double, cavalry eats double). Regiments that cannot
 be fed or paid desert.
 
 **Manpower is finite.** The pool fills up to 10 + 6 × your yearly manpower; anything above is
@@ -96,6 +97,42 @@ provinces.
 | Training grounds | military | 70 ducats, 2 manpower, 8 timber | the garrison here fights 20% harder; needs military 3 |
 | Fort | military | 60 ducats, 6 iron, 10 timber | defenders here fight 25% harder |
 | Citadel | military | 100 ducats, 2 manpower, 12 iron, 15 timber | another +25% defence; needs a fort and military 2 |
+| Stables | military | 45 ducats, 8 timber | lets this province raise cavalry |
+| Cannon foundry | military | 90 ducats, 10 iron, 6 timber | lets this province cast artillery; needs military 2 |
+
+**Great works** stand once in a realm and are felt across all of it:
+
+| Great work | Cost | Effect |
+|---|---|---|
+| Military academy | 140 ducats, 6 iron, 12 timber | one more general; generals appointed here start a star higher; needs military 3 |
+| Royal exchange | 160 ducats, 4 iron, 14 timber | +10% ducat income; needs economy 3 |
+| Observatory | 120 ducats, 4 iron, 10 timber | research 15% cheaper; needs economy 2 |
+
+### Monuments
+
+Sixteen provinces hold a monument of the age, at the level it had reached in 1500. Whoever holds
+the province enjoys its bonus, once per level, so monuments are prizes of war.
+`upgrade_monument` raises one a level (to 3 at most) for 90 ducats and 10 timber times the new
+level.
+
+| Monument | Province | Level in 1500 | Per level |
+|---|---|---|---|
+| Westminster Abbey | London | 2 | stability 8% cheaper |
+| Notre-Dame de Paris | Paris | 2 | research 5% cheaper |
+| Hagia Sophia | Constantinople | 3 | +3% ducats |
+| The Alhambra | Andalusia | 2 | +4% ducats |
+| El Escorial | Madrid | 0 (a site) | buildings and development 6% cheaper |
+| St. Stephen's Cathedral | Vienna | 2 | forts +5% stronger |
+| The Kremlin | Moscow | 2 | +3% battle power |
+| Tre Kronor | Stockholm | 1 | forts +5% stronger |
+| The Arsenal of Venice | Venice | 2 | +3% battle power |
+| Santa Maria del Fiore | Florence | 3 | research 5% cheaper |
+| St. Peter's Basilica | Rome | 0 (a site) | stability 8% cheaper |
+| Wawel Castle | Kraków | 2 | forts +5% stronger |
+| Cologne Cathedral | Rhineland | 1 | buildings and development 5% cheaper |
+| Marienburg | Prussia | 2 | +3% battle power |
+| Kronborg | Zealand | 0 (a site) | +3% ducats |
+| Santiago de Compostela | Galicia | 2 | stability 6% cheaper |
 
 ### Technology
 
@@ -114,10 +151,10 @@ Every level is also a **milestone** that unlocks something new:
 | Level | Military | Economy | Engineering |
 |---|---|---|---|
 | 1 | Pike and Shot: the armory | Banking: the bank | Blast Furnace: ironworks |
-| 2 | Bastions: the citadel | Printing Press: the university | Water Mills: farm estates and lumber mills yield +150% instead of +100% |
-| 3 | Tercios: training grounds | Mercantilism: marketplaces yield +150% instead of +100% | Roads and Canals: armies eat 20% less grain |
+| 2 | Bastions: the citadel and the cannon foundry | Printing Press: the university and the observatory | Water Mills: farm estates and lumber mills yield +150% instead of +100% |
+| 3 | Tercios: training grounds and the military academy | Mercantilism: marketplaces yield +150% instead of +100%, and the royal exchange | Roads and Canals: armies eat 20% less grain |
 | 4 | Field Artillery: your attacks ignore one level of enemy forts | Humanism: the cathedral | Star Forts: forts and citadels give +35% instead of +25% |
-| 5 | Military Revolution: a fourth general | Cameralism: one more building slot in every province | Grand Architecture: provinces can grow to development 15 |
+| 5 | Military Revolution: one more general | Cameralism: one more building slot in every province | Grand Architecture: provinces can grow to development 15 |
 
 ## Government
 
@@ -156,9 +193,24 @@ technology, milestones, ruler and council.
   turn: no attacks until the next turn.
 - **Attack** an adjacent province with some of the regiments in one of yours. Moves happen
   before battles, so regiments that move in the same turn cannot also attack.
-- **Battle**: attacker power = regiments × a roll between 0.8 and 1.2 × the attacker's military
-  technology and general. Defender power = regiments × defence × a roll × the defender's military
-  technology and general. Defence = 1.2 (home ground)
+- **Regiments come in four kinds.** Each fights with its own strength, times the terrain of the
+  battle:
+
+  | Kind | Cost | Upkeep a year | Attack | Defence | Ground | Raised where |
+  |---|---|---|---|---|---|---|
+  | Pikemen (infantry) | 6 ducats, 2 manpower, 2 iron | ½ ducat, 1 grain | 1.0 | 1.0 | any | anywhere |
+  | Archers and arquebusiers | 7 ducats, 2 manpower, 1 iron, 2 timber | ½ ducat, 1 grain | 0.8 | 1.3 | ×1.2 in forest and hills | anywhere |
+  | Cavalry | 14 ducats, 2 manpower, 3 iron | 1 ducat, 2 grain | 1.5 | 0.9 | ×1.25 on plains, ×0.75 forest, ×0.6 marsh and mountains | with stables |
+  | Artillery | 20 ducats, 1 manpower, 6 iron, 2 timber | 1 ducat, 1 grain | 1.1 | 1.2 | any | with a cannon foundry |
+
+  **Combined arms**: an army with three kinds (each at least a tenth of it) fights 10% harder,
+  with all four 15%. **Guns breach walls**: every tenth of an attacking army in artillery knocks
+  one fort level off. `move` and `attack` send a proportional mix unless `units` names exactly
+  which regiments go. Every capital starts with the troops its realm was famed for: English
+  longbowmen, French gendarmes, Ottoman sipahis and janissaries, Muscovite horse.
+- **Battle**: attacker power = the attacking regiments' strength × a roll between 0.8 and 1.2 ×
+  the attacker's military technology and general. Defender power = the garrison's strength ×
+  defence × a roll × the defender's military technology and general. Defence = 1.2 (home ground)
   × terrain (plains 1, forest 1.1, hills 1.25, marsh 1.25, mountains 1.5)
   × (1 + 0.25 for a fort + 0.25 for a citadel + 0.25 for a capital + 0.25 across a strait).
 - **The loser loses every regiment** in the fight. The winner loses about half the ratio of the
@@ -170,8 +222,8 @@ technology, milestones, ruler and council.
 
 ### Generals
 
-Every nation starts with one general (skill 2) in its capital and can appoint up to **3** (4 with
-the Military Revolution), for
+Every nation starts with one general (skill 2) in its capital and can appoint up to **4** (one
+more with the Military Revolution, one more with a military academy), for
 50 ducats each; a new general's skill (1 to 3) is up to fortune. A general adds **10% battle
 power per point of skill** to the regiments he leads (`move` and `attack` take an optional
 `general`) or defends with (he stands in the province). `assign_general` sends him anywhere in

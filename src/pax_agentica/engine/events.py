@@ -34,6 +34,7 @@ class EventKind(StrEnum):
     DISBANDED = "disbanded"
     DEVELOPED = "developed"
     BUILT = "built"
+    MONUMENT_RAISED = "monument_raised"
     RESEARCHED = "researched"
     GENERAL_APPOINTED = "general_appointed"
     GENERAL_FELL = "general_fell"

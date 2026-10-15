@@ -44,9 +44,12 @@ from pax_agentica.engine.actions import (
     Research,
     Respond,
     SendMessage,
+    UpgradeMonument,
 )
 from pax_agentica.engine.events import Event, EventKind, EventValue
 from pax_agentica.engine.mechanics import (
+    army_of,
+    army_strength,
     army_upkeep,
     battle_factor,
     building_cost,
@@ -58,6 +61,7 @@ from pax_agentica.engine.mechanics import (
     nation_income,
     recruit_cost,
     research_cost,
+    siege_levels,
     stability_cost,
 )
 from pax_agentica.engine.model import (
@@ -72,8 +76,10 @@ from pax_agentica.engine.model import (
     Resources,
     Treaty,
     TreatyKind,
+    UnitKind,
     War,
     pair,
+    share,
 )
 from pax_agentica.engine.realm import (
     advisor_candidates,
@@ -587,32 +593,15 @@ class _Resolver:
             for action in self.orders[nation]:
                 match action:
                     case Recruit():
-                        if error := self._own_error(nation, action.province) or self._pay(
-                            nation,
-                            recruit_cost(
-                                rules,
-                                action.regiments,
-                                self.s.provinces[action.province].buildings,
-                            ),
-                        ):
-                            self._reject(nation, action, error)
-                            continue
-                        self.s.provinces[action.province].troops += action.regiments
-                        self._emit(
-                            EventKind.RECRUITED,
-                            f"{self._name(nation)} recruits {action.regiments} regiments in "
-                            f"{self._pname(action.province)}",
-                            nations=(nation,),
-                            province=action.province,
-                            audience=(nation,),
-                            regiments=action.regiments,
-                        )
+                        self._recruit(nation, action)
                     case Develop():
                         self._develop(nation, action)
                     case Disband():
                         self._disband(nation, action)
                     case Build():
                         self._build(nation, action)
+                    case UpgradeMonument():
+                        self._upgrade_monument(nation, action)
                     case Research():
                         self._research(nation, action)
                     case HireGeneral():
@@ -635,6 +624,62 @@ class _Resolver:
                             self._change_stability(nation, 1, "investment")
                     case _:
                         pass
+
+    def _recruit(self, nation: NationId, a: Recruit) -> None:
+        rules = self.s.rules
+        if error := self._own_error(nation, a.province):
+            self._reject(nation, a, error)
+            return
+        province = self.s.provinces[a.province]
+        spec = rules.units[a.unit]
+        if spec.requires and spec.requires not in province.buildings:
+            needed = rules.buildings[spec.requires].name.lower()
+            self._reject(nation, a, f"{spec.name.lower()} need {_article(needed)} in the province")
+            return
+        cost = recruit_cost(rules, a.regiments, province.buildings, a.unit)
+        if error := self._pay(nation, cost):
+            self._reject(nation, a, error)
+            return
+        province.add({a.unit: a.regiments})
+        self._emit(
+            EventKind.RECRUITED,
+            f"{self._name(nation)} recruits {a.regiments} {spec.name.lower()} in "
+            f"{self._pname(a.province)}",
+            nations=(nation,),
+            province=a.province,
+            audience=(nation,),
+            regiments=a.regiments,
+            unit=a.unit.value,
+        )
+
+    def _upgrade_monument(self, nation: NationId, a: UpgradeMonument) -> None:
+        rules = self.s.rules
+        if error := self._own_error(nation, a.province):
+            self._reject(nation, a, error)
+            return
+        spec = rules.monuments.get(a.province)
+        if spec is None:
+            self._reject(nation, a, f"{self._pname(a.province)} has no monument")
+            return
+        province = self.s.provinces[a.province]
+        if province.monument >= rules.max_monument_level:
+            self._reject(nation, a, f"{spec.name} is already at its greatest")
+            return
+        if province.unrest:
+            self._reject(nation, a, f"{self._pname(a.province)} is in unrest")
+            return
+        level = province.monument + 1
+        if error := self._pay(nation, rules.monument_cost.times(level)):
+            self._reject(nation, a, error)
+            return
+        province.monument = level
+        self._emit(
+            EventKind.MONUMENT_RAISED,
+            f"{self._name(nation)} raises {spec.name} to level {level}",
+            nations=(nation,),
+            province=a.province,
+            level=level,
+        )
 
     def _research(self, nation: NationId, a: Research) -> None:
         me = self.s.nations[nation]
@@ -678,11 +723,14 @@ class _Resolver:
             self._reject(nation, a, error)
             return
         appointed = sum(1 for g in self.s.generals if g.nation == nation) + self.fallen[nation]
+        skill = self.rng.choice([1, 1, 2, 2, 3])
+        if BuildingKind.MILITARY_ACADEMY in self.s.provinces[a.province].buildings:
+            skill = min(3, skill + 1)
         general = General(
             id=self.s.next_general_id,
             name=general_name(nation, appointed),
             nation=nation,
-            skill=self.rng.choice([1, 1, 2, 2, 3]),
+            skill=skill,
             province=a.province,
         )
         self.s.next_general_id += 1
@@ -810,12 +858,12 @@ class _Resolver:
             self._reject(nation, a, error)
             return
         province = self.s.provinces[a.province]
-        if province.troops < a.regiments:
-            self._reject(
-                nation, a, f"only {province.troops} regiments in {self._pname(a.province)}"
-            )
+        here = province.army()[a.unit] if a.unit else province.troops
+        if here < a.regiments:
+            what = f"{a.unit.value} " if a.unit else ""
+            self._reject(nation, a, f"only {here} {what}regiments in {self._pname(a.province)}")
             return
-        province.troops -= a.regiments
+        province.take(a.regiments, {a.unit: a.regiments} if a.unit else None)
         state = self.s.nations[nation]
         state.resources = state.resources + self.s.rules.disband_refund.times(a.regiments)
         self._emit(
@@ -873,6 +921,10 @@ class _Resolver:
         ):
             branch, level = spec.requires_tech
             error = f"{_article(spec.name)} needs {branch.value} technology {level}"
+        elif spec.unique and any(
+            a.building in self.s.provinces[p].buildings for p in self.s.provinces_of(nation)
+        ):
+            error = f"your realm already has {_article(spec.name)}: there can be only one"
         elif len(province.buildings) >= slots:
             error = (
                 f"all {slots} building slots of {where} are taken; develop it to "
@@ -900,11 +952,8 @@ class _Resolver:
                 error = self._own_error(nation, a.origin) or self._own_error(nation, a.target)
                 if not error and not self.s.map.adjacent(a.origin, a.target):
                     error = f"{self._pname(a.origin)} and {self._pname(a.target)} do not border"
-                if not error and self.s.provinces[a.origin].troops < a.regiments:
-                    error = (
-                        f"only {self.s.provinces[a.origin].troops} regiments in "
-                        f"{self._pname(a.origin)}"
-                    )
+                if not error:
+                    error = self._composition_error(a.origin, a.regiments, a.units)
                 general = None
                 if not error:
                     general, error = self._leader(nation, a)
@@ -913,8 +962,8 @@ class _Resolver:
                 if error:
                     self._reject(nation, a, error)
                     continue
-                self.s.provinces[a.origin].troops -= a.regiments
-                self.s.provinces[a.target].troops += a.regiments
+                moved = self.s.provinces[a.origin].take(a.regiments, a.units)
+                self.s.provinces[a.target].add(moved)
                 if general:
                     general.province = a.target
                 self._emit(
@@ -926,6 +975,20 @@ class _Resolver:
                     audience=(nation,),
                     regiments=a.regiments,
                 )
+
+    def _composition_error(
+        self, origin: ProvinceId, regiments: int, units: Mapping[UnitKind, int] | None
+    ) -> str | None:
+        here = self.s.provinces[origin].army()
+        if units is None:
+            total = sum(here.values())
+            return f"only {total} regiments in {self._pname(origin)}" if total < regiments else None
+        if sum(units.values()) != regiments:
+            return f"the regiments by kind add up to {sum(units.values())}, not {regiments}"
+        for kind, n in units.items():
+            if here[kind] < n:
+                return f"only {here[kind]} {kind.value} regiments in {self._pname(origin)}"
+        return None
 
     # ------------------------------------------------------------ phase 5: battles
 
@@ -968,35 +1031,46 @@ class _Resolver:
                     nation, a, f"your armies are still mobilising: attack from turn {ready}"
                 )
                 return
-        committed = min(a.regiments, origin.troops)
-        if committed == 0:
+        if origin.troops == 0:
             self._reject(nation, a, f"no regiments left in {self._pname(a.origin)}")
+            return
+        wrong = (
+            self._composition_error(a.origin, a.regiments, a.units) if a.units is not None else None
+        )
+        if wrong:
+            self._reject(nation, a, wrong)
             return
         general, error = self._leader(nation, a)
         if error:
             self._reject(nation, a, error)
             return
-        origin.troops -= committed
+        force = origin.take(min(a.regiments, origin.troops), a.units)
+        committed = sum(force.values())
         attacker_name = self._name(nation)
         if general:
             attacker_name += f" under {general.name}"
         defender_name = self._name(defender) if defender else "the local levies"
         if target.troops == 0:
-            self._capture(nation, a.target, committed, general)
+            self._capture(nation, a.target, force, general)
             return
         guard = self.s.general_in(a.target)
         if guard and guard.nation != defender:
             guard = None
         if guard:
             defender_name += f" under {guard.name}"
+        rules = self.s.rules
+        ground = self.s.map.provinces[a.target].terrain
+        held = target.army()
         result = fight(
-            self.s.rules,
+            rules,
             committed,
             target.troops,
-            defense_multiplier(self.s, a.origin, a.target),
+            defense_multiplier(self.s, a.origin, a.target, siege_levels(rules, force)),
             self.rng,
             attack_factor=battle_factor(self.s, nation, general.skill if general else 0),
             defence_factor=battle_factor(self.s, defender, guard.skill if guard else 0),
+            attack_quality=army_strength(rules, force, ground, attacking=True) / committed,
+            defence_quality=army_strength(rules, held, ground, attacking=False) / target.troops,
         )
         verdict = "wins" if result.attacker_won else "is repulsed"
         self._emit(
@@ -1013,12 +1087,18 @@ class _Resolver:
             attacker_won=result.attacker_won,
         )
         if result.attacker_won:
-            self._capture(nation, a.target, committed - result.attacker_losses, general)
+            fallen = share(force, result.attacker_losses)
+            survivors = {k: force[k] - fallen[k] for k in UnitKind}
+            self._capture(nation, a.target, survivors, general)
         else:
-            target.troops -= result.defender_losses
+            target.take(result.defender_losses)
 
     def _capture(
-        self, nation: NationId, province: ProvinceId, troops: int, general: General | None = None
+        self,
+        nation: NationId,
+        province: ProvinceId,
+        troops: dict[UnitKind, int],
+        general: General | None = None,
     ) -> None:
         state: ProvinceState = self.s.provinces[province]
         previous = state.owner
@@ -1028,7 +1108,7 @@ class _Resolver:
         if general is not None and self.s.general_in(province) is None:
             general.province = province
         state.owner = nation
-        state.troops = troops
+        state.set_army(troops)
         state.unrest = self.s.rules.unrest_turns
         loser = self._name(previous) if previous else "independence"
         self._emit(
@@ -1115,13 +1195,15 @@ class _Resolver:
             state.resources = state.resources.model_copy(update={"manpower": cap})
         self._pay_council(nation)
         factor = modifiers(self.s, nation).grain_upkeep_factor
-        upkeep = army_upkeep(rules, self.s.troops_of(nation), factor)
+        upkeep = army_upkeep(rules, army_of(self.s, nation), factor)
         paid = upkeep.capped_by(state.resources)
         state.resources = state.resources - paid
         if paid == upkeep:
             return
-        unfed = math.ceil((upkeep.grain - paid.grain) / (rules.grain_upkeep_per_regiment * factor))
-        unpaid = math.ceil((upkeep.ducats - paid.ducats) / rules.ducat_upkeep_per_regiment)
+        # Regiments eat and earn differently by kind: desert by the average.
+        regiments = max(1, self.s.troops_of(nation))
+        unfed = math.ceil((upkeep.grain - paid.grain) / max(1e-9, upkeep.grain / regiments))
+        unpaid = math.ceil((upkeep.ducats - paid.ducats) / max(1e-9, upkeep.ducats / regiments))
         deserters = max(unfed, unpaid)
         deserted = 0
         for _ in range(deserters):
@@ -1129,7 +1211,7 @@ class _Resolver:
             if not garrisons:
                 break
             biggest = min(garrisons, key=lambda p: (-self.s.provinces[p].troops, p))
-            self.s.provinces[biggest].troops -= 1
+            self.s.provinces[biggest].take(1)
             deserted += 1
         lack = " and ".join(
             word for word, short in (("grain", unfed), ("pay", unpaid)) if short > 0

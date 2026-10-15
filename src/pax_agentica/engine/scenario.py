@@ -20,6 +20,7 @@ from pax_agentica.engine.model import (
     Resources,
     Rules,
     Terrain,
+    UnitKind,
 )
 from pax_agentica.engine.realm import make_ruler
 
@@ -342,7 +343,23 @@ EXTRA_GARRISON = {
     "buda": 1,
     "styria": 1,
 }
-STARTING_FORTS = ("vienna", "buda")
+STARTING_BUILDINGS: dict[str, list[BuildingKind]] = {
+    "vienna": [BuildingKind.FORT],  # the walls the Turk will test in 1529
+    "buda": [BuildingKind.FORT],
+    "paris": [BuildingKind.STABLES],  # the gendarmerie, Europe's finest heavy horse
+    "anatolia": [BuildingKind.STABLES],  # the timariot sipahis
+    "moscow": [BuildingKind.STABLES],  # the cavalry host of the steppe frontier
+}
+# Each capital garrison as its army was famed for: the rest of every garrison is pikemen.
+STARTING_UNITS: dict[str, dict[UnitKind, int]] = {
+    "london": {UnitKind.ARCHERS: 3},  # the longbow
+    "paris": {UnitKind.CAVALRY: 2},
+    "madrid": {UnitKind.ARCHERS: 2},  # arquebusiers of the Granada war
+    "vienna": {UnitKind.CAVALRY: 1, UnitKind.ARCHERS: 1},
+    "constantinople": {UnitKind.CAVALRY: 2, UnitKind.ARCHERS: 1},  # sipahis and janissaries
+    "stockholm": {UnitKind.ARCHERS: 2},
+    "moscow": {UnitKind.CAVALRY: 3},
+}
 
 
 def europe_map() -> MapDef:
@@ -373,12 +390,15 @@ def europe_map() -> MapDef:
 def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> GameState:
     """The opening position of the Europe 1500 scenario."""
     capitals = {capital for _id, _name, _color, capital in _NATIONS}
+    rules_ = rules or Rules()
     provinces = {
         pid: ProvinceState(
             owner=owner,
             development=dev,
             troops=_garrison(pid, dev, owner, capitals) + EXTRA_GARRISON.get(pid, 0),
-            buildings=[BuildingKind.FORT] if pid in STARTING_FORTS else [],
+            buildings=list(STARTING_BUILDINGS.get(pid, [])),
+            units=dict(STARTING_UNITS.get(pid, {})),
+            monument=rules_.monuments[pid].level_1500 if pid in rules_.monuments else 0,
         )
         for pid, _name, _terrain, _good, dev, owner, _lon, _lat in _PROVINCES
     }
@@ -403,7 +423,7 @@ def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> Game
     return GameState(
         seed=seed,
         max_turns=max_turns,
-        rules=rules or Rules(),
+        rules=rules_,
         map=europe_map(),
         provinces=provinces,
         nations=nations,

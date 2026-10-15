@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from pax_agentica.engine.model import (
     Advisor,
     AdvisorRole,
+    BuildingKind,
     GameState,
     NationId,
     Ruler,
@@ -57,6 +58,28 @@ def _has(state: GameState, nation: NationId, milestone: tuple[TechBranch, int]) 
     return state.nations[nation].technology[branch] >= level
 
 
+GREAT_WORKS = (
+    BuildingKind.MILITARY_ACADEMY,
+    BuildingKind.ROYAL_EXCHANGE,
+    BuildingKind.OBSERVATORY,
+)
+
+
+def holdings(
+    state: GameState, nation: NationId
+) -> tuple[tuple[BuildingKind, ...], tuple[tuple[str, int], ...]]:
+    """The great works and the monuments (province, level) a nation holds."""
+    works: set[BuildingKind] = set()
+    monuments = []
+    for pid, p in state.provinces.items():
+        if p.owner != nation:
+            continue
+        works.update(b for b in p.buildings if b in GREAT_WORKS)
+        if pid in state.rules.monuments and p.monument:
+            monuments.append((pid, p.monument))
+    return tuple(sorted(works)), tuple(sorted(monuments))
+
+
 _CACHE: dict[tuple[object, ...], tuple[Rules, Modifiers]] = {}
 
 
@@ -74,6 +97,7 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             if ruler
             else None,
             tuple((r, a.name, a.skill) for r, a in sorted(me.advisors.items())),
+            holdings(state, nation),  # type: ignore[arg-type]
         )
     cached = _CACHE.get(key)
     if cached is not None and cached[0] is state.rules:
@@ -140,6 +164,38 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             power += bonus
             lines.append(f"marshal {advisor.name}: +{bonus:.0%} battle power")
 
+    works, monuments = holdings(state, nation)
+    fort_extra = 0.0
+    extra_generals = 0
+    if BuildingKind.ROYAL_EXCHANGE in works:
+        ducats += rules.royal_exchange_income_bonus
+        lines.append(f"royal exchange: +{rules.royal_exchange_income_bonus:.0%} ducats")
+    if BuildingKind.OBSERVATORY in works:
+        research += rules.observatory_research_discount
+        lines.append(f"observatory: research {rules.observatory_research_discount:.0%} cheaper")
+    if BuildingKind.MILITARY_ACADEMY in works:
+        extra_generals += 1
+        lines.append("military academy: one more general")
+    for pid, level in monuments:
+        spec = rules.monuments[pid]
+        amount = spec.per_level * level
+        match spec.bonus:
+            case "ducat_income":
+                ducats += amount
+            case "grain_income":
+                grain += amount
+            case "battle_power":
+                power += amount
+            case "research_discount":
+                research += amount
+            case "building_discount":
+                building = min(0.8, building + amount)
+            case "stability_discount":
+                stability = min(0.8, stability + amount)
+            case "fort_bonus_per_level":
+                fort_extra += amount
+        lines.append(f"{spec.name} (level {level}): {spec.effect} a level")
+
     milestones = {
         name: _has(state, nation, milestone)
         for name, milestone in (
@@ -167,9 +223,10 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         extra_building_slots=1 if milestones["cameralism"] else 0,
         max_development=rules.max_development + (3 if milestones["grand"] else 0),
         grain_upkeep_factor=0.8 if milestones["canals"] else 1.0,
-        fort_bonus_per_level=0.35 if milestones["star"] else rules.fort_bonus_per_level,
+        fort_bonus_per_level=(0.35 if milestones["star"] else rules.fort_bonus_per_level)
+        + fort_extra,
         ignores_fort_levels=1 if milestones["artillery"] else 0,
-        max_generals=rules.max_generals + (1 if milestones["revolution"] else 0),
+        max_generals=rules.max_generals + (1 if milestones["revolution"] else 0) + extra_generals,
         marketplace_share=rules.building_output_bonus + (0.5 if milestones["mercantilism"] else 0),
         mill_share=rules.building_output_bonus + (0.5 if milestones["mills"] else 0),
         sources=tuple(lines),
