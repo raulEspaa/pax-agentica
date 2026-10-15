@@ -262,7 +262,8 @@ class _Planner:
         # In peace, only what the harvest can feed; at war, eat into the granaries too.
         feedable = self.me.income_per_turn.grain + self.budget.grain // (3 if self.enemies else 8)
         room = feedable - self.me.regiments
-        payable = self.me.income_per_turn.ducats * 2  # keep army pay under half the income
+        # Keep army pay under half the income.
+        payable = int(self.me.income_per_turn.ducats / 2 / self.v.rules.ducat_upkeep_per_regiment)
         room = min(room, payable - self.me.regiments)
         limits = [room]
         for have, need in (

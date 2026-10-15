@@ -52,7 +52,7 @@ def test_the_end_of_turn_pays_income_feeds_and_pays_the_army(state: GameState, p
     before = state.nations["england"].resources
     income = nation_income(state, "england")
     upkeep = army_upkeep(state.rules, state.troops_of("england"))  # 10 regiments
-    assert upkeep == Resources(grain=10, ducats=3)
+    assert upkeep == Resources(grain=10, ducats=5)
     after = play(state).nations["england"].resources
     assert after == before + income - upkeep
 

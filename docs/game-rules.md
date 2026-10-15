@@ -60,7 +60,7 @@ breaks the rules is skipped, and the engine tells its author why next turn.
 **A conquered province is in unrest** for 5 turns and produces nothing.
 
 **Armies cost every year.** At the end of each turn every regiment eats 1 grain, and the army is
-paid a quarter of a ducat per regiment (rounded up for the whole army). Regiments that cannot
+paid half a ducat per regiment (rounded up for the whole army). Regiments that cannot
 be fed or paid desert.
 
 **Manpower is finite.** The pool fills up to 10 + 6 × your yearly manpower; anything above is

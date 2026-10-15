@@ -338,7 +338,7 @@ class Rules(BaseModel):
     recruit_cost: Resources = Resources(ducats=6, manpower=2, iron=2)
     disband_refund: Resources = Resources(manpower=2)  # per regiment sent home
     grain_upkeep_per_regiment: int = 1
-    ducat_upkeep_per_regiment: float = 0.25  # pay, rounded up for the whole army
+    ducat_upkeep_per_regiment: float = 0.5  # pay, rounded up for the whole army
     manpower_cap_base: int = 10  # manpower cap = base + years x yearly manpower
     manpower_cap_years: int = 6
     develop_base_ducats: int = 25

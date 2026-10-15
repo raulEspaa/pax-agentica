@@ -157,8 +157,8 @@ def test_an_accepted_trade_swaps_the_goods(state: GameState, play: Play) -> None
     sweden_before = offered.nations["sweden"].resources
     done = play(offered, sweden=[Respond(proposal_id=proposal_to(offered, "sweden"), accept=True)])
     assert EventKind.TRADE_COMPLETED in kinds(done)
-    england_income = done.nations["england"].resources - england_before
-    assert england_income.iron >= 8  # the iron arrived (plus this turn's own production)
+    iron = done.nations["england"].resources.iron - england_before.iron
+    assert iron >= 8  # the iron arrived (plus this turn's own production)
     assert done.nations["sweden"].resources.ducats >= sweden_before.ducats + 20
 
 
