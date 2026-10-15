@@ -5,8 +5,8 @@
 
 - What is the game, in two sentences?
 - What does a player (or a spectator) see during one turn?
-- What are the rules of the smallest playable version (milestone 1)? Map, resources, actions,
-  how a fight is resolved, how someone wins.
-- What is deliberately **not** in the first version?
+- What should an AI ruler do that the greedy bot cannot? (Read `docs/game-rules.md` first.)
+- What makes one AI ruler *better* than another, and how would I measure it?
+- What is deliberately **not** in the first AI ruler?
 - What do I want to learn by building it?
 - How will I know a milestone is done?
