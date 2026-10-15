@@ -186,6 +186,10 @@ class _Planner:
                 self.old_enemies.discard(p.sender)
             self.actions.append(Respond(proposal_id=p.id, accept=accept))
 
+    def _fears(self, nation: str) -> bool:
+        their = next((n for n in self.v.nations if n.id == nation), None)
+        return their is not None and their.score >= self.me.score * 0.9
+
     def _wants(self, p: ProposalView) -> bool:
         match p.kind:
             case ProposalKind.PEACE:
@@ -195,9 +199,12 @@ class _Planner:
                     return losing
                 return losing or value(p.give) > 0 or self.rng.random() < 0.4
             case ProposalKind.ALLIANCE:
+                if len(self.allies) >= 2:
+                    return False
                 return p.sender not in self._border_nations() or self.rng.random() < 0.3
             case ProposalKind.NON_AGGRESSION:
-                return self.rng.random() < 0.7
+                # Peace with the strong, or while busy elsewhere; the weak are prey.
+                return self._fears(p.sender) or bool(self.enemies) or self.rng.random() < 0.2
             case ProposalKind.TRADE:
                 return value(p.give) >= value(p.receive) and self.budget.covers(p.receive)
             case ProposalKind.CALL_TO_ARMS:
@@ -211,7 +218,8 @@ class _Planner:
         easy = [c for c in self._targets() if c[3] <= self.troops[c[1]]]
         if easy and self.rng.random() > 0.1:
             return
-        best, best_ratio = None, 1.5
+        # Early on, only a clear edge starts a war; later, peace grows restless.
+        best, best_ratio = None, 1.5 if self.v.turn < 15 else 1.2
         for nation in sorted(self._border_nations() - self.friends):
             ours = theirs = 0
             for pid in self.mine:
@@ -367,7 +375,19 @@ class _Planner:
             wishes.append((BuildingKind.BARRACKS, best("manpower")))
         if self.budget.timber < 10:
             wishes.append((BuildingKind.LUMBER_MILL, best("timber")))
-        wishes.append((BuildingKind.MARKETPLACE, best("ducats")))
+        richest = best("ducats")
+        staging = self._staging_province()
+        if self.enemies:
+            wishes.append((BuildingKind.ARMORY, [staging]))
+        wishes += [
+            (BuildingKind.MARKETPLACE, richest[:2]),
+            (BuildingKind.BANK, richest[:2]),
+            (BuildingKind.UNIVERSITY, richest[:1]),
+            (BuildingKind.MARKETPLACE, richest),
+            (BuildingKind.TRAINING_GROUNDS, [staging]),
+            (BuildingKind.CATHEDRAL, richest[:1]),
+            (BuildingKind.BANK, richest),
+        ]
         cost = me.building_costs
         for kind, places in wishes:
             spec = rules.buildings[kind]
