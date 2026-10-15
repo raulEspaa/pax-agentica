@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">Pax Agentica<span id="subtitle"></span></div>
+    <div class="group" role="group" aria-label="Playback">
+      <button class="btn" id="first" title="First year (Home)" aria-label="First year">⏮</button>
+      <button class="btn" id="prev" title="Previous year (←)" aria-label="Previous year">◀</button>
+      <button class="btn" id="play" title="Play or pause (Space)" aria-label="Play">▶</button>
+      <button class="btn" id="next" title="Next year (→)" aria-label="Next year">▶|</button>
+      <button class="btn" id="last" title="Last year (End)" aria-label="Last year">⏭</button>
+    </div>
+    <div class="group speed" role="group" aria-label="Speed"></div>
+    <div class="group modes" role="group" aria-label="Map mode"></div>
+    <label class="group" title="Show the map as one nation saw it: fog of war hides what it could not see">
+      <span class="muted" style="font-style:normal">See as</span>
+      <select id="seeas" class="btn"><option value="-1">Everyone</option></select></label>
+    <div class="plaque" aria-live="polite"><b id="year" class="num"></b><span id="turnlabel"></span></div>
+  </header>
+
+  <div class="main">
+    <div class="mapwrap" id="mapwrap">
+      <svg id="map" role="img" aria-label="Map of Europe"></svg>
+      <div class="neatline" aria-hidden="true"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="in"></i></div>
+      <div class="zoom">
+        <button class="btn" id="zin" aria-label="Zoom in" title="Zoom in">+</button>
+        <button class="btn" id="zout" aria-label="Zoom out" title="Zoom out">−</button>
+        <button class="btn" id="zreset" aria-label="Show all of Europe" title="Show all of Europe">⌂</button>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="deed" id="deed" role="dialog" aria-labelledby="deedname"></div>
+      <div class="tip" id="tip"></div>
+    </div>
+    <aside>
+      <div id="overbox"></div>
+      <section class="panel">
+        <h3>Ledger <small>score over the years</small></h3>
+        <table class="ledger num">
+          <colgroup><col><col class="n"><col class="n"><col class="n"><col class="n duc"><col class="stab"><col class="spark"></colgroup>
+          <thead><tr><th>Nation</th><th title="Provinces">Prov.</th><th title="Score: total development">Score</th>
+            <th title="Regiments">Army</th><th class="duc" title="Ducats in the treasury">Duc.</th><th title="Stability">Stab.</th><th></th></tr></thead>
+          <tbody id="ledger"></tbody>
+        </table>
+      </section>
+      <section class="panel" id="card"></section>
+      <section class="panel">
+        <h3>Chronicle <small id="chronlabel"></small></h3>
+        <ol class="chron" id="chron"></ol>
+      </section>
+      <p class="help">Click a province to open its deed. Drag to pan, scroll to zoom.
+        <kbd>Space</kbd> plays, <kbd>←</kbd> <kbd>→</kbd> step a year, <kbd>1</kbd>–<kbd>4</kbd> switch map mode,
+        <kbd>Esc</kbd> closes.</p>
+    </aside>
+  </div>
+
+  <footer class="timeline">
+    <span class="yearlabel num" id="startyear"></span>
+    <div class="track"><div class="ticks" id="ticks"></div>
+      <input type="range" id="slider" min="0" value="0" aria-label="Year"></div>
+    <span class="yearlabel num" id="endyear"></span>
+  </footer>
+</div>
+
+<script>
+/*__MAPJS__*/
+</script>
+<script>
+"use strict";
+const D = __DATA__;
+const $ = (id) => document.getElementById(id);
+const {esc, mix, devColor, cap, costText, RES, BICON, ICON, MAJOR, MINOR, TERRAIN} = PaxMap;
+const P = D.provinces, N = D.nations, F = D.frames, B = D.buildings, R = D.rules, last = F.length - 1;
+
+let frame = 0, mode = "political", selected = -1, picked = -1, seeAs = -1, timer = null, speed = 3;
+const SPEEDS = [1800, 1100, 700, 380, 160];
+
+const map = PaxMap.create($("map"), D, {
+  hover: (i, e) => tooltip(i, e),
+  leave: () => { $("tip").style.display = "none"; },
+  click: (i) => pick(i < 0 || i === picked ? -1 : i),
+});
+
+// ------------------------------------------------------------------ fog of war, as one nation saw it
+function visible(f, k) {
+  if (k < 0) return null;
+  const seen = new Set(), friends = new Set([k, ...f.n[k].allies]);
+  f.o.forEach((o, i) => { if (friends.has(o)) seen.add(i);
+    if (o === k) { P[i].land.forEach((j) => seen.add(j)); P[i].sea.forEach((j) => seen.add(j)); } });
+  return seen;
+}
+
+function world() {
+  const f = F[frame], seen = visible(f, seeAs), focus = mode === "diplomacy" ? selected : selected;
+  return {
+    mode, owner: f.o, dev: f.v, buildings: f.b,
+    troops: f.t.map((t, i) => (seen && !seen.has(i) ? null : t)),
+    alive: f.n.map((s) => s.alive),
+    capitals: new Set(f.n.filter((s) => s.alive).map((s) => s.capital)),
+    focus, relations: focus >= 0 ? {wars: f.n[focus].wars, allies: f.n[focus].allies} : {wars: [], allies: []},
+    events: (D.chronicle[frame] || []).map(([kind, , prov, nats]) => [kind, prov, nats]),
+    generals: new Map(f.g.filter(([prov]) => !seen || seen.has(prov))
+      .map(([prov, nation, name, skill]) => [prov, {nation, name, skill}])),
+  };
+}
+
+// ------------------------------------------------------------------ map modes
+const MODES = [["political", "Political"], ["terrain", "Terrain"], ["development", "Development"], ["diplomacy", "Diplomacy"]];
+const modeBox = document.querySelector(".modes");
+MODES.forEach(([id, label], k) => { const b = document.createElement("button");
+  b.className = "btn"; b.textContent = label; b.title = `${label} map mode (${k + 1})`; b.dataset.mode = id;
+  b.onclick = () => setMode(id); modeBox.appendChild(b); });
+function setMode(m) { mode = m; document.querySelectorAll(".modes .btn").forEach((b) =>
+  b.setAttribute("aria-pressed", b.dataset.mode === m)); render(); }
+
+const seeBox = $("seeas");
+N.forEach((n, k) => { const o = document.createElement("option"); o.value = k; o.textContent = n.name; seeBox.appendChild(o); });
+seeBox.onchange = () => { seeAs = +seeBox.value; if (seeAs >= 0) selected = seeAs; render(); };
+
+// ------------------------------------------------------------------ the province deed (read-only)
+function deed() {
+  const box = $("deed");
+  if (picked < 0) { box.classList.remove("open"); return; }
+  const f = F[frame], i = picked, o = f.o[i], seen = visible(f, seeAs);
+  const g = f.g.find(([prov]) => prov === i);
+  const info = PaxMap.deedInfo(D, i, {owner: o, isCapital: o >= 0 && f.n[o].capital === i, dev: f.v[i],
+    troops: seen && !seen.has(i) ? null : f.t[i], fort: f.f[i], unrest: f.u[i], base: f.base[i], bonus: f.bonus[i], built: f.b[i],
+    general: g && (!seen || seen.has(i)) ? {name: g[2], skill: g[3]} : null});
+  const built = f.b[i];
+  const catalog = ["civil", "military"].map((cat) => `<div><h5 class="${cat}">${cap(cat)}</h5>${
+    B.map((b, k) => [b, k]).filter(([b]) => b.category === cat).map(([b, k]) => {
+      const has = built.includes(k), needs = b.requires >= 0 && !built.includes(b.requires);
+      const status = has ? "built" : (needs || built.length >= info.slots) ? "blocked" : "";
+      return `<div class="bld ${status}"><span class="ic">${BICON[b.id]}</span><div><b>${esc(b.name)}</b>
+        <div class="fx">${esc(b.effect)}.${needs ? ` Needs a ${B[b.requires].name.toLowerCase()}.` : ""}</div>
+        <div class="cost">${costText(b.cost)}</div></div></div>`; }).join("")}</div>`).join("");
+  box.innerHTML = info.header + info.facts + info.production +
+    `<section>${info.slotsHtml}<div class="catalog">${catalog}</div>
+     <p class="note">A new slot opens every ${R.slotEvery} development. Output buildings add half the land's yield, so they pay more in rich provinces.</p></section>`;
+  box.classList.add("open");
+  box.querySelector("[data-close]").onclick = () => pick(-1);
+}
+function pick(i) { picked = i; if (i >= 0) { const o = F[frame].o[i]; if (o >= 0 && seeAs < 0) selected = o; } render(); }
+
+// ------------------------------------------------------------------ sidebar
+function sparkline(k) {
+  const max = Math.max(1, ...F.map((f) => Math.max(...f.n.map((s) => s.score))));
+  const w = 56, h = 20, pts = F.map((f, i) => `${(i / Math.max(1, last) * w).toFixed(1)},${(h - 1 - f.n[k].score / max * (h - 3)).toFixed(1)}`);
+  const cx = frame / Math.max(1, last) * w, cy = h - 1 - F[frame].n[k].score / max * (h - 3);
+  return `<svg width="${w}" height="${h}" aria-hidden="true"><polyline points="${pts.join(" ")}" fill="none"
+    stroke="${N[k].color}" stroke-width="1.6" stroke-linejoin="round" opacity=".9"/>
+    <line x1="${cx}" x2="${cx}" y1="0" y2="${h}" stroke="rgba(230,194,126,.35)"/>
+    <circle cx="${cx}" cy="${cy}" r="2.4" fill="${N[k].color}" stroke="#000" stroke-width=".8"/></svg>`;
+}
+const secret = (k) => seeAs >= 0 && k !== seeAs; // under fog, other treasuries and armies are unknown
+
+function ledger(f) {
+  const rows = N.map((n, k) => [n, k, f.n[k]]).sort((a, b) => (b[2].alive - a[2].alive) || (b[2].score - a[2].score));
+  $("ledger").innerHTML = rows.map(([n, k, s]) => `
+    <tr class="row ${s.alive ? "" : "dead"} ${k === selected ? "sel" : ""}" data-k="${k}" tabindex="0"
+        aria-label="${esc(n.name)}: ${s.provinces} provinces, score ${s.score}">
+      <td><div class="nm"><span class="shield" style="background:${n.color}"></span>
+        <div>${esc(n.name)}${k === D.winner && frame === last ? " 👑" : ""}${s.alive ? "" : " ☠"}
+        <div class="ruler">ruled by ${esc(D.rulers[k])}</div></div></div></td>
+      <td>${s.provinces}</td><td>${s.score}</td><td>${secret(k) ? "?" : s.army}</td><td class="duc">${secret(k) ? "?" : s.res[0]}</td>
+      <td>${s.stability > 0 ? "+" : ""}${s.stability}</td><td>${sparkline(k)}</td></tr>`).join("");
+  document.querySelectorAll("#ledger tr.row").forEach((tr) => {
+    const choose = () => select(+tr.dataset.k);
+    tr.onclick = choose; tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(); } };
+  });
+}
+
+function income(f, k) {
+  const total = [0, 0, 0, 0, 0];
+  f.o.forEach((o, i) => { if (o === k && !f.u[i]) for (let r = 0; r < 5; r++) total[r] += f.base[i][r] + f.bonus[i][r]; });
+  total[0] = Math.max(0, Math.floor(total[0] * (1 + R.stabilityBonus * f.n[k].stability)));
+  total[0] -= Math.ceil(f.n[k].army * R.pay); total[3] -= f.n[k].army; // army pay and grain
+  return total;
+}
+
+function card(f) {
+  const box = $("card");
+  if (selected < 0) { box.innerHTML = `<h3>Nation</h3><div class="body muted">Click a province or a row of the ledger to see a nation.</div>`; return; }
+  const n = N[selected], s = f.n[selected], hidden = secret(selected), inc = s.alive ? income(f, selected) : [0, 0, 0, 0, 0];
+  const chip = (cls, ks) => ks.length ? ks.map((k) => `<span class="chip ${cls}">${esc(N[k].name)}</span>`).join("") : `<span class="muted">none</span>`;
+  const sign = (v) => (v > 0 ? "+" : "") + v;
+  const buildings = f.b.reduce((a, b, i) => a + (f.o[i] === selected ? b.length : 0), 0);
+  box.innerHTML = `<h3>${esc(n.name)} <small>${s.alive ? "capital " + esc(P[s.capital].name) : "fallen"}</small></h3>
+    <div class="body">
+      <div class="who"><span class="shield" style="background:${n.color}"></span>
+        <div><b>${esc(n.name)}</b><span>${s.ruler ? esc(s.ruler) + ", " : ""}ruled by ${esc(D.rulers[selected])}. ${s.provinces} provinces, ${buildings} buildings, score ${s.score}.</span></div></div>
+      ${hidden ? `<p class="muted">Its treasury is hidden from ${esc(N[seeAs].name)}.</p>` : `<div class="res num">
+        ${RES.map(([, label], k) => `<div title="${label}: in the treasury, and the change per year"><b>${s.res[k]}</b>${label.toLowerCase()}<i class="${inc[k] < 0 ? "neg" : ""}">${sign(inc[k])}</i></div>`).join("")}
+        <div title="Stability"><b>${sign(s.stability)}</b>stability</div></div>`}
+      <div>Technology: ${D.tech.map((t, k) => `${t.name.toLowerCase()} ${s.tech[k]}`).join(", ")}.</div>
+      <div>At war with</div><div class="chips">${chip("war", s.wars)}</div>
+      <div>Allied with</div><div class="chips">${chip("ally", s.allies)}</div>
+    </div>`;
+}
+
+function paintNames(text) {
+  const names = new RegExp(N.map((n) => n.name).join("|"), "g");
+  return esc(text).replace(names, (m) => `<span class="nn" style="color:${mix(N.find((n) => n.name === m).color, "#ffffff", .35)}">${m}</span>`);
+}
+function chronicle(i) {
+  const items = (D.chronicle[i] || []).filter(([, , , nats]) => selected < 0 || nats.includes(selected));
+  $("chronlabel").textContent = `${D.years[i]}${selected >= 0 ? ", " + N[selected].name : ""}`;
+  $("chron").innerHTML = items.length ? items.map(([kind, text]) =>
+    `<li class="${MAJOR.has(kind) ? "major" : MINOR.has(kind) ? "minor" : ""}"><span class="ic" aria-hidden="true">${ICON[kind] || "•"}</span><span>${paintNames(text)}</span></li>`).join("")
+    : `<li class="minor"><span class="ic">·</span><span>${i === 0 ? "Europe in 1500: seven crowns and a continent to share." : "A quiet year."}</span></li>`;
+}
+
+function legend() {
+  const L = $("legend");
+  if (mode === "political") L.innerHTML = `<div class="row"><i style="background:var(--free)"></i>Independent minor</div>
+    <div class="row"><i style="background:var(--waste)"></i>Wasteland, out of play</div>
+    <div class="row"><span style="color:#8a6420">★</span> Capital</div><div class="row">⚔ Battle this year</div><div class="row">⚑ General</div>
+    <div class="row"><i style="background:#5d93b8"></i><i style="background:#c0563f"></i>Civil, military buildings</div>
+    ${seeAs >= 0 ? `<div class="row">? Hidden by the fog of war</div>` : ""}`;
+  if (mode === "terrain") L.innerHTML = Object.entries(TERRAIN).map(([t, c]) => `<div class="row"><i style="background:${c}"></i>${cap(t)}</div>`).join("");
+  if (mode === "development") L.innerHTML = `Development<div class="ramp" style="background:linear-gradient(90deg,${[1, 4, 6, 8, 10].map(devColor).join(",")})"></div>
+    <div class="row" style="justify-content:space-between;width:160px"><span>1</span><span>10 and more</span></div>`;
+  if (mode === "diplomacy") L.innerHTML = selected < 0 ? "Pick a nation to see its friends and foes."
+    : `<div class="row"><i style="background:#e3bd5c"></i>${esc(N[selected].name)}</div>
+       <div class="row"><i style="background:#5aa56f"></i>Allies</div><div class="row"><i style="background:#c4473b"></i>At war</div>`;
+}
+
+function render() {
+  const f = F[frame];
+  map.paint(world()); map.pick(picked);
+  ledger(f); card(f); chronicle(frame); legend(); deed();
+  $("year").textContent = D.years[frame];
+  $("turnlabel").textContent = frame ? `Turn ${frame} of ${last}` : "The opening";
+  $("slider").value = frame;
+  $("overbox").innerHTML = frame === last && D.over ? `<div class="over">👑 ${esc(D.over)}</div>` : "";
+}
+
+const tip = $("tip");
+function tooltip(i, evt) {
+  const f = F[frame], p = P[i], o = f.o[i], seen = visible(f, seeAs), hidden = seen && !seen.has(i);
+  const out = RES.map(([, , ic], k) => `${ic} ${f.u[i] ? 0 : f.base[i][k] + f.bonus[i][k]}`).join("&ensp;");
+  tip.innerHTML = `<b class="t">${esc(p.name)}</b><div class="kv">
+    <span>Owner</span><b>${o >= 0 ? esc(N[o].name) : "Independent"}</b>
+    <span>Development</span><b>${f.v[i]}</b><span>Regiments</span><b>${hidden ? "unknown" : f.t[i]}</b>
+    <span>Per year</span><b class="num">${out}</b></div><div class="hint">Click for the province deed</div>`;
+  tip.style.display = "block";
+  const r = $("mapwrap").getBoundingClientRect();
+  let x = evt.clientX - r.left + 16, y = evt.clientY - r.top + 16;
+  if (x + 260 > r.width) x -= 280; if (y + 130 > r.height) y -= 150;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+function select(k) { selected = k === selected ? -1 : k; render(); }
+
+// ------------------------------------------------------------------ playback
+$("zin").onclick = () => map.zoomAt(1 / 1.4); $("zout").onclick = () => map.zoomAt(1.4); $("zreset").onclick = () => map.home();
+const speedBox = document.querySelector(".speed");
+SPEEDS.forEach((_, k) => { const b = document.createElement("button"); b.className = "btn"; b.textContent = k + 1;
+  b.title = `Speed ${k + 1}`; b.setAttribute("aria-label", `Speed ${k + 1}`);
+  b.onclick = () => { speed = k; markSpeed(); if (timer) { stop(); play(); } }; speedBox.appendChild(b); });
+function markSpeed() { speedBox.querySelectorAll(".btn").forEach((b, k) => b.setAttribute("aria-pressed", k === speed)); }
+function go(i) { frame = Math.max(0, Math.min(last, i)); render(); }
+function play() { if (frame >= last) go(0); $("play").textContent = "⏸"; $("play").setAttribute("aria-label", "Pause");
+  timer = setInterval(() => { if (frame >= last) return stop(); go(frame + 1); }, SPEEDS[speed]); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "▶"; $("play").setAttribute("aria-label", "Play"); }
+$("play").onclick = () => (timer ? stop() : play());
+$("prev").onclick = () => { stop(); go(frame - 1); }; $("next").onclick = () => { stop(); go(frame + 1); };
+$("first").onclick = () => { stop(); go(0); }; $("last").onclick = () => { stop(); go(last); };
+$("slider").max = last; $("slider").oninput = (e) => { stop(); go(+e.target.value); };
+window.addEventListener("keydown", (e) => {
+  if (["INPUT", "SELECT"].includes(e.target.tagName) && e.key !== " ") return;
+  if (e.key === " ") { e.preventDefault(); timer ? stop() : play(); }
+  else if (e.key === "ArrowRight") { stop(); go(frame + 1); } else if (e.key === "ArrowLeft") { stop(); go(frame - 1); }
+  else if (e.key === "Home") { stop(); go(0); } else if (e.key === "End") { stop(); go(last); }
+  else if (e.key >= "1" && e.key <= "4") setMode(MODES[+e.key - 1][0]);
+  else if (e.key === "Escape") { if (picked >= 0) pick(-1); else select(selected); }
+});
+
+const ticks = $("ticks");
+D.chronicle.forEach((items, i) => { if (!i) return;
+  const tick = (cls) => { const s = document.createElement("span"); s.className = cls; s.style.left = `${i / last * 100}%`; ticks.appendChild(s); };
+  if (items.some(([k]) => k === "nation_eliminated")) tick("elim");
+  else if (items.some(([k]) => k === "war_declared")) tick("war"); });
+$("startyear").textContent = D.years[0]; $("endyear").textContent = D.years[last];
+$("subtitle").textContent = `Europe from ${D.years[0]}, seed ${D.seed}`;
+
+const hash = (key) => (location.hash.match(new RegExp(key + "=([\\w.-]+)")) || [])[1];
+markSpeed(); mode = hash("mode") || "political";
+document.querySelectorAll(".modes .btn").forEach((b) => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+if (hash("nation")) selected = N.findIndex((n) => n.id === hash("nation"));
+if (hash("as")) { seeAs = N.findIndex((n) => n.id === hash("as")); seeBox.value = seeAs; selected = seeAs; }
+if (hash("province")) picked = P.findIndex((p) => p.id === hash("province"));
+map.home();
+go(+(hash("turn") || 0));
+if (hash("zoom") && picked >= 0) map.centerOn(picked, +hash("zoom"), innerWidth > 960 ? $("deed").offsetWidth / 2 : 0);
+requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add("ready")));
+window.addEventListener("hashchange", () => { const t = hash("turn"); if (t) { stop(); go(+t); } });
+</script>
+</body>
+</html>
