@@ -8,16 +8,19 @@ else to play. Every number here comes from `Rules` in
 
 - **68 provinces** from Lisbon to Moscow and from Norrland to Tunis
   ([`scenario.py`](../src/pax_agentica/engine/scenario.py)). Each one has a **terrain**, a
-  **good** (grain, iron or gold), a **development** level (1–12), **buildings** and
+  **good** (grain, iron, timber or gold), a **development** level (1–12), **buildings** and
   a garrison of **regiments**.
 - **Borders** are land borders or **straits** (the Channel, the Øresund, Gibraltar…). Straits
   can be crossed, but they favour the defender. Land borders are exactly the ones drawn on the
   map, which is built from real geography.
 - **Seven great powers**: England, France, Spain, Austria, the Ottoman Empire, Sweden and Russia.
-  Each starts with its capital (6 regiments), its other provinces (2 each) and the same
-  treasury: 50 ducats, 10 manpower, 10 iron and 20 grain.
+  Each starts with its capital (6 regiments), its other provinces (2 each; 3 on France's long
+  borders and Austria's Hungarian frontier, where Vienna and Buda also start with a fort), a
+  ruler, one general and the same treasury: 60 ducats, 10 manpower, 10 iron, 20 grain and 15
+  timber.
 - Everything else is an **independent minor**: no ruler, no income, and a garrison equal to its
-  development. Anyone can attack them without declaring war.
+  development (3 more in Poland, Lithuania and the Danube principalities, which raised real
+  armies). Anyone can attack them without declaring war.
 
 ## A turn
 
@@ -74,20 +77,21 @@ lost. Barracks raise both. Disbanding a regiment sends its 2 manpower back to th
 ### Buildings
 
 A province has **1 + development ÷ 4** building slots (rounded down): 1 at development 3, 2 at
-4, 3 at 8, 4 at 12 (one more everywhere with Cameralism). Each building can stand once per province. Buildings survive conquest, so
-the conqueror keeps them. Output buildings add **half of the province's base output** of their
-resource (at least 1), so they are worth more in developed provinces.
+4, 3 at 8, 4 at 12 (one more everywhere with Cameralism). Each building can stand once per
+province. Buildings survive conquest, so the conqueror keeps them. Output buildings **double the
+province's base output** of their resource (at least +1), so they are worth more in developed
+provinces.
 
 | Building | Kind | Cost | Effect |
 |---|---|---|---|
-| Marketplace | civil | 50 ducats, 6 timber | +50% of the province's ducats |
-| Farm estates | civil | 40 ducats, 5 timber | +50% of the province's grain |
-| Ironworks | civil | 60 ducats, 8 timber | +50% of the province's iron; needs engineering 1 |
-| Lumber mill | civil | 45 ducats, 4 iron | +50% of the province's timber |
+| Marketplace | civil | 50 ducats, 6 timber | doubles the province's ducats |
+| Farm estates | civil | 40 ducats, 5 timber | doubles the province's grain |
+| Ironworks | civil | 60 ducats, 8 timber | doubles the province's iron; needs engineering 1 |
+| Lumber mill | civil | 45 ducats, 4 iron | doubles the province's timber |
 | University | civil | 90 ducats, 12 timber | developing this province costs 30% fewer ducats; needs economy 2 |
-| Bank | civil | 80 ducats, 4 iron, 6 timber | +2 ducats and +25% of the province's ducats; needs economy 1 |
-| Cathedral | civil | 110 ducats, 2 manpower, 20 timber | +1 manpower and +10% of the province's ducats; unrest ends twice as fast; needs economy 4 |
-| Barracks | military | 50 ducats, 3 iron, 6 timber | +50% of the province's manpower, and a higher cap |
+| Bank | civil | 80 ducats, 4 iron, 6 timber | +3 ducats and +50% of the province's ducats; needs economy 1 |
+| Cathedral | civil | 110 ducats, 2 manpower, 20 timber | +1 manpower and +25% of the province's ducats; unrest ends twice as fast; needs economy 4 |
+| Barracks | military | 50 ducats, 3 iron, 6 timber | doubles the province's manpower, and a higher cap |
 | Armory | military | 60 ducats, 8 iron, 4 timber | regiments recruited here need half the iron; needs military 1 |
 | Training grounds | military | 70 ducats, 2 manpower, 8 timber | the garrison here fights 20% harder; needs military 3 |
 | Fort | military | 60 ducats, 6 iron, 10 timber | defenders here fight 25% harder |
@@ -95,8 +99,9 @@ resource (at least 1), so they are worth more in developed provinces.
 
 ### Technology
 
-Three branches, levels 0 to 5. **One research a year**; reaching level *n* costs *n* times the
-branch's base cost. Every nation's levels are public.
+Three branches, levels 0 to 5. **One research a year**; the first level costs the branch's base
+cost and each one after it half the base cost more (×1, ×1.5, ×2, ×2.5, ×3). Every nation's
+levels are public.
 
 | Branch | Base cost | Each level |
 |---|---|---|
@@ -109,8 +114,8 @@ Every level is also a **milestone** that unlocks something new:
 | Level | Military | Economy | Engineering |
 |---|---|---|---|
 | 1 | Pike and Shot: the armory | Banking: the bank | Blast Furnace: ironworks |
-| 2 | Bastions: the citadel | Printing Press: the university | Water Mills: farm estates and lumber mills yield 75% instead of 50% |
-| 3 | Tercios: training grounds | Mercantilism: marketplaces yield 75% instead of 50% | Roads and Canals: armies eat 20% less grain |
+| 2 | Bastions: the citadel | Printing Press: the university | Water Mills: farm estates and lumber mills yield +150% instead of +100% |
+| 3 | Tercios: training grounds | Mercantilism: marketplaces yield +150% instead of +100% | Roads and Canals: armies eat 20% less grain |
 | 4 | Field Artillery: your attacks ignore one level of enemy forts | Humanism: the cathedral | Star Forts: forts and citadels give +35% instead of +25% |
 | 5 | Military Revolution: a fourth general | Cameralism: one more building slot in every province | Grand Architecture: provinces can grow to development 15 |
 

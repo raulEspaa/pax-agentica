@@ -210,7 +210,7 @@
             <div class="fx">${esc(b.effect)}.</div><div class="cost">${costText(cost)}</div>
             ${has ? "" : `<button class="btn" data-build="${b.id}" ${why ? "disabled" : ""}>${why ? cap(why) : "Build"}</button>`}</div></div>`; }).join("")}</div>`).join("");
       body += `<section>${info.slotsHtml}<div class="catalog">${catalog}</div>
-        <p class="note">A new slot opens every ${R.slotEvery} development. Output buildings add half the land's yield.</p></section>`;
+        <p class="note">A new slot opens every ${R.slotEvery} development. Output buildings double the land's yield.</p></section>`;
     } else {
       map.setTargets([]); hint("");
       const near = [...P[i].land, ...P[i].sea].filter((j) => owned(j) && troopsAfter(j) > 0);

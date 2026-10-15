@@ -12,7 +12,12 @@ from pax_agentica.engine.actions import (
     Move,
     Research,
 )
-from pax_agentica.engine.mechanics import battle_factor, building_cost, nation_income
+from pax_agentica.engine.mechanics import (
+    battle_factor,
+    building_cost,
+    nation_income,
+    research_cost,
+)
 from pax_agentica.engine.model import BuildingKind, TechBranch
 
 type Play = Callable[..., GameState]
@@ -136,3 +141,10 @@ def test_you_see_your_generals_and_only_the_enemies_in_sight(state: GameState) -
     assert paris.general is not None
     assert moscow.general is None  # Moscow is behind the fog
     assert next(n for n in view.nations if n.id == "russia").generals == 1
+
+
+def test_each_level_of_learning_costs_half_a_step_more(state: GameState) -> None:
+    base = state.rules.tech_costs[TechBranch.ECONOMY].ducats
+    costs = [research_cost(state.rules, TechBranch.ECONOMY, level) for level in range(6)]
+    assert [c.ducats for c in costs if c] == [base, base * 1.5, base * 2, base * 2.5, base * 3]
+    assert costs[5] is None  # the top of the tree

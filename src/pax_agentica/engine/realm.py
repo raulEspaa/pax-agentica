@@ -170,8 +170,8 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         fort_bonus_per_level=0.35 if milestones["star"] else rules.fort_bonus_per_level,
         ignores_fort_levels=1 if milestones["artillery"] else 0,
         max_generals=rules.max_generals + (1 if milestones["revolution"] else 0),
-        marketplace_share=0.75 if milestones["mercantilism"] else rules.building_output_bonus,
-        mill_share=0.75 if milestones["mills"] else rules.building_output_bonus,
+        marketplace_share=rules.building_output_bonus + (0.5 if milestones["mercantilism"] else 0),
+        mill_share=rules.building_output_bonus + (0.5 if milestones["mills"] else 0),
         sources=tuple(lines),
     )
 

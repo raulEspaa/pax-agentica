@@ -3,6 +3,7 @@
 from collections import deque
 
 from pax_agentica.engine import GameState, new_game
+from pax_agentica.engine.scenario import EXTRA_GARRISON
 
 
 def test_the_map_has_68_provinces_and_seven_great_powers(state: GameState) -> None:
@@ -53,9 +54,15 @@ def test_no_great_power_starts_twice_as_developed_as_another(state: GameState) -
 
 
 def test_independent_minors_defend_themselves(state: GameState) -> None:
-    for p in state.provinces.values():
+    for pid, p in state.provinces.items():
         if p.owner is None:
-            assert p.troops == p.development
+            assert p.troops == p.development + EXTRA_GARRISON.get(pid, 0)
+    assert state.provinces["krakow"].troops > state.provinces["krakow"].development
+
+
+def test_the_habsburgs_start_behind_walls(state: GameState) -> None:
+    assert state.provinces["vienna"].fort == 1
+    assert state.provinces["buda"].fort == 1
 
 
 def test_a_new_game_is_the_same_for_the_same_seed() -> None:

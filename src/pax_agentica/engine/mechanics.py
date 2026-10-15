@@ -67,10 +67,10 @@ def buildings_yield(
             share = shares.get(building) or rules.building_output_bonus
             extra[field] += max(1, math.floor(amounts[field] * share))
         elif building == BuildingKind.BANK:
-            extra["ducats"] += 2 + math.floor(amounts["ducats"] * 0.25)
+            extra["ducats"] += 3 + math.floor(amounts["ducats"] * 0.5)
         elif building == BuildingKind.CATHEDRAL:
             extra["manpower"] += 1
-            extra["ducats"] += math.floor(amounts["ducats"] * 0.1)
+            extra["ducats"] += math.floor(amounts["ducats"] * 0.25)
     return Resources(**extra)
 
 
@@ -135,13 +135,14 @@ def building_cost(rules: Rules, kind: BuildingKind, discount: float = 0.0) -> Re
 def research_cost(
     rules: Rules, branch: TechBranch, level: int, discount: float = 0.0
 ) -> Resources | None:
-    """The cost of reaching `level + 1`, or None at the top. A chancellor makes it cheaper."""
+    """The cost of reaching `level + 1`, or None at the top: the branch's base cost, half a step
+    dearer per level (1, 1.5, 2... times). A chancellor makes it cheaper."""
     if level >= rules.max_tech_level:
         return None
-    cost = rules.tech_costs[branch].times(level + 1)
-    if not discount:
-        return cost
-    return Resources(**{k: math.ceil(v * (1 - discount)) for k, v in cost.amounts().items()})
+    scale = (1 + rules.research_cost_growth * level) * (1 - discount)
+    return Resources(
+        **{k: math.ceil(v * scale) for k, v in rules.tech_costs[branch].amounts().items()}
+    )
 
 
 def battle_factor(state: GameState, nation: NationId | None, general_skill: int = 0) -> float:

@@ -134,13 +134,16 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
         TechBranch.ECONOMY: [
             t(name="Banking", unlocks="the bank"),
             t(name="Printing Press", unlocks="the university"),
-            t(name="Mercantilism", unlocks="marketplaces yield 75% instead of 50%"),
+            t(name="Mercantilism", unlocks="marketplaces yield +150% instead of +100%"),
             t(name="Humanism", unlocks="the cathedral"),
             t(name="Cameralism", unlocks="one more building slot in every province"),
         ],
         TechBranch.ENGINEERING: [
             t(name="Blast Furnace", unlocks="ironworks"),
-            t(name="Water Mills", unlocks="farm estates and lumber mills yield 75% instead of 50%"),
+            t(
+                name="Water Mills",
+                unlocks="farm estates and lumber mills yield +150% instead of +100%",
+            ),
             t(name="Roads and Canals", unlocks="armies eat 20% less grain"),
             t(name="Star Forts", unlocks="your forts and citadels give +35% instead of +25%"),
             t(name="Grand Architecture", unlocks="provinces can grow to development 15"),
@@ -202,26 +205,26 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="Marketplace",
             category=civil,
             cost=Resources(ducats=50, timber=6),
-            effect="+50% of the province's ducats (at least +1)",
+            effect="doubles the province's ducats (at least +1)",
         ),
         BuildingKind.FARM_ESTATES: BuildingSpec(
             name="Farm estates",
             category=civil,
             cost=Resources(ducats=40, timber=5),
-            effect="+50% of the province's grain (at least +1)",
+            effect="doubles the province's grain (at least +1)",
         ),
         BuildingKind.IRONWORKS: BuildingSpec(
             name="Ironworks",
             category=civil,
             cost=Resources(ducats=60, timber=8),
-            effect="+50% of the province's iron (at least +1)",
+            effect="doubles the province's iron (at least +1)",
             requires_tech=(TechBranch.ENGINEERING, 1),
         ),
         BuildingKind.LUMBER_MILL: BuildingSpec(
             name="Lumber mill",
             category=civil,
             cost=Resources(ducats=45, iron=4),
-            effect="+50% of the province's timber (at least +1)",
+            effect="doubles the province's timber (at least +1)",
         ),
         BuildingKind.UNIVERSITY: BuildingSpec(
             name="University",
@@ -234,14 +237,14 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="Bank",
             category=civil,
             cost=Resources(ducats=80, iron=4, timber=6),
-            effect="+2 ducats and +25% of the province's ducats",
+            effect="+3 ducats and +50% of the province's ducats",
             requires_tech=(TechBranch.ECONOMY, 1),
         ),
         BuildingKind.CATHEDRAL: BuildingSpec(
             name="Cathedral",
             category=civil,
             cost=Resources(ducats=110, manpower=2, timber=20),
-            effect="+1 manpower and +10% of the province's ducats; a conquered province settles "
+            effect="+1 manpower and +25% of the province's ducats; a conquered province settles "
             "twice as fast",
             requires_tech=(TechBranch.ECONOMY, 4),
         ),
@@ -249,7 +252,7 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="Barracks",
             category=military,
             cost=Resources(ducats=50, iron=3, timber=6),
-            effect="+50% of the province's manpower (at least +1), which also raises the cap",
+            effect="doubles the province's manpower (at least +1), which also raises the cap",
         ),
         BuildingKind.ARMORY: BuildingSpec(
             name="Armory",
@@ -345,7 +348,7 @@ class Rules(BaseModel):
     max_development: int = 12
     buildings: dict[BuildingKind, BuildingSpec] = Field(default_factory=default_buildings)
     development_per_building_slot: int = 4  # slots = 1 + development // this
-    building_output_bonus: float = 0.5  # marketplace, farm estates, ironworks, mill, barracks
+    building_output_bonus: float = 1.0  # marketplace, farm estates, ironworks, mill, barracks
     university_develop_discount: float = 0.3
     armory_iron_discount: float = 0.5
     unrest_turns: int = 5  # a conquered province produces nothing while it settles
@@ -363,6 +366,7 @@ class Rules(BaseModel):
             TechBranch.ENGINEERING: Resources(ducats=50, timber=6),
         }
     )
+    research_cost_growth: float = 0.5  # each level costs half the base cost more than the last
     military_tech_bonus: float = 0.06  # battle power per level, attacking and defending
     economy_tech_bonus: float = 0.05  # ducat and grain income per level
     engineering_tech_discount: float = 0.08  # ducats and timber of buildings and development

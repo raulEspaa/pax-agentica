@@ -9,6 +9,7 @@ gives the defender a bonus.
 import random
 
 from pax_agentica.engine.model import (
+    BuildingKind,
     GameState,
     General,
     Good,
@@ -330,6 +331,18 @@ def general_name(nation: str, taken: int) -> str:
 STARTING_RESOURCES = Resources(ducats=60, manpower=10, iron=10, grain=20, timber=15)
 CAPITAL_GARRISON = 6
 PROVINCE_GARRISON = 2
+# Balance, measured over many bot games: without these the Ottomans walk through the east and
+# France, surrounded, is torn apart.
+EXTRA_GARRISON = {
+    # Poland, Lithuania and the Danube principalities raise real armies.
+    **dict.fromkeys(("krakow", "masovia", "lithuania", "wallachia", "transylvania", "bosnia"), 3),
+    # France has the longest border in Europe and garrisons to match.
+    **dict.fromkeys(("normandy", "brittany", "champagne", "lyon", "gascony", "languedoc"), 1),
+    # The Habsburg frontier against the Turk.
+    "buda": 1,
+    "styria": 1,
+}
+STARTING_FORTS = ("vienna", "buda")
 
 
 def europe_map() -> MapDef:
@@ -364,7 +377,8 @@ def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> Game
         pid: ProvinceState(
             owner=owner,
             development=dev,
-            troops=_garrison(pid, dev, owner, capitals),
+            troops=_garrison(pid, dev, owner, capitals) + EXTRA_GARRISON.get(pid, 0),
+            buildings=[BuildingKind.FORT] if pid in STARTING_FORTS else [],
         )
         for pid, _name, _terrain, _good, dev, owner, _lon, _lat in _PROVINCES
     }
