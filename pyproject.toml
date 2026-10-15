@@ -5,7 +5,14 @@ description = "A strategy game where every nation is ruled by an AI agent: they 
 readme = "README.md"
 authors = [{ name = "Raúl Fernández España" }]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "fastapi>=0.143.1",
+    "pydantic>=2.14.1",
+    "uvicorn>=0.30",
+]
+
+[project.scripts]
+pax = "pax_agentica.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13.0"]
@@ -38,9 +45,13 @@ addopts = "-ra --strict-markers --import-mode=importlib"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "hypothesis>=6.169.0",
     "mypy>=2.4.0",
     "pre-commit>=4.6.2",
     "pytest>=9.1.1",
     "ruff>=0.17.0",
+]
+mapgen = [
+    "shapely>=2.2.0",
 ]
