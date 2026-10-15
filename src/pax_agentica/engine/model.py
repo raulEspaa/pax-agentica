@@ -124,6 +124,7 @@ class TechLevel(BaseModel):
 
     name: str
     unlocks: str  # what it brings, in one sentence
+    lore: str = ""  # what it was, in history
 
 
 def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
@@ -131,31 +132,102 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
     t = TechLevel
     return {
         TechBranch.MILITARY: [
-            t(name="Pike and Shot", unlocks="the armory"),
-            t(name="Bastions", unlocks="the citadel and the cannon foundry"),
-            t(name="Tercios", unlocks="training grounds and the military academy"),
-            t(name="Field Artillery", unlocks="your attacks ignore one level of enemy forts"),
-            t(name="Military Revolution", unlocks="one more general"),
+            t(
+                name="Pike and Shot",
+                unlocks="the armory",
+                lore=(
+                    "Pikemen guard the arquebusiers while they reload: the square"
+                    " that will rule the field."
+                ),
+            ),
+            t(
+                name="Bastions",
+                unlocks="the citadel and the cannon foundry",
+                lore=(
+                    "Low, angled walls that shot glances off, the trace "
+                    "italienne, and foundries to cast the guns that test them."
+                ),
+            ),
+            t(
+                name="Tercios",
+                unlocks="training grounds and the military academy",
+                lore=(
+                    "Spain's regiments of pike, sword and shot, drilled to fight "
+                    "as one, and schools to train their captains."
+                ),
+            ),
+            t(
+                name="Field Artillery",
+                unlocks="your attacks ignore one level of enemy forts",
+                lore=(
+                    "Lighter guns on wheeled carriages that keep pace with the "
+                    "army and breach walls in days."
+                ),
+            ),
+            t(
+                name="Military Revolution",
+                unlocks="one more general",
+                lore="Standing armies, drill and supply: war becomes the business of states.",
+            ),
         ],
         TechBranch.ECONOMY: [
-            t(name="Banking", unlocks="the bank"),
-            t(name="Printing Press", unlocks="the university and the observatory"),
+            t(
+                name="Banking",
+                unlocks="the bank",
+                lore=(
+                    "The Fuggers and the Medici lend to kings, and bills of exchange cross Europe."
+                ),
+            ),
+            t(
+                name="Printing Press",
+                unlocks="the university and the observatory",
+                lore="Gutenberg's press prints books by the thousand: learning becomes cheap.",
+            ),
             t(
                 name="Mercantilism",
                 unlocks="marketplaces yield +150% instead of +100%, and the royal exchange",
+                lore=(
+                    "Gold is power: protect your own trades, tax the foreigner's,"
+                    " and build an exchange."
+                ),
             ),
-            t(name="Humanism", unlocks="the cathedral"),
-            t(name="Cameralism", unlocks="one more building slot in every province"),
+            t(
+                name="Humanism",
+                unlocks="the cathedral",
+                lore="The scholars of the Renaissance return to the ancients, and to man.",
+            ),
+            t(
+                name="Cameralism",
+                unlocks="one more building slot in every province",
+                lore="The science of administration: counting, taxing and planning a realm.",
+            ),
         ],
         TechBranch.ENGINEERING: [
-            t(name="Blast Furnace", unlocks="ironworks"),
+            t(
+                name="Blast Furnace",
+                unlocks="ironworks",
+                lore="Furnaces fed by water-driven bellows pour iron by the ton.",
+            ),
             t(
                 name="Water Mills",
                 unlocks="farm estates and lumber mills yield +150% instead of +100%",
+                lore="Wheels on every stream grind grain and saw timber.",
             ),
-            t(name="Roads and Canals", unlocks="armies eat 20% less grain"),
-            t(name="Star Forts", unlocks="your forts and citadels give +35% instead of +25%"),
-            t(name="Grand Architecture", unlocks="provinces can grow to development 15"),
+            t(
+                name="Roads and Canals",
+                unlocks="armies eat 20% less grain",
+                lore="Paved roads and locks move grain and soldiers faster.",
+            ),
+            t(
+                name="Star Forts",
+                unlocks="your forts and citadels give +35% instead of +25%",
+                lore="Fortresses shaped like stars, every wall covered by another's fire.",
+            ),
+            t(
+                name="Grand Architecture",
+                unlocks="provinces can grow to development 15",
+                lore="Palladio and Bramante: domes and squares for cities that keep growing.",
+            ),
         ],
     }
 
@@ -177,6 +249,7 @@ class Ruler(BaseModel):
     military: int = Field(ge=1, le=6)  # +2% battle power per point
     since: int  # the turn of the coronation
     reign: int = 0  # how many rulers came before in this game
+    bio: str = ""  # who they were, as history remembers them
 
 
 class Advisor(BaseModel):

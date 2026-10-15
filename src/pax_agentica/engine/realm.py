@@ -236,69 +236,311 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
 # ---------------------------------------------------------------- rulers
 
 # Who would sit on each throne, in order, as the historical line ran from 1500.
-RULERS: dict[str, list[tuple[str, str]]] = {
+RULERS: dict[str, list[tuple[str, str, str]]] = {
     "england": [
-        ("King", "Henry VII"),
-        ("King", "Henry VIII"),
-        ("King", "Edward VI"),
-        ("Queen", "Mary I"),
-        ("Queen", "Elizabeth I"),
-        ("King", "James I"),
+        (
+            "King",
+            "Henry VII",
+            (
+                "The first Tudor, who won his crown on Bosworth Field in 1485"
+                " and fills his treasury by thrift and fines."
+            ),
+        ),
+        (
+            "King",
+            "Henry VIII",
+            (
+                "Scholar, jouster and builder of warships, who will break "
+                "with Rome to remarry and dissolve the monasteries."
+            ),
+        ),
+        (
+            "King",
+            "Edward VI",
+            (
+                "Henry's only son, crowned at nine, a fervent Protestant "
+                "ruling through his uncles' council."
+            ),
+        ),
+        (
+            "Queen",
+            "Mary I",
+            (
+                "Catherine of Aragon's daughter, who restores the old faith "
+                "and marries Philip of Spain."
+            ),
+        ),
+        (
+            "Queen",
+            "Elizabeth I",
+            (
+                "The Virgin Queen, careful with money and bold at sea; under "
+                "her the Armada is beaten in 1588."
+            ),
+        ),
+        (
+            "King",
+            "James I",
+            (
+                "Already King of Scots, the first to rule both kingdoms, and "
+                "author of books on kingship and witchcraft."
+            ),
+        ),
     ],
     "france": [
-        ("King", "Louis XII"),
-        ("King", "Francis I"),
-        ("King", "Henry II"),
-        ("King", "Francis II"),
-        ("King", "Charles IX"),
-        ("King", "Henry III"),
+        (
+            "King",
+            "Louis XII",
+            "The 'Father of the People', who claims Milan and Naples by blood and keeps taxes low.",
+        ),
+        (
+            "King",
+            "Francis I",
+            (
+                "The Renaissance king of Marignano and Chambord, patron of "
+                "Leonardo and rival of Charles V."
+            ),
+        ),
+        (
+            "King",
+            "Henry II",
+            (
+                "Francis's son, who takes Calais from the English in 1558 and"
+                " dies of a wound taken in a tournament."
+            ),
+        ),
+        (
+            "King",
+            "Francis II",
+            "A sickly king of fifteen, husband of Mary, Queen of Scots; he reigns barely a year.",
+        ),
+        (
+            "King",
+            "Charles IX",
+            (
+                "Crowned at ten under his mother Catherine de' Medici, in the"
+                " years of the Wars of Religion."
+            ),
+        ),
+        (
+            "King",
+            "Henry III",
+            (
+                "The last Valois, elected King of Poland before inheriting "
+                "France, struck down by a monk in 1589."
+            ),
+        ),
     ],
     "spain": [
-        ("King", "Ferdinand II"),
-        ("Queen", "Joanna"),
-        ("King", "Charles I"),
-        ("King", "Philip II"),
-        ("King", "Philip III"),
-        ("King", "Philip IV"),
+        (
+            "King",
+            "Ferdinand II",
+            (
+                "Ferdinand of Aragon, who took Granada with Isabella in 1492 "
+                "and sent Columbus west; Machiavelli's model prince."
+            ),
+        ),
+        (
+            "Queen",
+            "Joanna",
+            (
+                "Joanna of Castile, called 'the Mad', heiress of half the "
+                "world, kept from power by her father and her son."
+            ),
+        ),
+        (
+            "King",
+            "Charles I",
+            (
+                "Charles of Ghent, King of Spain and, as Charles V, Holy "
+                "Roman Emperor: the sun never sets on his lands."
+            ),
+        ),
+        (
+            "King",
+            "Philip II",
+            (
+                "The prudent king of the Escorial, master of American silver,"
+                " of Portugal and of the Armada."
+            ),
+        ),
+        (
+            "King",
+            "Philip III",
+            (
+                "A pious king who leaves the realm to his favourite, the Duke"
+                " of Lerma, and expels the Moriscos."
+            ),
+        ),
+        (
+            "King",
+            "Philip IV",
+            "The 'Planet King', patron of Velázquez, in whose reign Spain's long decline begins.",
+        ),
     ],
     "austria": [
-        ("Emperor", "Maximilian I"),
-        ("Emperor", "Charles V"),
-        ("Emperor", "Ferdinand I"),
-        ("Emperor", "Maximilian II"),
-        ("Emperor", "Rudolf II"),
-        ("Emperor", "Matthias"),
+        (
+            "Emperor",
+            "Maximilian I",
+            (
+                "'The last knight', who married his house to Burgundy, Spain "
+                "and Hungary: let others wage war, happy Austria, marry."
+            ),
+        ),
+        (
+            "Emperor",
+            "Charles V",
+            (
+                "Heir of Habsburg, Burgundy and Spain, who faces Luther at "
+                "Worms and the Turk at Vienna."
+            ),
+        ),
+        (
+            "Emperor",
+            "Ferdinand I",
+            (
+                "Charles's brother, King of Bohemia and Hungary, who holds "
+                "Vienna against Suleiman in 1529."
+            ),
+        ),
+        (
+            "Emperor",
+            "Maximilian II",
+            "A tolerant emperor who keeps the peace between Catholic and Protestant.",
+        ),
+        (
+            "Emperor",
+            "Rudolf II",
+            (
+                "The melancholy emperor of Prague, collector of wonders and "
+                "patron of Kepler and Tycho Brahe."
+            ),
+        ),
+        (
+            "Emperor",
+            "Matthias",
+            "Rudolf's brother, who pushes him from power and sees the Thirty Years' War draw near.",
+        ),
     ],
     "ottomans": [
-        ("Sultan", "Bayezid II"),
-        ("Sultan", "Selim I"),
-        ("Sultan", "Suleiman I"),
-        ("Sultan", "Selim II"),
-        ("Sultan", "Murad III"),
-        ("Sultan", "Mehmed III"),
+        (
+            "Sultan",
+            "Bayezid II",
+            (
+                "The pious son of the Conqueror, who welcomes the Jews "
+                "expelled from Spain and builds across the empire."
+            ),
+        ),
+        (
+            "Sultan",
+            "Selim I",
+            "'The Grim', who in eight years conquers Syria, Egypt and the holy cities of Arabia.",
+        ),
+        (
+            "Sultan",
+            "Suleiman I",
+            "The Magnificent, the Lawgiver: Belgrade, Rhodes, Mohács and the siege of Vienna.",
+        ),
+        (
+            "Sultan",
+            "Selim II",
+            "Suleiman's son, whose fleet is broken at Lepanto in 1571 and rebuilt within a year.",
+        ),
+        (
+            "Sultan",
+            "Murad III",
+            "A sultan of the palace rather than the field, under whom the harem gains great power.",
+        ),
+        (
+            "Sultan",
+            "Mehmed III",
+            "Victor at Keresztes in 1596, the last sultan to have governed a province as a prince.",
+        ),
     ],
     "sweden": [
-        ("Regent", "Sten Sture"),
-        ("Regent", "Svante Nilsson"),
-        ("King", "Gustav I"),
-        ("King", "Eric XIV"),
-        ("King", "John III"),
-        ("King", "Sigismund"),
+        (
+            "Regent",
+            "Sten Sture",
+            "Sten Sture the Elder, Regent of Sweden, who beat the Danes at Brunkeberg in 1471.",
+        ),
+        (
+            "Regent",
+            "Svante Nilsson",
+            "A regent fighting to keep Sweden out of the Danish grip of the Kalmar Union.",
+        ),
+        (
+            "King",
+            "Gustav I",
+            (
+                "Gustav Vasa, who breaks the Kalmar Union in 1523, founds a "
+                "dynasty and takes the Church's lands."
+            ),
+        ),
+        (
+            "King",
+            "Eric XIV",
+            "Learned and suspicious, suitor of Elizabeth of England, deposed by his own brother.",
+        ),
+        (
+            "King",
+            "John III",
+            "Eric's brother and jailer, a lover of architecture who leans towards the old faith.",
+        ),
+        (
+            "King",
+            "Sigismund",
+            "King of Poland and of Sweden at once, a Catholic his Lutheran subjects will not keep.",
+        ),
     ],
     "russia": [
-        ("Grand Prince", "Ivan III"),
-        ("Grand Prince", "Vasili III"),
-        ("Tsar", "Ivan IV"),
-        ("Tsar", "Feodor I"),
-        ("Tsar", "Boris Godunov"),
-        ("Tsar", "Michael I"),
+        (
+            "Grand Prince",
+            "Ivan III",
+            (
+                "Ivan the Great, who threw off the Tatar yoke in 1480 and "
+                "took Novgorod; Moscow calls itself the Third Rome."
+            ),
+        ),
+        (
+            "Grand Prince",
+            "Vasili III",
+            "Ivan's son, who gathers Pskov, Smolensk and Ryazan into the Muscovite state.",
+        ),
+        (
+            "Tsar",
+            "Ivan IV",
+            (
+                "Ivan the Terrible, the first crowned Tsar, conqueror of "
+                "Kazan, and of his own nobles by terror."
+            ),
+        ),
+        (
+            "Tsar",
+            "Feodor I",
+            "A gentle, devout tsar, ruled in fact by his brother-in-law Boris Godunov.",
+        ),
+        (
+            "Tsar",
+            "Boris Godunov",
+            (
+                "The regent who becomes Tsar in 1598, clever and suspected; "
+                "his death opens the Time of Troubles."
+            ),
+        ),
+        (
+            "Tsar",
+            "Michael I",
+            "The first Romanov, elected Tsar by the land in 1613 after the Time of Troubles.",
+        ),
     ],
 }
 
 
 def make_ruler(nation: NationId, reign: int, turn: int, rng: random.Random, *, age: int) -> Ruler:
     line = RULERS.get(nation, [])
-    title, name = line[reign] if reign < len(line) else ("Ruler", f"the {reign + 1}th of the line")
+    title, name, bio = (
+        line[reign] if reign < len(line) else ("Ruler", f"the {reign + 1}th of the line", "")
+    )
 
     def stat() -> int:
         return rng.choice([1, 2, 2, 3, 3, 3, 4, 4, 5, 6])
@@ -312,6 +554,7 @@ def make_ruler(nation: NationId, reign: int, turn: int, rng: random.Random, *, a
         military=stat(),
         since=turn,
         reign=reign,
+        bio=bio,
     )
 
 
