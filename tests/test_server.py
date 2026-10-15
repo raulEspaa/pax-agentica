@@ -1,9 +1,12 @@
 """Playing a nation through the web server: the same view and orders an AI ruler gets."""
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
-from pax_agentica.server import create_app, default_session
+from pax_agentica.runner import GameRecord
+from pax_agentica.server import Session, create_app, default_session
 
 
 @pytest.fixture
@@ -66,3 +69,33 @@ def test_the_replay_and_the_end_of_the_game(client: TestClient) -> None:
     assert game["winner"]
     assert "<svg" in client.get("/replay").text
     assert client.post("/api/turn", json={"actions": []}).status_code == 409
+
+
+def test_the_page_previews_what_each_work_would_add(client: TestClient) -> None:
+    previews = client.get("/api/game").json()["previews"]
+    assert set(previews) == {
+        "paris",
+        "lyon",
+        "brittany",
+        "champagne",
+        "gascony",
+        "languedoc",
+        "normandy",
+    }
+    paris = previews["paris"]
+    assert paris["buildings"]["marketplace"]["ducats"] > 0  # it doubles the province's ducats
+    assert paris["develop"]["ducats"] >= 1
+
+
+def test_a_saved_game_resumes_exactly_where_it_stopped(tmp_path: Path) -> None:
+    save = tmp_path / "france-1.json"
+    session = default_session("france", seed=1, max_turns=5)
+    session.save_to = save
+    client = TestClient(create_app(session))
+    orders = {"actions": [{"type": "develop", "province": "paris"}]}
+    client.post("/api/turn", json=orders)
+    client.post("/api/turn", json={"actions": []})
+    record = GameRecord.model_validate_json(save.read_text(encoding="utf-8"))
+    resumed = Session.resume(record, "france", session.rulers)
+    assert resumed.state == session.state
+    assert resumed.state.provinces["paris"].development == 7

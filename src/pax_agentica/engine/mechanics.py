@@ -93,6 +93,23 @@ def building_output(state: GameState, province: ProvinceId) -> Resources:
     )
 
 
+def output_with(
+    state: GameState,
+    province: ProvinceId,
+    *,
+    development: int | None = None,
+    extra: Collection[BuildingKind] = (),
+) -> Resources:
+    """What the province would yield at another development or with more buildings, unrest
+    aside: the "what if" behind every preview of a work."""
+    p = state.provinces[province]
+    base = land_yield(state.rules, state.map.provinces[province].good, development or p.development)
+    mods = modifiers(state, p.owner)
+    return base + buildings_yield(
+        state.rules, base, [*p.buildings, *extra], mods.marketplace_share, mods.mill_share
+    )
+
+
 def province_output(state: GameState, province: ProvinceId) -> Resources:
     """What one province yields per turn, before the stability modifier. Nothing in unrest."""
     if state.provinces[province].unrest:

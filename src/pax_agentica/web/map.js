@@ -470,7 +470,7 @@ const PaxMap = (() => {
       slots,
       header: `<header class="deedhead">${vista(S, i, d)}
         <div class="ribbon"><span class="shield" style="background:${d.owner >= 0 ? N[d.owner].color : "var(--free)"}"></span>
-          <div><h2 id="deedname">${esc(p.name)}</h2><div class="owner">${kind} of ${owner}</div></div></div>
+          <div><h2 id="deedname">${esc(p.name)}</h2><div class="owner">${d.owner >= 0 ? `${kind} of ${owner}` : `Independent ${kind.toLowerCase()}`}</div></div></div>
         <button class="x" data-close aria-label="Close the province deed" title="Close (Esc)">×</button></header>`,
       facts: `<section class="strip num">
         <div title="Development: output, score and building slots. ${d.dev} of ${maxDev}."><span>🏛</span><b>${d.dev}</b><i style="width:${Math.round(d.dev / maxDev * 100)}%"></i><small>development</small></div>

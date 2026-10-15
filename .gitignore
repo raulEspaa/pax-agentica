@@ -19,8 +19,9 @@ htmlcov/
 .env.*
 !.env.example
 
-# Game records and replays (pax play --save / --html), downloaded map data
+# Game records, replays and saved games (pax play --save / --html, pax serve), map data
 replays/
+saves/
 .cache/
 
 # Editors and OS

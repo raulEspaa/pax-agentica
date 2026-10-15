@@ -227,6 +227,40 @@ table.prod { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .bld.built b::after { content: " ✓"; color: #2f6a3e; }
 .bld.blocked { opacity: .55; }
 .bld button { margin-top: 3px; }
+/* the deed's own tabs: brass-edged leaves of the ledger */
+.deedtabs { position: sticky; top: 0; z-index: 2; display: flex; gap: 3px; padding: 6px 12px 0;
+            background: linear-gradient(#e6d4ab, #dcc596); border-bottom: 2px solid #7a5c2c; }
+.deedtabs button { flex: 1; padding: 5px 4px 4px; font: 600 13.5px var(--body); color: var(--sepia-2); cursor: pointer;
+                   background: rgba(255, 248, 228, .35); border: 1px solid rgba(122, 92, 44, .55); border-bottom: none; border-radius: 3px 3px 0 0; }
+.deedtabs button small { font-weight: 400; color: var(--sepia-2); }
+.deedtabs button:hover { color: var(--sepia); background: rgba(255, 248, 228, .7); }
+.deedtabs button.on { color: var(--sepia); background: var(--vellum); box-shadow: inset 0 3px 0 var(--brass); margin-bottom: -2px; padding-bottom: 6px; }
+.deed .ic { font-size: 17px; }
+.gain { display: inline-flex; flex-wrap: wrap; gap: 2px 6px; color: #2f6a3e; font-weight: 600; font-size: 13.5px; }
+.card { padding: 8px 10px; border: 1px solid rgba(107, 86, 56, .45); background: rgba(255, 250, 235, .45); }
+.card.ready { border-color: #8a6a3a; box-shadow: inset 0 0 0 1px rgba(196, 154, 82, .35); }
+.card .cardhead { display: flex; gap: 8px; align-items: center; }
+.card .cardhead .ic { font-size: 24px; }
+.card .cardhead b { font: 700 15px var(--display); }
+.card .note { margin: 5px 0 6px; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.tile { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px 5px; text-align: center; font-size: 12.5px; line-height: 1.15;
+        border: 1px solid rgba(107, 86, 56, .4); background: rgba(255, 250, 235, .45); }
+.tile .ic { font-size: 22px; line-height: 1.15; }
+.tile b { font-size: 13px; }
+.tile .gain { justify-content: center; font-size: 12.5px; min-height: 15px; }
+.tile .cost { font-size: 11.5px; color: var(--sepia-2); }
+.tile .btn { margin-top: 3px; height: 24px; padding: 0 6px; font-size: 12px; max-width: 100%; }
+.tile.civil { box-shadow: inset 0 -3px 0 var(--civil); }
+.tile.military { box-shadow: inset 0 -3px 0 var(--military); }
+.tile.built { background: rgba(196, 154, 82, .28); border-color: #8a6a3a; }
+.tile.built .gain, .tile.ordered .gain { color: var(--sepia); }
+.tile.ordered { border-style: dashed; background: rgba(230, 194, 126, .35); }
+.tile.locked { opacity: .5; filter: grayscale(.6); }
+.tile.blocked { opacity: .72; }
+.relation { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
+.deed .chip { display: inline-block; padding: 0 7px; border: 1px solid #7a5c2c; border-radius: 9px; font-size: 12.5px; background: rgba(255, 250, 235, .6); }
+.deed .chip.war { border-color: var(--military); color: var(--military); }
 .deed .btn, .sheet .btn { height: 28px; }
 .actions { display: grid; gap: 7px; }
 .act { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; }

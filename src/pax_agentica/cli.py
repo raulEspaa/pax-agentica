@@ -87,6 +87,12 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    serve.add_argument(
+        "--new", action="store_true", help="start over instead of resuming the saved game"
+    )
+    serve.add_argument(
+        "--saves", type=Path, default=Path("saves"), help="where games are saved (default saves/)"
+    )
 
     bench = sub.add_parser("bench", help="play many seeded games and count the winners")
     bench.add_argument("--games", type=int, default=20)
@@ -256,7 +262,14 @@ def _serve(args: argparse.Namespace) -> int:
         return 2
     players = _players(state, args.bot, args.player, args.seed)
     players.pop(args.nation)
-    app = create_app(Session(state, args.nation, players))
+    save = args.saves / f"{args.nation}-{args.seed}.json"
+    session = Session(state, args.nation, players, save_to=save)
+    if save.exists() and not args.new:
+        record = GameRecord.model_validate_json(save.read_text(encoding="utf-8"))
+        if record.turns and record.winner is None:
+            session = Session.resume(record, args.nation, players, save_to=save)
+            print(f"Resuming your game in {session.state.year} from {save} (--new starts over).")
+    app = create_app(session)
     url = f"http://{args.host}:{args.port}"
     print(f"You rule {state.nations[args.nation].name}. Open {url}  (Ctrl+C to stop)")
     if not args.no_browser:

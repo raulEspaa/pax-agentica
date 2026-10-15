@@ -224,3 +224,13 @@ refuses or ignores it **dissolves the alliance**, in public.
 `NationView` an AI ruler gets, fog of war included, and you answer with the same `Orders`: the
 page is just a friendlier way to write them. The other thrones are held by bots (or, later, by
 AI rulers), and the turn resolves when you end the year.
+
+Click a province to open its deed. Your own provinces have three leaves: **Economy** (what it
+yields, what the next level of development would add, and the best works to build there),
+**Buildings** (every work, with what it would add in this province, its cost, or what it still
+needs) and **Army** (march, recruit, disband, appoint a general). The Realm office warns you when
+a neighbour masses regiments on your border.
+
+Every year is saved to `saves/<nation>-<seed>.json`, and `pax serve` picks the game up where you
+left it; `--new` starts over. The engine is deterministic, so a save is just the record of
+orders, replayed.

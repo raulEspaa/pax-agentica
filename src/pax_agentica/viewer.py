@@ -168,6 +168,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "rollMax": rules.roll_max,
             "stabilityBonus": rules.stability_income_bonus,
             "pay": rules.ducat_upkeep_per_regiment,
+            "grainUpkeep": rules.grain_upkeep_per_regiment,
             "recruit": amounts(rules.recruit_cost),
             "disband": amounts(rules.disband_refund),
             "developBase": rules.develop_base_ducats,

@@ -166,6 +166,11 @@
   }
 
   // ------------------------------------------------------------------ the province deed
+  // What a work without a yield does, in a few words for its tile.
+  const PERK = {university: "develop 30% cheaper here", armory: "regiments need half the iron", fort: "defenders +25%",
+    citadel: "defenders +25% more", training_grounds: "garrison +20%"};
+  const gainText = (g) => RES.map(([key, , ic]) => g && g[key] ? `<span>+${g[key]} ${ic}</span>` : "").join("");
+  let ownTab = "economy";
   function deed() {
     const box = $("deed");
     if (picked < 0) { box.classList.remove("open"); map.setTargets([]); hint(""); return; }
@@ -179,40 +184,71 @@
     let body = "";
     if (mine) {
       const here = troopsAfter(i), t = projected(), g = generalAt(i), targets = here > 0 ? targetsFrom(i) : [];
+      const preview = (G.previews || {})[p.id] || {develop: {}, buildings: {}};
       map.setTargets(targets);
       hint(here > 0 ? `${P[i].name}: ${here} regiments ready. Right-click a green province to march, a red one to attack.` : "");
-      const recruitN = Math.max(1, +(box.dataset.recruit || 1));
-      const rc = unbundle(p.recruit_cost).map((v) => v * recruitN), dev = unbundle(p.develop_cost);
-      const devQueued = orders.some((x) => x.type === "develop" && pIndex[x.province] === i);
-      const marches = targets.map(([j, kind]) => {
-        const chance = kind === "attack" ? odds(i, j) : null;
-        return `<button class="btn" data-march="${j}" data-kind="${kind}">${kind === "move" ? "➜" : "⚔"} ${esc(P[j].name)}${chance !== null ? ` ${Math.round(chance * 100)}%` : ""}</button>`;
-      }).join("");
-      const leader = g ? `<label class="leader"><input type="checkbox" id="lead" ${lead ? "checked" : ""}> led by ${esc(g.name)} <span class="stars">${stars(g.skill)}</span></label>`
-        : V.me.generals.length < V.me.modifiers.max_generals ? `<div class="act"><button class="btn" data-act="hire" ${affordable(R.generalCost, t) ? "" : "disabled"}>Appoint a general here</button><span class="cost">${costText(R.generalCost)}</span></div>` : "";
-      body += `<section><h4>Army of ${esc(P[i].name)}</h4><div class="actions">
-        <div class="act">${stepper("send", Math.min(send, Math.max(here, 1)), Math.max(here, 1))}<span>of ${here} regiments march</span></div>
-        ${leader}
-        ${here > 0 && marches ? `<div class="row">${marches}</div>` : `<p class="note">${here > 0 ? "No province to march to." : "No regiments here."}</p>`}
-        <div class="act">${stepper("recruit", recruitN, 99)}<button class="btn" data-act="recruit" ${affordable(rc, t) ? "" : "disabled"}>Recruit</button><span class="cost">${costText(rc)}</span></div>
-        <div class="act">${stepper("disband", Math.max(1, +(box.dataset.disband || 1)), Math.max(here, 1))}<button class="btn" data-act="disband" ${here > 0 ? "" : "disabled"}>Disband</button><span class="cost">returns ${costText(R.disband)} each</span></div>
-      </div></section>
-      <section><h4>Works</h4><div class="act"><button class="btn" data-act="develop" ${affordable(dev, t) && !devQueued && p.development < V.me.modifiers.max_development ? "" : "disabled"}>Develop to ${p.development + 1}</button>
-        <span class="cost">${costText(dev)}${devQueued ? ", already ordered" : ""}</span></div></section>`;
       const free = info.slots - p.buildings.length - queued.length;
-      const catalog = ["civil", "military"].map((cat) => `<div><h5 class="${cat}">${cap(cat)}</h5>${
-        B.map((b, k) => [b, k]).filter(([b]) => b.category === cat).map(([b, k]) => {
-          const has = p.buildings.includes(b.id) || queued.includes(k), cost = buildCost(b.id);
+      const tabs = [["economy", "💰 Economy"], ["buildings", `🏗 Buildings <small>${p.buildings.length + queued.length}/${info.slots}</small>`],
+        ["army", `⚔ Army <small>${here}</small>`]];
+      body += `<nav class="deedtabs" role="tablist">${tabs.map(([id, label]) =>
+        `<button role="tab" aria-selected="${ownTab === id}" class="${ownTab === id ? "on" : ""}" data-dtab="${id}">${label}</button>`).join("")}</nav>`;
+      if (ownTab === "economy") {
+        const dev = unbundle(p.develop_cost), maxDev = V.me.modifiers.max_development;
+        const devQueued = orders.some((x) => x.type === "develop" && pIndex[x.province] === i);
+        const next = p.development + 1, slotOpens = next % R.slotEvery === 0;
+        const devWhy = p.development >= maxDev ? `development is at its ceiling (${maxDev})` : devQueued ? "already ordered this year" : !affordable(dev, t) ? "too costly for now" : "";
+        body += info.production + `<section><div class="card ${devWhy ? "blocked" : "ready"}">
+            <div class="cardhead"><span class="ic">🏛</span><div><b>Develop to ${Math.min(next, maxDev)}</b>
+              <div class="gain">${p.development < maxDev ? gainText(preview.develop) || "<span>more score</span>" : ""}<span>+1 score</span></div></div></div>
+            <p class="note">${slotOpens ? "<b>Opens a new building slot.</b> " : `Next building slot at development ${Math.ceil(next / R.slotEvery) * R.slotEvery}. `}Score is what wins the game.</p>
+            <div class="act"><button class="btn" data-act="develop" ${devWhy ? "disabled" : ""}>${devWhy ? cap(devWhy) : "Develop"}</button><span class="cost">${costText(dev)}</span></div></div></section>`;
+        const best = B.filter((b) => !p.buildings.includes(b.id) && !queued.includes(bIndex[b.id]) && !(b.tech && V.me.technology[b.tech[0]] < b.tech[1])
+            && !(b.requires >= 0 && !p.buildings.includes(B[b.requires].id)))
+          .map((b) => [b, preview.buildings[b.id] || {}]).filter(([, gain]) => gain.ducats > 0)
+          .sort((a, b) => b[1].ducats - a[1].ducats).slice(0, 2);
+        if (best.length && free > 0) body += `<section><h4>Best works here</h4>${best.map(([b, gain]) =>
+          `<div class="act"><span class="ic">${BICON[b.id]}</span><b>${esc(b.name)}</b><span class="gain">${gainText(gain)}</span>
+            <button class="btn" data-build="${b.id}" ${affordable(buildCost(b.id), t) ? "" : "disabled"}>Build</button><span class="cost">${costText(buildCost(b.id))}</span></div>`).join("")}</section>`;
+      } else if (ownTab === "buildings") {
+        const tiles = B.map((b, k) => {
+          const built = p.buildings.includes(b.id), ordered = queued.includes(k), cost = buildCost(b.id);
           const needs = b.requires >= 0 && !p.buildings.includes(B[b.requires].id) && !queued.includes(b.requires);
           const tech = b.tech && V.me.technology[b.tech[0]] < b.tech[1];
-          const why = has ? "" : tech ? `needs ${b.tech[0]} ${b.tech[1]}` : needs ? `needs a ${B[b.requires].name.toLowerCase()}` : free <= 0 ? "no free slot" : !affordable(cost, t) ? "too costly" : "";
-          return `<div class="bld ${has ? "built" : why ? "blocked" : ""}"><span class="ic">${BICON[b.id]}</span><div><b>${esc(b.name)}</b>
-            <div class="fx">${esc(b.effect)}.</div><div class="cost">${costText(cost)}</div>
-            ${has ? "" : `<button class="btn" data-build="${b.id}" ${why ? "disabled" : ""}>${why ? cap(why) : "Build"}</button>`}</div></div>`; }).join("")}</div>`).join("");
-      body += `<section>${info.slotsHtml}<div class="catalog">${catalog}</div>
-        <p class="note">A new slot opens every ${R.slotEvery} development. Output buildings double the land's yield.</p></section>`;
+          const why = built || ordered ? "" : tech ? `🔒 ${cap(b.tech[0])} ${b.tech[1]}` : needs ? `needs a ${B[b.requires].name.toLowerCase()}` : free <= 0 ? "no free slot" : !affordable(cost, t) ? "too costly" : "";
+          const gain = gainText((preview.buildings || {})[b.id]);
+          const what = built ? "Built" : ordered ? "Ordered" : gain || esc(PERK[b.id] || "");
+          const state = built ? "built" : ordered ? "ordered" : tech ? "locked" : why ? "blocked" : "ready";
+          return [["built", "ordered", "ready", "blocked", "locked"].indexOf(state), `<div class="tile ${b.category} ${state}" title="${esc(b.name)}: ${esc(b.effect)}.${b.tech ? ` Needs ${b.tech[0]} technology ${b.tech[1]}.` : ""}">
+            <span class="ic">${BICON[b.id]}</span><b>${esc(b.name)}</b><span class="gain">${what}</span>
+            ${built || ordered ? "" : `<span class="cost">${costText(cost)}</span><button class="btn" data-build="${b.id}" ${why ? "disabled" : ""}>${why || "Build"}</button>`}</div>`];
+        }).sort((x, y) => x[0] - y[0]).map((x) => x[1]).join("");
+        body += `<section>${info.slotsHtml}<div class="tiles">${tiles}</div>
+          <p class="note">A new slot opens every ${R.slotEvery} development. Hover a work to read what it does.</p></section>`;
+      } else {
+        const recruitN = Math.max(1, +(box.dataset.recruit || 1)), rc = unbundle(p.recruit_cost).map((v) => v * recruitN);
+        const marches = targets.map(([j, kind]) => {
+          const chance = kind === "attack" ? odds(i, j) : null;
+          return `<button class="btn" data-march="${j}" data-kind="${kind}">${kind === "move" ? "➜" : "⚔"} ${esc(P[j].name)}${chance !== null ? ` ${Math.round(chance * 100)}%` : ""}</button>`;
+        }).join("");
+        const leader = g ? `<label class="leader"><input type="checkbox" id="lead" ${lead ? "checked" : ""}> led by ${esc(g.name)} <span class="stars">${stars(g.skill)}</span></label>`
+          : V.me.generals.length < V.me.modifiers.max_generals ? `<div class="act"><button class="btn" data-act="hire" ${affordable(R.generalCost, t) ? "" : "disabled"}>Appoint a general here</button><span class="cost">${costText(R.generalCost)}</span></div>` : "";
+        body += `<section><h4>March</h4><div class="actions">
+          <div class="act">${stepper("send", Math.min(send, Math.max(here, 1)), Math.max(here, 1))}<span>of ${here} regiments</span></div>
+          ${leader}
+          ${here > 0 && marches ? `<div class="row">${marches}</div>` : `<p class="note">${here > 0 ? "No province to march to." : "No regiments here."}</p>`}</div></section>
+          <section><h4>Levy</h4><div class="actions">
+          <div class="act">${stepper("recruit", recruitN, 99)}<button class="btn" data-act="recruit" ${affordable(rc, t) ? "" : "disabled"}>Recruit</button><span class="cost">${costText(rc)}</span></div>
+          <div class="act">${stepper("disband", Math.max(1, +(box.dataset.disband || 1)), Math.max(here, 1))}<button class="btn" data-act="disband" ${here > 0 ? "" : "disabled"}>Disband</button><span class="cost">returns ${costText(R.disband)} each</span></div>
+          <p class="note">Each regiment eats ${R.grainUpkeep} grain and costs ${R.pay} ducats a year.</p></div></section>`;
+      }
     } else {
       map.setTargets([]); hint("");
+      if (o >= 0) {
+        const r = relation(p.owner), ruler = V.nations.find((n) => n.id === p.owner)?.ruler;
+        const status = r.war ? `<span class="chip war">at war</span>` : r.alliance ? `<span class="chip">allied</span>` : r.pact ? `<span class="chip">non-aggression pact</span>` : r.truce ? `<span class="chip">truce</span>` : `<span class="chip">at peace</span>`;
+        body += `<section class="relation"><span>${status} ${ruler ? `${esc(ruler.title)} ${esc(ruler.name)} reigns.` : ""}</span>
+          <button class="btn" data-envoy="${p.owner}">✉ Envoys</button></section>`;
+      }
       const near = [...P[i].land, ...P[i].sea].filter((j) => owned(j) && troopsAfter(j) > 0);
       if (near.length && p.troops !== null) {
         const best = near.sort((a, b) => troopsAfter(b) - troopsAfter(a))[0], g = generalAt(best);
@@ -222,11 +258,15 @@
           against ${p.troops}: <b>${Math.round(chance * 100)}% to win</b>.
           ${war ? `Select ${esc(P[best].name)} and right-click here.` : `You must declare war on ${esc(N[o].name)} first.`}</p></section>`;
       }
-      body += `<section>${info.slotsHtml}</section>`;
+      body += info.production + `<section>${info.slotsHtml}</section>`;
     }
-    box.innerHTML = info.header + info.facts + info.production + body;
+    const scroll = box.scrollTop;
+    box.innerHTML = info.header + info.facts + body;
+    box.scrollTop = scroll;
     box.classList.add("open");
     box.querySelector("[data-close]").onclick = () => { picked = -1; render(); };
+    box.querySelectorAll("[data-dtab]").forEach((b) => b.onclick = () => { ownTab = b.dataset.dtab; deed(); });
+    box.querySelectorAll("[data-envoy]").forEach((b) => b.onclick = () => { focus = nIndex[b.dataset.envoy]; tab = "diplomacy"; render(); });
     box.querySelectorAll(".stepper").forEach(wireStepper);
     const leadBox = box.querySelector("#lead"); if (leadBox) leadBox.onchange = () => { lead = leadBox.checked; deed(); };
     box.querySelectorAll("[data-march]").forEach((b) => b.onclick = () => march(i, +b.dataset.march, b.dataset.kind));
@@ -265,6 +305,28 @@
   }
 
   // ------------------------------------------------------------------ offices
+  // Courts whose regiments mass on your border: the war a ruler should see coming.
+  function threats() {
+    const out = [];
+    for (const n of V.nations) {
+      if (n.id === G.human || !n.alive) continue;
+      const r = relation(n.id);
+      if (r.alliance || r.truce) continue;
+      let theirs = 0, ours = 0;
+      const facing = new Set();
+      for (const id of V.me.provinces) {
+        const i = pIndex[id];
+        const near = [...P[i].land, ...P[i].sea].filter((j) => prov(j).owner === n.id);
+        if (!near.length) continue;
+        ours += troopsAfter(i);
+        near.forEach((j) => facing.add(j));
+      }
+      facing.forEach((j) => (theirs += prov(j).troops || 0));
+      if (theirs >= 8 && theirs >= 1.5 * ours) out.push({nation: n.id, theirs, ours, war: !!r.war, pact: !!r.pact});
+    }
+    return out.sort((a, b) => b.theirs / Math.max(1, b.ours) - a.theirs / Math.max(1, a.ours));
+  }
+  const threatText = (t) => `${t.war ? "⚔" : "⚠"} ${esc(nameOf(t.nation))} masses ${t.theirs} regiments on your border; you have ${t.ours} facing them${t.pact ? " (a pact holds them, for now)" : t.war ? "" : ". War may come"}.`;
   function realmTab() {
     const inc = unbundle(V.me.income_per_turn), up = unbundle(V.me.army_upkeep_per_turn), now = unbundle(V.me.resources), after = projected();
     const mine = V.me.provinces.map((id) => pIndex[id]);
@@ -284,6 +346,7 @@
     return `<div class="pad"><h4>The year's balance</h4>
       <table class="grid num"><thead><tr><th></th><th title="What your provinces yield">Land</th><th title="Stability and economy technology">Mods</th><th title="Army pay and grain">Army</th><th>Net</th><th>Treasury</th></tr></thead><tbody>${rows}</tbody></table>
       ${short.map((s) => `<p class="warn">${s}</p>`).join("")}
+      ${threats().map((t) => `<p class="warn">${threatText(t)}</p>`).join("")}
       <p class="sub">Stability ${sign(V.me.stability)} and economy technology ${V.me.technology.economy} raise ducats; economy technology raises grain too.
         The manpower pool stops at ${V.me.manpower_cap}.</p>
       <h4>Provinces</h4>
@@ -562,11 +625,22 @@
       .map((e) => `<div class="work">🏗 ${esc(e.summary.replace(/^\S+ builds /, "A new ").replace(" in ", " stands in "))}.</div>`).join("");
     const crowned = V.last_turn_events.filter((e) => e.kind === "succession" && e.nations[0] === G.human)
       .map((e) => `<div class="discovery">👑 ${esc(e.summary)}.</div>`).join("");
-    $("sheet").innerHTML = `<h2 id="modaltitle">The year ${V.year - 1}</h2>${crowned}${discoveries}${works}
+    const danger = threats().filter((t) => !t.pact).map((t) => `<div class="threat">${threatText(t)}</div>`).join("");
+    const ranking = [...V.nations.filter((n) => n.id !== G.human),
+      {id: G.human, name: nameOf(G.human), score: V.me.score, provinces: V.me.provinces.length, alive: V.me.provinces.length > 0}]
+      .sort((a, b) => b.score - a.score || b.provinces - a.provinces);
+    const place = ranking.findIndex((n) => n.id === G.human) + 1;
+    const fallen = !V.me.provinces.length;
+    const ending = G.finished || fallen ? `<div class="ending ${G.winner === G.human ? "won" : ""}">
+        <h3>${G.winner === G.human ? "Your realm is the greatest in Europe" : fallen ? "Your realm is no more" : `${esc(nameOf(G.winner))} prevails`}</h3>
+        <p>${esc(V.last_turn_events.find((e) => e.kind === "game_over")?.summary || (fallen ? "Your last province has fallen" : "The game is over")).replace(/\.?$/, ".")}${place && !fallen ? ` You finish ${["first", "second", "third", "fourth", "fifth", "sixth", "seventh"][place - 1]}.` : ""}</p>
+        <table class="grid num"><thead><tr><th></th><th>Nation</th><th>Score</th><th>Provinces</th></tr></thead><tbody>${ranking.map((n, k) =>
+          `<tr class="${n.id === G.human ? "me" : ""}"><td>${k + 1}</td><td>${esc(n.name)}${n.alive ? "" : " †"}</td><td>${n.score}</td><td>${n.provinces}</td></tr>`).join("")}</tbody></table>
+        <p><a href="/replay" target="_blank">Watch the whole game as a replay</a></p></div>` : "";
+    $("sheet").innerHTML = `<h2 id="modaltitle">${G.finished ? "The end of an age" : `The year ${V.year - 1}`}</h2>${ending}${crowned}${discoveries}${works}${G.finished ? "" : danger}
       ${won.length ? `<p>Your realm gained ${won.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
       ${lost.length ? `<p style="color:#8f2f22">You lost ${lost.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
       <ul>${items || "<li>A quiet year for your realm.</li>"}</ul>
-      ${G.finished ? `<p><b>${esc(V.last_turn_events.find((e) => e.kind === "game_over")?.summary || "The game is over.")}</b></p><p><a href="/replay" target="_blank">Watch the whole game as a replay</a></p>` : ""}
       <button class="btn" id="closemodal">Continue</button>`;
     $("modal").classList.add("open"); $("closemodal").focus();
     $("closemodal").onclick = () => $("modal").classList.remove("open");

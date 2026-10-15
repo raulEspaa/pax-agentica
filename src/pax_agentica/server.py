@@ -10,6 +10,7 @@ they decide in parallel while the engine waits for you to end the turn.
 import asyncio
 from collections.abc import Mapping
 from importlib.resources import files
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -22,8 +23,11 @@ from pax_agentica.engine import (
     NationView,
     Orders,
     new_game,
+    resolve_turn,
     view_for,
 )
+from pax_agentica.engine.mechanics import output_with
+from pax_agentica.engine.model import BuildingKind
 from pax_agentica.players import Player
 from pax_agentica.runner import GameRecord, play_turn, snapshot
 from pax_agentica.viewer import europe_map, render_html, static_payload
@@ -47,19 +51,42 @@ class Session:
     """One game in progress, with a human on one throne."""
 
     def __init__(
-        self, state: GameState, human: NationId, rulers: Mapping[NationId, Player]
+        self,
+        state: GameState,
+        human: NationId,
+        rulers: Mapping[NationId, Player],
+        save_to: Path | None = None,
     ) -> None:
         if human not in state.nations:
             raise ValueError(f"unknown nation {human!r}")
         self.state = state
         self.human = human
         self.rulers = dict(rulers)
+        self.save_to = save_to
         self.record = GameRecord(
             players={n: p.name for n, p in self.rulers.items()} | {human: "you"},
             initial=state,
             start=snapshot(state),
         )
         self.lock = asyncio.Lock()
+
+    @classmethod
+    def resume(
+        cls, record: GameRecord, human: NationId, rulers: Mapping[NationId, Player], **kw: Any
+    ) -> "Session":
+        """Pick a saved game up where it stopped. The engine is deterministic, so replaying
+        the recorded orders rebuilds the exact state."""
+        session = cls(record.initial, human, rulers, **kw)
+        state = record.initial
+        for turn in record.turns:
+            state = resolve_turn(state, turn.orders)
+        session.state, session.record = state, record
+        return session
+
+    def save(self) -> None:
+        if self.save_to is not None:
+            self.save_to.parent.mkdir(parents=True, exist_ok=True)
+            self.save_to.write_text(self.record.model_dump_json(), encoding="utf-8")
 
     async def end_turn(self, orders: Orders) -> None:
         async with self.lock:
@@ -70,6 +97,7 @@ class Session:
             self.state, turn = await play_turn(self.state, players)
             self.record.turns.append(turn)
             self.record.winner = self.state.winner
+            self.save()
 
     def chronicle(self) -> list[dict[str, Any]]:
         """Every past event the human could witness, newest year first."""
@@ -78,6 +106,23 @@ class Session:
             seen = [e for e in turn.events if e.visible_to(self.human)]
             years.append({"turn": turn.turn, "year": turn.year, "events": _events(seen)})
         return years
+
+    def previews(self) -> dict[str, dict[str, Any]]:
+        """For each of the human's provinces, what one more development or each building not
+        yet standing would add to its yearly output. Only for the page: an AI ruler's view
+        stays lean."""
+        state, out = self.state, {}
+        for pid in state.provinces_of(self.human):
+            p = state.provinces[pid]
+            now = output_with(state, pid)
+            gains = {
+                kind.value: (output_with(state, pid, extra=(kind,)) - now).model_dump()
+                for kind in BuildingKind
+                if kind not in p.buildings
+            }
+            develop = output_with(state, pid, development=p.development + 1) - now
+            out[pid] = {"develop": develop.model_dump(), "buildings": gains}
+        return out
 
     def payload(self) -> dict[str, Any]:
         state = self.state
@@ -88,6 +133,8 @@ class Session:
             "winner": state.winner,
             "chronicle": self.chronicle(),
             "rulers": self.record.players,
+            "previews": self.previews(),
+            "saved_to": str(self.save_to) if self.save_to else None,
         }
 
 
