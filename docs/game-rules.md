@@ -306,8 +306,15 @@ AI rulers), and the turn resolves when you end the year.
 Click a province to open its deed. Your own provinces have three leaves: **Economy** (what it
 yields, what the next level of development would add, and the best works to build there),
 **Buildings** (every work, with what it would add in this province, its cost, or what it still
-needs) and **Army** (march, recruit, disband, appoint a general). The Realm office warns you when
-a neighbour masses regiments on your border.
+needs) and **Army** (the garrison by kind, march a fair share or choose regiments by kind, levies of each kind,
+disband, appoint a general). The Realm office warns you when a neighbour masses regiments on your
+border.
+
+The Envoys office is the court of Europe: each ruler's portrait and history, what they think of
+you, your strength side by side, the treaties between you, and what they propose. Peace terms
+are written in a treaty form (provinces on the border to demand or cede, sums, tribute, an army
+limit and a note), and any peace or trade can be answered with a counter-offer, which opens the
+same form with their terms turned to face you.
 
 Every year is saved to `saves/<nation>-<seed>.json`, and `pax serve` picks the game up where you
 left it; `--new` starts over. The engine is deterministic, so a save is just the record of

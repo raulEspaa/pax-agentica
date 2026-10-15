@@ -110,6 +110,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                 "tech": [spec.requires_tech[0].value, spec.requires_tech[1]]
                 if spec.requires_tech
                 else None,
+                "unique": spec.unique,
             }
             for kind in KINDS
             for spec in [rules.buildings[kind]]
@@ -126,11 +127,37 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                 }[branch],
                 "cost": amounts(rules.tech_costs[branch]),
                 "levels": [
-                    {"name": step.name, "unlocks": step.unlocks} for step in rules.tech_tree[branch]
+                    {"name": step.name, "unlocks": step.unlocks, "lore": step.lore}
+                    for step in rules.tech_tree[branch]
                 ],
             }
             for branch in TechBranch
         ],
+        "units": [
+            {
+                "id": kind.value,
+                "name": spec.name,
+                "cost": amounts(spec.cost or rules.recruit_cost),
+                "pay": spec.pay * rules.ducat_upkeep_per_regiment,
+                "rations": spec.rations * rules.grain_upkeep_per_regiment,
+                "attack": spec.attack,
+                "defence": spec.defence,
+                "terrain": {t.value: v for t, v in spec.terrain.items()},
+                "requires": KINDS.index(spec.requires) if spec.requires else -1,
+                "role": spec.role,
+            }
+            for kind, spec in rules.units.items()
+        ],
+        "monuments": {
+            pid: {
+                "name": m.name,
+                "effect": m.effect,
+                "lore": m.lore,
+                "bonus": m.bonus,
+                "perLevel": m.per_level,
+            }
+            for pid, m in rules.monuments.items()
+        },
         "advisors": [
             {
                 "id": "treasurer",
@@ -183,6 +210,12 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "mobilization": rules.mobilization_turns,
             "breakPenalty": rules.treaty_break_stability_penalty,
             "startYear": rules.start_year,
+            "monumentCost": amounts(rules.monument_cost),
+            "maxMonument": rules.max_monument_level,
+            "tributeYears": rules.tribute_years,
+            "combinedShare": rules.combined_arms_share,
+            "combinedBonus": {str(k): v for k, v in rules.combined_arms_bonus.items()},
+            "siegeShare": rules.artillery_share_per_fort_level,
         },
     }
 

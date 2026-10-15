@@ -52,6 +52,42 @@
   .ok { color: #a6dbb4; }
   .item { padding: 7px 11px; border-top: 1px solid rgba(196, 154, 82, .14); font-size: 14px; }
   .item:first-child { border-top: none; }
+  /* the courts of Europe */
+  .office-units { margin: 4px 0 8px; } .office-units .unit { background: var(--walnut-lo); border-color: var(--brass-lo); color: var(--ink); }
+  .office-units .unit small { color: var(--ink-3); }
+  .office .lore { font-style: italic; color: var(--ink-3); font-size: 13px; line-height: 1.35; margin: 4px 0; }
+  .nrow.court { grid-template-columns: 38px 1fr; }
+  .nrow.court small { display: block; }
+  .nrow .portrait, .audience .portrait { border: 1px solid var(--brass); box-shadow: 0 0 0 1px #000; }
+  .mood { display: inline-block; padding: 0 6px; border-radius: 8px; font-size: 12px; border: 1px solid; margin-right: 3px; }
+  .mood.friendly { color: #8fd19e; border-color: #4f8f5c; } .mood.cordial { color: #c5dca0; border-color: #6f8a4a; }
+  .mood.neutral { color: var(--ink-2); border-color: var(--brass-lo); } .mood.wary { color: #e0b070; border-color: #8a6a2a; }
+  .mood.hostile { color: #f08a7a; border-color: #9a3a2a; }
+  .audience { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+  .audience b { font: 700 16px var(--display); color: var(--brass-hi); }
+  .moods { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+  .moods .sub { display: block; }
+  .moods .bar { display: block; position: relative; height: 6px; margin-top: 4px; border: 1px solid var(--brass-lo);
+                background: linear-gradient(90deg, #7a2a20, #5a4a2a 40%, #4a4a2a 60%, #3a6a3a); }
+  .moods .bar b { position: absolute; top: -3px; width: 3px; height: 10px; margin-left: -1px; background: var(--brass-hi); box-shadow: 0 0 0 1px #000; }
+  table.versus td:first-child { color: var(--ink-3); }
+  .desk details { margin: 8px 0; border: 1px solid rgba(196, 154, 82, .3); background: var(--walnut-lo); }
+  .desk summary { cursor: pointer; padding: 6px 10px; font: 700 13.5px var(--display); color: var(--brass-hi); list-style: none; }
+  .desk summary::before { content: "▸ "; color: var(--brass); } .desk details[open] summary::before { content: "▾ "; }
+  .desk details > :not(summary) { margin-left: 10px; margin-right: 10px; }
+  .desk details > :last-child { margin-bottom: 8px; }
+  .desk details.peace { border-color: var(--brass); box-shadow: 0 0 10px rgba(236, 208, 140, .15); }
+  .proposal { margin: 6px 0; padding: 7px 9px; border: 1px solid var(--brass-lo); background: var(--leather-hi); font-size: 14px; }
+  .proposal blockquote { margin: 5px 0; padding-left: 8px; border-left: 2px solid var(--brass); font-style: italic; color: var(--ink-2); }
+  .terms { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 4px 0 6px; }
+  .picks { display: grid; gap: 2px; max-height: 120px; overflow: auto; }
+  .pick { font-size: 13.5px; } .pick small { color: var(--ink-3); }
+  .tribute label, .desk .row label { font-size: 13px; color: var(--ink-2); }
+  .tribute input, #limit-army { width: 64px; padding: 2px 4px; }
+  .history { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .history li { padding: 3px 0; border-top: 1px solid rgba(196, 154, 82, .12); }
+  .history .yr { color: var(--brass); font-variant-numeric: tabular-nums; margin-right: 4px; }
+  .desk textarea { margin-top: 4px; }
   .letter { font-style: italic; color: var(--sepia); background: var(--vellum-tex), linear-gradient(#f4e8cb, var(--vellum-2));
             padding: 6px 10px; margin-top: 5px; white-space: pre-wrap; border-left: 3px solid var(--brass); }
   table.grid { width: 100%; border-collapse: collapse; font-size: 13.5px; }

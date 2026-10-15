@@ -25,11 +25,17 @@ state directly, so a clever (or confused) agent can't cheat its way to victory.
 An arcade grand strategy game: **68 provinces** from Lisbon to Moscow, **seven great powers**
 (England, France, Spain, Austria, the Ottomans, Sweden and Russia) and a scatter of independent
 minors to swallow. Five resources (ducats, manpower, iron, grain and timber) feed recruiting,
-development, civil and military buildings, and stability. A tree of learning unlocks new
-buildings and powers; every throne has an ageing ruler and a council of three advisors; named
-generals lead the armies. Rulers can ally, sign pacts, trade, demand tribute, send letters,
-declare war and make peace. Breaking a treaty is always possible, always public, and
-always costs stability. The full rules are in [`docs/game-rules.md`](docs/game-rules.md).
+development, civil and military buildings, great works and stability. Armies mix pikemen,
+archers, cavalry and artillery, each with its ground; sixteen historical monuments, from
+Westminster Abbey to Hagia Sophia, reward whoever holds them. A tree of learning unlocks new
+buildings and powers; every throne has a historical ruler who ages and dies, and a council of
+three advisors; named generals lead the armies.
+
+Diplomacy is the heart of it, because the other thrones will be AI agents. Courts ally, sign
+pacts, trade and send letters; each holds an opinion of every other, raised by gifts and
+treaties and wrecked by betrayal. Peace is negotiated: provinces, gold, a yearly tribute or a cap
+on the loser's army, with counter-offers and notes going back and forth until both sides sign.
+The full rules are in [`docs/game-rules.md`](docs/game-rules.md).
 
 <p align="center"><img src="docs/assets/replay.jpg" alt="The HTML replay: a political map of Europe in 1529 inside an engraved neatline, with nation names, armies, the ledger and the chronicle of the year" width="760"></p>
 

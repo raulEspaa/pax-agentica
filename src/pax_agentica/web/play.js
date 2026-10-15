@@ -3,10 +3,11 @@
 "use strict";
 
 (async () => {
-  const {esc, mix, devColor, cap, costText, RES, BICON, ICON, BAD, TERRAIN} = PaxMap;
+  const {esc, mix, devColor, cap, costText, RES, BICON, UICON, ICON, BAD, TERRAIN} = PaxMap;
   const $ = (id) => document.getElementById(id);
   const S = await (await fetch("/api/static")).json();
-  const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, T = S.tech;
+  const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, T = S.tech, U = S.units, M = S.monuments;
+  const KINDS = U.map((u) => u.id);
   const pIndex = Object.fromEntries(P.map((p, i) => [p.id, i]));
   const nIndex = Object.fromEntries(N.map((n, i) => [n.id, i]));
   const bIndex = Object.fromEntries(B.map((b, i) => [b.id, i]));
@@ -17,6 +18,7 @@
 
   let G = null, V = null, me = -1;                // game payload, my view, my nation index
   let orders = [], mode = "political", picked = -1, focus = -1, tab = "realm", send = Infinity, lead = true;
+  let pickMix = null; // regiments chosen by kind for the next march, or null for a proportional draw
 
   const map = PaxMap.create($("map"), S, {
     hover: (i, e) => tooltip(i, e),
@@ -63,7 +65,9 @@
     const t = unbundle(V.me.resources);
     const sub = (c) => c.forEach((v, k) => (t[k] -= v));
     for (const o of orders) {
-      if (o.type === "recruit") sub(unbundle(prov(pIndex[o.province]).recruit_cost).map((v) => v * o.regiments));
+      if (o.type === "recruit") { const p = prov(pIndex[o.province]); sub(unbundle((p.recruit_costs || {})[o.unit || "infantry"] || p.recruit_cost).map((v) => v * o.regiments)); }
+      if (o.type === "upgrade_monument") sub(R.monumentCost.map((v) => v * ((prov(pIndex[o.province]).monument || 0) + 1)));
+      if (o.type === "propose_peace") sub(unbundle(o.give));
       if (o.type === "develop") sub(unbundle(prov(pIndex[o.province]).develop_cost));
       if (o.type === "build") sub(buildCost(o.building));
       if (o.type === "boost_stability") sub([stabilityCost(), 0, 0, 0, 0]);
@@ -87,6 +91,47 @@
     }
     return t;
   }
+  // Regiments by kind, as the engine counts them: a proportional draw takes largest remainders.
+  function share(army, n) {
+    const total = KINDS.reduce((t, k) => t + (army[k] || 0), 0);
+    n = Math.min(n, total);
+    const out = Object.fromEntries(KINDS.map((k) => [k, 0]));
+    if (!total || !n) return out;
+    const exact = KINDS.map((k) => (army[k] || 0) * n / total);
+    KINDS.forEach((k, j) => (out[k] = Math.floor(exact[j])));
+    let rest = n - KINDS.reduce((t, k) => t + out[k], 0);
+    KINDS.map((k, j) => [exact[j] - out[k], -j, k]).sort((a, b) => b[0] - a[0] || b[1] - a[1]).slice(0, rest).forEach(([, , k]) => out[k]++);
+    return out;
+  }
+  function armyAfter(i) {
+    const a = {...(prov(i).army || {infantry: prov(i).troops || 0})};
+    KINDS.forEach((k) => (a[k] = a[k] || 0));
+    for (const o of orders) {
+      if (o.type === "recruit" && pIndex[o.province] === i) a[o.unit || "infantry"] += o.regiments;
+      const leaving = (o.type === "move" || o.type === "attack") && pIndex[o.origin] === i ? o
+        : o.type === "disband" && pIndex[o.province] === i ? o : null;
+      if (leaving) {
+        const gone = leaving.units || (leaving.unit ? {[leaving.unit]: leaving.regiments} : share(a, leaving.regiments));
+        KINDS.forEach((k) => (a[k] = Math.max(0, a[k] - (gone[k] || 0))));
+      }
+      if (o.type === "move" && pIndex[o.target] === i) {
+        const came = o.units || {infantry: o.regiments};
+        KINDS.forEach((k) => (a[k] += came[k] || 0));
+      }
+    }
+    return a;
+  }
+  function strength(army, terrain, attacking) {
+    const total = KINDS.reduce((t, k) => t + (army[k] || 0), 0);
+    if (!total) return 0;
+    let power = 0, kinds = 0;
+    U.forEach((u) => { const n = army[u.id] || 0; power += n * (attacking ? u.attack : u.defence) * (u.terrain[terrain] || 1);
+      if (n && n / total >= R.combinedShare) kinds++; });
+    const bonus = Math.max(0, ...Object.entries(R.combinedBonus).filter(([k]) => kinds >= +k).map(([, b]) => b));
+    return power * (1 + bonus);
+  }
+  const siege = (army) => { const total = KINDS.reduce((t, k) => t + (army[k] || 0), 0);
+    return total ? Math.floor((army.artillery || 0) / total / R.siegeShare + 1e-9) : 0; };
   function generalPositions() { // where each of my generals stands once this year's orders are carried out
     const at = new Map(V.me.generals.map((g) => [g.id, pIndex[g.province]]));
     for (const o of orders) {
@@ -102,9 +147,10 @@
   }
 
   // ------------------------------------------------------------------ battles, as the engine rolls them
-  function defence(origin, target) {
+  function defence(origin, target, breach = 0) {
     const p = prov(target);
-    let bonus = R.fort * p.fort + (p.is_capital ? R.capital : 0);
+    const forts = Math.max(0, p.fort - breach - (V.me.modifiers.ignores_fort_levels || 0));
+    let bonus = R.fort * forts + (p.is_capital ? R.capital : 0);
     if (P[origin].sea.includes(target)) bonus += R.sea;
     const owner = p.owner ? V.nations.find((n) => n.id === p.owner) : null;
     const tech = owner ? 1 + T[0].perLevel * owner.technology.military : 1;
@@ -130,17 +176,28 @@
     }
     return out;
   }
-  function odds(from, to) {
-    const p = prov(to), n = Math.min(send, troopsAfter(from)), g = lead ? generalAt(from) : null;
-    if (p.troops === null) return null;
-    return winChance(n * myFactor(g), p.troops, defence(from, to));
+  // Who marches: the regiments chosen by kind, or a proportional draw of `send`.
+  function force(from) {
+    const here = armyAfter(from);
+    if (pickMix) { const out = {}; KINDS.forEach((k) => (out[k] = Math.min(pickMix[k] || 0, here[k]))); return out; }
+    return share(here, Math.min(send, troopsAfter(from)));
+  }
+  function odds(from, to, army = force(from)) {
+    const p = prov(to), g = lead ? generalAt(from) : null;
+    const n = KINDS.reduce((t, k) => t + army[k], 0);
+    if (p.troops === null || !n) return null;
+    if (!p.troops) return 1;
+    const ground = P[to].terrain;
+    const mine = strength(army, ground, true) * myFactor(g);
+    const theirs = p.army ? strength(p.army, ground, false) : p.troops;
+    return winChance(mine, theirs, defence(from, to, siege(army)));
   }
 
   // ------------------------------------------------------------------ selecting and commanding
   function select(i) {
     if (i < 0) return;
     picked = i === picked ? -1 : i;
-    send = Infinity; lead = true;
+    send = Infinity; lead = true; pickMix = null;
     const o = picked >= 0 ? prov(picked).owner : null;
     if (o && o !== G.human) focus = nIndex[o];
     render();
@@ -157,10 +214,11 @@
     march(picked, i, target[1]);
   }
   function march(from, to, kind) {
-    const n = Math.min(send, troopsAfter(from));
+    const army = force(from), n = KINDS.reduce((t, k) => t + army[k], 0);
     if (n <= 0) return flash(`No regiments left in ${P[from].name}.`);
     const g = lead ? generalAt(from) : null;
     const order = {type: kind, origin: P[from].id, target: P[to].id, regiments: n};
+    if (pickMix) order.units = Object.fromEntries(KINDS.filter((k) => army[k]).map((k) => [k, army[k]]));
     if (g) order.general = g.id;
     queue(order);
   }
@@ -171,13 +229,28 @@
     citadel: "defenders +25% more", training_grounds: "garrison +20%"};
   const gainText = (g) => RES.map(([key, , ic]) => g && g[key] ? `<span>+${g[key]} ${ic}</span>` : "").join("");
   let ownTab = "economy";
+  function monumentCard(i, mine, t) {
+    const p = prov(i), mon = M[p.id];
+    if (!mon || p.monument === null) return "";
+    const level = p.monument, queued = orders.some((o) => o.type === "upgrade_monument" && pIndex[o.province] === i);
+    const cost = R.monumentCost.map((v) => v * (level + 1));
+    const why = level >= R.maxMonument ? "at its greatest" : queued ? "already ordered" : p.unrest ? "in unrest" : !affordable(cost, t) ? "too costly" : "";
+    const now = level ? `Level ${level}: ${esc(mon.effect.replace(/(\d+)%/, (_, x) => `${x * level}%`))}.` : "Not yet built: a bare site.";
+    return `<section><div class="card monument ${level ? "built" : "site"}">
+      <div class="cardhead"><span class="ic">${level ? "🏛" : "📐"}</span><div><b>${esc(mon.name)}</b>
+        <div class="stars" title="Level ${level} of ${R.maxMonument}">${"★".repeat(level)}${"☆".repeat(R.maxMonument - level)}</div></div></div>
+      <p class="lore">${esc(mon.lore)}</p>
+      <p class="note">${now} Every level adds ${esc(mon.effect)}, to whoever holds ${esc(P[i].name)}.</p>
+      ${mine ? `<div class="act"><button class="btn" data-monument ${why ? "disabled" : ""}>${why ? cap(why) : level ? `Raise to level ${level + 1}` : "Lay the first stone"}</button>
+        ${level < R.maxMonument ? `<span class="cost">${costText(cost)}</span>` : ""}</div>` : ""}</div></section>`;
+  }
   function deed() {
     const box = $("deed");
     if (picked < 0) { box.classList.remove("open"); map.setTargets([]); hint(""); return; }
     const i = picked, p = prov(i), o = p.owner === null ? -1 : nIndex[p.owner], mine = owned(i);
     const out = unbundle(p.output_per_turn), extra = unbundle(p.building_output_per_turn);
     const queued = orders.filter((x) => x.type === "build" && pIndex[x.province] === i).map((x) => bIndex[x.building]);
-    const info = PaxMap.deedInfo(S, i, {owner: o, isCapital: p.is_capital, dev: p.development, troops: p.troops,
+    const info = PaxMap.deedInfo(S, i, {owner: o, isCapital: p.is_capital, dev: p.development, troops: p.troops, monument: p.monument,
       fort: p.fort, unrest: p.unrest, base: out.map((v, k) => v - extra[k]), bonus: extra, slots: p.building_slots,
       maxDev: mine ? V.me.modifiers.max_development : R.maxDevelopment, general: p.general,
       built: p.buildings.map((b) => bIndex[b]), queued: mine ? queued : []});
@@ -206,6 +279,7 @@
             && !(b.requires >= 0 && !p.buildings.includes(B[b.requires].id)))
           .map((b) => [b, preview.buildings[b.id] || {}]).filter(([, gain]) => gain.ducats > 0)
           .sort((a, b) => b[1].ducats - a[1].ducats).slice(0, 2);
+        body += monumentCard(i, true, t);
         if (best.length && free > 0) body += `<section><h4>Best works here</h4>${best.map(([b, gain]) =>
           `<div class="act"><span class="ic">${BICON[b.id]}</span><b>${esc(b.name)}</b><span class="gain">${gainText(gain)}</span>
             <button class="btn" data-build="${b.id}" ${affordable(buildCost(b.id), t) ? "" : "disabled"}>Build</button><span class="cost">${costText(buildCost(b.id))}</span></div>`).join("")}</section>`;
@@ -225,21 +299,43 @@
         body += `<section>${info.slotsHtml}<div class="tiles">${tiles}</div>
           <p class="note">A new slot opens every ${R.slotEvery} development. Hover a work to read what it does.</p></section>`;
       } else {
-        const recruitN = Math.max(1, +(box.dataset.recruit || 1)), rc = unbundle(p.recruit_cost).map((v) => v * recruitN);
+        const now = armyAfter(i), ground = P[i].terrain;
+        const comp = U.map((u) => `<div class="unit ${now[u.id] ? "" : "none"}" title="${esc(u.name)}: ${esc(u.role)}">
+          <span class="ic">${UICON[u.id]}</span><b>${now[u.id]}</b><small>${esc(u.id)}</small></div>`).join("");
+        const mixed = U.filter((u) => now[u.id] / Math.max(1, here) >= R.combinedShare).length;
         const marches = targets.map(([j, kind]) => {
           const chance = kind === "attack" ? odds(i, j) : null;
           return `<button class="btn" data-march="${j}" data-kind="${kind}">${kind === "move" ? "➜" : "⚔"} ${esc(P[j].name)}${chance !== null ? ` ${Math.round(chance * 100)}%` : ""}</button>`;
         }).join("");
         const leader = g ? `<label class="leader"><input type="checkbox" id="lead" ${lead ? "checked" : ""}> led by ${esc(g.name)} <span class="stars">${stars(g.skill)}</span></label>`
           : V.me.generals.length < V.me.modifiers.max_generals ? `<div class="act"><button class="btn" data-act="hire" ${affordable(R.generalCost, t) ? "" : "disabled"}>Appoint a general here</button><span class="cost">${costText(R.generalCost)}</span></div>` : "";
-        body += `<section><h4>March</h4><div class="actions">
-          <div class="act">${stepper("send", Math.min(send, Math.max(here, 1)), Math.max(here, 1))}<span>of ${here} regiments</span></div>
+        const chooser = pickMix
+          ? U.filter((u) => now[u.id]).map((u) => `<div class="act"><span class="ic">${UICON[u.id]}</span>${stepper(`mix_${u.id}`, Math.min(pickMix[u.id] || 0, now[u.id]), now[u.id], 0)}<span>of ${now[u.id]} ${esc(u.id)}</span></div>`).join("")
+          : `<div class="act">${stepper("send", Math.min(send, Math.max(here, 1)), Math.max(here, 1))}<span>of ${here} regiments, a fair share of each kind</span></div>`;
+        const terrainNote = (u) => Object.entries(u.terrain).map(([t, v]) => `×${v} ${t}`).join(", ");
+        const levy = U.map((u) => {
+          const price = (p.recruit_costs || {})[u.id], n = Math.max(1, +(box.dataset[`recruit_${u.id}`] || 1));
+          const cost = price ? unbundle(price).map((v) => v * n) : null;
+          const why = !price ? `needs ${B[u.requires].name.toLowerCase()}` : !affordable(cost, t) ? "too costly" : "";
+          return `<div class="levy ${price ? "" : "blocked"}"><span class="ic">${UICON[u.id]}</span>
+            <div><b>${esc(u.name)}</b><small>attack ${u.attack}, defence ${u.defence}${terrainNote(u) ? `; ${terrainNote(u)}` : ""}</small></div>
+            ${price ? stepper(`recruit_${u.id}`, n, 99) : ""}
+            <button class="btn" data-recruit="${u.id}" ${why ? "disabled" : ""}>${why ? cap(why) : "Recruit"}</button>
+            ${price ? `<span class="cost">${costText(cost)}</span>` : ""}</div>`;
+        }).join("");
+        body += `<section><h4>The garrison</h4><div class="units">${comp}</div>
+          <p class="note">On ${esc(ground)} they defend with a strength of ${strength(now, ground, false).toFixed(1)}${mixed >= 3 ? `, and fight ${Math.round((R.combinedBonus[mixed] || R.combinedBonus[3]) * 100)}% harder for their combined arms` : ""}.</p></section>
+          <section><h4>March</h4><div class="actions">
+          <div class="row"><button class="btn" id="mixmode">${pickMix ? "Send a fair share instead" : "Choose regiments by kind"}</button></div>
+          ${chooser}
           ${leader}
-          ${here > 0 && marches ? `<div class="row">${marches}</div>` : `<p class="note">${here > 0 ? "No province to march to." : "No regiments here."}</p>`}</div></section>
-          <section><h4>Levy</h4><div class="actions">
-          <div class="act">${stepper("recruit", recruitN, 99)}<button class="btn" data-act="recruit" ${affordable(rc, t) ? "" : "disabled"}>Recruit</button><span class="cost">${costText(rc)}</span></div>
-          <div class="act">${stepper("disband", Math.max(1, +(box.dataset.disband || 1)), Math.max(here, 1))}<button class="btn" data-act="disband" ${here > 0 ? "" : "disabled"}>Disband</button><span class="cost">returns ${costText(R.disband)} each</span></div>
-          <p class="note">Each regiment eats ${R.grainUpkeep} grain and costs ${R.pay} ducats a year.</p></div></section>`;
+          ${here > 0 && marches ? `<div class="row">${marches}</div>` : `<p class="note">${here > 0 ? "No province to march to." : "No regiments here."}</p>`}
+          <p class="note">Cavalry charges best on plains; every tenth of an attacking army in guns knocks a fort level off.</p></div></section>
+          <section><h4>Levy</h4><div class="levies">${levy}</div>
+          <div class="act">${stepper("disband", Math.max(1, +(box.dataset.disband || 1)), Math.max(here, 1))}
+            <select class="field" id="disbandkind" aria-label="Which regiments to disband"><option value="">a fair share</option>${U.filter((u) => now[u.id]).map((u) => `<option value="${u.id}" ${box.dataset.disbandkind === u.id ? "selected" : ""}>${esc(u.id)}</option>`).join("")}</select>
+            <button class="btn" data-act="disband" ${here > 0 ? "" : "disabled"}>Disband</button><span class="cost">returns ${costText(R.disband)} each</span></div>
+          <p class="note">A pikeman eats ${R.grainUpkeep} grain and costs ${R.pay} ducats a year; cavalry eats and costs double, guns cost double.</p></section>`;
       }
     } else {
       map.setTargets([]); hint("");
@@ -252,13 +348,13 @@
       const near = [...P[i].land, ...P[i].sea].filter((j) => owned(j) && troopsAfter(j) > 0);
       if (near.length && p.troops !== null) {
         const best = near.sort((a, b) => troopsAfter(b) - troopsAfter(a))[0], g = generalAt(best);
-        const chance = winChance(troopsAfter(best) * myFactor(g), p.troops, defence(best, i));
+        const chance = odds(best, i, armyAfter(best)) ?? 0;
         const war = p.owner === null || relation(p.owner).war;
         body += `<section><h4>Attack</h4><p class="note" style="font-style:normal">All ${troopsAfter(best)} regiments of ${esc(P[best].name)}${g ? ` under ${esc(g.name)}` : ""}
           against ${p.troops}: <b>${Math.round(chance * 100)}% to win</b>.
           ${war ? `Select ${esc(P[best].name)} and right-click here.` : `You must declare war on ${esc(N[o].name)} first.`}</p></section>`;
       }
-      body += info.production + `<section>${info.slotsHtml}</section>`;
+      body += monumentCard(i, false, projected()) + info.production + `<section>${info.slotsHtml}</section>`;
     }
     const scroll = box.scrollTop;
     box.innerHTML = info.header + info.facts + body;
@@ -269,25 +365,39 @@
     box.querySelectorAll("[data-envoy]").forEach((b) => b.onclick = () => { focus = nIndex[b.dataset.envoy]; tab = "diplomacy"; render(); });
     box.querySelectorAll(".stepper").forEach(wireStepper);
     const leadBox = box.querySelector("#lead"); if (leadBox) leadBox.onchange = () => { lead = leadBox.checked; deed(); };
+    const mixButton = box.querySelector("#mixmode");
+    if (mixButton) mixButton.onclick = () => { pickMix = pickMix ? null : Object.fromEntries(KINDS.map((k) => [k, armyAfter(i)[k]])); deed(); };
+    const disbandKind = box.querySelector("#disbandkind"); if (disbandKind) disbandKind.onchange = () => { box.dataset.disbandkind = disbandKind.value; };
+    box.querySelectorAll("[data-recruit]").forEach((b) => b.onclick = () => {
+      const unit = b.dataset.recruit, n = Math.max(1, +(box.dataset[`recruit_${unit}`] || 1));
+      queue({type: "recruit", province: P[i].id, regiments: n, unit});
+    });
+    box.querySelectorAll("[data-monument]").forEach((b) => b.onclick = () => queue({type: "upgrade_monument", province: P[i].id}));
     box.querySelectorAll("[data-march]").forEach((b) => b.onclick = () => march(i, +b.dataset.march, b.dataset.kind));
     box.querySelectorAll("[data-act]").forEach((b) => b.onclick = () => {
       const id = P[i].id, act = b.dataset.act;
-      if (act === "recruit") queue({type: "recruit", province: id, regiments: +(box.dataset.recruit || 1)});
       if (act === "develop") queue({type: "develop", province: id});
-      if (act === "disband") queue({type: "disband", province: id, regiments: Math.min(+(box.dataset.disband || 1), troopsAfter(i))});
+      if (act === "disband") {
+        const unit = box.dataset.disbandkind || null, most = unit ? armyAfter(i)[unit] : troopsAfter(i);
+        const order = {type: "disband", province: id, regiments: Math.min(+(box.dataset.disband || 1), most)};
+        if (unit) order.unit = unit;
+        if (order.regiments > 0) queue(order);
+      }
       if (act === "hire") queue({type: "hire_general", province: id});
     });
     box.querySelectorAll("[data-build]").forEach((b) => b.onclick = () => queue({type: "build", province: P[i].id, building: b.dataset.build}));
   }
   function hint(text) { const h = $("hintbar"); h.textContent = text; h.classList.toggle("show", !!text); }
-  function stepper(name, value, max) {
-    return `<span class="stepper" data-name="${name}" data-max="${max}"><button type="button" data-d="-1" aria-label="Fewer">−</button>
-      <input type="number" min="1" max="${max}" value="${value}" aria-label="${name}"><button type="button" data-d="1" aria-label="More">+</button></span>`;
+  function stepper(name, value, max, min = 1) {
+    return `<span class="stepper" data-name="${name}" data-max="${max}" data-min="${min}"><button type="button" data-d="-1" aria-label="Fewer">−</button>
+      <input type="number" min="${min}" max="${max}" value="${value}" aria-label="${name.replace("_", " ")}"><button type="button" data-d="1" aria-label="More">+</button></span>`;
   }
   function wireStepper(st) {
-    const box = $("deed"), input = st.querySelector("input"), name = st.dataset.name, max = +st.dataset.max;
-    const set = (v) => { v = Math.max(1, Math.min(max, v || 1)); input.value = v;
-      if (name === "send") { send = v; deed(); } else { box.dataset[name] = v; if (name === "recruit") deed(); } };
+    const box = $("deed"), input = st.querySelector("input"), name = st.dataset.name, max = +st.dataset.max, min = +st.dataset.min;
+    const set = (v) => { v = Math.max(min, Math.min(max, Number.isFinite(v) ? v : min)); input.value = v;
+      if (name === "send") { send = v; deed(); }
+      else if (name.startsWith("mix_")) { pickMix[name.slice(4)] = v; deed(); }
+      else { box.dataset[name] = v; if (name.startsWith("recruit")) deed(); } };
     st.querySelectorAll("button").forEach((b) => b.onclick = () => set(+input.value + +b.dataset.d));
     input.onchange = () => set(+input.value);
   }
@@ -368,6 +478,7 @@
       return `<tr class="click" data-p="${i}"><td>${esc(P[i].name)}</td><td>${troopsAfter(i)}</td><td>${g ? esc(g.name) : ""}</td></tr>`; }).join("");
     const wars = V.me.wars.map((w) => `<span class="chip war">${esc(nameOf(w.enemy))}${w.attacks_allowed_from_turn > V.turn ? ", mobilising" : ""}</span>`).join("");
     return `<div class="pad"><h4>The army</h4>
+      <div class="units office-units">${U.map((u) => `<div class="unit ${V.me.army[u.id] ? "" : "none"}" title="${esc(u.name)}: ${esc(u.role)}"><span class="ic">${UICON[u.id]}</span><b>${V.me.army[u.id]}</b><small>${esc(u.id)}</small></div>`).join("")}</div>
       <p class="sub">${V.me.regiments} regiments, costing ${costText(unbundle(V.me.army_upkeep_per_turn))} a year. Manpower ${V.me.resources.manpower} of ${V.me.manpower_cap}.
         Military technology ${V.me.technology.military}: +${Math.round(T[0].perLevel * 100 * V.me.technology.military)}% battle power.</p>
       <div class="chips">${wars || `<span class="muted">At peace.</span>`}</div>
@@ -389,10 +500,11 @@
         const state = done ? "done" : next ? (doing && doing.branch === b.id ? "doing" : "next") : "locked";
         const button = next && cost ? (doing && doing.branch === b.id ? `<div class="sub">Researching this year</div>`
           : `<button class="btn" data-research="${b.id}" ${doing || !affordable(unbundle(cost)) ? "disabled" : ""}>Research</button><div class="sub">${costText(unbundle(cost))}</div>`) : "";
-        return `<div class="node ${state}" title="${esc(step.name)}: ${esc(step.unlocks)}">
+        return `<div class="node ${state}" title="${esc(step.name)}: ${esc(step.unlocks)}. ${esc(step.lore || "")}">
           <div class="lvl">${done ? "✓" : n}</div><b>${esc(step.name)}</b>
           <div class="unl">${unlocked.map((x) => `<span class="chipb">${BICON[x.id]} ${esc(x.name)}</span>`).join("") || esc(cap(step.unlocks))}</div>
-          <div class="sub">+${Math.round(b.perLevel * 100)}% ${b.id === "engineering" ? "cheaper works" : b.id === "economy" ? "income" : "battle power"}</div>${button}</div>`;
+          <div class="sub">+${Math.round(b.perLevel * 100)}% ${b.id === "engineering" ? "cheaper works" : b.id === "economy" ? "income" : "battle power"}</div>
+          ${next && step.lore ? `<div class="lore">${esc(step.lore)}</div>` : ""}${button}</div>`;
       }).join(`<div class="link"></div>`);
       return `<div class="branch"><h5>${BRANCH_IC[b.id]} ${b.name}<small>${level} of ${R.maxTech}</small></h5>${nodes}</div>`;
     }).join("");
@@ -403,25 +515,14 @@
       <div class="tree">${columns}</div>
       <h4>Other courts</h4><table class="grid num"><thead><tr><th>Nation</th>${T.map((b) => `<th>${b.name}</th>`).join("")}</tr></thead><tbody>${rivals}</tbody></table></div>`;
   }
-  function portrait(seed, color, crown, size = 64) { // a bust in silhouette, the court's colours behind
-    const r = (() => { let h = 0; for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (k) => ((h >> k) & 7) / 7; })();
-    const hair = ["#2b1a0e", "#5a3a1c", "#7a5a32", "#c9b48a", "#3a2a1c"][Math.floor(r(1) * 4.99)];
-    const beard = r(4) > .45;
-    return `<svg class="portrait" viewBox="0 0 64 64" width="${size}" height="${size}" aria-hidden="true">
-      <rect width="64" height="64" fill="${color}"/>
-      <circle cx="32" cy="70" r="30" fill="#2a1f16"/><path d="M14 64 q18 -22 36 0" fill="${mix(color, "#000000", .35)}"/>
-      <ellipse cx="32" cy="30" rx="11" ry="13" fill="#e9c9a3" stroke="#3a2a18" stroke-width=".8"/>
-      <path d="M21 28 q11 -16 22 0 q-2 -10 -11 -11 q-9 1 -11 11" fill="${hair}"/>
-      ${beard ? `<path d="M23 34 q9 14 18 0 q-3 7 -9 7 q-6 0 -9 -7" fill="${hair}"/>` : ""}
-      ${crown ? `<path d="M21 19 l3 -8 l4 5 l4 -7 l4 7 l4 -5 l3 8 z" fill="#e6c27e" stroke="#5a3f17" stroke-width=".8"/>` : ""}
-      <rect x=".5" y=".5" width="63" height="63" fill="none" stroke="#3a2a18"/></svg>`;
-  }
+  const portrait = (person, color, size) => PaxMap.portrait(person, color, size);
   function pips(n, max = 6) { return `<span class="statpips">${Array.from({length: max}, (_, k) => `<i class="${k < n ? "on" : ""}"></i>`).join("")}</span>`; }
   function crownTab() {
     const ruler = V.me.ruler, color = N[me].color;
     const reign = ruler ? R.startYear + ruler.since - 1 : 0;
-    const rulerHtml = ruler ? `<div class="throne">${portrait(ruler.name, color, true, 84)}
+    const rulerHtml = ruler ? `<div class="throne">${portrait(ruler, color, 96)}
       <div><b>${esc(ruler.title)} ${esc(ruler.name)}</b><div class="sub">Aged ${ruler.age}, reigning since ${reign}.</div>
+        ${ruler.bio ? `<p class="lore">${esc(ruler.bio)}</p>` : ""}
         <div class="stat"><span>Administration</span>${pips(ruler.administration)}<small>+${Math.round(R.rulerIncome * 100 * ruler.administration)}% ducats</small></div>
         <div class="stat"><span>Diplomacy</span>${pips(ruler.diplomacy)}<small>stability ${Math.round(Math.min(.8, R.rulerStability * ruler.diplomacy) * 100)}% cheaper${ruler.diplomacy >= 5 ? ", betrayal costs less" : ""}</small></div>
         <div class="stat"><span>Military</span>${pips(ruler.military)}<small>+${Math.round(R.rulerBattle * 100 * ruler.military)}% battle power</small></div></div></div>
@@ -432,7 +533,7 @@
       const sitting = V.me.advisors[role.id];
       const offers = V.me.advisor_candidates.filter((c) => c.role === role.id);
       const dismissed = orders.some((o) => o.type === "dismiss_advisor" && o.role === role.id);
-      const head = sitting ? `<div class="seat-who">${portrait(sitting.name, mix(color, "#efe2c2", .5), false, 48)}
+      const head = sitting ? `<div class="seat-who">${portrait(sitting, mix(color, "#efe2c2", .5), 48)}
           <div><b>${esc(sitting.name)}</b> <span class="stars">${stars(sitting.skill)}</span>
           <div class="sub">${esc(role.effect.replace("per star", `× ${sitting.skill}`))}; paid ${R.advisorSalary * sitting.skill} ducats a year.</div>
           <button class="btn" data-dismiss="${role.id}" ${dismissed ? "disabled" : ""}>${dismissed ? "Leaving" : "Dismiss"}</button></div></div>`
@@ -456,63 +557,150 @@
     if (r.truce) out.push(`<span class="chip truce">truce until ${year(r.truce.until_turn)}</span>`);
     return out.join("");
   }
-  function diplomacyTab() {
-    const list = V.nations.filter((n) => n.alive).map((n) => `<div class="nrow ${nIndex[n.id] === focus ? "sel" : ""}" data-n="${n.id}" tabindex="0">
-      <span class="shield" style="background:${N[nIndex[n.id]].color}"></span>
-      <div><b>${esc(n.name)}</b> <small>${n.provinces} provinces, score ${n.score}</small><div class="chips">${chipsFor(n.id)}</div></div>
-      <small>${esc(G.rulers[n.id] || "")}</small></div>`).join("");
-    const alive = focus >= 0 && focus !== me && V.nations.find((n) => n.id === N[focus].id)?.alive;
-    return `<div>${list}</div>${alive ? desk(N[focus].id) : `<p class="muted pad">Pick a court to treat with it.</p>`}`;
+  // ------------------------------------------------------------------ diplomacy: the courts of Europe
+  const attitude = (v) => v >= 50 ? ["friendly", "Friendly"] : v >= 20 ? ["cordial", "Cordial"] : v > -20 ? ["neutral", "Neutral"]
+    : v > -50 ? ["wary", "Wary"] : ["hostile", "Hostile"];
+  const opinionBadge = (v, label = "") => { const [cls, word] = attitude(v);
+    return `<span class="mood ${cls}" title="${label}${sign(v)} of 100">${word} ${sign(v)}</span>`; };
+  let countering = null; // a proposal being answered with a counter-offer
+  function termsText(p, from) {
+    // From the sender's side: `give` is what the sender pays. Written for the human reader.
+    const mineToo = from === G.human, other = p.target || p.recipient;
+    const sender = mineToo ? "you" : esc(nameOf(from)), receiver = mineToo ? esc(nameOf(other)) : "you";
+    const does = (who, verb) => `${who} ${who === "you" ? verb : verb + "s"}`;
+    const names = (ids) => ids.map((x) => esc(P[pIndex[x]].name)).join(", "), years = R.tributeYears, parts = [];
+    const give = costText(unbundle(p.give)), ask = costText(unbundle(p.receive));
+    if (give !== "nothing") parts.push(`${does(sender, "pay")} ${give}`);
+    if (ask !== "nothing") parts.push(`${does(receiver, "pay")} ${ask}`);
+    if ((p.cede || []).length) parts.push(`${does(sender, "cede")} ${names(p.cede)}`);
+    if ((p.demand || []).length) parts.push(`${does(receiver, "cede")} ${names(p.demand)}`);
+    if (p.pay_tribute) parts.push(`${does(sender, "pay")} ${p.pay_tribute} ducats a year for ${years} years`);
+    if (p.ask_tribute) parts.push(`${does(receiver, "pay")} ${p.ask_tribute} ducats a year for ${years} years`);
+    if (p.limit_army !== null && p.limit_army !== undefined) parts.push(`${does(receiver, "keep")} no more than ${p.limit_army} regiments during the truce`);
+    return parts.join("; ");
   }
+  function proposalCard(p) {
+    const from = esc(nameOf(p.sender)), answered = orders.find((o) => o.type === "respond" && o.proposal_id === p.id);
+    const what = p.kind === "alliance" ? `${from} proposes an alliance.`
+      : p.kind === "non_aggression" ? `${from} proposes a non-aggression pact for ten years.`
+      : p.kind === "peace" ? `${from} offers peace${p.reply_to ? " (a counter-offer)" : ""}: ${termsText(p, p.sender) || "a white peace"}.`
+      : p.kind === "trade" ? `${from} offers ${costText(unbundle(p.give))} for ${costText(unbundle(p.receive))}${p.reply_to ? " (a counter-offer)" : ""}.`
+      : `${from} calls you to arms against ${esc(nameOf(p.enemy))}. Ignoring it ends the alliance.`;
+    const state = answered ? (answered.accept ? `<span class="ok">You accept.</span>` : answered.counter ? `<span class="ok">You counter.</span>` : `<span class="warn">You refuse.</span>`) : "";
+    const canCounter = p.kind === "peace" || p.kind === "trade";
+    return `<div class="proposal"><div>${what} ${state}</div>${p.note ? `<blockquote>“${esc(p.note)}”</blockquote>` : ""}
+      <div class="row"><button class="btn" data-answer="${p.id}" data-accept="1">Accept</button><button class="btn" data-answer="${p.id}" data-accept="0">Refuse</button>
+      ${canCounter ? `<button class="btn" data-counter="${p.id}">Counter-offer…</button>` : ""}</div></div>`;
+  }
+  function diplomacyTab() {
+    const list = V.nations.filter((n) => n.alive).map((n) => {
+      const color = N[nIndex[n.id]].color, waiting = V.proposals_to_answer.filter((p) => p.sender === n.id).length;
+      return `<div class="nrow court ${nIndex[n.id] === focus ? "sel" : ""}" data-n="${n.id}" tabindex="0">
+        ${n.ruler ? portrait(n.ruler, color, 38) : `<span class="shield" style="background:${color}"></span>`}
+        <div><b>${esc(n.name)}</b>${waiting ? ` <span class="count">${waiting}</span>` : ""}<small>${n.ruler ? `${esc(n.ruler.title)} ${esc(n.ruler.name)}` : ""}</small>
+          <div class="chips">${opinionBadge(n.opinion_of_you, "Their opinion of you: ")}${chipsFor(n.id)}</div></div></div>`;
+    }).join("");
+    const alive = focus >= 0 && focus !== me && V.nations.find((n) => n.id === N[focus].id)?.alive;
+    return `<div class="courts">${list}</div>${alive ? desk(N[focus].id) : `<p class="muted pad">Pick a court to treat with it.</p>`}`;
+  }
+  const borderOf = (owner, other) => V.provinces.filter((p) => p.owner === owner && !p.is_capital
+    && [...p.neighbors, ...p.sea_neighbors].some((x) => prov(pIndex[x]).owner === other));
   function desk(nid) {
-    const n = V.nations.find((x) => x.id === nid), r = relation(nid), name = esc(n.name);
+    const n = V.nations.find((x) => x.id === nid), r = relation(nid), name = esc(n.name), color = N[nIndex[nid]].color;
     const pending = (...kinds) => V.proposals_sent.some((p) => p.recipient === nid && kinds.includes(p.kind)) || orders.some((o) => o.target === nid && kinds.includes(o.type));
     const treaties = [r.alliance && "your alliance", r.pact && "your non-aggression pact", r.truce && "the truce"].filter(Boolean);
     const allies = V.me.treaties.filter((t) => t.kind === "alliance").map((t) => t.partner).filter((a) => !V.nations.find((x) => x.id === a).at_war_with.includes(nid));
-    let html = `<div class="pad"><div class="who"><span class="shield" style="background:${N[nIndex[nid]].color}"></span>
-      <div><b>${name}</b><span>Capital ${esc(P[pIndex[n.capital]].name)}. ${n.generals} generals. Technology ${T.map((b) => `${b.name.toLowerCase()} ${n.technology[b.id]}`).join(", ")}.</span></div></div>
+    const ruler = n.ruler, mine = V.me.opinions[nid] || 0;
+    const tech = (t) => T.reduce((sum, b) => sum + t[b.id], 0);
+    const bound = V.me.treaties.filter((t) => t.partner === nid && (t.kind === "tribute" || t.kind === "army_limit")).map((t) =>
+      t.kind === "tribute" ? `${t.payer === G.human ? "You pay" : `${name} pays`} ${t.amount} ducats a year until ${R.startYear + t.until_turn - 1}`
+        : `${t.payer === G.human ? "Your" : `${name}'s`} army is limited to ${t.amount} regiments until ${R.startYear + t.until_turn - 1}`);
+    const theirs = V.proposals_to_answer.filter((p) => p.sender === nid).map(proposalCard).join("");
+    const sent = V.proposals_sent.filter((p) => p.recipient === nid).map((p) => `<div class="sub">You await their answer to your ${p.kind.replace("_", " ")} proposal.</div>`).join("");
+    const history = G.chronicle.flatMap((y) => y.events.filter((e) => e.nations.includes(nid) && e.nations.includes(G.human) && !["moved", "recruited"].includes(e.kind))
+      .map((e) => `<li><span class="yr">${y.year}</span> ${ICON[e.kind] || "•"} ${esc(e.kind === "message" ? `${e.data.sender === G.human ? "You wrote" : "They wrote"}: “${e.data.text}”` : e.summary)}</li>`)).slice(0, 8).join("");
+    let html = `<div class="pad desk">
+      <div class="audience">${ruler ? portrait(ruler, color, 84) : ""}
+        <div><b>${ruler ? `${esc(ruler.title)} ${esc(ruler.name)}` : name}</b><div class="sub">of ${name}${ruler ? `, aged ${ruler.age}` : ""}</div>
+          ${ruler && ruler.bio ? `<p class="lore">${esc(ruler.bio)}</p>` : ""}</div></div>
+      <div class="moods"><div><span class="sub">They think of you</span>${opinionBadge(n.opinion_of_you)}<i class="bar"><b style="left:${50 + n.opinion_of_you / 2}%"></b></i></div>
+        <div><span class="sub">You think of them</span>${opinionBadge(mine)}<i class="bar"><b style="left:${50 + mine / 2}%"></b></i></div></div>
+      <table class="grid num versus"><thead><tr><th></th><th>You</th><th>${name}</th></tr></thead><tbody>
+        <tr><td>Provinces</td><td>${V.me.provinces.length}</td><td>${n.provinces}</td></tr>
+        <tr><td>Score</td><td>${V.me.score}</td><td>${n.score}</td></tr>
+        <tr><td>Generals</td><td>${V.me.generals.length}</td><td>${n.generals}</td></tr>
+        <tr><td>Technology</td><td>${tech(V.me.technology)}</td><td>${tech(n.technology)}</td></tr></tbody></table>
       <div class="chips" style="margin-top:6px">${chipsFor(nid) || `<span class="muted">No treaty.</span>`}</div>
-      <p class="sub">At war with ${n.at_war_with.map((x) => esc(nameOf(x))).join(", ") || "no one"}; allied with ${n.allies.map((x) => esc(nameOf(x))).join(", ") || "no one"}.</p>`;
+      ${bound.map((b) => `<p class="sub">⚖ ${b}.</p>`).join("")}
+      <p class="sub">At war with ${n.at_war_with.map((x) => esc(nameOf(x))).join(", ") || "no one"}; allied with ${n.allies.map((x) => esc(nameOf(x))).join(", ") || "no one"}.</p>
+      ${theirs ? `<h4>They propose</h4>${theirs}` : ""}${sent}`;
+    const counter = countering && countering.sender === nid ? countering : null;
+    if (r.war || (counter && counter.kind === "peace")) html += peaceBuilder(nid, counter && counter.kind === "peace" ? counter : null);
     if (r.war) {
-      html += `<h4>Make peace</h4><p class="sub">Leave both empty for a white peace, or demand (or offer) reparations.</p>
-        <div class="sub">You demand</div>${bundleInputs("peace-receive")}<div class="sub">You offer</div>${bundleInputs("peace-give")}
-        <div class="row"><button class="btn" data-dip="propose_peace" ${pending("propose_peace", "peace") ? "disabled" : ""}>Propose peace</button></div>`;
       if (allies.length) html += `<h4>Call your allies</h4><div class="row">${allies.map((a) => `<button class="btn" data-call="${a}">Call ${esc(nameOf(a))}</button>`).join("")}</div>`;
     } else {
-      html += `<h4>Treaties</h4><div class="row">
+      const tradeCounter = counter && counter.kind === "trade" ? counter : null;
+      html += `<details ${tradeCounter ? "open" : ""}><summary>${tradeCounter ? "Your counter-offer" : "Trade, gifts and tribute"}</summary>
+        <div class="sub">You give</div>${bundleInputs("trade-give", tradeCounter ? tradeCounter.receive : null)}
+        <div class="sub">You ask for</div>${bundleInputs("trade-receive", tradeCounter ? tradeCounter.give : null)}
+        <textarea id="trade-note" maxlength="300" placeholder="A word to go with it (optional)"></textarea>
+        <div class="row">${tradeCounter ? `<button class="btn" data-dip="counter_trade">Send the counter-offer</button><button class="btn" data-dip="drop_counter">Never mind</button>`
+          : `<button class="btn" data-dip="propose_trade">Offer the trade</button><button class="btn" data-dip="gift">Send what you give as a gift</button>`}</div>
+        <p class="sub">A gift warms them: +1 opinion for every 4 ducats' worth, up to +25.</p></details>
+        <details><summary>Treaties</summary><div class="row">
         ${r.alliance ? `<button class="btn" data-cancel="alliance">End the alliance</button>` : `<button class="btn" data-dip="propose_alliance" ${pending("propose_alliance", "alliance") ? "disabled" : ""}>Propose an alliance</button>`}
         ${r.pact ? `<button class="btn" data-cancel="non_aggression">End the pact</button>` : `<button class="btn" data-dip="propose_non_aggression" ${pending("propose_non_aggression", "non_aggression") ? "disabled" : ""}>Propose a pact</button>`}</div>
-        <h4>Trade and tribute</h4><div class="sub">You give</div>${bundleInputs("trade-give")}<div class="sub">You ask for</div>${bundleInputs("trade-receive")}
-        <div class="row"><button class="btn" data-dip="propose_trade">Offer the trade</button><button class="btn" data-dip="gift">Send what you give as a gift</button></div>
-        <h4>War</h4>${treaties.length ? `<p class="warn">War breaks ${treaties.join(" and ")}: −${R.breakPenalty} stability, and all Europe will know.</p>` : ""}
+        <p class="sub">An alliance pleases them (+20), a pact too (+10). Their answer weighs how they see you.</p></details>
+        <details><summary>War</summary>${treaties.length ? `<p class="warn">War breaks ${treaties.join(" and ")}: −${R.breakPenalty} stability, and every court in Europe will think less of you.</p>` : ""}
         <p class="sub">Armies mobilise for ${R.mobilization} year before they can attack. ${name}'s allies will be called to arms.</p>
-        <div class="row"><button class="btn danger" data-dip="declare_war" ${pending("declare_war") ? "disabled" : ""}>Declare war on ${name}</button></div>`;
+        <div class="row"><button class="btn danger" data-dip="declare_war" ${pending("declare_war") ? "disabled" : ""}>Declare war on ${name}</button></div></details>`;
     }
-    return html + `<h4>A letter</h4><textarea id="letter" maxlength="500" placeholder="Words do not change the rules, but rulers read them."></textarea>
-      <div class="row"><button class="btn" data-dip="send_message">Seal and send</button></div></div>`;
+    return html + `<details><summary>A letter</summary><textarea id="letter" maxlength="500" placeholder="Words do not change the rules, but rulers read them."></textarea>
+      <div class="row"><button class="btn" data-dip="send_message">Seal and send</button></div></details>
+      ${history ? `<h4>Between your courts</h4><ul class="history">${history}</ul>` : ""}</div>`;
   }
-  function bundleInputs(id) {
-    return `<div class="bundle" id="${id}">${RES.map(([key, label, ic]) => `<label>${ic}<input type="number" min="0" value="0" data-r="${key}" aria-label="${label}"></label>`).join("")}</div>`;
+  function peaceBuilder(nid, counter) {
+    // A counter-offer starts from their terms, seen from your side.
+    const c = counter ? {give: counter.receive, receive: counter.give, cede: counter.demand, demand: counter.cede,
+      pay_tribute: counter.ask_tribute, ask_tribute: counter.pay_tribute} : {};
+    const pick = (list, chosen, id) => list.length ? list.map((p) => `<label class="pick"><input type="checkbox" data-${id}="${p.id}" ${(chosen || []).includes(p.id) ? "checked" : ""}>
+      ${esc(p.name)} <small>${p.development} dev.</small></label>`).join("") : `<span class="muted">none on the border</span>`;
+    return `<details open class="peace"><summary>${counter ? "Your counter-offer" : "Terms of peace"}</summary>
+      ${counter ? `<p class="sub">Their offer, turned to face you. Change what you will and send it back.</p>` : `<p class="sub">Leave everything empty for a white peace. They may accept, refuse or haggle.</p>`}
+      <div class="terms">
+        <div><div class="sub">Provinces you demand</div><div class="picks">${pick(borderOf(nid, G.human), c.demand, "demand")}</div></div>
+        <div><div class="sub">Provinces you cede</div><div class="picks">${pick(borderOf(G.human, nid), c.cede, "cede")}</div></div>
+      </div>
+      <div class="sub">A sum you demand</div>${bundleInputs("peace-receive", c.receive)}
+      <div class="sub">A sum you pay</div>${bundleInputs("peace-give", c.give)}
+      <div class="row tribute"><label>Tribute they pay <input type="number" class="field" min="0" max="500" id="ask-tribute" value="${c.ask_tribute || 0}"></label>
+        <label>Tribute you pay <input type="number" class="field" min="0" max="500" id="pay-tribute" value="${c.pay_tribute || 0}"></label>
+        <span class="sub">ducats a year, for ${R.tributeYears} years</span></div>
+      <div class="row"><label>Limit their army to <input type="number" class="field" min="0" id="limit-army" placeholder="no limit"></label><span class="sub">regiments during the truce</span></div>
+      <textarea id="peace-note" maxlength="300" placeholder="Your words to their envoy (optional)"></textarea>
+      <div class="row">${counter ? `<button class="btn" data-dip="counter_peace">Send the counter-offer</button><button class="btn" data-dip="drop_counter">Never mind</button>`
+        : `<button class="btn" data-dip="propose_peace" ${V.proposals_sent.some((p) => p.recipient === nid && p.kind === "peace") || orders.some((o) => o.type === "propose_peace" && o.target === nid) ? "disabled" : ""}>Propose peace</button>`}</div></details>`;
+  }
+  function bundleInputs(id, values = null) {
+    return `<div class="bundle" id="${id}">${RES.map(([key, label, ic]) => `<label>${ic}<input type="number" min="0" value="${(values && values[key]) || 0}" data-r="${key}" aria-label="${label}"></label>`).join("")}</div>`;
   }
   function readBundle(id) { const b = {}; document.querySelectorAll(`#${id} input`).forEach((i) => (b[i.dataset.r] = Math.max(0, +i.value || 0))); return b; }
   const emptyBundle = (b) => Object.values(b).every((v) => !v);
+  function readPeace() {
+    const ids = (attr) => [...document.querySelectorAll(`[data-${attr}]:checked`)].map((x) => x.dataset[attr]);
+    const terms = {give: readBundle("peace-give"), receive: readBundle("peace-receive"), cede: ids("cede"), demand: ids("demand"),
+      pay_tribute: Math.max(0, +$("pay-tribute").value || 0), ask_tribute: Math.max(0, +$("ask-tribute").value || 0)};
+    const limit = $("limit-army").value.trim(); if (limit !== "") terms.limit_army = Math.max(0, +limit || 0);
+    const note = $("peace-note").value.trim(); if (note) terms.note = note;
+    return terms;
+  }
   function lettersTab() {
-    const answered = Object.fromEntries(orders.filter((o) => o.type === "respond").map((o) => [o.proposal_id, o.accept]));
-    const proposals = V.proposals_to_answer.map((p) => {
-      const from = esc(nameOf(p.sender)), give = costText(unbundle(p.give)), ask = costText(unbundle(p.receive));
-      const what = p.kind === "alliance" ? `${from} proposes an alliance.`
-        : p.kind === "non_aggression" ? `${from} proposes a non-aggression pact.`
-        : p.kind === "peace" ? `${from} offers peace${give !== "nothing" ? `, paying ${give}` : ""}${ask !== "nothing" ? `, demanding ${ask}` : ""}.`
-        : p.kind === "trade" ? `${from} offers ${give} for ${ask}.`
-        : `${from} calls you to arms against ${esc(nameOf(p.enemy))}. Ignoring it ends the alliance.`;
-      const state = p.id in answered ? (answered[p.id] ? ` <span class="ok">You accept.</span>` : ` <span class="warn">You refuse.</span>`) : "";
-      return `<div class="item">${what}${state}<div class="row"><button class="btn" data-answer="${p.id}" data-accept="1">Accept</button><button class="btn" data-answer="${p.id}" data-accept="0">Refuse</button></div></div>`;
-    }).join("");
+    const proposals = V.proposals_to_answer.map(proposalCard).join("");
     const letters = V.last_turn_events.filter((e) => e.kind === "message" && e.data.sender !== G.human)
       .map((e) => `<div class="item">From <b>${esc(nameOf(e.data.sender))}</b><div class="letter">${esc(e.data.text)}</div></div>`).join("");
-    const replies = V.last_turn_events.filter((e) => ["proposal_rejected", "proposal_expired", "treaty_signed", "trade_completed", "trade_failed", "peace_signed"].includes(e.kind) && e.nations.includes(G.human))
+    const replies = V.last_turn_events.filter((e) => ["proposal_rejected", "proposal_expired", "proposal_countered", "treaty_signed", "trade_completed", "trade_failed", "peace_signed", "province_ceded", "tribute_paid"].includes(e.kind) && e.nations.includes(G.human))
       .map((e) => `<div class="item">${ICON[e.kind] || "•"} ${esc(e.summary)}</div>`).join("");
-    return `${proposals || `<p class="muted pad">No proposal waits for your answer.</p>`}
+    return `${proposals ? `<div class="pad">${proposals}</div>` : `<p class="muted pad">No proposal waits for your answer.</p>`}
       ${letters ? `<div class="pad" style="padding-bottom:0"><h4>Letters</h4></div>${letters}` : ""}${replies ? `<div class="pad" style="padding-bottom:0"><h4>Replies</h4></div>${replies}` : ""}`;
   }
   function chronicleTab() {
@@ -549,11 +737,23 @@
     const nid = focus >= 0 ? N[focus].id : null;
     panel.querySelectorAll("[data-dip]").forEach((b) => b.onclick = () => {
       const kind = b.dataset.dip;
-      if (kind === "propose_peace") return queue({type: kind, target: nid, give: readBundle("peace-give"), receive: readBundle("peace-receive")});
+      if (kind === "propose_peace") { const terms = readPeace();
+        if (!affordable(unbundle(terms.give))) return flash("You cannot afford what you offer.");
+        return queue({type: kind, target: nid, ...terms}); }
+      if (kind === "drop_counter") { countering = null; return render(); }
+      if (kind === "counter_peace" || kind === "counter_trade") {
+        const id = countering.id, counter = kind === "counter_peace" ? readPeace()
+          : {give: readBundle("trade-give"), receive: readBundle("trade-receive"), ...($("trade-note").value.trim() ? {note: $("trade-note").value.trim()} : {})};
+        if (!affordable(unbundle(counter.give))) return flash("You cannot afford what you offer.");
+        orders = orders.filter((o) => !(o.type === "respond" && o.proposal_id === id));
+        countering = null;
+        return queue({type: "respond", proposal_id: id, accept: false, counter});
+      }
       if (kind === "propose_trade") { const give = readBundle("trade-give"), receive = readBundle("trade-receive");
         if (emptyBundle(give) && emptyBundle(receive)) return flash("Fill in what you give or what you ask for.");
         if (!affordable(unbundle(give))) return flash("You cannot afford what you offer.");
-        return queue({type: kind, target: nid, give, receive}); }
+        const note = $("trade-note").value.trim();
+        return queue({type: kind, target: nid, give, receive, ...(note ? {note} : {})}); }
       if (kind === "gift") { const resources = readBundle("trade-give");
         if (emptyBundle(resources)) return flash("Fill in what you give.");
         if (!affordable(unbundle(resources))) return flash("You cannot afford that gift.");
@@ -566,6 +766,10 @@
     });
     panel.querySelectorAll("[data-cancel]").forEach((b) => b.onclick = () => queue({type: "cancel_treaty", target: nid, kind: b.dataset.cancel}));
     panel.querySelectorAll("[data-call]").forEach((b) => b.onclick = () => queue({type: "call_to_arms", target: b.dataset.call, enemy: nid}));
+    panel.querySelectorAll("[data-counter]").forEach((b) => b.onclick = () => {
+      countering = V.proposals_to_answer.find((p) => p.id === +b.dataset.counter);
+      focus = nIndex[countering.sender]; tab = "diplomacy"; render();
+    });
     panel.querySelectorAll("[data-answer]").forEach((b) => b.onclick = () => {
       const id = +b.dataset.answer;
       orders = orders.filter((o) => !(o.type === "respond" && o.proposal_id === id));
@@ -579,8 +783,9 @@
     const pn = (id) => esc(P[pIndex[id]].name), nn = (id) => esc(nameOf(id));
     const gname = (id) => esc(V.me.generals.find((g) => g.id === id)?.name || "a general");
     switch (o.type) {
-      case "recruit": return `Recruit ${o.regiments} in ${pn(o.province)}`;
-      case "disband": return `Disband ${o.regiments} in ${pn(o.province)}`;
+      case "recruit": return `${UICON[o.unit || "infantry"]} Recruit ${o.regiments} ${o.unit || "infantry"} in ${pn(o.province)}`;
+      case "upgrade_monument": return `🏛 Raise ${esc(M[o.province]?.name || "the monument")}`;
+      case "disband": return `Disband ${o.regiments}${o.unit ? ` ${o.unit}` : ""} in ${pn(o.province)}`;
       case "develop": return `Develop ${pn(o.province)}`;
       case "build": return `Build ${B[bIndex[o.building]].name.toLowerCase()} in ${pn(o.province)}`;
       case "boost_stability": return "Raise stability";
@@ -594,13 +799,14 @@
       case "declare_war": return `Declare war on ${nn(o.target)}`;
       case "propose_alliance": return `Propose an alliance to ${nn(o.target)}`;
       case "propose_non_aggression": return `Propose a pact to ${nn(o.target)}`;
-      case "propose_peace": return `Offer peace to ${nn(o.target)}`;
+      case "propose_peace": { const t = termsText(o, G.human); return `🕊 Offer peace to ${nn(o.target)}${t ? `: ${t}` : ", white peace"}`; }
       case "propose_trade": return `Offer ${nn(o.target)} ${costText(unbundle(o.give))} for ${costText(unbundle(o.receive))}`;
       case "gift": return `Give ${nn(o.target)} ${costText(unbundle(o.resources))}`;
       case "cancel_treaty": return `End the ${o.kind.replace("_", "-")} treaty with ${nn(o.target)}`;
       case "call_to_arms": return `Call ${nn(o.target)} to arms against ${nn(o.enemy)}`;
       case "send_message": return `Letter to ${nn(o.target)}`;
-      case "respond": return `${o.accept ? "Accept" : "Refuse"} proposal #${o.proposal_id}`;
+      case "respond": { const p = V.proposals_to_answer.find((x) => x.id === o.proposal_id), who = p ? nn(p.sender) : "";
+        return o.accept ? `Accept ${who}'s ${p ? p.kind.replace("_", " ") : "proposal"}` : o.counter ? `Counter ${who}'s ${p ? p.kind : "offer"}` : `Refuse ${who}'s ${p ? p.kind.replace("_", " ") : "proposal"}`; }
       default: return o.type;
     }
   }
@@ -684,13 +890,14 @@
     const p = prov(i), out = unbundle(p.output_per_turn).map((v, k) => `${RES[k][2]} ${v}`).join("&ensp;");
     let extra = "Click to select";
     if (picked >= 0 && owned(picked) && i !== picked) {
-      const t = targetsFrom(picked).find(([j]) => j === i), n = Math.min(send, troopsAfter(picked));
+      const t = targetsFrom(picked).find(([j]) => j === i), n = KINDS.reduce((sum, k) => sum + force(picked)[k], 0);
       if (t && t[1] === "move") extra = `Right-click to march ${n} regiments here`;
       if (t && t[1] === "attack") { const c = odds(picked, i); extra = `Right-click to attack with ${n}${c !== null ? `: ${Math.round(c * 100)}% to win` : ""}`; }
     }
     $("tip").innerHTML = `<b class="t">${esc(P[i].name)}</b><div class="kv">
       <span>Owner</span><b>${p.owner ? esc(nameOf(p.owner)) : "Independent"}</b>
-      <span>Development</span><b>${p.development}</b><span>Regiments</span><b>${p.troops === null ? "hidden" : p.troops}</b>
+      <span>Development</span><b>${p.development}</b><span>Regiments</span><b>${p.troops === null ? "hidden" : `${p.troops}${p.army && p.troops ? ` <small>${KINDS.filter((k) => p.army[k]).map((k) => `${UICON[k]}${p.army[k]}`).join(" ")}</small>` : ""}`}</b>
+      ${M[p.id] && p.monument !== null ? `<span>Monument</span><b>${esc(M[p.id].name)} ${p.monument ? "★".repeat(p.monument) : "(a site)"}</b>` : ""}
       ${p.general ? `<span>General</span><b>${esc(p.general.name)} ${stars(p.general.skill)}</b>` : ""}
       <span>Per year</span><b class="num">${out}</b></div><div class="hint">${extra}</div>`;
     const tip = $("tip"), r = $("mapwrap").getBoundingClientRect();

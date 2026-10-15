@@ -23,7 +23,9 @@ const PaxMap = (() => {
                ["grain", "Grain", "🌾"], ["timber", "Timber", "🪵"]];
   const GOOD = {grain: "grain", iron: "iron", gold: "gold", timber: "timber"};
   const BICON = {marketplace: "⚖", farm_estates: "🌾", ironworks: "⚒", lumber_mill: "🪚", university: "📜", bank: "🏦", cathedral: "⛪", training_grounds: "🎯",
-                 barracks: "⚔", armory: "🛡", fort: "🏰", citadel: "🏯"};
+                 barracks: "⚔", armory: "🛡", fort: "🏰", citadel: "🏯", stables: "🐴", cannon_foundry: "🔥",
+                 military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭"};
+  const UICON = {infantry: "⚔", archers: "🏹", cavalry: "🐎", artillery: "💣"};
   const ICON = {war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
     treaty_broken: "💔", treaty_cancelled: "✂", treaty_expired: "⌛", peace_signed: "🕊", trade_completed: "⚖",
     trade_failed: "✗", gift: "🎁", battle: "⚔", province_captured: "⚑", capital_moved: "♛", nation_eliminated: "☠",
@@ -347,6 +349,38 @@ const PaxMap = (() => {
     for (const c of text) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
     return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 10000) / 10000; };
   }
+  // Which kind of landmark each monument is, for the province's picture.
+  const MONUMENT_STYLE = {constantinople: "mosque", florence: "dome", rome: "dome", paris: "gothic", london: "gothic",
+    rhineland: "gothic", galicia: "gothic", vienna: "spire", moscow: "kremlin", krakow: "castle", stockholm: "castle",
+    prussia: "castle", zealand: "castle", andalusia: "palace", madrid: "palace", venice: "arsenal"};
+  function landmark(style, level, ground, flag) {
+    const x = 140, g = ground, stone = "#e3d6b4", dark = "#c4b48e", gold = level >= 3 ? "#e6c27e" : "#b9ad92";
+    if (!level) { // a bare site: scaffolding and a crane
+      return `<g opacity=".9"><path d="M${x - 22} ${g} v-26 M${x - 6} ${g} v-34 M${x + 10} ${g} v-26 M${x - 24} ${g - 12} h36 M${x - 24} ${g - 24} h36" stroke="#8a6a40" stroke-width="1.2"/>
+        <path d="M${x + 22} ${g} v-46 l-26 4" stroke="#6a4a2a" stroke-width="1.4" fill="none"/><path d="M${x - 2} ${g - 42} v8" stroke="#6a4a2a"/><rect x="${x - 5}" y="${g - 34}" width="6" height="5" fill="${dark}"/></g>`;
+    }
+    const tall = 1 + level * 0.12;
+    switch (style) {
+      case "mosque": return `<path d="M${x - 26} ${g} v-22 h52 v22 z" fill="${stone}" stroke="${INK}" stroke-width=".7"/><path d="M${x - 20} ${g - 22} a20 ${18 * tall} 0 0 1 40 0 z" fill="#b7a98a" stroke="${INK}" stroke-width=".7"/>
+        ${[-34, 34].map((dx) => `<rect x="${x + dx - 2}" y="${g - 40 * tall}" width="4" height="${40 * tall}" fill="${stone}" stroke="${INK}" stroke-width=".5"/><path d="M${x + dx - 3} ${g - 40 * tall} l3 -8 l3 8 z" fill="${gold}"/>`).join("")}
+        <path d="M${x} ${g - 22 - 18 * tall} v-6" stroke="${gold}" stroke-width="1.4"/>`;
+      case "dome": return `<rect x="${x - 22}" y="${g - 24}" width="44" height="24" fill="${stone}" stroke="${INK}" stroke-width=".7"/><rect x="${x - 12}" y="${g - 32}" width="24" height="8" fill="${dark}" stroke="${INK}" stroke-width=".6"/>
+        <path d="M${x - 12} ${g - 32} a12 ${16 * tall} 0 0 1 24 0 z" fill="#b8644a" stroke="${INK}" stroke-width=".7"/><rect x="${x - 2}" y="${g - 32 - 16 * tall - 7}" width="4" height="7" fill="${gold}" stroke="${INK}" stroke-width=".4"/>`;
+      case "gothic": return `<rect x="${x - 16}" y="${g - 30}" width="32" height="30" fill="${stone}" stroke="${INK}" stroke-width=".7"/><circle cx="${x}" cy="${g - 20}" r="5" fill="#7d8f9a" stroke="${INK}" stroke-width=".5"/>
+        ${[-16, 16].map((dx) => `<rect x="${x + dx - 6}" y="${g - 40 * tall}" width="12" height="${40 * tall}" fill="${dark}" stroke="${INK}" stroke-width=".7"/>${level >= 2 ? `<path d="M${x + dx - 6} ${g - 40 * tall} l6 -${6 * level} l6 ${6 * level} z" fill="${gold}" stroke="${INK}" stroke-width=".5"/>` : ""}`).join("")}`;
+      case "spire": return `<rect x="${x - 18}" y="${g - 26}" width="30" height="26" fill="${stone}" stroke="${INK}" stroke-width=".7"/><path d="M${x - 20} ${g - 26} l15 -10 l15 10 z" fill="#5a7a6a" stroke="${INK}" stroke-width=".6"/>
+        <rect x="${x + 10}" y="${g - 38 * tall}" width="10" height="${38 * tall}" fill="${dark}" stroke="${INK}" stroke-width=".7"/><path d="M${x + 10} ${g - 38 * tall} l5 -${16 * tall} l5 ${16 * tall} z" fill="${gold}" stroke="${INK}" stroke-width=".5"/>`;
+      case "kremlin": return `<rect x="${x - 30}" y="${g - 16}" width="60" height="16" fill="#b8473a" stroke="${INK}" stroke-width=".7"/>${[-30, -10, 10, 30].map((dx) => `<path d="M${x + dx - 2} ${g - 16} v-3 h4 v3" fill="#b8473a" stroke="${INK}" stroke-width=".4"/>`).join("")}
+        <rect x="${x - 5}" y="${g - 40 * tall}" width="10" height="${24 * tall}" fill="#b8473a" stroke="${INK}" stroke-width=".7"/><path d="M${x - 5} ${g - 40 * tall} l5 -12 l5 12 z" fill="#3a6a4a" stroke="${INK}" stroke-width=".5"/>
+        ${[-18, 18].map((dx) => `<rect x="${x + dx - 5}" y="${g - 28}" width="10" height="12" fill="${stone}" stroke="${INK}" stroke-width=".5"/><path d="M${x + dx - 6} ${g - 28} q6 -14 12 0 z" fill="${gold}" stroke="${INK}" stroke-width=".5"/>`).join("")}`;
+      case "castle": return `<rect x="${x - 26}" y="${g - 22}" width="52" height="22" fill="${dark}" stroke="${INK}" stroke-width=".7"/>${[-26, 18].map((dx) => `<rect x="${x + dx}" y="${g - 34 * tall}" width="8" height="${34 * tall}" fill="${stone}" stroke="${INK}" stroke-width=".6"/><path d="M${x + dx - 1} ${g - 34 * tall} l5 -9 l5 9 z" fill="#8a3f2a" stroke="${INK}" stroke-width=".5"/>`).join("")}
+        <rect x="${x - 6}" y="${g - 38 * tall}" width="12" height="${16 * tall}" fill="${stone}" stroke="${INK}" stroke-width=".6"/><line x1="${x}" y1="${g - 38 * tall}" x2="${x}" y2="${g - 48 * tall}" stroke="${INK}"/><path d="M${x} ${g - 48 * tall} l9 3 l-9 3 z" fill="${flag}"/>`;
+      case "palace": return `<rect x="${x - 34}" y="${g - 20}" width="68" height="20" fill="#d8b48a" stroke="${INK}" stroke-width=".7"/>${[-34, -2, 28].map((dx) => `<rect x="${x + dx}" y="${g - 30 * tall}" width="8" height="${30 * tall}" fill="#c99a6a" stroke="${INK}" stroke-width=".6"/>`).join("")}
+        ${[-24, -14, 10, 20].map((dx) => `<path d="M${x + dx} ${g - 4} v-8 a3 3 0 0 1 6 0 v8" fill="#6a4a2a"/>`).join("")}`;
+      default: return `<rect x="${x - 30}" y="${g - 18}" width="60" height="18" fill="${dark}" stroke="${INK}" stroke-width=".7"/><path d="M${x - 32} ${g - 18} l16 -10 l16 10 l16 -10 l16 10" fill="${stone}" stroke="${INK}" stroke-width=".6"/>
+        <rect x="${x - 8}" y="${g - 10}" width="16" height="10" fill="#4a6a8a"/><path d="M${x - 4} ${g - 14} q4 -10 8 0" fill="none" stroke="#6a4a2a" stroke-width="1.4"/>`;
+    }
+  }
   function vista(S, i, d) {
     const p = S.provinces[i], B = S.buildings, rnd = seeded(p.id), has = (id) => d.built.some((b) => B[b].id === id);
     const W = 380, H = 150, ground = 104, [sky1, sky2] = SKY[p.terrain], [g1, g2] = GROUND[p.terrain];
@@ -399,6 +433,7 @@ const PaxMap = (() => {
     spots.sort((a, b) => a[1] - b[1]);
     const house = ([x, y, w, h]) => add(`<rect x="${x - w / 2}" y="${y - h}" width="${w}" height="${h}" fill="#e7d9b8" stroke="${INK}" stroke-width=".6"/><path d="M${x - w / 2 - 1.5} ${y - h} L${x} ${y - h - w * .55} L${x + w / 2 + 1.5} ${y - h} Z" fill="${roof[Math.floor(rnd() * 4)]}" stroke="${INK}" stroke-width=".6"/><rect x="${x - 1}" y="${y - 3.5}" width="2" height="3.5" fill="#5a4026"/>`);
     const back = spots.filter((_, k) => k % 2), front = spots.filter((_, k) => !(k % 2));
+    if (d.monument !== null && d.monument !== undefined && MONUMENT_STYLE[p.id]) add(landmark(MONUMENT_STYLE[p.id], d.monument, ground, flag));
     back.forEach(house);
     const tower = (x, w, h, top, color = "#ddd0ae") => add(`<rect x="${x - w / 2}" y="${ground - h}" width="${w}" height="${h}" fill="${color}" stroke="${INK}" stroke-width=".7"/>${top}`);
     const banner = (x, y) => add(`<line x1="${x}" y1="${y}" x2="${x}" y2="${y - 16}" stroke="${INK}" stroke-width="1"/><path d="M${x} ${y - 16} l11 3 l-11 3 z" fill="${flag}" stroke="${INK}" stroke-width=".5"/>`);
@@ -412,6 +447,8 @@ const PaxMap = (() => {
     if (d.dev >= 6) tower(214, 10, 30 + d.dev, `<path d="M207 ${ground - 30 - d.dev} h14 v-4 h-3 v3 h-2.5 v-3 h-3 v3 h-2.5 v-3 h-3 z" fill="#ddd0ae" stroke="${INK}" stroke-width=".6"/>`);
     if (d.isCapital) { tower(196, 22, 40, `<path d="M184 ${ground - 40} L196 ${ground - 52} L208 ${ground - 40} Z" fill="#5b6b8a" stroke="${INK}" stroke-width=".7"/>`, "#e9dcbc"); banner(196, ground - 52); }
     if (has("university")) tower(240, 12, 34, `<path d="M233 ${ground - 34} a7 7 0 0 1 14 0 z" fill="#7d8f9a" stroke="${INK}" stroke-width=".7"/>`);
+    if (has("royal_exchange")) add(`<rect x="208" y="${ground - 24}" width="30" height="24" fill="#f1e8d0" stroke="${INK}" stroke-width=".7"/><path d="M205 ${ground - 24} L223 ${ground - 34} L241 ${ground - 24} Z" fill="#d8c79a" stroke="${INK}" stroke-width=".7"/>${[211, 217, 223, 229, 235].map((x) => `<rect x="${x}" y="${ground - 22}" width="2" height="20" fill="#cbbf9d"/>`).join("")}<circle cx="223" cy="${ground - 28}" r="2" fill="#c49a52"/>`);
+    if (has("military_academy")) { add(`<rect x="100" y="${ground - 30}" width="24" height="30" fill="#c9b892" stroke="${INK}" stroke-width=".7"/><path d="M100 ${ground - 30} v-4 h4 v4 h4 v-4 h4 v4 h4 v-4 h4 v4 h4 v-4 h0" fill="none" stroke="${INK}" stroke-width=".7"/>`); banner(112, ground - 34); }
     if (has("bank")) add(`<rect x="128" y="${ground - 20}" width="26" height="20" fill="#efe6cf" stroke="${INK}" stroke-width=".7"/><path d="M126 ${ground - 20} L141 ${ground - 28} L156 ${ground - 20} Z" fill="#cbbf9d" stroke="${INK}" stroke-width=".7"/>${[131, 137, 143, 149].map((x) => `<rect x="${x}" y="${ground - 18}" width="2" height="16" fill="#cbbf9d"/>`).join("")}`);
     if (has("ironworks")) { addOut(`<rect x="292" y="${ground - 18}" width="22" height="18" fill="#8d7a62" stroke="${INK}" stroke-width=".7"/><rect x="306" y="${ground - 34}" width="5" height="16" fill="#6b5a48" stroke="${INK}" stroke-width=".6"/>`);
       for (let k = 0; k < 3; k++) addOut(`<circle cx="${309 + k * 4}" cy="${ground - 40 - k * 7}" r="${3 + k * 1.6}" fill="#8a8580" opacity="${.6 - k * .15}"/>`); }
@@ -420,6 +457,13 @@ const PaxMap = (() => {
       for (const a of [20, 110, 200, 290]) addOut(`<rect x="${x - 1}" y="${y - 40}" width="2" height="17" fill="#8a6a40" transform="rotate(${a} ${x} ${y - 24})"/>`); }
     if (has("barracks")) for (let k = 0; k < 3; k++) { const x = 300 + k * 18, y = ground + 20; addOut(`<path d="M${x - 8} ${y} L${x} ${y - 13} L${x + 8} ${y} Z" fill="#efe7d2" stroke="${INK}" stroke-width=".7"/>`); if (!k) bannerOut(x, y - 13); }
     if (has("armory")) add(`<rect x="94" y="${ground - 20}" width="22" height="20" fill="#9a8a72" stroke="${INK}" stroke-width=".7"/><path d="M99 ${ground - 15} l12 10 M111 ${ground - 15} l-12 10" stroke="#e8e0cc" stroke-width="1.6"/>`);
+    if (has("stables")) { addOut(`<rect x="8" y="${ground - 14}" width="30" height="14" fill="#b08458" stroke="${INK}" stroke-width=".7"/><path d="M5 ${ground - 14} L23 ${ground - 24} L41 ${ground - 14} Z" fill="#7a5232" stroke="${INK}" stroke-width=".6"/>`);
+      addOut(`<path d="M44 ${ground + 8} h26 M44 ${ground + 3} h26 M46 ${ground + 10} v-10 M58 ${ground + 10} v-10 M68 ${ground + 10} v-10" stroke="#6a4a2a" stroke-width="1.2"/>`);
+      addOut(`<path d="M50 ${ground + 1} q2 -7 9 -7 l3 -4 l2 3 q2 2 0 4 l-2 0 l0 4 l-1 6 h-2 l0 -5 h-6 l-1 5 h-2 z" fill="#4a3220"/>`); }
+    if (has("cannon_foundry")) { addOut(`<rect x="334" y="${ground - 20}" width="26" height="20" fill="#7a6a5a" stroke="${INK}" stroke-width=".7"/><path d="M340 ${ground - 20} l4 -16 h6 l4 16 z" fill="#5a4a3a" stroke="${INK}" stroke-width=".6"/><rect x="338" y="${ground - 8}" width="8" height="8" fill="#e8742a"/>`);
+      for (let k = 0; k < 3; k++) addOut(`<circle cx="${347 + k * 3}" cy="${ground - 42 - k * 8}" r="${3.5 + k * 2}" fill="#5a524a" opacity="${.65 - k * .17}"/>`);
+      addOut(`<path d="M318 ${ground + 14} h14" stroke="#2a2420" stroke-width="3.2" stroke-linecap="round"/><circle cx="320" cy="${ground + 17}" r="3" fill="none" stroke="#5a3a1a" stroke-width="1.4"/>`); }
+    if (has("observatory")) addOut(`<rect x="358" y="${ground - 40}" width="12" height="40" fill="#ddd0ae" stroke="${INK}" stroke-width=".7"/><path d="M356 ${ground - 40} a8 8 0 0 1 16 0 z" fill="#8a9aa8" stroke="${INK}" stroke-width=".7"/><path d="M364 ${ground - 46} l10 -8" stroke="${INK}" stroke-width="2"/>`);
     if (has("training_grounds")) { addOut(`<rect x="22" y="${ground + 26}" width="70" height="16" fill="none" stroke="#7a5a34" stroke-width="1.2" stroke-dasharray="3 2"/>`);
       for (let k = 0; k < 3; k++) addOut(`<circle cx="${34 + k * 22}" cy="${ground + 34}" r="4" fill="#e8dcb8" stroke="#9c2a1e" stroke-width="1.4"/>`); }
     front.forEach(house);
@@ -445,6 +489,66 @@ const PaxMap = (() => {
   }
 
   // ------------------------------------------------------------------ the deed's common sections
+  // ---------------------------------------------------------------- portraits
+  // A face for anyone at court: drawn from their name, so the same person always looks the same,
+  // greying with age, and crowned, turbaned or capped as their title demands.
+  function portrait(person, color, size = 64) {
+    const seed = person.name || "?";
+    let h = 2166136261;
+    for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+    const pick = (k, n) => ((h >>> k) ^ (h >>> (k + 7))) % n;
+    const title = (person.title || "").toLowerCase(), age = person.age || 40, queen = title === "queen";
+    const skin = ["#f1d2b0", "#e6bf98", "#d9ab82", "#c99a72"][pick(1, 4)];
+    const shade = mix(skin, "#5a3a22", .28);
+    let hair = ["#2b1a0e", "#4a2e16", "#6e4a26", "#9a7444", "#c8a46a", "#3a2a1c"][pick(3, 6)];
+    if (age > 62) hair = "#e8e2d6"; else if (age > 50) hair = mix(hair, "#d8d4cc", .55);
+    const sultan = title === "sultan", tsar = title === "tsar" || title === "grand prince";
+    const beard = !queen && (sultan || tsar || pick(5, 10) > 3);
+    const long = queen || pick(8, 3) === 0;
+    const robe = mix(color, "#000000", .35), trim = person.title ? "#f4efe2" : mix(color, "#000000", .55);
+    const eyeY = 31, brow = pick(10, 3);
+    let hat = "";
+    if (title === "king" || queen) {
+      hat = `<path d="M${queen ? 22 : 20} 20 l2 -9 l4 6 l4 -9 l4 9 l4 -6 l2 9 z" fill="#e6c27e" stroke="#5a3f17" stroke-width=".8"/>
+        <circle cx="32" cy="15" r="1.4" fill="#b8333a"/><circle cx="25" cy="17" r="1" fill="#2f55a4"/><circle cx="39" cy="17" r="1" fill="#2f8a4a"/>`;
+    } else if (title === "emperor") {
+      hat = `<path d="M20 21 v-8 q12 -9 24 0 v8 z" fill="#e6c27e" stroke="#5a3f17" stroke-width=".8"/>
+        <path d="M32 6 v8 M29 8.5 h6" stroke="#5a3f17" stroke-width="1.4"/><path d="M20 15 q12 -6 24 0" fill="none" stroke="#b8333a" stroke-width="1.6"/>`;
+    } else if (sultan) {
+      hat = `<ellipse cx="32" cy="15" rx="15" ry="10" fill="#f6f1e4" stroke="#7a6a4a" stroke-width=".8"/>
+        <path d="M19 16 q13 -6 26 0 M20 12 q12 -5 24 0" fill="none" stroke="#d8cfb8" stroke-width="1"/>
+        <ellipse cx="32" cy="9" rx="4" ry="3" fill="#b8333a"/><path d="M33 7 q4 -7 2 -9" stroke="#3a6a3a" stroke-width="1.6" fill="none"/>`;
+    } else if (tsar) {
+      hat = `<path d="M20 20 q12 -16 24 0 z" fill="#e6c27e" stroke="#5a3f17" stroke-width=".8"/>
+        <rect x="18" y="18" width="28" height="5" rx="2.5" fill="#5a3a22"/><path d="M32 4 v6 M29.5 6 h5" stroke="#5a3f17" stroke-width="1.3"/>`;
+    } else if (title === "regent") {
+      hat = `<ellipse cx="30" cy="16" rx="14" ry="5" fill="#1d1712"/><circle cx="40" cy="14" r="1.6" fill="#e6c27e"/>`;
+    } else if (!person.title && pick(12, 3) === 0) {
+      hat = `<path d="M19 19 q13 -11 26 0 z" fill="${mix(color, "#1a120b", .5)}"/>`;
+    }
+    return `<svg class="portrait" viewBox="0 0 64 64" width="${size}" height="${size}" role="img" aria-label="${esc(seed)}">
+      <defs><radialGradient id="bg${h}" cx=".5" cy=".35" r=".8"><stop offset="0" stop-color="${mix(color, "#fff6e0", .35)}"/><stop offset="1" stop-color="${mix(color, "#000000", .25)}"/></radialGradient></defs>
+      <rect width="64" height="64" fill="url(#bg${h})"/>
+      ${long ? `<path d="M19 26 q-3 22 3 30 h20 q6 -8 3 -30 z" fill="${hair}"/>` : ""}
+      <path d="M8 64 q4 -18 24 -18 q20 0 24 18 z" fill="${robe}"/>
+      <path d="M20 50 q12 6 24 0 l2 4 q-14 8 -28 0 z" fill="${trim}"/>
+      ${person.title ? `<g fill="#1a120b">${[22, 28, 34, 40].map((x) => `<rect x="${x}" y="52" width="1.6" height="2.4"/>`).join("")}</g>` : ""}
+      <rect x="28" y="40" width="8" height="8" fill="${shade}"/>
+      <ellipse cx="32" cy="31" rx="10.5" ry="12.5" fill="${skin}" stroke="${mix(skin, "#3a2a18", .5)}" stroke-width=".6"/>
+      <ellipse cx="21.6" cy="32" rx="1.6" ry="2.6" fill="${shade}"/><ellipse cx="42.4" cy="32" rx="1.6" ry="2.6" fill="${shade}"/>
+      <path d="M21.5 ${26 - brow} q10.5 -${8 + brow} 21 0 q-1 -9 -10.5 -10 q-9.5 1 -10.5 10" fill="${hair}"/>
+      <path d="M25.5 ${eyeY - 3.4} q2.5 -1.4 5 0 M33.5 ${eyeY - 3.4} q2.5 -1.4 5 0" stroke="${mix(hair, "#000000", .3)}" stroke-width="1.1" fill="none"/>
+      <ellipse cx="28" cy="${eyeY}" rx="1.8" ry="1.1" fill="#fbf6ec"/><ellipse cx="36" cy="${eyeY}" rx="1.8" ry="1.1" fill="#fbf6ec"/>
+      <circle cx="28.3" cy="${eyeY}" r=".8" fill="#2a1d12"/><circle cx="36.3" cy="${eyeY}" r=".8" fill="#2a1d12"/>
+      <path d="M32 ${eyeY + 1} q-1.6 4.5 -1 5.6 q1 .8 2.2 .1" stroke="${mix(skin, "#3a2a18", .45)}" stroke-width=".9" fill="none"/>
+      ${age > 48 ? `<path d="M25 ${eyeY + 3.5} q1.6 1 3 .4 M36 ${eyeY + 3.9} q1.4 .6 3 -.4" stroke="${shade}" stroke-width=".6" fill="none"/>` : ""}
+      ${beard ? `<path d="M22.5 34 q1 ${tsar || sultan ? 17 : 12} 9.5 ${tsar || sultan ? 17 : 12} q8.5 0 9.5 -${tsar || sultan ? 17 : 12} q-2 5 -4.5 4.5 q-2 -1.4 -5 -1.4 q-3 0 -5 1.4 q-2.5 .5 -4.5 -4.5" fill="${hair}"/>
+        <path d="M28.6 40.2 q3.4 1.6 6.8 0" stroke="${mix(hair, "#000000", .35)}" stroke-width=".9" fill="none"/>`
+        : `<path d="M28.6 40 q3.4 1.6 6.8 0" stroke="#9a5a4a" stroke-width="1" fill="none"/>`}
+      ${hat}
+      <rect x=".5" y=".5" width="63" height="63" fill="none" stroke="#3a2a18"/></svg>`;
+  }
+
   function deedInfo(S, i, d) {
     // d: {owner, isCapital, dev, maxDev, troops (null: hidden), fort, unrest, base[5], bonus[5], built[], queued[], general}
     const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, p = P[i];
@@ -487,5 +591,5 @@ const PaxMap = (() => {
     };
   }
 
-  return {create, deedInfo, vista, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, ICON, MAJOR, MINOR, BAD};
+  return {create, deedInfo, vista, portrait, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
 })();
