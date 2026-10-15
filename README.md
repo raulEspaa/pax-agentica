@@ -4,7 +4,7 @@
 betray each other and go to war. You watch history unfold, and one day you take a throne yourself.
 
 [![CI](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml/badge.svg)](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml)
-![Status](https://img.shields.io/badge/status-milestone%200%20%C2%B7%20skeleton-b8860b)
+![Status](https://img.shields.io/badge/status-the%20game%20is%20ready%20%C2%B7%20next%3A%20the%20first%20AI%20ruler-b8860b)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-3776ab)
 
 <p align="center"><img src="docs/assets/cover.jpg" alt="An old-style map of three AI-ruled realms: Northreach, Ostmark and Southvale" width="760"></p>
@@ -20,6 +20,36 @@ promises, not rules: a nation can break one, and the others will remember.
 engine checks that each move is legal and resolves it. No language model ever touches the game
 state directly, so a clever (or confused) agent can't cheat its way to victory.
 
+## The game: Europe, 1500
+
+An arcade grand strategy game: **68 provinces** from Lisbon to Moscow, **seven great powers**
+(England, France, Spain, Austria, the Ottomans, Sweden and Russia) and a scatter of independent
+minors to swallow. Five resources (ducats, manpower, iron, grain and timber) feed recruiting,
+development, civil and military buildings, and stability. A tree of learning unlocks new
+buildings and powers; every throne has an ageing ruler and a council of three advisors; named
+generals lead the armies. Rulers can ally, sign pacts, trade, demand tribute, send letters,
+declare war and make peace. Breaking a treaty is always possible, always public, and
+always costs stability. The full rules are in [`docs/game-rules.md`](docs/game-rules.md).
+
+<p align="center"><img src="docs/assets/replay.jpg" alt="The HTML replay: a political map of Europe in 1529 inside an engraved neatline, with nation names, armies, the ledger and the chronicle of the year" width="760"></p>
+
+The map is real geography: modern administrative regions from
+[Natural Earth](https://www.naturalearthdata.com/) (public domain), merged into the game's
+provinces, with real rivers and the land outside play shown as wasteland. The replay
+is one self-contained HTML file: political, terrain, development and diplomacy map modes, zoom,
+a ledger, a chronicle, and a deed for every province with its production and its buildings.
+
+**You can play it.** `pax serve` puts you on one throne against the others: you see your
+nation exactly as an AI ruler does (fog of war included), recruit, build, march, and treat with
+the other courts: alliances, pacts, trade, tribute, letters, calls to arms and peace with
+reparations.
+
+<p align="center"><img src="docs/assets/play.jpg" alt="The play page: France in 1501, its treasury across the top, its neighbours under the fog of war, and the Realm office with the yearly balance" width="760"></p>
+
+With seven rule-based "greedy" bots, the peripheral powers (Spain, the Ottomans) usually win and
+the central ones (France, Austria) are carved up. Surviving in the middle of Europe takes
+diplomacy, and that's the AI rulers' job.
+
 ## Roadmap
 
 Each milestone ends with something you can run and watch. It's built in order, one at a time.
@@ -27,25 +57,28 @@ Each milestone ends with something you can run and watch. It's built in order, o
 | # | Milestone | What you see | Status |
 |---|-----------|--------------|--------|
 | 0 | **Foundations** | A repo with tests, linting, types and CI | ✅ |
-| 1 | **A world without AI** | `pax play --seed 1`: three rule-based bots play 30 turns in the terminal and one of them wins | ⏳ next |
-| 2 | **The first AI ruler** | One nation is governed by Gemini and plays against two bots | |
+| 1 | **The game** | `pax play --seed 1`: Europe 1500, seven rule-based bots, a winner, an HTML replay | ✅ |
+| 2 | **The first AI ruler** | One nation is governed by Gemini and plays against the bots | ⏳ next |
 | 3 | **Every throne an AI** | Rulers with personalities; the same world plays out differently | |
 | 4 | **Diplomacy** | Messages, pacts and trade between nations, and betrayals | |
-| 5 | **A map to watch** | A web viewer that replays the game turn by turn, with an AI chronicler | |
+| 5 | **The chronicler** | An AI historian narrates each game; the replay viewer already exists | |
 | 6 | **Memory** | Nations remember who betrayed them | |
 | 7 | **Tournaments** | Many seeded games: which personalities win, who keeps their word, what it costs | |
 | 8 | **Online** | Deployed, and you can play as one of the nations | |
 
 ## How it's built
 
-This is a learning project, built **by hand**, one milestone at a time:
+This is a learning project in **AI engineering**, so the work is split
+([ADR 0002](docs/adr/0002-who-writes-what.md)):
 
+- **The game is built by Claude Code**: a pure, deterministic, fully tested engine (`engine/`),
+  the baseline bots, the runner, the CLI and the replay viewer. It is the arena, not the lesson.
+- **The AI rulers are built by me, by hand**: prompts, structured output, validation, retries,
+  frameworks, memory and evaluation. There, Claude Code is a tutor and reviewer, not the author.
+  The rules it follows are in [`CLAUDE.md`](CLAUDE.md).
 - **Spec first, then tests, then code.** Every feature starts as a one-page spec with testable
   acceptance criteria ([`specs/`](specs/README.md)), then test-driven development: red, green,
   refactor.
-- **AI as a tutor, not an author.** Claude Code reviews, questions and explains, but the game
-  engine and the agents are written by me. The rules it follows are in [`CLAUDE.md`](CLAUDE.md).
-  The tooling (CI, Makefile, this skeleton) was set up with its help.
 - **Decisions are written down** as ADRs ([`docs/adr/`](docs/adr/README.md)), and every finished
   milestone gets a learning note ([`docs/learning/`](docs/learning/README.md)).
 
@@ -54,18 +87,28 @@ This is a learning project, built **by hand**, one milestone at a time:
 Requirements: [uv](https://docs.astral.sh/uv/) and GNU make.
 
 ```bash
-make sync    # create .venv from uv.lock (installs Python 3.13 if needed)
-make check   # lint, types, tests
+make sync                                  # create .venv from uv.lock (installs Python 3.13 if needed)
+make check                                 # lint, types, tests
+uv run pax serve --nation france           # rule France yourself, in the browser, against the bots
+uv run pax play --seed 1                   # watch seven bots fight over Europe in the terminal
+uv run pax play --seed 1 --html replays/1.html   # ... and replay it on a map in the browser
+uv run pax view france                     # exactly what France's ruler is allowed to see (JSON)
+uv run pax schema                          # the JSON schema a ruler must answer with
+uv run pax bench --games 40                # who wins, seat by seat, over 40 seeded games
 ```
-
-There is no game to play yet: milestone 1 comes next.
 
 ## Repository map
 
 | Path | What |
 |------|------|
-| `src/pax_agentica/` | The game: engine, rules and (later) the AI rulers |
+| `src/pax_agentica/engine/` | The rules: map, economy, war, diplomacy, fog of war (pure, no I/O) |
+| `src/pax_agentica/players/` | The `Player` protocol and the baseline bots |
+| `src/pax_agentica/runner.py`, `cli.py` | The game loop and the `pax` command |
+| `src/pax_agentica/server.py`, `web/` | Play a nation in the browser; the shared map code and the replay |
+| `src/pax_agentica/data/`, `scripts/build_map.py` | The map of Europe, built from real geography (`make map`) |
+| `src/pax_agentica/agents/` | The AI rulers (from milestone 2) |
 | `tests/` | Tests, written before the code they test |
 | `specs/` | One folder per feature: spec, plan, tasks |
-| `docs/vision.md` | What the game is and what the first version includes |
+| `docs/game-rules.md` | The rules, for humans and for prompts |
+| `docs/vision.md` | What I want to build and learn |
 | `docs/adr/`, `docs/learning/` | Decisions and learning notes |
