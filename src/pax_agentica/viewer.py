@@ -35,6 +35,10 @@ TECH = {
 
 CHRONICLE = {
     EventKind.PROCLAMATION,
+    EventKind.EVENT_DECIDED,
+    EventKind.PROVINCE_OCCUPIED,
+    EventKind.PROVINCE_LIBERATED,
+    EventKind.SIEGE,
     EventKind.STANCE_CHANGED,
     EventKind.PROVINCE_CEDED,
     EventKind.MONUMENT_RAISED,

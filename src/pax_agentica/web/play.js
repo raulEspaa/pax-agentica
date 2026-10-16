@@ -42,6 +42,7 @@
   }
   function afterLoad() {
     V = G.view; me = nIndex[G.human];
+    if (!afterLoad.done) { afterLoad.done = true; setTimeout(eventSheet, 400); }
     if (!map.homed) { map.home(V.me.provinces.map((p) => pIndex[p])); map.homed = true; }
     render();
   }
@@ -423,6 +424,9 @@
         <b>${ic} ${t[k]}</b><i class="${net < 0 ? "neg" : ""}">${sign(net)}</i>${key === "manpower" ? `<small>of ${V.me.manpower_cap}</small>` : ""}</div>`; }).join("") +
       `<div title="Stability multiplies ducat income (+${Math.round(R.stabilityBonus * 100)}% a point). Raising it costs ${stabilityCost()} ducats.">
         <b>⚖ ${sign(V.me.stability)}</b><button class="btn" id="stab" ${V.me.stability >= R.maxStability || !affordable([stabilityCost(), 0, 0, 0, 0]) || orders.some((o) => o.type === "boost_stability") ? "disabled" : ""}>raise</button></div>`;
+    const FAITH_ICON = {catholic: "✝", protestant: "✠", orthodox: "☦", sunni: "☪"};
+    $("treasury").insertAdjacentHTML("beforeend", `<div title="Prestige ${V.me.prestige} of 100: +${(V.me.prestige * 0.1).toFixed(1)}% ducats, cheaper stability. Your standing (development plus half your prestige) is ${V.me.standing}: it decides the winner when time runs out."><b>🏅 ${V.me.prestige}</b><i>prestige</i></div>
+      <div title="Your realm is ${V.me.faith}. Courts of the same faith warm to you each year; of other faiths, they cool."><b>${FAITH_ICON[V.me.faith] || "✝"}</b><i>${V.me.faith}</i></div>`);
     if (V.me.war_exhaustion > 0) $("treasury").insertAdjacentHTML("beforeend", `<div title="War exhaustion: ${V.me.war_exhaustion.toFixed(1)} of 20. Each point costs 1% of ducat income; from 10, a point of stability every year. Peace heals it."><b class="${V.me.war_exhaustion >= 10 ? "neg" : ""}">🥀 ${V.me.war_exhaustion.toFixed(1)}</b><i>exhaustion</i></div>`);
     const b = $("stab"); if (b) b.onclick = () => queue({type: "boost_stability"});
   }
@@ -704,7 +708,10 @@
         <tr><td>Provinces</td><td>${V.me.provinces.length}</td><td>${n.provinces}</td></tr>
         <tr><td>Score</td><td>${V.me.score}</td><td>${n.score}</td></tr>
         <tr><td>Generals</td><td>${V.me.generals.length}</td><td>${n.generals}</td></tr>
-        <tr><td>Technology</td><td>${tech(V.me.technology)}</td><td>${tech(n.technology)}</td></tr></tbody></table>
+        <tr><td>Technology</td><td>${tech(V.me.technology)}</td><td>${tech(n.technology)}</td></tr>
+        <tr><td>Prestige</td><td>${V.me.prestige}</td><td>${n.prestige}</td></tr>
+        <tr><td>Standing</td><td>${V.me.standing}</td><td>${n.standing}</td></tr>
+        <tr><td>Faith</td><td>${esc(V.me.faith)}</td><td>${esc(n.faith)}</td></tr></tbody></table>
       <div class="chips" style="margin-top:6px">${chipsFor(nid) || `<span class="muted">No treaty.</span>`}</div>
       <div class="stances"><span class="sub">${name} counts as friends ${listOf(n.stances, "friend")}, as rivals ${listOf(n.stances, "rival")}.</span>
         <div class="row"><span class="sub">You count them</span>${["friend", "neutral", "rival"].map((st) => {
@@ -807,12 +814,14 @@
     return terms;
   }
   function lettersTab() {
+    const decisions = V.me.pending_events.map((e) => eventCard(e)).join("");
     const proposals = V.proposals_to_answer.map(proposalCard).join("");
     const letters = V.last_turn_events.filter((e) => e.kind === "message" && e.data.sender !== G.human)
       .map((e) => `<div class="item">From <b>${esc(nameOf(e.data.sender))}</b><div class="letter">${esc(e.data.text)}</div></div>`).join("");
     const replies = V.last_turn_events.filter((e) => ["proposal_rejected", "proposal_expired", "proposal_countered", "treaty_signed", "trade_completed", "trade_failed", "peace_signed", "province_ceded", "tribute_paid"].includes(e.kind) && e.nations.includes(G.human))
       .map((e) => `<div class="item">${ICON[e.kind] || "•"} ${esc(e.summary)}</div>`).join("");
-    return `${proposals ? `<div class="pad">${proposals}</div>` : `<p class="muted pad">No proposal waits for your answer.</p>`}
+    return `${decisions ? `<div class="pad"><h4>For the crown to decide</h4>${decisions}</div>` : ""}
+      ${proposals ? `<div class="pad">${proposals}</div>` : `<p class="muted pad">No proposal waits for your answer.</p>`}
       ${letters ? `<div class="pad" style="padding-bottom:0"><h4>Letters</h4></div>${letters}` : ""}${replies ? `<div class="pad" style="padding-bottom:0"><h4>Replies</h4></div>${replies}` : ""}`;
   }
   const told = (e) => e.kind === "order_rejected" ? "Your order failed: " + e.data.reason
@@ -828,7 +837,8 @@
   function office() {
     document.querySelectorAll(".offices button").forEach((b) => {
       b.setAttribute("aria-selected", b.dataset.tab === tab);
-      const count = b.dataset.tab === "letters" ? V.proposals_to_answer.filter((p) => !orders.some((o) => o.type === "respond" && o.proposal_id === p.id)).length : 0;
+      const count = b.dataset.tab === "letters" ? V.proposals_to_answer.filter((p) => !orders.some((o) => o.type === "respond" && o.proposal_id === p.id)).length
+        + V.me.pending_events.filter((e) => !chosen(e.id)).length : 0;
       const old = b.querySelector(".count"); if (old) old.remove();
       if (count) b.insertAdjacentHTML("beforeend", `<span class="count">${count}</span>`);
     });
@@ -845,6 +855,7 @@
       orders = orders.filter((o) => !(o.type === "assign_general" && o.general === id));
       queue({type: "assign_general", general: id, province: to});
     });
+    panel.querySelectorAll("[data-option]").forEach((b) => b.onclick = () => choose(+b.dataset.event, +b.dataset.option));
     const proclaim = panel.querySelector("#proclaim");
     if (proclaim) proclaim.onclick = () => { const text = $("proclamation").value.trim();
       if (!text) return flash("Write the proclamation first."); queue({type: "proclaim", text}); };
@@ -938,6 +949,8 @@
       case "call_to_arms": return `Call ${nn(o.target)} to arms against ${nn(o.enemy)}`;
       case "send_message": return `Letter to ${nn(o.target)}`;
       case "proclaim": return `📣 Proclaim to Europe`;
+      case "choose_option": { const e = V.me.pending_events.find((x) => x.id === o.event_id);
+        return e ? `${EVENT_ICON[e.event] || "📜"} ${esc(e.title)}: ${esc(e.options[o.option].label.toLowerCase())}` : "A decision"; }
       case "set_stance": return o.stance === "neutral" ? `Count ${nn(o.target)} neither friend nor rival` : `Name ${nn(o.target)} your ${o.stance}`;
       case "respond": { const p = V.proposals_to_answer.find((x) => x.id === o.proposal_id), who = p ? nn(p.sender) : "";
         return o.accept ? `Accept ${who}'s ${p ? p.kind.replace("_", " ") : "proposal"}` : o.counter ? `Counter ${who}'s ${p ? p.kind : "offer"}` : `Refuse ${who}'s ${p ? p.kind.replace("_", " ") : "proposal"}`; }
@@ -956,7 +969,7 @@
     const lost = before ? before.me.provinces.filter((p) => !V.me.provinces.includes(p)) : [];
     const won = before ? V.me.provinces.filter((p) => !before.me.provinces.includes(p)) : [];
     const items = V.last_turn_events.filter((e) => !["moved", "recruited", "proposal_made"].includes(e.kind))
-      .filter((e) => e.nations.includes(G.human) || ["war_declared", "nation_eliminated", "treaty_broken", "game_over", "proclamation"].includes(e.kind))
+      .filter((e) => e.nations.includes(G.human) || ["war_declared", "nation_eliminated", "treaty_broken", "game_over", "proclamation", "event_decided"].includes(e.kind))
       .map((e) => `<li class="${BAD.has(e.kind) ? "bad" : ""}">${ICON[e.kind] || "•"} ${esc(told(e))}</li>`).join("");
     const discoveries = before ? T.filter((b) => V.me.technology[b.id] > before.me.technology[b.id]).map((b) => {
       const step = b.levels[V.me.technology[b.id] - 1];
@@ -983,6 +996,33 @@
       <ul>${items || "<li>A quiet year for your realm.</li>"}</ul>
       <button class="btn" id="closemodal">Continue</button>`;
     $("modal").classList.add("open"); $("closemodal").focus();
+    $("closemodal").onclick = () => { $("modal").classList.remove("open"); eventSheet(); };
+  }
+  // ------------------------------------------------------------------ the crown's decisions
+  const EVENT_ICON = {reformation: "✝", plague: "☠", harvest: "🌾", fuggers: "💰", artist: "🎨", revolt: "🔥",
+    silver: "🪙", comet: "☄", reformer: "⚔", nobles: "👑", fair: "🎪", mine: "⛏"};
+  const chosen = (id) => orders.find((o) => o.type === "choose_option" && o.event_id === id);
+  function eventCard(e, big = false) {
+    const pick = chosen(e.id);
+    return `<div class="eventcard ${big ? "big" : ""}"><div class="ehead"><span class="eic">${EVENT_ICON[e.event] || "📜"}</span>
+        <div><b>${esc(e.title)}</b>${e.province ? `<small>${esc(P[pIndex[e.province]].name)}</small>` : ""}</div></div>
+      <p class="etext">${esc(e.text)}</p>
+      <div class="eoptions">${e.options.map((o, k) => `<button class="btn eoption ${pick && pick.option === k ? "on" : ""}" data-event="${e.id}" data-option="${k}">
+        <b>${esc(o.label)}</b><small>${esc(o.effects)}</small></button>`).join("")}</div>
+      <p class="sub">${pick ? "Your decision is taken; it is carried out when the year ends." : `Undecided by the end of ${R.startYear + e.deadline_turn - 1}, the first answer is taken.`}</p></div>`;
+  }
+  function choose(eventId, option) {
+    orders = orders.filter((o) => !(o.type === "choose_option" && o.event_id === eventId));
+    queue({type: "choose_option", event_id: eventId, option});
+  }
+  function eventSheet() {
+    const e = V.me.pending_events.find((x) => !chosen(x.id));
+    if (!e || G.finished) return;
+    $("sheet").innerHTML = `<h2 id="modaltitle">For the crown to decide</h2>${eventCard(e, true)}
+      <button class="btn" id="closemodal">Decide later</button>`;
+    $("modal").classList.add("open");
+    $("sheet").querySelectorAll("[data-option]").forEach((b) => b.onclick = () => {
+      choose(+b.dataset.event, +b.dataset.option); $("modal").classList.remove("open"); eventSheet(); });
     $("closemodal").onclick = () => $("modal").classList.remove("open");
   }
 

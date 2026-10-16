@@ -69,6 +69,20 @@
                background: linear-gradient(90deg, #7a2a20, #4a4030 50%, #3a6a3a); }
   .bar.score b { position: absolute; top: -3px; width: 3px; height: 11px; margin-left: -1px; background: var(--brass-hi); box-shadow: 0 0 0 1px #000; }
   .sub.warn { color: #f08a7a; }
+  .eventcard { margin: 6px 0 10px; padding: 9px 11px; border: 1px solid var(--brass); background: linear-gradient(var(--leather-hi), var(--walnut-lo)); }
+  .eventcard .ehead { display: grid; grid-template-columns: 40px 1fr; gap: 8px; align-items: center; }
+  .eventcard .eic { font-size: 30px; text-align: center; }
+  .eventcard b { font: 700 15px var(--display); color: var(--brass-hi); } .eventcard small { display: block; color: var(--ink-3); }
+  .eventcard .etext { font-style: italic; color: var(--ink-2); margin: 6px 0; line-height: 1.4; }
+  .eoptions { display: grid; gap: 5px; }
+  .btn.eoption { height: auto; padding: 6px 10px; text-align: left; display: block; color: var(--sepia);
+                 background: linear-gradient(#f8eed6, #e7d5aa); border: 1px solid #8a6a3a; box-shadow: inset 0 1px 0 #fffaf0; }
+  .btn.eoption:hover { background: linear-gradient(#fff6e2, #efdfb8); }
+  .btn.eoption b { font: 600 14px var(--body); color: var(--sepia); }
+  .btn.eoption small { display: block; font-size: 12.5px; color: #5a3f1f; font-style: italic; }
+  .btn.eoption.on { box-shadow: 0 0 0 2px var(--brass-hi); }
+  .sheet .eventcard.big { background: none; border: none; padding: 0; }
+  .sheet .eventcard.big b { color: var(--sepia); } .sheet .eventcard.big .etext { color: var(--sepia-2); }
   .office .lore { font-style: italic; color: var(--ink-3); font-size: 13px; line-height: 1.35; margin: 4px 0; }
   .nrow.court { grid-template-columns: 38px 1fr; }
   .nrow.court small { display: block; }
