@@ -53,6 +53,7 @@ from pax_agentica.engine.actions import (
     Sell,
     SendMessage,
     SetStance,
+    SetTaxes,
     Terms,
     UpgradeMonument,
 )
@@ -968,6 +969,8 @@ class _Resolver:
                         self._hire_mercenaries(nation, action)
                     case Patronize():
                         self._patronize(nation, action)
+                    case SetTaxes():
+                        self._set_taxes(nation, action)
                     case Develop():
                         self._develop(nation, action)
                     case Disband():
@@ -1132,6 +1135,32 @@ class _Resolver:
             ducats=cost,
         )
         self._prestige(nation, rules.patronage_prestige, "patronage of the arts")
+
+    def _set_taxes(self, nation: NationId, a: SetTaxes) -> None:
+        me = self.s.nations[nation]
+        if a.level == me.tax:
+            return
+        me.tax = a.level
+        word = {-2: "very low", -1: "low", 0: "normal", 1: "high", 2: "very high"}[a.level]
+        self._emit(
+            EventKind.TAXES_SET,
+            f"{me.name} sets its taxes {word}",
+            nations=(nation,),
+            audience=(nation,),
+            level=a.level,
+        )
+
+    def _taxes(self) -> None:
+        """High taxes may cost a point of stability a year; low ones may win one."""
+        rules = self.s.rules
+        for nation in self.s.alive_nations():
+            tax = self.s.nations[nation].tax
+            if not tax or self.rng.random() >= rules.tax_stability_chance.get(abs(tax), 0.0):
+                continue
+            if tax > 0:
+                self._change_stability(nation, -1, "the people resent their taxes")
+            else:
+                self._change_stability(nation, 1, "light taxes content the people")
 
     def _missions(self) -> None:
         """A mission completes at the end of the year in which all its goals hold."""
@@ -1842,6 +1871,7 @@ class _Resolver:
         for nation in self.s.alive_nations():
             self._produce_and_feed(nation)
         self._pay_tributes()
+        self._taxes()
         self._missions()
         self._drift_opinions()
         self._weary()

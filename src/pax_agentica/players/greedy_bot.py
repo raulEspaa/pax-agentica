@@ -43,6 +43,7 @@ from pax_agentica.engine.actions import (
     Respond,
     Sell,
     SetStance,
+    SetTaxes,
     Terms,
     UpgradeMonument,
 )
@@ -554,6 +555,7 @@ class _Planner:
         if self.me.stability < 1 and self.budget.covers(stab + Resources(ducats=reserve)):
             self.actions.append(BoostStability())
             self.budget = self.budget - stab
+        self._taxes()
         self._research(reserve)
         self._council(reserve)
         self._build(reserve)
@@ -683,6 +685,13 @@ class _Planner:
                 self.actions.append(Improve(province=pid))
                 self.budget = self.budget - cost
                 return
+
+    def _taxes(self) -> None:
+        """Squeeze the land in war while the realm is steady; ease off when it wobbles."""
+        me = self.me
+        level = 1 if self.enemies and me.stability >= 1 else -1 if me.stability < 0 else 0
+        if level != me.tax:
+            self.actions.append(SetTaxes(level=level))
 
     def _patronize(self, reserve: int) -> None:
         """A treasury with nothing better to buy pays for painters and feasts."""

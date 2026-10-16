@@ -114,6 +114,7 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             round(me.war_exhaustion, 1),
             me.prestige,
             tuple(me.missions_done),
+            me.tax,
         )
     cached = _CACHE.get(key)
     if cached is not None and cached[0] is state.rules:
@@ -210,6 +211,15 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         lines.append(
             f"prestige {me.prestige}: +{rules.prestige_income_bonus * me.prestige:.0%} ducats, "
             f"stability {rules.prestige_stability_discount * me.prestige:.0%} cheaper"
+        )
+    if me.tax:
+        ducats += rules.tax_income_step * me.tax
+        stability -= rules.tax_stability_cost_step * me.tax
+        word = {-2: "very low", -1: "low", 1: "high", 2: "very high"}[me.tax]
+        lines.append(
+            f"taxes {word}: {rules.tax_income_step * me.tax:+.0%} ducats, "
+            f"{-rules.tax_manpower_step * me.tax:+.0%} manpower, stability "
+            f"{rules.tax_stability_cost_step * me.tax:+.0%} dearer"
         )
     if me.war_exhaustion:
         weary = rules.exhaustion_income_penalty * me.war_exhaustion

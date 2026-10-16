@@ -192,8 +192,13 @@ def nation_income(state: GameState, nation: NationId) -> Resources:
     stability = rules.stability_income_bonus * state.nations[nation].stability
     ducats = total.ducats * (1 + stability + mods.ducat_income)
     grain = total.grain * (1 + mods.grain_income)
+    men = total.manpower * (1 - rules.tax_manpower_step * state.nations[nation].tax)
     return total.model_copy(
-        update={"ducats": max(0, math.floor(ducats)), "grain": math.floor(grain)}
+        update={
+            "ducats": max(0, math.floor(ducats)),
+            "grain": math.floor(grain),
+            "manpower": max(0, math.floor(men)),
+        }
     )
 
 

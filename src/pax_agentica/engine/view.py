@@ -19,6 +19,8 @@ from pax_agentica.engine import fortune, missions
 from pax_agentica.engine.events import Event
 from pax_agentica.engine.mechanics import (
     army_of,
+    army_upkeep,
+    base_output,
     building_cost,
     building_output,
     building_slots,
@@ -32,6 +34,7 @@ from pax_agentica.engine.mechanics import (
     recruit_cost,
     research_cost,
     war_score,
+    workings_yield,
 )
 from pax_agentica.engine.missions import Goal
 from pax_agentica.engine.model import (
@@ -170,6 +173,12 @@ class MissionView(_View):
     after: str | None
 
 
+class LedgerLine(_View):
+    kind: Literal["income", "expense"]
+    source: str  # land, buildings, workings, the crown's modifiers, the army, the council...
+    amount: dict[str, int]  # by resource; a modifier line can be negative
+
+
 class MyNation(_View):
     id: NationId
     name: str
@@ -194,6 +203,8 @@ class MyNation(_View):
     loans: tuple[Loan, ...]
     missions: tuple[MissionView, ...]  # your ambitions: done at the end of a year all goals hold
     patronage_cost: int  # ducats for patronize (+rules.patronage_prestige prestige), once a year
+    tax: int  # -2 very low ... +2 very high; change it with set_taxes
+    ledger: tuple[LedgerLine, ...]  # where this year's resources come from and go, line by line
     score: int
     at_war_with: tuple[NationId, ...]
     wars: tuple[WarView, ...]
@@ -364,6 +375,8 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         pending_events=tuple(_event_view(state, nation, e) for e in me.pending_events),
         loans=tuple(me.loans),
         missions=_missions(state, nation),
+        tax=me.tax,
+        ledger=_ledger(state, nation),
         patronage_cost=state.rules.patronage_base
         + state.rules.patronage_per_prestige * me.prestige,
         score=state.score(nation),
@@ -519,3 +532,59 @@ def _missions(state: GameState, nation: NationId) -> tuple[MissionView, ...]:
             )
         )
     return tuple(views)
+
+
+def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
+    """This year's income and expenses by source. The income lines add up to
+    `income_per_turn`, and the expenses to the army, council, inputs, loans and tribute."""
+    land = buildings = workings = Resources()
+    for pid in state.provinces_of(nation):
+        p = state.provinces[pid]
+        if p.unrest or p.controller:
+            continue
+        land = land + base_output(state, pid)
+        works = workings_yield(state, pid)
+        workings = workings + works
+        buildings = buildings + building_output(state, pid) - works
+    income = nation_income(state, nation).amounts()
+    crown = {  # stability, technology, ruler, prestige, taxes, exhaustion...
+        k: v - land.amounts()[k] - buildings.amounts()[k] - workings.amounts()[k]
+        for k, v in income.items()
+    }
+    factor = modifiers(state, nation).grain_upkeep_factor
+    army = army_upkeep(state.rules, army_of(state, nation), factor)
+    council = nation_upkeep(state, nation) - army
+    me = state.nations[nation]
+    lines = [
+        LedgerLine(kind="income", source="land", amount=land.amounts()),
+        LedgerLine(kind="income", source="buildings", amount=buildings.amounts()),
+        LedgerLine(kind="income", source="workings", amount=workings.amounts()),
+        LedgerLine(kind="income", source="the crown's modifiers", amount=crown),
+        LedgerLine(kind="expense", source="the army", amount=army.amounts()),
+        LedgerLine(kind="expense", source="the council", amount=council.amounts()),
+        LedgerLine(
+            kind="expense", source="building inputs", amount=inputs_upkeep(state, nation).amounts()
+        ),
+    ]
+    if me.loans:
+        repay = sum(loan.yearly for loan in me.loans)
+        lines.append(LedgerLine(kind="expense", source="loans", amount={"ducats": repay}))
+    for t in state.treaties:
+        if t.kind != TreatyKind.TRIBUTE or nation not in t.parties:
+            continue
+        other = t.parties[1] if t.parties[0] == nation else t.parties[0]
+        paying = t.payer == nation
+        lines.append(
+            LedgerLine(
+                kind="expense" if paying else "income",
+                source=f"tribute {'to' if paying else 'from'} {state.nations[other].name}",
+                amount={"ducats": t.amount},
+            )
+        )
+    return tuple(
+        LedgerLine(
+            kind=line.kind, source=line.source, amount={k: v for k, v in line.amount.items() if v}
+        )
+        for line in lines
+        if any(line.amount.values())
+    )

@@ -93,6 +93,29 @@
   .office .mission .goals li { color: var(--ink-2); } .office .mission .goals li.met { color: #9fd08f; }
   .office .mission .goals .bar { background: rgba(255, 255, 255, .12); } .office .mission .goals .bar b { background: var(--brass); }
   .office .card .note { color: var(--ink-2); } .office .card .gain { color: #9fd08f; } .office .card .cost { color: var(--ink-3); }
+  .stocks { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 5px; }
+  .stock { display: grid; grid-template-columns: 26px 1fr auto; gap: 2px 6px; align-items: center; padding: 5px 8px; background: var(--walnut-lo); border: 1px solid var(--brass-lo); }
+  .stock.falling { border-color: #8f3a2a; }
+  .stock .ic { font-size: 19px; } .stock b { font-size: 16px; color: var(--ink); } .stock b small { color: var(--ink-3); font-size: 12px; }
+  .stock .label { display: block; color: var(--ink-3); font-size: 12px; }
+  .stock .flow { text-align: right; } .stock .flow small { display: block; color: var(--ink-3); font-size: 11px; }
+  .stock .bar { grid-column: 1 / -1; height: 4px; background: rgba(255, 255, 255, .1); position: relative; display: block; }
+  .stock .bar b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--brass); }
+  .stock > small { grid-column: 1 / -1; color: var(--ink-3); font-size: 11px; }
+  .pos { color: #9fd08f; } .neg { color: #e88a74; }
+  .taxes { padding: 7px 10px; background: var(--walnut-lo); border: 1px solid var(--brass-lo); }
+  .taxes .taxhead { display: flex; justify-content: space-between; align-items: center; color: var(--brass-hi); }
+  .taxes input[type=range] { width: 100%; accent-color: var(--brass); margin: 6px 0 0; }
+  .taxticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); }
+  .taxes .effects { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
+  .ledger-table .netrow td { border-top: 2px solid var(--brass-lo); font-weight: 700; }
+  .flows { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+  .flowcard { padding: 6px 9px; background: var(--walnut-lo); border: 1px solid var(--brass-lo); font-size: 13px; color: var(--ink-2); }
+  .flowcard .fhead { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; } .flowcard .fhead b { flex: 1; color: var(--brass-hi); }
+  .flowcard .fcols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .flowcard .fcols small { display: block; color: var(--ink-3); font-size: 11.5px; border-bottom: 1px solid var(--brass-lo); margin-bottom: 2px; }
+  .flowcard .fcols div > div { display: flex; justify-content: space-between; gap: 4px; }
+  .flowcard p { margin: 5px 0 0; font-size: 12px; }
   .office .lore { font-style: italic; color: var(--ink-3); font-size: 13px; line-height: 1.35; margin: 4px 0; }
   .nrow.court { grid-template-columns: 38px 1fr; }
   .nrow.court small { display: block; }
@@ -236,7 +259,7 @@
     <aside>
       <div id="banner"></div>
       <nav class="offices" role="tablist" aria-label="Offices of the realm">
-        <button role="tab" data-tab="realm"><span class="ic">💰</span>Realm</button>
+        <button role="tab" data-tab="realm"><span class="ic">💰</span>Economy</button>
         <button role="tab" data-tab="crown"><span class="ic">👑</span>Crown</button>
         <button role="tab" data-tab="army"><span class="ic">⚔</span>Army</button>
         <button role="tab" data-tab="tech"><span class="ic">⚙</span>Learning</button>

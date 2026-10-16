@@ -43,6 +43,7 @@ class EventKind(StrEnum):
     BUILT = "built"
     IMPROVED = "improved"
     MISSION_COMPLETED = "mission_completed"
+    TAXES_SET = "taxes_set"
     PATRONAGE = "patronage"
     MERCENARIES_HIRED = "mercenaries_hired"
     MONUMENT_RAISED = "monument_raised"

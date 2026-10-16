@@ -141,6 +141,16 @@ class BoostStability(_Action):
     type: Literal["boost_stability"] = "boost_stability"
 
 
+class SetTaxes(_Action):
+    """Set the realm's taxes from -2 (very low) to +2 (very high). Each level up brings
+    rules.tax_income_step more ducat income and rules.tax_manpower_step less manpower, makes
+    raising stability dearer, and above 0 risks a point of stability every year; below 0 the
+    people may grow content and stability rise. The level stays until changed."""
+
+    type: Literal["set_taxes"] = "set_taxes"
+    level: int = Field(ge=-2, le=2)
+
+
 class Patronize(_Action):
     """Patronise painters, churches and feasts: once a year, spend patronage_base ducats plus
     patronage_per_prestige for every point of prestige you hold, for patronage_prestige more
@@ -392,6 +402,7 @@ type Action = Annotated[
     Recruit
     | HireMercenaries
     | Patronize
+    | SetTaxes
     | Develop
     | Disband
     | Build

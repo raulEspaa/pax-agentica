@@ -508,35 +508,74 @@
       ${queued.length ? `<p class="sub">This year: ${queued.map((o) => `${o.type} ${o.amount} ${o.resource}`).join(", ")}.</p>` : ""}
       <p class="sub">Trades happen first, so what you buy can be spent this year. What all Europe buys and sells moves next year's prices; the merchants keep ${Math.round(R.marketSpread * 100)}%.</p>`;
   }
+  const TAX_WORDS = ["Very low", "Low", "Normal", "High", "Very high"];
+  const taxNow = () => { const o = orders.find((x) => x.type === "set_taxes"); return o ? o.level : V.me.tax; };
   function realmTab() {
-    const inc = unbundle(V.me.income_per_turn), up = unbundle(V.me.army_upkeep_per_turn), now = unbundle(V.me.resources), after = projected();
-    const works = unbundle(V.me.inputs_per_turn);
+    const inc = unbundle(V.me.income_per_turn), now = unbundle(V.me.resources), after = projected();
     const mine = V.me.provinces.map((id) => pIndex[id]);
-    const land = RES.map(() => 0);
-    mine.forEach((i) => unbundle(prov(i).output_per_turn).forEach((v, k) => (land[k] += v)));
-    const rows = RES.map(([, label, ic], k) => {
-      const mod = inc[k] - land[k], net = inc[k] - up[k] - works[k];
-      return `<tr><td>${ic} ${label}</td><td>${land[k]}</td><td>${mod ? sign(mod) : ""}</td><td class="${up[k] ? "neg" : ""}">${up[k] ? "−" + up[k] : ""}</td>
-        <td class="${works[k] ? "neg" : ""}">${works[k] ? "−" + works[k] : ""}</td>
-        <td class="${net < 0 ? "neg" : "pos"}">${sign(net)}</td><td>${now[k]}${after[k] !== now[k] ? ` → ${after[k]}` : ""}</td></tr>`; }).join("");
+    const keyIdx = Object.fromEntries(RES.map(([key], k) => [key, k]));
+    // the ledger, from the engine: every source of income and expense this year
+    const net = RES.map(() => 0);
+    const ledgerRows = ["income", "expense"].map((kind) => V.me.ledger.filter((l) => l.kind === kind).map((l) => {
+      const cells = RES.map(([key], k) => { const v = l.amount[key] || 0; net[k] += kind === "income" ? v : -v;
+        return `<td class="${!v ? "" : kind === "income" ? (v > 0 ? "pos" : "neg") : "neg"}">${v ? (kind === "income" ? sign(v) : "−" + v) : ""}</td>`; }).join("");
+      return `<tr><td>${kind === "income" ? "＋" : "－"} ${esc(cap(l.source))}</td>${cells}</tr>`; }).join("")).join("");
+    // what you have, and how long it lasts
+    const cards = RES.map(([key, label, ic], k) => {
+      const n = net[k], left = n < 0 && now[k] > 0 ? Math.floor(now[k] / -n) : null;
+      const note = n < 0 ? (now[k] + n < 0 ? "runs out this year" : `lasts ${left} year${left === 1 ? "" : "s"}`) : n > 0 ? "growing" : "steady";
+      const cap = key === "manpower" ? `<i class="bar"><b style="width:${Math.min(100, Math.round(100 * now[k] / V.me.manpower_cap))}%"></b></i><small>pool of ${V.me.manpower_cap}</small>` : "";
+      return `<div class="stock ${n < 0 ? "falling" : ""}"><span class="ic">${ic}</span><div><b class="num">${now[k]}${after[k] !== now[k] ? ` <small>→ ${after[k]}</small>` : ""}</b>
+        <span class="label">${label}</span></div><div class="flow"><b class="num ${n < 0 ? "neg" : n > 0 ? "pos" : ""}">${sign(n)}</b><small>${note}</small></div>${cap}</div>`; }).join("");
+    // taxes
+    const tax = taxNow(), taxable = V.me.ledger.filter((l) => l.kind === "income" && l.source !== "the crown's modifiers").reduce((a, l) => a + (l.amount.ducats || 0), 0);
+    const men = V.me.ledger.filter((l) => l.kind === "income").reduce((a, l) => a + (l.amount.manpower || 0), 0);
+    const delta = Math.round(taxable * R.taxIncomeStep * (tax - V.me.tax)), mdelta = -Math.round(men * R.taxManpowerStep * (tax - V.me.tax));
+    const risk = R.taxChance[Math.abs(tax)] || 0;
+    const taxes = `<div class="taxes"><div class="taxhead"><b>Taxes: ${TAX_WORDS[tax + 2]}</b>${tax !== V.me.tax ? `<span class="chip">from next year</span>` : ""}</div>
+      <input type="range" id="taxrange" min="-2" max="2" step="1" value="${tax}" aria-label="Tax level">
+      <div class="taxticks">${TAX_WORDS.map((w) => `<span>${w}</span>`).join("")}</div>
+      <ul class="effects">
+        <li>${sign(Math.round(R.taxIncomeStep * 100 * tax))}% ducats from the land${delta ? ` <b class="${delta > 0 ? "pos" : "neg"}">(${sign(delta)} a year)</b>` : ""}</li>
+        <li>${sign(Math.round(-R.taxManpowerStep * 100 * tax))}% manpower${mdelta ? ` <b class="${mdelta > 0 ? "pos" : "neg"}">(${sign(mdelta)} a year)</b>` : ""}</li>
+        <li>raising stability ${tax >= 0 ? `${Math.round(R.taxStabilityStep * 100 * tax)}% dearer` : `${Math.round(-R.taxStabilityStep * 100 * tax)}% cheaper`}</li>
+        <li>${tax > 0 ? `a ${Math.round(risk * 100)}% chance a year of losing a point of stability` : tax < 0 ? `a ${Math.round(risk * 100)}% chance a year of gaining a point of stability` : "no unrest from taxes"}</li>
+      </ul></div>`;
+    // the flows of each material: who makes it, who eats it
+    const flows = ["grain", "iron", "timber", "goods"].map((key) => {
+      const k = keyIdx[key];
+      const makers = mine.map((i) => [i, unbundle(prov(i).output_per_turn)[k]]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+      const eaters = {};
+      mine.forEach((i) => prov(i).buildings.forEach((b) => { const c = (B[bIndex[b]].consumes || [])[k]; if (c) { eaters[b] = eaters[b] || [0, 0]; eaters[b][0] += 1; eaters[b][1] += c; } }));
+      const army = (V.me.ledger.find((l) => l.source === "the army")?.amount[key]) || 0;
+      const made = inc[k], eaten = Object.values(eaters).reduce((a, [, c]) => a + c, 0) + army;
+      const idle = mine.flatMap((i) => prov(i).idle.filter((b) => (B[bIndex[b]].consumes || [])[k]).map((b) => `${B[bIndex[b]].name.toLowerCase()} in ${esc(P[i].name)}`));
+      const price = V.market[key]?.buy;
+      const gap = made - eaten;
+      const advice = gap < 0 ? `Short ${-gap} a year${price ? `: about ${Math.ceil(-gap * price)} ducats on the market` : ""}${now[k] > 0 ? `, or ${Math.floor(now[k] / -gap)} years from the stores` : ""}.` : gap > 20 ? `A surplus of ${gap} a year: sell it, or build what eats it.` : "";
+      return `<div class="flowcard"><div class="fhead"><span class="ic">${RES[k][2]}</span><b>${RES[k][1]}</b><span class="num ${gap < 0 ? "neg" : "pos"}">${sign(gap)} a year</span></div>
+        <div class="fcols"><div><small>Made, ${made}</small>${makers.slice(0, 4).map(([i, v]) => `<div>${esc(P[i].name)} <b class="num">${v}</b></div>`).join("")}${makers.length > 4 ? `<div class="sub">and ${makers.length - 4} more</div>` : ""}</div>
+        <div><small>Eaten, ${eaten}</small>${army ? `<div>the army <b class="num">${army}</b></div>` : ""}${Object.entries(eaters).map(([b, [n, c]]) => `<div>${n} ${esc(B[bIndex[b]].name.toLowerCase())} <b class="num">${c}</b></div>`).join("")}${!army && !Object.keys(eaters).length ? `<div class="sub">nothing</div>` : ""}</div></div>
+        ${idle.length ? `<p class="warn">Idle last year: ${idle.join(", ")}.</p>` : ""}${advice ? `<p class="sub">${advice}</p>` : ""}</div>`; }).join("");
     const short = [];
-    if (now[3] + inc[3] < up[3]) short.push("Your granaries will not feed the army next year: some regiments will desert.");
-    if (now[0] + inc[0] < up[0]) short.push("The treasury cannot pay the army next year: some regiments will desert.");
-    const idle = V.provinces.filter((p) => p.owner === G.human && p.idle.length);
-    if (idle.length) short.push(`Idle for want of inputs last year: ${idle.map((p) => p.idle.map((b) => `${B[bIndex[b]].name.toLowerCase()} in ${esc(p.name)}`).join(", ")).join("; ")}. Buy what they need, or make it.`);
+    if (now[3] + net[3] < 0) short.push("Your granaries will not feed the army next year: some regiments will desert.");
+    if (now[0] + net[0] < 0) short.push("The treasury cannot pay the army next year: some regiments will desert.");
     const table = mine.sort((a, b) => prov(b).development - prov(a).development).map((i) => {
       const p = prov(i), out = unbundle(p.output_per_turn);
-      return `<tr class="click" data-p="${i}"><td>${esc(P[i].name)}${p.is_capital ? " ★" : ""}${p.unrest ? " 🔥" : ""}</td><td>${p.development}</td>
-        <td>${p.buildings.length}/${p.building_slots}</td>${out.map((v) => `<td>${v}</td>`).join("")}</tr>`; }).join("");
-    return `<div class="pad"><h4>The year's balance</h4>
-      <table class="grid num"><thead><tr><th></th><th title="What your provinces yield">Land</th><th title="Stability and economy technology">Mods</th><th title="Army pay and grain, advisors' salaries">Army</th><th title="What your buildings consume">Works</th><th>Net</th><th>Treasury</th></tr></thead><tbody>${rows}</tbody></table>
-      ${short.map((s) => `<p class="warn">${s}</p>`).join("")}
+      return `<tr class="click" data-p="${i}"><td>${PaxMap.goodOf(S, P[i].good).icon} ${esc(P[i].name)}${p.is_capital ? " ★" : ""}${p.unrest ? " 🔥" : ""}</td><td>${p.development}</td>
+        <td>${p.buildings.length}/${p.building_slots}</td><td>${"●".repeat(p.workings || 0) || "·"}</td>${out.map((v) => `<td>${v}</td>`).join("")}</tr>`; }).join("");
+    return `<div class="pad"><h4>What you have</h4><div class="stocks">${cards}</div>
+      ${short.map((x) => `<p class="warn">${x}</p>`).join("")}
       ${threats().map((t) => `<p class="warn">${threatText(t)}</p>`).join("")}
-      <p class="sub">Stability ${sign(V.me.stability)} and economy technology ${V.me.technology.economy} raise ducats; economy technology raises grain too.
-        The manpower pool stops at ${V.me.manpower_cap}.</p>
+      <h4>Taxes</h4>${taxes}
+      <h4>The year's ledger</h4>
+      <table class="grid num ledger-table"><thead><tr><th></th>${RES.map(([, label, ic]) => `<th title="${label}">${ic}</th>`).join("")}</tr></thead>
+        <tbody>${ledgerRows}<tr class="netrow"><td>Net</td>${net.map((v) => `<td class="${v < 0 ? "neg" : v > 0 ? "pos" : ""}">${sign(v)}</td>`).join("")}</tr></tbody></table>
+      <p class="sub">“The crown's modifiers” are stability, technology, the ruler, the council, prestige, taxes and war exhaustion; hover the realm's bonuses in the Crown tab.</p>
+      <h4>Materials</h4><div class="flows">${flows}</div>
       ${marketHtml()}
       <h4>Provinces</h4>
-      <table class="grid num"><thead><tr><th>Province</th><th>Dev.</th><th>Bldg.</th>${RES.map(([, label, ic]) => `<th title="${label}">${ic}</th>`).join("")}</tr></thead><tbody>${table}</tbody></table>
+      <table class="grid num"><thead><tr><th>Province</th><th>Dev.</th><th>Bldg.</th><th title="Workings">⛏</th>${RES.map(([, label, ic]) => `<th title="${label}">${ic}</th>`).join("")}</tr></thead><tbody>${table}</tbody></table>
       <p class="sub">★ capital. 🔥 in unrest: a conquered province yields nothing for a few years.</p></div>`;
   }
   function armyTab() {
@@ -940,6 +979,10 @@
     panel.querySelectorAll("[data-buy]").forEach((b) => b.onclick = () => queue({type: "buy", resource: b.dataset.buy, amount: marketQty[b.dataset.buy] || 10}));
     panel.querySelectorAll("[data-sell]").forEach((b) => b.onclick = () => queue({type: "sell", resource: b.dataset.sell, amount: marketQty[b.dataset.sell] || 10}));
     panel.querySelectorAll("[data-option]").forEach((b) => b.onclick = () => choose(+b.dataset.event, +b.dataset.option));
+    const taxRange = panel.querySelector("#taxrange");
+    if (taxRange) taxRange.oninput = () => { const level = +taxRange.value;
+      orders = orders.filter((o) => o.type !== "set_taxes");
+      if (level !== V.me.tax) queue({type: "set_taxes", level}); else render(); };
     const patronize = panel.querySelector("#patronize"); if (patronize) patronize.onclick = () => queue({type: "patronize"});
     const proclaim = panel.querySelector("#proclaim");
     if (proclaim) proclaim.onclick = () => { const text = $("proclamation").value.trim();
@@ -1018,6 +1061,7 @@
       case "improve": return `${PaxMap.goodOf(S, P[pIndex[o.province]].good).icon} Raise the ${PaxMap.goodOf(S, P[pIndex[o.province]].good).workings.toLowerCase()} of ${pn(o.province)}`;
       case "build": return `Build ${B[bIndex[o.building]].name.toLowerCase()} in ${pn(o.province)}`;
       case "boost_stability": return "Raise stability";
+      case "set_taxes": return `⚖ Set taxes ${TAX_WORDS[o.level + 2].toLowerCase()}`;
       case "patronize": return `🎨 Patronise the arts (+${R.patronagePrestige} prestige)`;
       case "hire_mercenaries": return `💰 Hire ${o.regiments} mercenary regiments in ${pn(o.province)}`;
       case "research": { const b = T.find((x) => x.id === o.branch); return `Research ${b.levels[V.me.technology[o.branch]]?.name || o.branch}`; }

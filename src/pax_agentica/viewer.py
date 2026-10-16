@@ -284,6 +284,10 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
         "rules": {
             "maxTech": rules.max_tech_level,
             "workingsBonus": rules.workings_bonus,
+            "taxIncomeStep": rules.tax_income_step,
+            "taxManpowerStep": rules.tax_manpower_step,
+            "taxStabilityStep": rules.tax_stability_cost_step,
+            "taxChance": {str(k): v for k, v in rules.tax_stability_chance.items()},
             "mercenaryCost": rules.mercenary_cost,
             "mercenaryLimit": rules.mercenary_limit,
             "patronagePrestige": rules.patronage_prestige,

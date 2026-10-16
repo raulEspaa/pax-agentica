@@ -190,7 +190,7 @@ svg.paxmap { display: block; width: 100%; height: 100%; user-select: none; }
   background: rgba(36, 23, 13, .55); border-radius: 2px; }
 .town .vista { display: block; width: 100%; border: 1px solid rgba(107, 86, 56, .5); }
 .portrait.painted { display: block; object-fit: cover; border: 3px solid; outline: 1px solid #000; box-shadow: 0 0 0 1px #c49a52, 0 3px 8px rgba(0, 0, 0, .55); }
-.deed { overscroll-behavior: contain; position: absolute; left: 24px; bottom: 24px; width: 400px; max-height: calc(100% - 48px);
+.deed { overscroll-behavior: contain; position: absolute; left: 24px; bottom: 24px; width: min(460px, calc(100% - 48px)); max-height: calc(100% - 48px); overflow-x: hidden;
         overflow: auto; z-index: 6; display: none; color: var(--sepia);
         background: var(--vellum-tex), radial-gradient(ellipse at 30% 20%, #f7ecd1, var(--vellum) 55%, var(--vellum-2));
         border: 6px solid #3a2414; outline: 1px solid var(--brass); outline-offset: -9px;
@@ -202,6 +202,7 @@ svg.paxmap { display: block; width: 100%; height: 100%; user-select: none; }
 .ribbon { position: relative; margin: -22px 18px 0; padding: 6px 14px 6px 12px; display: flex; gap: 10px; align-items: center;
           color: var(--engraved); background: var(--brass-face); border: 1px solid #4a3312;
           box-shadow: 0 3px 6px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 246, 214, .7); }
+.ribbon > div { min-width: 0; } .ribbon h2 { overflow-wrap: anywhere; }
 .ribbon::before, .ribbon::after { content: ""; position: absolute; top: 6px; bottom: -6px; width: 14px; background: #8a6430; z-index: -1; }
 .ribbon::before { left: -10px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 40% 50%); }
 .ribbon::after { right: -10px; clip-path: polygon(0 0, 100% 0, 60% 50%, 100% 100%, 0 100%); }
@@ -235,7 +236,7 @@ table.prod { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .prod td.plus { color: #2f6a3e; }
 .prod td.total { font-weight: 700; }
 .note { font-size: 13px; color: var(--sepia-2); font-style: italic; margin: 6px 0 0; }
-.slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+.slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
 .slot { min-height: 54px; padding: 4px 3px; text-align: center; font-size: 12.5px; line-height: 1.15;
         border: 1px solid rgba(107, 86, 56, .45); background: rgba(255, 250, 235, .45); }
 .slot .ic { display: block; font-size: 19px; line-height: 1.2; }
@@ -273,8 +274,8 @@ table.prod { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .card .cardhead b { font: 700 15px var(--display); }
 .card .note { margin: 5px 0 6px; }
 .card .pips { color: #8a6420; font-size: 12px; letter-spacing: 1px; margin-left: 4px; }
-.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
-.tile { display: flex; flex-direction: column; gap: 3px; padding: 5px 6px 6px; font-size: 12.5px; line-height: 1.2;
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 5px; }
+.tile { min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 5px 6px 6px; font-size: 12.5px; line-height: 1.2;
         border: 1px solid rgba(107, 86, 56, .4); background: rgba(255, 250, 235, .45); }
 .tile .thead { display: flex; align-items: center; gap: 5px; min-height: 22px; }
 .tile .thead .ic { font-size: 18px; line-height: 1; flex: none; }
@@ -288,7 +289,7 @@ table.prod { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .tile .ledger .per small { font-weight: 400; opacity: .75; }
 .tile .ledger .none { color: var(--sepia-2); font-weight: 400; }
 .tile .perk { font-size: 11.5px; color: var(--sepia-2); font-style: italic; }
-.tile .btn { margin-top: auto; height: 24px; padding: 0 6px; font-size: 11.5px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .btn { margin-top: auto; min-height: 24px; height: auto; padding: 2px 6px; font-size: 11.5px; max-width: 100%; white-space: normal; line-height: 1.2; }
 .tile.civil { box-shadow: inset 0 -3px 0 var(--civil); }
 .tile.military { box-shadow: inset 0 -3px 0 var(--military); }
 .tile.built { background: rgba(196, 154, 82, .28); border-color: #8a6a3a; }

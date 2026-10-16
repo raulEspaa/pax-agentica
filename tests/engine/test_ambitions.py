@@ -3,7 +3,7 @@
 from collections.abc import Callable
 
 from pax_agentica.engine import EventKind, GameState, Resources, view_for
-from pax_agentica.engine.actions import HireMercenaries, Patronize
+from pax_agentica.engine.actions import HireMercenaries, Patronize, SetTaxes
 from pax_agentica.engine.missions import MISSIONS, done, goal_text, open_missions
 from pax_agentica.engine.model import BuildingKind, Treaty, TreatyKind
 from pax_agentica.engine.realm import modifiers
@@ -115,3 +115,42 @@ def test_the_captains_for_hire_are_few(state: GameState, play: Play) -> None:
         ],
     )
     assert reasons(new) == ["only 0 more mercenary regiments are for hire this year"]
+
+
+# ---------------------------------------------------------------- taxes and the ledger
+
+
+def test_taxes_trade_men_and_content_for_ducats(state: GameState, play: Play) -> None:
+    normal = view_for(state, "france").me.income_per_turn
+    taxed = play(state, france=[SetTaxes(level=2)])
+    assert taxed.nations["france"].tax == 2
+    high = view_for(taxed, "france").me
+    assert high.income_per_turn.ducats > normal.ducats
+    assert high.income_per_turn.manpower < normal.manpower
+    assert (
+        modifiers(taxed, "france").stability_discount
+        < modifiers(state, "france").stability_discount
+    )
+
+
+def test_very_high_taxes_wear_stability_down(state: GameState, play: Play) -> None:
+    state.nations["france"].tax = 2
+    state.nations["france"].stability = 3
+    for _ in range(12):
+        state = play(state)
+    assert state.nations["france"].stability < 3
+
+
+def test_the_ledger_adds_up_to_the_year(state: GameState) -> None:
+    state.provinces["paris"].buildings.append(BuildingKind.MARKETPLACE)
+    state.provinces["paris"].workings = 1
+    me = view_for(state, "france").me
+    income = {k: 0 for k in me.income_per_turn.amounts()}
+    expense = dict(income)
+    for line in me.ledger:
+        side = income if line.kind == "income" else expense
+        for k, v in line.amount.items():
+            side[k] += v
+    assert income == me.income_per_turn.amounts()
+    assert {s.source for s in me.ledger} >= {"land", "buildings", "workings", "the army"}
+    assert expense["grain"] >= me.army_upkeep_per_turn.grain

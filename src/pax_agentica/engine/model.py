@@ -1045,6 +1045,13 @@ class Rules(BaseModel):
     prestige_income_bonus: float = 0.001  # ducat income per point
     prestige_stability_discount: float = 0.002  # per point
     prestige_in_score: float = 0.5  # what a point of prestige is worth in the final score
+    # taxes, from -2 (very low) to +2 (very high): more ducats, fewer volunteers, angrier subjects
+    tax_income_step: float = 0.15  # ducat income per level
+    tax_manpower_step: float = 0.10  # manpower per level, the other way
+    tax_stability_cost_step: float = 0.20  # raising stability dearer per level of tax
+    tax_stability_chance: dict[int, float] = Field(
+        default_factory=lambda: {1: 0.1, 2: 0.25}  # a year, of losing (high) or gaining (low) 1
+    )
     # patronage: painters, chapels, feasts and alms buy prestige, dearer the more you have
     patronage_base: int = 40  # ducats, plus patronage_per_prestige times your prestige
     patronage_per_prestige: int = 2
@@ -1159,6 +1166,7 @@ class NationState(BaseModel):
     events_seen: list[str] = Field(default_factory=list)  # once-only events already met
     loans: list[Loan] = Field(default_factory=list)
     missions_done: list[str] = Field(default_factory=list)  # see engine/missions.py
+    tax: int = Field(default=0, ge=-2, le=2)  # -2 very low ... +2 very high, see Rules.tax_*
 
 
 class PendingEvent(BaseModel):
