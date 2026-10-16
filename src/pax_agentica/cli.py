@@ -44,6 +44,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "bench": _bench,
         "serve": _serve,
         "host": _host,
+        "brief": _brief,
+        "tournament": _tournament,
     }[args.command]
     return handler(args)
 
@@ -93,6 +95,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     serve.add_argument(
         "--saves", type=Path, default=Path("saves"), help="where games are saved (default saves/)"
+    )
+
+    brief = sub.add_parser("brief", help="print a nation's briefing, as a prompt would see it")
+    brief.add_argument("nation")
+    brief.add_argument("--seed", type=int, default=1)
+
+    tour = sub.add_parser("tournament", help="many seeds, mixed rulers, a table of results")
+    tour.add_argument("--games", type=int, default=20)
+    tour.add_argument("--first-seed", type=int, default=0)
+    tour.add_argument("--turns", type=int, default=50)
+    tour.add_argument("--bot", choices=sorted(BOTS), default="greedy", help="ruler of the rest")
+    tour.add_argument(
+        "--player", action="append", default=[], metavar="NATION=BOT", help="override one ruler"
     )
 
     host = sub.add_parser("host", help="host tables where several people play, each a nation")
@@ -231,6 +246,54 @@ def _view(args: argparse.Namespace) -> int:
         )
         return 2
     print(view_for(state, args.nation).model_dump_json(indent=2))
+    return 0
+
+
+def _brief(args: argparse.Namespace) -> int:
+    from pax_agentica.tools import briefing
+
+    state = new_game(args.seed)
+    if args.nation not in state.nations:
+        print(
+            f"unknown nation {args.nation!r}; try one of {sorted(state.nations)}", file=sys.stderr
+        )
+        return 2
+    print(briefing(view_for(state, args.nation)))
+    return 0
+
+
+def _tournament(args: argparse.Namespace) -> int:
+    """Play many seeds and tabulate, per nation and ruler: wins, standing, survival, missions."""
+    from statistics import mean
+
+    rows: dict[str, dict[str, list[float]]] = {}
+    rulers: dict[str, str] = {}
+    for seed in range(args.first_seed, args.first_seed + args.games):
+        state = new_game(seed, max_turns=args.turns)
+        players = _players(state, args.bot, args.player, seed)
+        finals: list[GameState] = []
+
+        def keep(_turn: TurnRecord, now: GameState, finals: list[GameState] = finals) -> None:
+            finals.append(now)
+
+        record = asyncio.run(run_game(state, players, on_turn=keep))
+        last = finals[-1]
+        for nation, player in players.items():
+            rulers[nation] = player.name
+            row = rows.setdefault(nation, {"wins": [], "standing": [], "alive": [], "missions": []})
+            row["wins"].append(float(record.winner == nation))
+            row["standing"].append(
+                float(last.standing(nation) if last.nations[nation].alive else 0)
+            )
+            row["alive"].append(float(last.nations[nation].alive))
+            row["missions"].append(float(len(last.nations[nation].missions_done)))
+    print(f"{args.games} games from seed {args.first_seed}, {args.turns} years each")
+    print(f"{'nation':<12}{'ruler':<10}{'wins':>6}{'standing':>10}{'alive':>7}{'missions':>10}")
+    for nation, row in sorted(rows.items(), key=lambda kv: -sum(kv[1]["wins"])):
+        print(
+            f"{nation:<12}{rulers[nation]:<10}{int(sum(row['wins'])):>6}"
+            f"{mean(row['standing']):>10.1f}{mean(row['alive']):>7.0%}{mean(row['missions']):>10.1f}"
+        )
     return 0
 
 

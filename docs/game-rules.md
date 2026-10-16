@@ -6,7 +6,7 @@ else to play. Every number here comes from `Rules` in
 
 ## The world
 
-- **69 provinces** from Lisbon to Moscow and from Norrland to Tunis
+- **70 provinces** from Lisbon to Moscow and from Norrland to Tunis
   ([`scenario.py`](../src/pax_agentica/engine/scenario.py)). Each one has a **terrain**, a
   **trade good** (one of fourteen, see below), a **development** level (1–12), **workings**
   (0–3), **buildings** and a garrison of **regiments**.
@@ -14,9 +14,11 @@ else to play. Every number here comes from `Rules` in
   can be crossed, but they favour the defender. Land borders are exactly the ones drawn on the
   map, which is built from real geography.
 - **Nine great powers**: England, France, Spain, Austria, the Ottoman Empire, Sweden, Russia,
-  Poland-Lithuania and Hungary. Austria holds the Low Countries (Flanders and Holland) by the
-  Burgundian inheritance; Hungary holds Bohemia and Transylvania under the Jagiellonian
-  Vladislaus II. Each starts with its capital (6 regiments), its other provinces (2 each; 3 on
+  Poland-Lithuania and Brandenburg-Prussia. Two unions come early, so the middle of Europe has
+  powers of its own: Austria is the Danubian monarchy from the start (Vienna, Styria, Tyrol,
+  Bohemia, Buda and Transylvania, as after 1526), and Brandenburg-Prussia holds Brandenburg,
+  Pomerania and Prussia (united in 1618 and 1648). The Low Countries are left to the Burgundian
+  court, outside the powers. Each starts with its capital (6 regiments), its other provinces (2 each; 3 on
   France's long borders, in Styria and in Kiev and Transylvania, where Vienna and Buda also
   start with a fort), a ruler, one general and the same treasury: 60 ducats, 10 manpower, 10
   iron, 20 grain and 15 timber.
@@ -24,8 +26,9 @@ else to play. Every number here comes from `Rules` in
   development (3 more in Wallachia and Bosnia, which raised real armies). Anyone can attack
   them without declaring war.
 - **The courts remember**: in 1500 France resents England, Austria and Spain; Spain and Austria
-  are bound by the double Habsburg marriage; the Ottomans and Hungary face each other across the
-  frontier of Christendom; Poland-Lithuania and Muscovy contest the lands of Rus'. These
+  are bound by the double Habsburg marriage; the Ottomans and Austria face each other across the
+  frontier of Christendom; Poland-Lithuania and Muscovy contest the lands of Rus', and Poland
+  and Brandenburg the Baltic coast. These
   opinions fade like any other.
 
 ## A turn
@@ -97,6 +100,15 @@ developing it costs, and how well it is defended:
 | Mountains | +2 iron, +1 manpower, −2 grain | 50% dearer | ×1.5 |
 
 **Stability** (−3 to +3) multiplies ducat income by 1 + 0.1 × stability.
+
+**Taxes** run from −2 (very low) to +2 (very high), set with `set_taxes` and kept until changed.
+Each level up brings +15% ducat income and −10% manpower, makes raising stability 20% dearer,
+and above normal risks a point of stability every year (10% at high, 25% at very high); below
+normal, the same chances of gaining one.
+
+**The ledger.** `me.ledger` lists the year's income and expenses by source: land, buildings,
+workings, the crown's modifiers (stability, technology, ruler, prestige, taxes, exhaustion),
+the army, the council, building inputs, loans and tribute.
 
 **A conquered province is in unrest** for 5 turns and produces nothing.
 
@@ -350,18 +362,18 @@ into glory, dearer the more glory it already has.
 
 **Missions.** Every great power has five ambitions from its history, in `me.missions`: France
 wants Milan, then Naples, and the Rhine; Spain the gold of Seville, Navarre, the two Sicilies
-and the Barbary coast; England Scotland, then Ireland, and Normandy; Austria the crowns of
-Bohemia and Hungary; the Ottomans Bosnia, Buda and then Vienna; Sweden out of the Kalmar Union
-and the Baltic; Russia Kiev and Livonia; Poland-Lithuania Prussia and the Wild Fields; Hungary
-the Black Army and Wallachia. Each mission is a list of goals written as data (hold these
-provinces, a realm of this development, this building here, an alliance with that court, this
-technology, this prestige, an army this large), shown with how far it has come. Some open only
-once an earlier one is done. A mission completes **by itself** at the end of a year in which
+and the Barbary coast; England Scotland, then Ireland, and Normandy; Austria the Low Countries
+and walls on the Danube; the Ottomans Bosnia, Buda and then Vienna; Sweden out of the Kalmar
+Union and the Baltic; Russia Kiev and Livonia; Poland-Lithuania Prussia and the Wild Fields;
+Brandenburg-Prussia Saxony, Hamburg and a great army. Each mission is a list of goals written
+as data (hold these provinces, a realm of this development, this building here, an alliance
+with that court, this technology, this prestige, an army this large), shown with how far it
+has come. Some open only once an earlier one is done. A mission completes **by itself** at the end of a year in which
 all its goals hold, in front of every court: it pays ducats, prestige or stability, and the last
 of each chain leaves a lasting bonus (+5% ducats, +5% battle power, forts +10%...).
 
-**Faith.** England, France, Spain, Austria, Sweden, Poland-Lithuania and Hungary start
-Catholic, Russia Orthodox, the Ottomans Sunni. Courts of the same faith warm to each other by 1 a year, of different faiths cool
+**Faith.** England, France, Spain, Austria, Sweden, Poland-Lithuania and Brandenburg-Prussia
+start Catholic, Russia Orthodox, the Ottomans Sunni. Courts of the same faith warm to each other by 1 a year, of different faiths cool
 by 1. The Reformation can turn a Catholic realm Protestant.
 
 **Fortune.** Every year each nation has a 30% chance of an event of the age, a decision for the

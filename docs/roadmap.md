@@ -1,14 +1,15 @@
 # Roadmap: finishing the engine before the AI rulers
 
 Where the game stands, what is still shallow, and what is left before the AI work starts.
-Revised 2026-10-16, after missions, patronage and mercenaries landed.
+Revised 2026-10-16, after missions, patronage, mercenaries, taxes, multiplayer tables and the
+agent tools landed.
 
 ## Where it stands
 
 | Area | Today | Depth |
 |---|---|---|
-| Map and scenario | 69 provinces, nine powers with banners, minors, terrain, fourteen trade goods, monuments, the grudges of 1500 | solid |
-| Economy | six resources, development that eats grain and timber, workings, buildings with inputs, stability | deep |
+| Map and scenario | 70 provinces, nine powers with banners (the Danubian Austria and Brandenburg-Prussia in the middle), minors, terrain, fourteen trade goods, monuments, the grudges of 1500 | solid |
+| Economy | six resources, development that eats grain and timber, workings, buildings with inputs, taxes, a ledger by source, stability | deep |
 | Trade | a European market with moving prices, bilateral trades | good; trade agreements left |
 | Technology | three branches with milestones and lore | good |
 | Government | historical rulers with traits and portraits, a council of three with tempers | good |
@@ -17,7 +18,8 @@ Revised 2026-10-16, after missions, patronage and mercenaries landed.
 | Diplomacy | treaties, opinion, stances, proclamations, peace terms with counter-offers | rich |
 | Goals | five historical missions per crown, prestige, patronage, events of the age | good |
 | Balance of power | nothing stops a conqueror but its neighbours' armies | **missing** |
-| AI contract | `NationView` in, `Orders` out, private thoughts and counsel, replay of minds | solid, but the view is large |
+| AI contract | `NationView` in, `Orders` out, private thoughts and counsel, replay of minds, a briefing and calculators | solid |
+| Play-testing | `pax serve` alone, `pax host` tables for friends, ready for Cloud Run | ready |
 
 ## Review of the mechanics
 
@@ -61,7 +63,7 @@ break a ruler, and the work moves to `agents/`.
 Why: it is what checks Spain and France in the bot games, and coalitions are pure diplomacy,
 the AI rulers' job. Size: medium.
 
-### B. Agent support
+### B. Agent support (done: `tools.py`, `pax brief`, `pax tournament`, see agent-tools.md)
 
 - A compact **briefing** of the view for a prompt: the realm, threats, open missions, offers to
   answer, in a page of text. The full view stays for tools.

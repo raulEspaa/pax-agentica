@@ -22,8 +22,9 @@ state directly, so a clever (or confused) agent can't cheat its way to victory.
 
 ## The game: Europe, 1500
 
-An arcade grand strategy game: **69 provinces** from Lisbon to Moscow, **nine great powers**
-(England, France, Spain, Austria, the Ottomans, Sweden, Russia, Poland-Lithuania and Hungary)
+An arcade grand strategy game: **70 provinces** from Lisbon to Moscow, **nine great powers**
+(England, France, Spain, the Danubian Austria, the Ottomans, Sweden, Russia, Poland-Lithuania and
+Brandenburg-Prussia)
 and a scatter of independent minors to swallow. Every province is known for one of fourteen
 trade goods, from grain and fish to silver, spices and gold, and can deepen its mines, vineyards
 or looms. Six resources (ducats, manpower, iron, grain, timber and goods) feed recruiting,
@@ -57,6 +58,12 @@ a ledger, a chronicle, and a deed for every province with its production and its
 nation exactly as an AI ruler does (fog of war included), recruit, build, march, and treat with
 the other courts: alliances, pacts, trade, tribute, letters, calls to arms and peace with
 reparations.
+
+**With friends, too.** `pax host` serves tables where several people each take a throne in
+their browsers and bots hold the rest; a year passes when everyone has ended it, or when the
+table's clock runs out. It runs on a laptop for the local network or on Cloud Run with an
+invitation code ([`docs/multiplayer.md`](docs/multiplayer.md)). The AI rulers get the same
+view plus a briefing, calculators and a tournament runner ([`docs/agent-tools.md`](docs/agent-tools.md)).
 
 <p align="center"><img src="docs/assets/play.jpg" alt="The play page: France in 1501, its treasury across the top, its neighbours under the fog of war, and the Realm office with the yearly balance" width="760"></p>
 

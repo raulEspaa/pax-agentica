@@ -39,3 +39,11 @@ def test_map_and_bench_run(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["map"]) == 0
     assert main(["bench", "--games", "2", "--turns", "10"]) == 0
     assert "2 games" in capsys.readouterr().out
+
+
+def test_brief_and_tournament_run(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["brief", "sweden"]) == 0
+    assert capsys.readouterr().out.startswith("# Sweden, 1500")
+    assert main(["tournament", "--games", "1", "--turns", "3", "--player", "spain=random"]) == 0
+    out = capsys.readouterr().out
+    assert "spain       random" in out
