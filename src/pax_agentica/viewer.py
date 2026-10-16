@@ -11,7 +11,7 @@ import json
 from importlib.resources import files
 from typing import Any
 
-from pax_agentica.engine import EventKind, GameState, Resources, Rules
+from pax_agentica.engine import Event, EventKind, GameState, Resources, Rules
 from pax_agentica.engine.mechanics import buildings_yield, land_yield
 from pax_agentica.engine.model import RESOURCE_NAMES, BuildingKind, MapDef, TechBranch
 from pax_agentica.runner import GameRecord, Snapshot
@@ -27,6 +27,10 @@ TECH = {
 }
 
 CHRONICLE = {
+    EventKind.PROCLAMATION,
+    EventKind.STANCE_CHANGED,
+    EventKind.PROVINCE_CEDED,
+    EventKind.MONUMENT_RAISED,
     EventKind.WAR_DECLARED,
     EventKind.JOINED_WAR,
     EventKind.CALL_TO_ARMS_IGNORED,
@@ -48,6 +52,36 @@ CHRONICLE = {
     EventKind.GENERAL_FELL,
     EventKind.GAME_OVER,
 }
+
+
+TRAIT_WORDS = {
+    "warlike": "+5% battle power",
+    "cautious": "forts 5% stronger",
+    "thrifty": "+5% ducats",
+    "pious": "stability 10% cheaper",
+    "scholar": "research 10% cheaper",
+    "builder": "buildings and development 8% cheaper",
+    "cunning": "breaking a treaty costs 1 less stability",
+    "charming": "every court warms to them, +2 opinion a year",
+    "cruel": "+3% battle power, but every court cools, -1 opinion a year",
+    "ambitious": "hungry for land and glory",
+    "melancholic": "withdrawn, brooding, hard to read",
+}
+PERSONALITY_WORDS = {
+    "hawk": "counsels war: strike before the enemy grows",
+    "dove": "counsels peace: war is the dearest thing a crown can buy",
+    "schemer": "serves themself first, and the crown when it pays",
+    "loyal": "serves the crown before all",
+    "frugal": "counts every ducat twice",
+    "visionary": "thinks in generations, not in years",
+}
+
+
+def portraits() -> dict[str, str]:
+    """Who has a painted portrait (public domain, see web/portraits/CREDITS.md): name -> file."""
+    index = files("pax_agentica").joinpath("web/portraits/index.json").read_text(encoding="utf-8")
+    result: dict[str, str] = json.loads(index)
+    return result
 
 
 def europe_map() -> dict[str, Any]:
@@ -158,6 +192,9 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             }
             for pid, m in rules.monuments.items()
         },
+        "portraits": portraits(),
+        "traits": TRAIT_WORDS,
+        "personalities": PERSONALITY_WORDS,
         "advisors": [
             {
                 "id": "treasurer",
@@ -257,10 +294,19 @@ def _frame(
                 "allies": [nations.index(n) for n in s.allies],
                 "tech": [s.technology.get(b.value, 0) for b in TechBranch],
                 "ruler": s.ruler,
+                "friends": [nations.index(k) for k, x in s.stances.items() if x == "friend"],
+                "rivals": [nations.index(k) for k, x in s.stances.items() if x == "rival"],
             }
             for s in (snapshot.nations[n] for n in nations)
         ],
     }
+
+
+def _chronicle_line(e: Event) -> str:
+    """An event as the chronicle tells it; a proclamation is quoted."""
+    if e.kind == EventKind.PROCLAMATION:
+        return f"{e.summary}: “{e.data['text']}”"
+    return e.summary
 
 
 def render_html(record: GameRecord) -> str:
@@ -271,14 +317,22 @@ def render_html(record: GameRecord) -> str:
     frames = [_frame(record.start, order, nations, state.rules, state.map)]
     years = [state.rules.start_year]
     chronicle: list[list[list[Any]]] = [[]]
+    minds: list[dict[int, list[Any]]] = [{}]  # each court's private thoughts and counsel
     for turn in record.turns:
+        minds.append(
+            {
+                nations.index(n): [o.thoughts, {r.value: c for r, c in o.counsel.items()}]
+                for n, o in turn.orders.items()
+                if o.thoughts or o.counsel
+            }
+        )
         frames.append(_frame(turn.after, order, nations, state.rules, state.map))
         years.append(turn.year)
         chronicle.append(
             [
                 [
                     e.kind.value,
-                    e.summary,
+                    _chronicle_line(e),
                     order.index(e.province) if e.province else -1,
                     [nations.index(n) for n in e.nations if n in nations],
                 ]
@@ -296,6 +350,7 @@ def render_html(record: GameRecord) -> str:
         "frames": frames,
         "years": years,
         "chronicle": chronicle,
+        "minds": minds,
         "winner": nations.index(record.winner) if record.winner else -1,
         "over": over,
         "seed": state.seed,

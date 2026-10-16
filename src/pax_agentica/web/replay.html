@@ -9,6 +9,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
 /*__CSS__*/
+  .mind { margin-top: 8px; padding: 7px 9px; border: 1px solid var(--brass-lo); background: var(--walnut-lo); font-size: 13.5px; }
+  .mind b { font: 700 13px var(--display); color: var(--brass-hi); }
+  .mind p { margin: 4px 0; color: var(--ink-2); } .mind i { color: var(--brass); text-transform: capitalize; }
 </style>
 </head>
 <body>
@@ -206,7 +209,18 @@ function card(f) {
       <div>Technology: ${D.tech.map((t, k) => `${t.name.toLowerCase()} ${s.tech[k]}`).join(", ")}.</div>
       <div>At war with</div><div class="chips">${chip("war", s.wars)}</div>
       <div>Allied with</div><div class="chips">${chip("ally", s.allies)}</div>
+      ${(s.friends || []).length || (s.rivals || []).length ? `<div>Friends ${chip("ally", s.friends || [])} Rivals ${chip("war", s.rivals || [])}</div>` : ""}
+      ${mind(selected)}
     </div>`;
+}
+// What the court thought this year: its ruler's reasoning and its advisors' counsel. Private,
+// so under the fog only your own court's mind can be read.
+function mind(k) {
+  const m = (D.minds[frame] || {})[k];
+  if (!m || (seeAs >= 0 && seeAs !== k)) return "";
+  const [thoughts, counsel] = m;
+  return `<div class="mind"><b>Inside the court</b>${thoughts ? `<p>“${esc(thoughts)}”</p>` : ""}
+    ${Object.entries(counsel).map(([role, text]) => `<p><i>${esc(role)}:</i> ${esc(text)}</p>`).join("")}</div>`;
 }
 
 function paintNames(text) {

@@ -161,7 +161,8 @@ svg.paxmap { display: block; width: 100%; height: 100%; user-select: none; }
 .hintbar.show { display: block; }
 
 /* ---------------------------------------------------------------- the province deed: vellum in a wooden frame */
-.deed { position: absolute; left: 24px; bottom: 24px; width: 400px; max-height: calc(100% - 48px);
+.portrait.painted { display: block; object-fit: cover; border: 3px solid; outline: 1px solid #000; box-shadow: 0 0 0 1px #c49a52, 0 3px 8px rgba(0, 0, 0, .55); }
+.deed { overscroll-behavior: contain; position: absolute; left: 24px; bottom: 24px; width: 400px; max-height: calc(100% - 48px);
         overflow: auto; z-index: 6; display: none; color: var(--sepia);
         background: var(--vellum-tex), radial-gradient(ellipse at 30% 20%, #f7ecd1, var(--vellum) 55%, var(--vellum-2));
         border: 6px solid #3a2414; outline: 1px solid var(--brass); outline-offset: -9px;
@@ -249,12 +250,13 @@ table.prod { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .tile .ic { font-size: 22px; line-height: 1.15; }
 .tile b { font-size: 13px; }
 .tile .gain { justify-content: center; font-size: 12.5px; min-height: 15px; }
+.tile .gain.top { color: #2f7a3e; font-weight: 700; line-height: 1.2; padding: 1px 3px; border-radius: 3px; background: rgba(120, 190, 120, .16); }
 .tile .cost { font-size: 11.5px; color: var(--sepia-2); }
 .tile .btn { margin-top: 3px; height: 24px; padding: 0 6px; font-size: 12px; max-width: 100%; }
 .tile.civil { box-shadow: inset 0 -3px 0 var(--civil); }
 .tile.military { box-shadow: inset 0 -3px 0 var(--military); }
 .tile.built { background: rgba(196, 154, 82, .28); border-color: #8a6a3a; }
-.tile.built .gain, .tile.ordered .gain { color: var(--sepia); }
+.tile.locked .gain.top { color: #4a6a4a; }
 .tile.ordered { border-style: dashed; background: rgba(230, 194, 126, .35); }
 .tile.locked { opacity: .5; filter: grayscale(.6); }
 .tile.blocked { opacity: .72; }

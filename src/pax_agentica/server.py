@@ -109,8 +109,8 @@ class Session:
 
     def previews(self) -> dict[str, dict[str, Any]]:
         """For each of the human's provinces, what one more development or each building not
-        yet standing would add to its yearly output. Only for the page: an AI ruler's view
-        stays lean."""
+        yet standing would add to its yearly output, and what each standing one adds. Only for
+        the page: an AI ruler's view stays lean."""
         state, out = self.state, {}
         for pid in state.provinces_of(self.human):
             p = state.provinces[pid]
@@ -120,8 +120,12 @@ class Session:
                 for kind in BuildingKind
                 if kind not in p.buildings
             }
+            built = {
+                kind.value: (now - output_with(state, pid, without=(kind,))).model_dump()
+                for kind in p.buildings
+            }
             develop = output_with(state, pid, development=p.development + 1) - now
-            out[pid] = {"develop": develop.model_dump(), "buildings": gains}
+            out[pid] = {"develop": develop.model_dump(), "buildings": gains, "built": built}
         return out
 
     def payload(self) -> dict[str, Any]:
@@ -157,6 +161,15 @@ def create_app(session: Session) -> FastAPI:
         if name not in types:
             raise HTTPException(404)
         return Response(web.joinpath(name).read_text(encoding="utf-8"), media_type=types[name])
+
+    paintings = {f"{slug}.jpg" for slug in static["portraits"].values()}
+
+    @app.get("/portraits/{name}")
+    def portrait(name: str) -> Response:
+        if name not in paintings:  # only the files we ship, never a path
+            raise HTTPException(404)
+        image = web.joinpath("portraits", name).read_bytes()
+        return Response(image, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
 
     @app.get("/api/static")
     def static_data() -> dict[str, Any]:

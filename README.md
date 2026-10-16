@@ -35,6 +35,9 @@ Diplomacy is the heart of it, because the other thrones will be AI agents. Court
 pacts, trade and send letters; each holds an opinion of every other, raised by gifts and
 treaties and wrecked by betrayal. Peace is negotiated: provinces, gold, a yearly tribute or a cap
 on the loser's army, with counter-offers and notes going back and forth until both sides sign.
+Courts declare friends and rivals in public, proclaim to all Europe, and every ruler has a
+character; behind each decision the record keeps the ruler's private reasoning and the counsel of
+each advisor, so a replay shows not only what each kingdom did but why.
 The full rules are in [`docs/game-rules.md`](docs/game-rules.md).
 
 <p align="center"><img src="docs/assets/replay.jpg" alt="The HTML replay: a political map of Europe in 1529 inside an engraved neatline, with nation names, armies, the ledger and the chronicle of the year" width="760"></p>

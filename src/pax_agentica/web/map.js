@@ -26,7 +26,8 @@ const PaxMap = (() => {
                  barracks: "⚔", armory: "🛡", fort: "🏰", citadel: "🏯", stables: "🐴", cannon_foundry: "🔥",
                  military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭"};
   const UICON = {infantry: "⚔", archers: "🏹", cavalry: "🐎", artillery: "💣"};
-  const ICON = {war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
+  const ICON = {proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
+    war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
     treaty_broken: "💔", treaty_cancelled: "✂", treaty_expired: "⌛", peace_signed: "🕊", trade_completed: "⚖",
     trade_failed: "✗", gift: "🎁", battle: "⚔", province_captured: "⚑", capital_moved: "♛", nation_eliminated: "☠",
     developed: "⌂", built: "🏗", game_over: "👑", researched: "⚙", general_appointed: "⚑", general_fell: "✝", message: "✉", proposal_made: "📜", proposal_rejected: "✗",
@@ -323,7 +324,9 @@ const PaxMap = (() => {
     gLand.addEventListener("contextmenu", (e) => { const i = +e.target.dataset.i;
       if (!hooks.command || Number.isNaN(i)) return;
       e.preventDefault(); hooks.command(i, e); });
-    wrap.addEventListener("wheel", (e) => { e.preventDefault(); zoomAt(e.deltaY > 0 ? 1.18 : 1 / 1.18, e.clientX, e.clientY); }, {passive: false});
+    wrap.addEventListener("wheel", (e) => {
+      if (!svg.contains(e.target)) return; // over the deed or the legend, the wheel scrolls them
+      e.preventDefault(); zoomAt(e.deltaY > 0 ? 1.18 : 1 / 1.18, e.clientX, e.clientY); }, {passive: false});
     svg.addEventListener("pointerdown", (e) => { if (e.button !== 0) return;
       drag = {x: e.clientX, y: e.clientY, vx: view.x, vy: view.y}; moved = false; });
     window.addEventListener("pointermove", (e) => { if (!drag) return;
@@ -492,8 +495,13 @@ const PaxMap = (() => {
   // ---------------------------------------------------------------- portraits
   // A face for anyone at court: drawn from their name, so the same person always looks the same,
   // greying with age, and crowned, turbaned or capped as their title demands.
+  let PAINTED = {}, PAINTED_AT = "";
+  function usePortraits(index, base) { PAINTED = index || {}; PAINTED_AT = base; }
   function portrait(person, color, size = 64) {
     const seed = person.name || "?";
+    if (PAINTED[seed]) // a period painting, framed in the court's colour
+      return `<img class="portrait painted" src="${PAINTED_AT}${PAINTED[seed]}.jpg" width="${size}" height="${Math.round(size * 1.25)}"
+        alt="${esc(seed)}" loading="lazy" style="border-color:${color}">`;
     let h = 2166136261;
     for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
     const pick = (k, n) => ((h >>> k) ^ (h >>> (k + 7))) % n;
@@ -591,5 +599,5 @@ const PaxMap = (() => {
     };
   }
 
-  return {create, deedInfo, vista, portrait, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
+  return {create, deedInfo, vista, portrait, usePortraits, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
 })();
