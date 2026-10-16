@@ -13,7 +13,7 @@ from typing import Any
 
 from pax_agentica.engine import Event, EventKind, GameState, Resources, Rules
 from pax_agentica.engine.mechanics import buildings_yield, land_yield
-from pax_agentica.engine.model import RESOURCE_NAMES, BuildingKind, MapDef, TechBranch
+from pax_agentica.engine.model import RESOURCE_NAMES, BuildingKind, MapDef, TechBranch, Terrain
 from pax_agentica.runner import GameRecord, Snapshot
 
 KINDS = list(BuildingKind)
@@ -81,6 +81,23 @@ def portraits() -> dict[str, str]:
     """Who has a painted portrait (public domain, see web/portraits/CREDITS.md): name -> file."""
     index = files("pax_agentica").joinpath("web/portraits/index.json").read_text(encoding="utf-8")
     result: dict[str, str] = json.loads(index)
+    return result
+
+
+def _terrain_words(rules: Rules, terrain: Terrain) -> str:
+    """What a terrain does, in one line: its yield, the price of developing it, its defence."""
+    parts = [f"{v:+d} {k}" for k, v in rules.terrain_yield.get(terrain, {}).items()]
+    parts += [
+        f"developing at {rules.terrain_develop_cost.get(terrain, 1.0):g} times the price",
+        f"defence {rules.terrain_defense[terrain]:g} times",
+    ]
+    return "; ".join(parts)
+
+
+def province_views() -> dict[str, dict[str, str]]:
+    """Which provinces have a period city view (public domain, see web/views/CREDITS.md)."""
+    index = files("pax_agentica").joinpath("web/views/index.json").read_text(encoding="utf-8")
+    result: dict[str, dict[str, str]] = json.loads(index)
     return result
 
 
@@ -193,7 +210,9 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             for pid, m in rules.monuments.items()
         },
         "portraits": portraits(),
+        "views": province_views(),
         "traits": TRAIT_WORDS,
+        "terrainEffects": {t.value: _terrain_words(rules, t) for t in rules.terrain_defense},
         "personalities": PERSONALITY_WORDS,
         "advisors": [
             {
@@ -262,7 +281,9 @@ def _frame(
 ) -> dict[str, Any]:
     provinces = [snapshot.provinces[p] for p in order]
     base = [
-        land_yield(rules, game_map.provinces[pid].good, p.development)
+        land_yield(
+            rules, game_map.provinces[pid].good, p.development, game_map.provinces[pid].terrain
+        )
         for pid, p in zip(order, provinces, strict=True)
     ]
     kinds = [[BuildingKind(b) for b in p.buildings] for p in provinces]

@@ -49,7 +49,7 @@ Commons, cropped and scaled to 160×200. The licence column is Commons' own stat
 | Richard Fox | Unknown English artist | early 19th century| Public domain | [Richard_Foxe_from_NPG.jpg](https://commons.wikimedia.org/wiki/File:Richard_Foxe_from_NPG.jpg) |
 | William Warham | Hans Holbein the Younger | 1528 | Public domain | [Hans_Holbein_d._J._066.jpg](https://commons.wikimedia.org/wiki/File:Hans_Holbein_d._J._066.jpg) |
 | Edmund Dudley | Unidentified painter | Later portrait | Public domain | [EmpsonHenryDudley.jpg](https://commons.wikimedia.org/wiki/File:EmpsonHenryDudley.jpg) |
-| Antoine Duprat | Unknown authorUnknown author | circa 1525| Public domain | [Portrait_d'Antoine_Duprat_vers_1525.png](https://commons.wikimedia.org/wiki/File:Portrait_d%27Antoine_Duprat_vers_1525.png) |
+| Antoine Duprat | Unknown author | circa 1525| Public domain | [Portrait_d'Antoine_Duprat_vers_1525.png](https://commons.wikimedia.org/wiki/File:Portrait_d%27Antoine_Duprat_vers_1525.png) |
 | Guillaume Budé | Jean Clouet | circa 1536| Public domain | [Guillaume_Budé,_by_Jean_Clouet.jpg](https://commons.wikimedia.org/wiki/File:Guillaume_Bud%C3%A9,_by_Jean_Clouet.jpg) |
 | Louise of Savoy | Didier Descouens | Taken on 13 October 2018 | Public domain | [Bemberg_fondation_Toulouse_-_Portrait_de_Louise_de_Savoie,_mère_de_François_Ier_-_École_De_Jean_Clouet_(1475;1485-1540)_22x17_Inv.1013.jpg](https://commons.wikimedia.org/wiki/File:Bemberg_fondation_Toulouse_-_Portrait_de_Louise_de_Savoie,_m%C3%A8re_de_Fran%C3%A7ois_Ier_-_%C3%89cole_De_Jean_Clouet_(1475;1485-1540)_22x17_Inv.1013.jpg) |
 | Guillaume Briçonnet | ? | ? | Public domain | [Guillaume_Briçonnet_(1445-1514).jpg](https://commons.wikimedia.org/wiki/File:Guillaume_Bri%C3%A7onnet_(1445-1514).jpg) |
@@ -66,5 +66,9 @@ Commons, cropped and scaled to 160×200. The licence column is Commons' own stat
 | Kemalpasazade | Âşık Çelebi | 1568-01-07 | Public domain | [Kemalpashazade.jpg](https://commons.wikimedia.org/wiki/File:Kemalpashazade.jpg) |
 | Rustem Pasha | Painter B | 16th century| Public domain | [Ruestem_presumably.jpg](https://commons.wikimedia.org/wiki/File:Ruestem_presumably.jpg) |
 | Lutfi Pasha | Johann Theodor de Bry | 1590s| Public domain | [Arolsen_Klebeband_01_465_3_(cropped).jpg](https://commons.wikimedia.org/wiki/File:Arolsen_Klebeband_01_465_3_(cropped).jpg) |
-| Laurentius Petri | Unknown authorUnknown author | 1906 | Public domain | [Laurentius_Petri_(Nericius),_Archbishop_of_Uppsala,_SBH.png](https://commons.wikimedia.org/wiki/File:Laurentius_Petri_(Nericius),_Archbishop_of_Uppsala,_SBH.png) |
-| Maksim the Greek | Unknown authorUnknown author | XVI-XVII | Public domain | [Максим_Грек.jpg](https://commons.wikimedia.org/wiki/File:%D0%9C%D0%B0%D0%BA%D1%81%D0%B8%D0%BC_%D0%93%D1%80%D0%B5%D0%BA.jpg) |
+| Laurentius Petri | Unknown author | 1906 | Public domain | [Laurentius_Petri_(Nericius),_Archbishop_of_Uppsala,_SBH.png](https://commons.wikimedia.org/wiki/File:Laurentius_Petri_(Nericius),_Archbishop_of_Uppsala,_SBH.png) |
+| Maksim the Greek | Unknown author | XVI-XVII | Public domain | [Максим_Грек.jpg](https://commons.wikimedia.org/wiki/File:%D0%9C%D0%B0%D0%BA%D1%81%D0%B8%D0%BC_%D0%93%D1%80%D0%B5%D0%BA.jpg) |
+| Sten Sture | unknown engraver | 19th century or earlier | Public domain | [Sten Sture the Elder.jpg](https://commons.wikimedia.org/wiki/File:Sten_Sture_the_Elder.jpg) |
+| Svante Nilsson | Unknown author | 16th century | Public domain | [Svante Sture.jpg](https://commons.wikimedia.org/wiki/File:Svante_Sture.jpg) |
+| Ivan IV | Unknown author | 18th century | Public domain | [Ivan IV by anonim (18th c., GIM).jpg](https://commons.wikimedia.org/wiki/File:Ivan_IV_by_anonim_(18th_c.,_GIM).jpg) |
+| Feodor I | Unknown painter | 1630 | Public domain | [Feodor I of Russia (parsuna, 1630s, Moscow History museum).jpg](https://commons.wikimedia.org/wiki/File:Feodor_I_of_Russia_(parsuna,_1630s,_Moscow_History_museum).jpg) |

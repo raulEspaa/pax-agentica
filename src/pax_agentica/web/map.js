@@ -487,8 +487,15 @@ const PaxMap = (() => {
     const town = out.splice(0);
     out.push(...outside, ...outer, `<g transform="translate(190 ${ground + 6}) scale(1.4) translate(-190 ${-(ground + 6)})">${town.join("")}</g>`);
     if (d.unrest) for (let k = 0; k < 2; k++) add(`<path d="M${200 + k * 40} ${ground - 10} q -10 -20 4 -36 q 12 -14 0 -30" stroke="#4a4038" stroke-width="${6 - k * 2}" fill="none" opacity=".45"/>`);
-    add(`<rect x=".5" y=".5" width="${W - 1}" height="${H - 1}" fill="none" stroke="${INK}" stroke-opacity=".5"/>`);
-    return `<svg class="vista" viewBox="0 0 ${W} ${H}" role="img" aria-label="A view of ${esc(p.name)}">${out.join("")}</svg>`;
+    // Laid on canvas: brushed edges, the weave of the cloth, a varnish darkening at the corners.
+    const paint = `<filter id="brush${i}" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".06 .09" numOctaves="2" seed="${i}" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="3.2"/></filter>
+      <filter id="weave${i}"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 .32  0 0 0 0 .24  0 0 0 0 .12  0 0 0 .55 0"/></filter>
+      <radialGradient id="varnish${i}" cx=".5" cy=".45" r=".75"><stop offset=".55" stop-color="#3a2410" stop-opacity="0"/><stop offset="1" stop-color="#3a2410" stop-opacity=".45"/></radialGradient>`;
+    return `<svg class="vista" viewBox="0 0 ${W} ${H}" role="img" aria-label="A view of ${esc(p.name)}"><defs>${paint}</defs>
+      <g filter="url(#brush${i})">${out.join("")}</g>
+      <rect width="${W}" height="${H}" filter="url(#weave${i})" opacity=".35"/><rect width="${W}" height="${H}" fill="url(#varnish${i})"/>
+      <rect x=".5" y=".5" width="${W - 1}" height="${H - 1}" fill="none" stroke="${INK}" stroke-opacity=".5"/></svg>`;
   }
 
   // ------------------------------------------------------------------ the deed's common sections
@@ -580,7 +587,9 @@ const PaxMap = (() => {
     const kind = d.dev >= 10 ? "City" : d.dev >= 6 ? "Town" : d.dev >= 3 ? "Village" : "Hamlet";
     return {
       slots,
-      header: `<header class="deedhead">${vista(S, i, d)}
+      vista: vista(S, i, d),
+      header: `<header class="deedhead">${d.view ? `<figure class="view"><img src="${d.view.src}" alt="${esc(d.view.city)} in the 1570s" width="570" height="225">
+          <figcaption>${esc(d.view.city)}, as ${esc(d.view.by)} engraved it</figcaption></figure>` : vista(S, i, d)}
         <div class="ribbon"><span class="shield" style="background:${d.owner >= 0 ? N[d.owner].color : "var(--free)"}"></span>
           <div><h2 id="deedname">${esc(p.name)}</h2><div class="owner">${d.owner >= 0 ? `${kind} of ${owner}` : `Independent ${kind.toLowerCase()}`}</div></div></div>
         <button class="x" data-close aria-label="Close the province deed" title="Close (Esc)">×</button></header>`,
@@ -588,7 +597,7 @@ const PaxMap = (() => {
         <div title="Development: output, score and building slots. ${d.dev} of ${maxDev}."><span>🏛</span><b>${d.dev}</b><i style="width:${Math.round(d.dev / maxDev * 100)}%"></i><small>development</small></div>
         <div title="Regiments in garrison"><span>⚔</span><b>${d.troops === null ? "?" : d.troops}</b><small>regiments</small></div>
         <div title="How much harder defenders fight here: terrain, forts, capital"><span>🛡</span><b>×${defence.toFixed(2)}</b><small>defence</small></div>
-        <div title="Terrain"><span>${{plains: "🌾", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"}[p.terrain]}</span><b>${cap(p.terrain)}</b><small>terrain</small></div>
+        <div title="${esc(cap(p.terrain))}: ${esc((S.terrainEffects || {})[p.terrain] || "")}"><span>${{plains: "🌾", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"}[p.terrain]}</span><b>${cap(p.terrain)}</b><small>terrain</small></div>
         <div title="What the province produces most"><span>${{grain: "🌾", iron: "⛏", gold: "✦", timber: "🪵"}[p.good]}</span><b>${cap(GOOD[p.good])}</b><small>trade good</small></div>
       </section>
       ${d.unrest ? `<p class="note unrest">🔥 In unrest for ${d.unrest} more ${d.unrest === 1 ? "year" : "years"}: it produces nothing until then.</p>` : ""}

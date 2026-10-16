@@ -253,7 +253,7 @@
     const i = picked, p = prov(i), o = p.owner === null ? -1 : nIndex[p.owner], mine = owned(i);
     const out = unbundle(p.output_per_turn), extra = unbundle(p.building_output_per_turn);
     const queued = orders.filter((x) => x.type === "build" && pIndex[x.province] === i).map((x) => bIndex[x.building]);
-    const info = PaxMap.deedInfo(S, i, {owner: o, isCapital: p.is_capital, dev: p.development, troops: p.troops, monument: p.monument,
+    const info = PaxMap.deedInfo(S, i, {owner: o, isCapital: p.is_capital, dev: p.development, troops: p.troops, monument: p.monument, view: S.views[p.id] ? {...S.views[p.id], src: `/views/${p.id}.jpg`} : null,
       fort: p.fort, unrest: p.unrest, base: out.map((v, k) => v - extra[k]), bonus: extra, slots: p.building_slots,
       maxDev: mine ? V.me.modifiers.max_development : R.maxDevelopment, general: p.general,
       built: p.buildings.map((b) => bIndex[b]), queued: mine ? queued : []});
@@ -299,7 +299,7 @@
             <span class="gain top">${what}</span><span class="ic">${BICON[b.id]}</span><b>${esc(b.name)}${built ? " ✓" : ordered ? " ⏳" : ""}${b.unique ? ` <small title="A great work: one per realm">★</small>` : ""}</b>
             ${built || ordered ? "" : `<span class="cost">${costText(cost)}</span><button class="btn" data-build="${b.id}" ${why ? "disabled" : ""}>${why || "Build"}</button>`}</div>`];
         }).sort((x, y) => x[0] - y[0]).map((x) => x[1]).join("");
-        body += `<section>${info.slotsHtml}<div class="tiles">${tiles}</div>
+        body += `${S.views[p.id] ? `<section class="town"><h4>The town today</h4>${info.vista}</section>` : ""}<section>${info.slotsHtml}<div class="tiles">${tiles}</div>
           <p class="note">A new slot opens every ${R.slotEvery} development. Hover a work to read what it does.</p></section>`;
       } else {
         const now = armyAfter(i), ground = P[i].terrain;

@@ -163,6 +163,14 @@ def create_app(session: Session) -> FastAPI:
         return Response(web.joinpath(name).read_text(encoding="utf-8"), media_type=types[name])
 
     paintings = {f"{slug}.jpg" for slug in static["portraits"].values()}
+    views = {f"{pid}.jpg" for pid in static["views"]}
+
+    @app.get("/views/{name}")
+    def view_of(name: str) -> Response:
+        if name not in views:  # only the engravings we ship
+            raise HTTPException(404)
+        image = web.joinpath("views", name).read_bytes()
+        return Response(image, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
 
     @app.get("/portraits/{name}")
     def portrait(name: str) -> Response:

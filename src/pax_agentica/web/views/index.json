@@ -1,0 +1,174 @@
+{
+ "london": {
+  "city": "London",
+  "by": "Braun and Hogenberg"
+ },
+ "wales": {
+  "city": "Chester",
+  "by": "Braun and Hogenberg"
+ },
+ "scotland": {
+  "city": "Edinburgh",
+  "by": "Braun and Hogenberg"
+ },
+ "lisbon": {
+  "city": "Lisbon",
+  "by": "?"
+ },
+ "madrid": {
+  "city": "Toledo",
+  "by": "Braun and Hogenberg"
+ },
+ "andalusia": {
+  "city": "Granada",
+  "by": "Braun and Hogenberg"
+ },
+ "algiers": {
+  "city": "Algiers",
+  "by": "Braun and Hogenberg"
+ },
+ "tunis": {
+  "city": "Tunis",
+  "by": "Braun and Hogenberg"
+ },
+ "morocco": {
+  "city": "Tangier",
+  "by": "Braun and Hogenberg"
+ },
+ "paris": {
+  "city": "Paris",
+  "by": "Braun and Hogenberg"
+ },
+ "normandy": {
+  "city": "Rouen",
+  "by": "Braun and Hogenberg"
+ },
+ "lyon": {
+  "city": "Lyon",
+  "by": "Braun and Hogenberg"
+ },
+ "gascony": {
+  "city": "Bordeaux",
+  "by": "Braun and Hogenberg"
+ },
+ "languedoc": {
+  "city": "Montpellier",
+  "by": "Braun and Hogenberg"
+ },
+ "provence": {
+  "city": "Marseille",
+  "by": "Braun and Hogenberg"
+ },
+ "flanders": {
+  "city": "Bruges",
+  "by": "Braun and Hogenberg"
+ },
+ "holland": {
+  "city": "Amsterdam",
+  "by": "Braun and Hogenberg"
+ },
+ "rhineland": {
+  "city": "Cologne",
+  "by": "Braun and Hogenberg"
+ },
+ "hamburg": {
+  "city": "Hamburg",
+  "by": "Braun and Hogenberg"
+ },
+ "saxony": {
+  "city": "Dresden and Leipzig",
+  "by": "Braun and Hogenberg"
+ },
+ "bavaria": {
+  "city": "the towns of Bavaria",
+  "by": "Braun and Hogenberg"
+ },
+ "switzerland": {
+  "city": "Zurich",
+  "by": "Braun and Hogenberg"
+ },
+ "prussia": {
+  "city": "Danzig",
+  "by": "Braun and Hogenberg"
+ },
+ "vienna": {
+  "city": "Vienna",
+  "by": "Braun and Hogenberg"
+ },
+ "tyrol": {
+  "city": "Innsbruck",
+  "by": "Braun and Hogenberg"
+ },
+ "milan": {
+  "city": "Milan",
+  "by": "Braun and Hogenberg"
+ },
+ "venice": {
+  "city": "Venice",
+  "by": "Braun and Hogenberg"
+ },
+ "florence": {
+  "city": "Genoa and Florence",
+  "by": "Braun and Hogenberg"
+ },
+ "rome": {
+  "city": "Rome",
+  "by": "Braun and Hogenberg"
+ },
+ "naples": {
+  "city": "Naples",
+  "by": "Braun and Hogenberg"
+ },
+ "sicily": {
+  "city": "Palermo",
+  "by": "Braun and Hogenberg"
+ },
+ "stockholm": {
+  "city": "Stockholm",
+  "by": "Braun and Hogenberg"
+ },
+ "norrland": {
+  "city": "Uppsala Castle",
+  "by": "Erik Dahlbergh and Willem Swidde"
+ },
+ "norway": {
+  "city": "Bergen",
+  "by": "Braun and Hogenberg"
+ },
+ "scania": {
+  "city": "Lund",
+  "by": "Braun and Hogenberg"
+ },
+ "zealand": {
+  "city": "Copenhagen",
+  "by": "Braun and Hogenberg"
+ },
+ "krakow": {
+  "city": "Kraków",
+  "by": "Braun and Hogenberg"
+ },
+ "masovia": {
+  "city": "Warsaw",
+  "by": "?"
+ },
+ "lithuania": {
+  "city": "Vilnius",
+  "by": "Braun and Hogenberg"
+ },
+ "livonia": {
+  "city": "Riga",
+  "by": "Braun and Hogenberg"
+ },
+ "moscow": {
+  "city": "Moscow",
+  "by": "Braun and Hogenberg"
+ },
+ "buda": {
+  "city": "Buda",
+  "by": "Braun and Hogenberg"
+ },
+ "constantinople": {
+  "city": "Constantinople",
+  "by": "Braun and Hogenberg"
+ }
+}

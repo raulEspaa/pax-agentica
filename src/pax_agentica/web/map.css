@@ -161,6 +161,11 @@ svg.paxmap { display: block; width: 100%; height: 100%; user-select: none; }
 .hintbar.show { display: block; }
 
 /* ---------------------------------------------------------------- the province deed: vellum in a wooden frame */
+.deedhead figure.view { margin: 0; position: relative; }
+.deedhead figure.view img { display: block; width: 100%; height: auto; aspect-ratio: 570 / 225; object-fit: cover; filter: saturate(.9) contrast(1.04); }
+.deedhead figure.view figcaption { position: absolute; left: 6px; bottom: 4px; padding: 0 6px; font: italic 12px var(--body); color: #f4ead2;
+  background: rgba(36, 23, 13, .55); border-radius: 2px; }
+.town .vista { display: block; width: 100%; border: 1px solid rgba(107, 86, 56, .5); }
 .portrait.painted { display: block; object-fit: cover; border: 3px solid; outline: 1px solid #000; box-shadow: 0 0 0 1px #c49a52, 0 3px 8px rgba(0, 0, 0, .55); }
 .deed { overscroll-behavior: contain; position: absolute; left: 24px; bottom: 24px; width: 400px; max-height: calc(100% - 48px);
         overflow: auto; z-index: 6; display: none; color: var(--sepia);
