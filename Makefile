@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help sync fmt lint types test check precommit-install map
+.PHONY: help sync fmt lint types test check precommit-install map host image deploy-tables
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -36,3 +36,13 @@ map: ## Rebuild the map asset from Natural Earth (downloads ~48 MB the first tim
 		test -f $(NE)/$$f.geojson || curl -sSfL -o $(NE)/$$f.geojson $(NE_URL)/$$f.geojson; done
 	uv run --group mapgen python scripts/build_map.py \
 		$(NE)/ne_10m_admin_1_states_provinces_lakes.geojson $(NE)/ne_10m_rivers_lake_centerlines.geojson
+
+host: ## Host multiplayer tables on your network (http://<this machine>:8000)
+	uv run pax host --host 0.0.0.0 --port 8000
+
+image: ## Build the multiplayer tables image (pax-tables:dev) and run it on :8080
+	docker build -t pax-tables:dev .
+	docker run --rm -p 8080:8080 -v pax-tables:/data pax-tables:dev
+
+deploy-tables: ## Deploy the tables to Cloud Run (needs GCP_PROJECT and PAX_INVITE_CODE)
+	scripts/deploy_tables.sh
