@@ -21,16 +21,25 @@ const PaxMap = (() => {
   const TERRAIN = {plains: "#a9b06c", forest: "#4f6d36", hills: "#a58c5a", marsh: "#5f7e6b", mountains: "#8d8678"};
   const RES = [["ducats", "Ducats", "💰"], ["manpower", "Manpower", "👥"], ["iron", "Iron", "⛏"],
                ["grain", "Grain", "🌾"], ["timber", "Timber", "🪵"], ["goods", "Goods", "🧵"]];
-  const GOOD = {grain: "grain", iron: "iron", gold: "gold", timber: "timber"};
+  // trade goods: names, icons and yields come with the game (S.goods); this is the fallback
+  const GOOD = {grain: "Grain", iron: "Iron", gold: "Gold", timber: "Timber"};
+  const GOOD_COLOR = {grain: "#dcd59e", fish: "#7aa7c2", horses: "#a7794a", wine: "#7d3f68", salt: "#e7e1d2",
+    wool: "#cbbf9a", cloth: "#b8708f", timber: "#4f7a3a", iron: "#6d6b68", copper: "#cf8a52", furs: "#7a5238",
+    silver: "#aeb8c2", gold: "#f0ad1e", spices: "#b3301c"};
+  // how a court feels about you, from hostile to friendly: two poles and a neutral middle
+  const OPINION = (v) => { const t = Math.max(-1, Math.min(1, v / 60));
+    return t < 0 ? mix("#b3aa98", "#b8483a", -t) : mix("#b3aa98", "#4f9a62", t); };
+  const goodOf = (S, g) => (S.goods || {})[g] || {name: GOOD[g] || cap(g), icon: "◆", yield: {}, workings: "Workings"};
   const BICON = {marketplace: "⚖", farm_estates: "🌾", ironworks: "⚒", lumber_mill: "🪚", university: "📜", bank: "🏦", cathedral: "⛪", training_grounds: "🎯",
                  barracks: "⚔", armory: "🛡", fort: "🏰", citadel: "🏯", stables: "🐴", cannon_foundry: "🔥",
-                 military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭", workshop: "🔨"};
+                 military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭", workshop: "🔨",
+                 arms_manufactory: "🗡", powder_mill: "🧨"};
   const UICON = {infantry: "⚔", archers: "🏹", cavalry: "🐎", artillery: "💣"};
   const ICON = {proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
     war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
     treaty_broken: "💔", treaty_cancelled: "✂", treaty_expired: "⌛", peace_signed: "🕊", trade_completed: "⚖",
     trade_failed: "✗", gift: "🎁", battle: "⚔", province_captured: "⚑", capital_moved: "♛", nation_eliminated: "☠",
-    developed: "⌂", built: "🏗", game_over: "👑", researched: "⚙", general_appointed: "⚑", general_fell: "✝", message: "✉", proposal_made: "📜", proposal_rejected: "✗",
+    developed: "⌂", improved: "⛏", built: "🏗", game_over: "👑", researched: "⚙", general_appointed: "⚑", general_fell: "✝", message: "✉", proposal_made: "📜", proposal_rejected: "✗",
     proposal_expired: "⌛", order_rejected: "⚠", recruited: "⚔", disbanded: "⚐", moved: "➜", desertion: "⚠",
     stability_changed: "⚖"};
   const MAJOR = new Set(["war_declared", "joined_war", "call_to_arms_ignored", "treaty_broken", "peace_signed",
@@ -135,6 +144,16 @@ const PaxMap = (() => {
       const w = world, o = w.owner[i];
       if (w.mode === "terrain") return TERRAIN[P[i].terrain];
       if (w.mode === "development") return devColor(w.dev[i]);
+      if (w.mode === "goods") return GOOD_COLOR[P[i].good] || "#b9b09a";
+      if (w.mode === "diplomacy" && w.diplo) { // you look at the courts: their feelings, your wars and treaties
+        if (o < 0) return "#cfc6ae";
+        if (o === w.focus) return "#e3bd5c";
+        const r = w.diplo[o];
+        if (!r) return "#8f897c";
+        if (r.war) return "#7e2219";
+        if (r.ally) return "#2f7a45";
+        return OPINION(r.opinion);
+      }
       if (w.mode === "diplomacy") {
         const f = w.focus;
         if (f < 0) return o < 0 ? "var(--free)" : mix(N[o].color, "#8a8478", .55);
@@ -203,6 +222,18 @@ const PaxMap = (() => {
         const o = (world.controller || [])[i] >= 0 ? world.controller[i] : world.owner[i];
         if (world.capitals.has(i) && world.owner[i] >= 0) el("path", {class: "capital", transform: `translate(${p.x} ${p.y - 14 * k}) scale(${1.1 * k})`,
           d: "M0-6 1.8-1.9 6.2-1.9 2.7 0.9 4 5.3 0-2.4-4 5.3-2.7 0.9-6.2-1.9-1.8-1.9Z"}, gMarks);
+        if (world.mode === "goods") { // the good a province is known for, with its workings
+          const g = el("g", {class: "goodmark", transform: `translate(${p.x} ${p.y}) scale(${k})`}, gMarks);
+          el("circle", {r: 11, class: "gbg"}, g);
+          el("text", {y: 5, class: "gic"}, g).textContent = goodOf(S, p.good).icon;
+          const lvl = (world.workings || [])[i];
+          if (lvl) el("text", {x: 11, y: -6, class: "glvl"}, g).textContent = "+".repeat(lvl);
+          return;
+        }
+        if (world.mode === "diplomacy" && world.diplo && world.capitals.has(i) && o >= 0 && o !== world.focus && world.diplo[o]) {
+          const r = world.diplo[o], marks = [r.war && "⚔", r.ally && "🤝", r.pact && "📜", r.rival && "✖", r.friend && "♥"].filter(Boolean);
+          if (marks.length) el("text", {x: p.x, y: p.y - 26 * k, class: "diplomark", "font-size": 13 * k}, gMarks).textContent = marks.join("");
+        }
         const troops = world.troops[i], hidden = troops === null;
         if ((troops > 0 || (hidden && close)) && (o >= 0 || close)) {
           const label = hidden ? "?" : String(troops), w = 9 + label.length * 6;
@@ -254,7 +285,7 @@ const PaxMap = (() => {
         e.setAttribute("class", "pborder" + (nation ? " nation" : "") + (nation && f >= 0 && (oa === f || ob === f) ? " mine" : ""));
         g.style.display = nation && world.mode !== "terrain" ? "" : "none";
       });
-      gNames.style.display = world.mode === "terrain" || world.mode === "development" ? "none" : "";
+      gNames.style.display = ["terrain", "development", "goods"].includes(world.mode) ? "none" : "";
       nationLabels(); markers(); eventMarks();
       pick(picked);
     }
@@ -425,7 +456,15 @@ const PaxMap = (() => {
       const x = (k % 2 ? 268 : 8) + rnd() * 90, y = ground + 8 + rnd() * 30;
       add(`<rect x="${x}" y="${y}" width="${22 + rnd() * 16}" height="7" fill="${k % 3 ? "#d9c26a" : "#c5a94c"}" stroke="${INK}" stroke-opacity=".2" stroke-width=".5"/>`);
     }
-    if (p.good === "iron") add(`<path d="M320 ${ground} q 22 -30 44 0 z" fill="#8b7a5c" stroke="${INK}" stroke-width=".7"/><path d="M335 ${ground} v-9 a7 7 0 0 1 14 0 v9 z" fill="#2a1f14"/><rect x="352" y="${ground + 3}" width="12" height="6" fill="#6b5236" stroke="${INK}" stroke-width=".5"/>`);
+    const MINE = {iron: "#8b7a5c", copper: "#a8673c", silver: "#a9a9a2", gold: "#c9a43a"};
+    if (MINE[p.good]) add(`<path d="M320 ${ground} q 22 -30 44 0 z" fill="${MINE[p.good]}" stroke="${INK}" stroke-width=".7"/><path d="M335 ${ground} v-9 a7 7 0 0 1 14 0 v9 z" fill="#2a1f14"/><rect x="352" y="${ground + 3}" width="12" height="6" fill="#6b5236" stroke="${INK}" stroke-width=".5"/>`);
+    if (p.good === "wine") for (let r = 0; r < 4; r++) for (let k = 0; k < 9; k++) add(`<circle cx="${14 + k * 10 + r * 4}" cy="${ground + 10 + r * 8}" r="2.4" fill="#5c3a5e" stroke="${INK}" stroke-opacity=".3" stroke-width=".4"/>`);
+    if (p.good === "wool" || p.good === "horses") for (let k = 0; k < 6; k++) { const x = 270 + rnd() * 100, y = ground + 14 + rnd() * 26;
+      add(p.good === "wool" ? `<ellipse cx="${x}" cy="${y}" rx="5" ry="3.2" fill="#f2ecdc" stroke="${INK}" stroke-width=".5"/><circle cx="${x + 5}" cy="${y - 1}" r="1.6" fill="#3a2a18"/>`
+        : `<path d="M${x - 6} ${y} q6 -6 12 0 l2 -5 l2 1 l-3 5 v5 M${x - 5} ${y} v5 M${x + 5} ${y} v5" fill="#7a4a2a" stroke="#4a2a14" stroke-width="1.2"/>`); }
+    if (p.good === "fish" || p.good === "salt") add(`<path d="M0 ${ground + 30} C 90 ${ground + 24}, 250 ${ground + 40}, ${W} ${ground + 34} L${W} ${H} L0 ${H} Z" fill="#6b93ad" opacity=".85"/>`
+      + (p.good === "fish" ? [40, 300].map((x) => `<path d="M${x} ${ground + 38} h26 l-4 6 h-18 z" fill="#6b4a2a"/><line x1="${x + 13}" y1="${ground + 38}" x2="${x + 13}" y2="${ground + 22}" stroke="${INK}"/><path d="M${x + 13} ${ground + 23} l9 12 h-9 z" fill="#efe6cc"/>`).join("")
+        : [30, 60, 90].map((x) => `<path d="M${x} ${ground + 30} l9 -10 l9 10 z" fill="#f4f1ea" stroke="${INK}" stroke-width=".4"/>`).join("")));
     if (p.good === "timber" || has("lumber_mill")) for (let k = 0; k < 3; k++) add(`<rect x="${20 + k * 3}" y="${ground + 18 - k * 4}" width="34" height="4" rx="2" fill="#8a6239" stroke="${INK}" stroke-width=".5"/>`);
     if (p.good === "gold") add(`<path d="M0 ${ground + 26} C 90 ${ground + 18}, 250 ${ground + 40}, ${W} ${ground + 30}" stroke="#7fa6bd" stroke-width="7" fill="none" opacity=".8"/><path d="M60 ${ground + 20} l14 0 l-3 4 l-8 0 z M67 ${ground + 20} v-9 l6 6 z" fill="#6b4a2a"/>`);
     // a road to the gate, and grass in the foreground
@@ -627,7 +666,7 @@ const PaxMap = (() => {
         <div title="Regiments in garrison"><span>⚔</span><b>${d.troops === null ? "?" : d.troops}</b><small>regiments</small></div>
         <div title="How much harder defenders fight here: terrain, forts, capital"><span>🛡</span><b>×${defence.toFixed(2)}</b><small>defence</small></div>
         <div title="${esc(cap(p.terrain))}: ${esc((S.terrainEffects || {})[p.terrain] || "")}"><span>${{plains: "🌾", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"}[p.terrain]}</span><b>${cap(p.terrain)}</b><small>terrain</small></div>
-        <div title="What the province produces most"><span>${{grain: "🌾", iron: "⛏", gold: "✦", timber: "🪵"}[p.good]}</span><b>${cap(GOOD[p.good])}</b><small>trade good</small></div>
+        <div title="${esc(goodOf(S, p.good).name)}: ${esc(yieldWords(goodOf(S, p.good).yield))} per development"><span>${goodOf(S, p.good).icon}</span><b>${esc(goodOf(S, p.good).name)}</b><small>trade good</small></div>
       </section>
       ${d.unrest ? `<p class="note unrest">🔥 In unrest for ${d.unrest} more ${d.unrest === 1 ? "year" : "years"}: it produces nothing until then.</p>` : ""}
       ${d.general ? `<p class="note" style="font-style:normal">⚑ ${esc(d.general.name)} <span class="stars">${"★".repeat(d.general.skill)}${"☆".repeat(3 - d.general.skill)}</span> commands here.</p>` : ""}`,
@@ -637,5 +676,6 @@ const PaxMap = (() => {
     };
   }
 
-  return {create, deedInfo, vista, portrait, usePortraits, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
+  const yieldWords = (y) => Object.entries(y).map(([k, v]) => `+${v} ${k}`).join(", ") || "nothing";
+  return {create, deedInfo, goodOf, yieldWords, GOOD_COLOR, OPINION, vista, portrait, usePortraits, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
 })();

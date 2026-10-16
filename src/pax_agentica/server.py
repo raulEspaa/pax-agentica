@@ -125,7 +125,13 @@ class Session:
                 for kind in p.buildings
             }
             develop = output_with(state, pid, development=p.development + 1) - now
-            out[pid] = {"develop": develop.model_dump(), "buildings": gains, "built": built}
+            improve = output_with(state, pid, workings=p.workings + 1) - now
+            out[pid] = {
+                "develop": develop.model_dump(),
+                "improve": improve.model_dump(),
+                "buildings": gains,
+                "built": built,
+            }
         return out
 
     def payload(self) -> dict[str, Any]:

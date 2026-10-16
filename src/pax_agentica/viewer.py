@@ -16,6 +16,7 @@ from pax_agentica.engine.mechanics import buildings_yield, land_yield
 from pax_agentica.engine.model import (
     RESOURCE_NAMES,
     BuildingKind,
+    Good,
     MapDef,
     TechBranch,
     Terrain,
@@ -57,6 +58,7 @@ CHRONICLE = {
     EventKind.CAPITAL_MOVED,
     EventKind.NATION_ELIMINATED,
     EventKind.DEVELOPED,
+    EventKind.IMPROVED,
     EventKind.BUILT,
     EventKind.RESEARCHED,
     EventKind.GENERAL_APPOINTED,
@@ -77,6 +79,22 @@ TRAIT_WORDS = {
     "cruel": "+3% battle power, but every court cools, -1 opinion a year",
     "ambitious": "hungry for land and glory",
     "melancholic": "withdrawn, brooding, hard to read",
+}
+GOOD_ICONS = {
+    Good.GRAIN: "🌾",
+    Good.FISH: "🐟",
+    Good.HORSES: "🐎",
+    Good.WINE: "🍷",
+    Good.SALT: "🧂",
+    Good.WOOL: "🐑",
+    Good.CLOTH: "🧵",
+    Good.TIMBER: "🪵",
+    Good.IRON: "⛏",
+    Good.COPPER: "🟠",
+    Good.FURS: "🦊",
+    Good.SILVER: "🥈",
+    Good.GOLD: "🪙",
+    Good.SPICES: "🌶",
 }
 PERSONALITY_WORDS = {
     "hawk": "counsels war: strike before the enemy grows",
@@ -235,6 +253,15 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             }
             for t in rules.terrain_defense
         },
+        "goods": {
+            good.value: {
+                "name": good.value.capitalize(),
+                "icon": GOOD_ICONS[good],
+                "yield": rules.good_yields.get(good, {}),
+                "workings": rules.workings.get(good, "Workings"),
+            }
+            for good in Good
+        },
         "personalities": PERSONALITY_WORDS,
         "advisors": [
             {
@@ -255,6 +282,8 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
         ],
         "rules": {
             "maxTech": rules.max_tech_level,
+            "workingsBonus": rules.workings_bonus,
+            "maxWorkings": rules.max_workings,
             "rulerIncome": rules.ruler_income_bonus,
             "rulerBattle": rules.ruler_battle_bonus,
             "rulerStability": rules.ruler_stability_discount,

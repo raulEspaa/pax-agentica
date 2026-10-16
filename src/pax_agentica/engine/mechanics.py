@@ -116,14 +116,21 @@ def building_output(state: GameState, province: ProvinceId) -> Resources:
     return built + workings_yield(state, province)
 
 
-def workings_yield(state: GameState, province: ProvinceId, level: int | None = None) -> Resources:
+def workings_yield(
+    state: GameState,
+    province: ProvinceId,
+    level: int | None = None,
+    development: int | None = None,
+) -> Resources:
     """What a province's workings (mine, vineyard, fishery...) add at their level."""
     p = state.provinces[province]
     level = p.workings if level is None else level
     if not level:
         return Resources()
     good = state.map.provinces[province].good
-    return good_yield(state.rules, good, p.development, state.rules.workings_bonus * level)
+    return good_yield(
+        state.rules, good, development or p.development, state.rules.workings_bonus * level
+    )
 
 
 def output_with(
@@ -133,9 +140,10 @@ def output_with(
     development: int | None = None,
     extra: Collection[BuildingKind] = (),
     without: Collection[BuildingKind] = (),
+    workings: int | None = None,
 ) -> Resources:
-    """What the province would yield at another development or with more buildings, unrest
-    aside: the "what if" behind every preview of a work."""
+    """What the province would yield at another development, with more buildings or deeper
+    workings, unrest aside: the "what if" behind every preview of a work."""
     p = state.provinces[province]
     definition = state.map.provinces[province]
     base = land_yield(
@@ -143,13 +151,17 @@ def output_with(
     )
     mods = modifiers(state, p.owner)
     standing = [b for b in p.buildings if b not in without]
-    return base + buildings_yield(
-        state.rules,
-        base,
-        [*standing, *extra],
-        mods.marketplace_share,
-        mods.mill_share,
-        development or p.development,
+    return (
+        base
+        + buildings_yield(
+            state.rules,
+            base,
+            [*standing, *extra],
+            mods.marketplace_share,
+            mods.mill_share,
+            development or p.development,
+        )
+        + workings_yield(state, province, workings, development)
     )
 
 

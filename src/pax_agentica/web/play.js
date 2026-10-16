@@ -75,6 +75,7 @@
       if (o.type === "buy") { const k = RES.findIndex(([key]) => key === o.resource); t[k] += o.amount; t[0] -= Math.ceil(o.amount * V.market[o.resource].buy); }
       if (o.type === "sell") { const k = RES.findIndex(([key]) => key === o.resource); t[k] -= o.amount; t[0] += Math.floor(o.amount * V.market[o.resource].sell); }
       if (o.type === "develop") sub(unbundle(prov(pIndex[o.province]).develop_cost));
+      if (o.type === "improve") sub(unbundle(prov(pIndex[o.province]).improve_cost));
       if (o.type === "build") sub(buildCost(o.building));
       if (o.type === "boost_stability") sub([stabilityCost(), 0, 0, 0, 0]);
       if (o.type === "research") sub(unbundle(V.me.research_costs[o.branch]));
@@ -234,7 +235,9 @@
   const PERK = {university: "develop −30% here", armory: "½ iron per regiment", fort: "+25% defence",
     citadel: "+25% more defence", training_grounds: "+20% garrison", stables: "🐎 cavalry here", cannon_foundry: "💣 artillery here",
     military_academy: "+1 general", royal_exchange: "+10% ducats, all realm", observatory: "−15% research", cathedral: "unrest ends ×2",
-    barracks: "higher manpower cap"};
+    barracks: "higher manpower cap", arms_manufactory: "levies need ½ iron, no goods", powder_mill: "+5% power, breaches a fort level",
+    workshop: "makes goods"};
+  const icons = (c) => RES.map(([, , ic], k) => c[k] ? `${c[k]}${ic}` : "").filter(Boolean).join(" ");
   const gainText = (g) => RES.map(([key, , ic]) => g && g[key] ? `<span>+${g[key]} ${ic}</span>` : "").join("");
   let ownTab = "economy";
   function monumentCard(i, mine, t) {
@@ -287,6 +290,16 @@
               <div class="gain">${p.development < maxDev ? gainText(preview.develop) || "<span>more score</span>" : ""}<span>+1 score</span></div></div></div>
             <p class="note">${slotOpens ? "<b>Opens a new building slot.</b> " : `Next building slot at development ${Math.ceil(next / R.slotEvery) * R.slotEvery}. `}Score is what wins the game.</p>
             <div class="act"><button class="btn" data-act="develop" ${devWhy ? "disabled" : ""}>${devWhy ? cap(devWhy) : "Develop"}</button><span class="cost">${costText(dev)}</span></div></div></section>`;
+        // the province's workings: its mine, vineyard or fishery, raised level by level
+        const good = PaxMap.goodOf(S, P[i].good), level = p.workings || 0, top = R.maxWorkings || 3;
+        const impQueued = orders.some((x) => x.type === "improve" && pIndex[x.province] === i);
+        const imp = p.improve_cost ? unbundle(p.improve_cost) : null;
+        const impWhy = !imp ? "at the highest level" : impQueued ? "already ordered this year" : !affordable(imp, t) ? "too costly for now" : "";
+        body += `<section><div class="card ${impWhy ? "blocked" : "ready"}">
+            <div class="cardhead"><span class="ic">${good.icon}</span><div><b>${esc(good.workings)} <span class="pips">${"●".repeat(level)}${"○".repeat(top - level)}</span></b>
+              <div class="gain">${imp ? gainText(preview.improve) || "<span>little at this development</span>" : ""}</div></div></div>
+            <p class="note">${esc(P[i].name)} is known for its ${esc(good.name.toLowerCase())}: ${esc(PaxMap.yieldWords(good.yield))} per development. Each level adds half of it again, and grows as the province develops. No slot needed.</p>
+            <div class="act"><button class="btn" data-act="improve" ${impWhy ? "disabled" : ""}>${impWhy ? cap(impWhy) : `Raise to level ${level + 1}`}</button>${imp ? `<span class="cost">${costText(imp)}</span>` : ""}</div></div></section>`;
         const best = B.filter((b) => !p.buildings.includes(b.id) && !queued.includes(bIndex[b.id]) && !(b.tech && V.me.technology[b.tech[0]] < b.tech[1])
             && !(b.requires >= 0 && !p.buildings.includes(B[b.requires].id)))
           .map((b) => [b, preview.buildings[b.id] || {}]).filter(([, gain]) => gain.ducats > 0)
@@ -301,15 +314,18 @@
           const needs = b.requires >= 0 && !p.buildings.includes(B[b.requires].id) && !queued.includes(b.requires);
           const tech = b.tech && V.me.technology[b.tech[0]] < b.tech[1];
           const why = built || ordered ? "" : tech ? `🔒 ${cap(b.tech[0])} ${b.tech[1]}` : needs ? `needs a ${B[b.requires].name.toLowerCase()}` : free <= 0 ? "no free slot" : !affordable(cost, t) ? "too costly" : "";
-          const gives = gainText((built ? preview.built || {} : preview.buildings || {})[b.id]);
-          const eats = gainText(Object.fromEntries(RES.map(([key], k) => [key, (b.consumes || [])[k] || 0]))).replaceAll("+", "−");
+          // one clean ledger per work: what it yields a year in green, what it eats in red, any perk below
+          const gain = (built ? preview.built || {} : preview.buildings || {})[b.id] || {};
+          const plus = RES.filter(([key]) => gain[key] > 0).map(([key, , ic]) => `<span class="in">+${gain[key]}${ic}</span>`);
+          const minus = RES.map(([, , ic], k) => (b.consumes || [])[k] ? `<span class="out">−${b.consumes[k]}${ic}</span>` : "").filter(Boolean);
           const isIdle = built && p.idle.includes(b.id);
-          const what = [gives, PERK[b.id] ? `<span>${esc(PERK[b.id])}</span>` : ""].filter(Boolean).join("") || "<span>—</span>";
           const state = built ? "built" : ordered ? "ordered" : tech ? "locked" : why ? "blocked" : "ready";
-          return [["built", "ordered", "ready", "blocked", "locked"].indexOf(state), `<div class="tile ${b.category} ${state}" title="${esc(b.name)}: ${esc(b.effect)}.${b.tech ? ` Needs ${b.tech[0]} technology ${b.tech[1]}.` : ""}">
-            <span class="gain top">${what}</span>${eats ? `<span class="eats" title="Consumed every year">${eats} a year</span>` : ""}
-            ${isIdle ? `<span class="idle">idle: inputs unpaid</span>` : ""}<span class="ic">${BICON[b.id]}</span><b>${esc(b.name)}${built ? " ✓" : ordered ? " ⏳" : ""}${b.unique ? ` <small title="A great work: one per realm">★</small>` : ""}</b>
-            ${built || ordered ? "" : `<span class="cost">${costText(cost)}</span><button class="btn" data-build="${b.id}" ${why ? "disabled" : ""}>${why || "Build"}</button>`}</div>`];
+          const tip = `${b.name}: ${b.effect}.${minus.length ? ` Eats ${costText(b.consumes)} a year; idle without them.` : ""}${b.tech ? ` Needs ${b.tech[0]} technology ${b.tech[1]}.` : ""}`;
+          return [["built", "ordered", "ready", "blocked", "locked"].indexOf(state), `<div class="tile ${b.category} ${state}" title="${esc(tip)}">
+            <div class="thead"><span class="ic">${BICON[b.id]}</span><b>${esc(b.name)}</b>${b.unique ? `<small class="star" title="A great work: one per realm">★</small>` : ""}${isIdle ? `<span class="idle" title="Its inputs went unpaid last year">idle</span>` : built ? `<span class="tick">✓</span>` : ordered ? `<span class="tick">⏳</span>` : ""}</div>
+            <div class="ledger">${plus.join("")}${minus.length ? `<span class="per">${minus.join("")}<small>/yr</small></span>` : ""}${!plus.length && !minus.length && !PERK[b.id] ? `<span class="none">—</span>` : ""}</div>
+            ${PERK[b.id] ? `<div class="perk">${esc(PERK[b.id])}</div>` : ""}
+            ${built || ordered ? "" : `<button class="btn" data-build="${b.id}" ${why ? "disabled" : ""}>${why || `Build · ${icons(cost)}`}</button>`}</div>`];
         }).sort((x, y) => x[0] - y[0]).map((x) => x[1]).join("");
         body += `${S.views[p.id] ? `<section class="town"><h4>The town today</h4>${info.vista}</section>` : ""}<section>${info.slotsHtml}<div class="tiles">${tiles}</div>
           <p class="note">A new slot opens every ${R.slotEvery} development. Hover a work to read what it does.</p></section>`;
@@ -395,6 +411,7 @@
     box.querySelectorAll("[data-act]").forEach((b) => b.onclick = () => {
       const id = P[i].id, act = b.dataset.act;
       if (act === "develop") queue({type: "develop", province: id});
+      if (act === "improve") queue({type: "improve", province: id});
       if (act === "disband") {
         const unit = box.dataset.disbandkind || null, most = unit ? armyAfter(i)[unit] : troopsAfter(i);
         const order = {type: "disband", province: id, regiments: Math.min(+(box.dataset.disband || 1), most)};
@@ -961,6 +978,7 @@
       case "upgrade_monument": return `🏛 Raise ${esc(M[o.province]?.name || "the monument")}`;
       case "disband": return `Disband ${o.regiments}${o.unit ? ` ${o.unit}` : ""} in ${pn(o.province)}`;
       case "develop": return `Develop ${pn(o.province)}`;
+      case "improve": return `${PaxMap.goodOf(S, P[pIndex[o.province]].good).icon} Raise the ${PaxMap.goodOf(S, P[pIndex[o.province]].good).workings.toLowerCase()} of ${pn(o.province)}`;
       case "build": return `Build ${B[bIndex[o.building]].name.toLowerCase()} in ${pn(o.province)}`;
       case "boost_stability": return "Raise stability";
       case "research": { const b = T.find((x) => x.id === o.branch); return `Research ${b.levels[V.me.technology[o.branch]]?.name || o.branch}`; }
@@ -1069,10 +1087,18 @@
       allies: V.me.treaties.filter((t) => t.kind === "alliance").map((t) => nIndex[t.partner]),
       pacts: V.me.treaties.filter((t) => t.kind !== "alliance").map((t) => nIndex[t.partner])};
     else { const n = V.nations.find((x) => x.id === N[f].id); relations = {wars: n.at_war_with.map((x) => nIndex[x]), allies: n.allies.map((x) => nIndex[x]), pacts: []}; }
+    let diplo = null; // how every court stands with you, for the diplomacy map
+    if (f === me) {
+      diplo = {};
+      V.nations.forEach((n) => { const k = nIndex[n.id], kinds = V.me.treaties.filter((t) => t.partner === n.id).map((t) => t.kind);
+        diplo[k] = {opinion: n.opinion_of_you, war: V.me.at_war_with.includes(n.id), ally: kinds.includes("alliance"),
+          pact: kinds.some((x) => x !== "alliance"), rival: n.stances[G.human] === "rival" || V.me.stances[n.id] === "rival",
+          friend: n.stances[G.human] === "friend"}; });
+    }
     const generals = new Map();
     V.provinces.forEach((p, i) => { if (p.general) generals.set(i, {nation: nIndex[p.general.nation], name: p.general.name, skill: p.general.skill}); });
     return {
-      mode, focus: f, relations, alive, capitals, generals,
+      mode, focus: f, relations, diplo, alive, workings: V.provinces.map((p) => p.workings || 0), capitals, generals,
       owner: V.provinces.map((p) => (p.owner === null ? -1 : nIndex[p.owner])),
       controller: V.provinces.map((p) => (p.controller ? nIndex[p.controller] : -1)),
       troops: V.provinces.map((p) => p.troops), dev: V.provinces.map((p) => p.development),
@@ -1080,16 +1106,32 @@
       events: V.last_turn_events.filter((e) => e.province).map((e) => [e.kind, pIndex[e.province], e.nations.map((x) => nIndex[x])]),
     };
   }
-  const MODES = [["political", "Political"], ["terrain", "Terrain"], ["development", "Development"], ["diplomacy", "Diplomacy"]];
+  const MODES = [["political", "Political"], ["terrain", "Terrain"], ["development", "Development"], ["goods", "Goods"], ["diplomacy", "Diplomacy"]];
   MODES.forEach(([id, label], k) => { const b = document.createElement("button"); b.className = "btn"; b.textContent = label;
     b.title = `${label} map mode (${k + 1})`; b.dataset.mode = id; b.onclick = () => { mode = id; render(); };
     document.querySelector(".modes").appendChild(b); });
   function legend() {
     const L = $("legend");
-    L.classList.toggle("wide", mode === "terrain");
+    L.classList.toggle("wide", mode === "terrain" || mode === "goods" || mode === "diplomacy");
     if (mode === "terrain") L.innerHTML = `<b class="lh">What the land does</b>` + Object.entries(TERRAIN).map(([t, c]) => `<div class="trow"><i style="background:${c}"></i>
       <div><b>${PaxMap.TERRAIN_ICON[t]} ${cap(t)}</b><small>${PaxMap.terrainLines(S, t).join(" · ")}</small></div></div>`).join("");
     else if (mode === "development") L.innerHTML = `Development<div class="ramp" style="background:linear-gradient(90deg,${[1, 4, 6, 8, 10].map(devColor).join(",")})"></div>`;
+    else if (mode === "goods") {
+      // richest first: what one level of development brings, valued at the market's prices
+      const price = (k) => k === "ducats" ? 1 : k === "manpower" ? 3 : (V.market?.[k]?.sell ?? R.marketBase?.[k] ?? 2);
+      const worth = (y) => Object.entries(y).reduce((a, [k, v]) => a + v * price(k), 0);
+      const held = new Set(V.me.provinces.map((x) => P[pIndex[x]].good));
+      const rows = Object.entries(S.goods).sort(([, a], [, b]) => worth(b.yield) - worth(a.yield));
+      L.innerHTML = `<b class="lh">Trade goods <small>per level of development</small></b>` + rows.map(([g, x]) => `<div class="grow ${held.has(g) ? "mine" : ""}">
+        <i style="background:${PaxMap.GOOD_COLOR[g]}"></i><span>${x.icon} ${esc(x.name)}</span><small>${esc(PaxMap.yieldWords(x.yield))}</small><b class="num">≈${worth(x.yield).toFixed(1)}</b></div>`).join("")
+        + `<p class="sub">≈ ducats a year at today's prices. <b>+</b> marks raised workings. Bold: goods you hold.</p>`;
+    }
+    else if (mode === "diplomacy" && focus < 0 || mode === "diplomacy" && focus === me) L.innerHTML = `<b class="lh">How the courts stand with you</b>
+      <div class="ramp" style="background:linear-gradient(90deg,${[-60, -30, 0, 30, 60].map(PaxMap.OPINION).join(",")})"></div>
+      <div class="rampends"><span>hostile −60</span><span>neutral</span><span>friendly +60</span></div>
+      <div class="row"><i style="background:#e3bd5c"></i>You</div><div class="row"><i style="background:#2f7a45"></i>Allied</div>
+      <div class="row"><i style="background:#7e2219"></i>At war</div><div class="row"><i style="background:#cfc6ae"></i>Independent minor</div>
+      <p class="sub">Over each capital: ⚔ war · 🤝 alliance · 📜 pact, truce or tribute · ✖ rival · ♥ calls you friend. Click a nation to see its own wars and allies.</p>`;
     else if (mode === "diplomacy") L.innerHTML = `<div class="row"><i style="background:#e3bd5c"></i>${esc(N[focus >= 0 ? focus : me].name)}</div>
       <div class="row"><i style="background:#5aa56f"></i>Allies</div><div class="row"><i style="background:#c9a54a"></i>Pacts and truces</div><div class="row"><i style="background:#c4473b"></i>At war</div>`;
     else L.innerHTML = `<div class="row"><i style="background:var(--free)"></i>Independent minor</div><div class="row">? Hidden by the fog of war</div>
@@ -1138,7 +1180,7 @@
   $("zhome").onclick = () => map.home(V.me.provinces.map((p) => pIndex[p]));
   window.addEventListener("keydown", (e) => {
     if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
-    if (e.key >= "1" && e.key <= "4") { mode = MODES[+e.key - 1][0]; render(); }
+    if (e.key >= "1" && e.key <= String(MODES.length)) { mode = MODES[+e.key - 1][0]; render(); }
     if (e.key === "Escape") { if ($("modal").classList.contains("open")) $("modal").classList.remove("open"); else { picked = -1; render(); } }
   });
   await load();
