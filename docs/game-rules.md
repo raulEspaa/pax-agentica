@@ -160,7 +160,13 @@ Cameralism). Each building can stand once per province, and most can be **upgrad
 (`upgrade_building`, once a year per building) to level 2 or 3: a level does 1.6 and 2.2 times
 what the first does, and eats as much more (rounded up); reaching level 2 costs the building's
 own cost again, level 3 one and a half times it. A fort or citadel at level 2 counts as two levels
-of walls. Buildings survive conquest, so the conqueror keeps them. Output buildings **double the
+of walls. Walls fight for whoever holds them, with that realm's art of fortification (Star
+Forts); an occupied capital gives its occupier no capital bonus. A fortification whose upkeep
+went unpaid stands **unmanned** the next year: its walls do not count. The map draws a castle
+beside every fortified province, with its levels. Walls fight for whoever holds them, with that realm's art of fortification (Star
+Forts); an occupied capital gives its occupier no capital bonus. A fortification whose upkeep
+went unpaid stands **unmanned** the next year: its walls do not count. The map draws a castle
+beside every fortified province, with its levels. Buildings survive conquest, so the conqueror keeps them. Output buildings **double the
 province's base output** of their resource (at least +1), so they are worth more in developed
 provinces. Marketplaces, banks and cathedrals **tax the town, not the mines**: the ducats of the
 province's trade good are left out of their share; workings deepen those instead.
@@ -177,8 +183,8 @@ province's trade good are left out of their share; workings deepen those instead
 | Barracks | military | 40 ducats, 6 iron, 10 timber | 3 | doubles the province's manpower, and a higher cap; consumes 1 iron, 2 grain |
 | Armory | military | 45 ducats, 12 iron, 8 timber | 1 | regiments recruited here need half the iron; needs military 1 |
 | Training grounds | military | 55 ducats, 2 manpower, 4 iron, 12 timber | 3 | the garrison here fights 20% harder; needs military 3 |
-| Fort | military | 45 ducats, 12 iron, 18 timber | 2 | defenders here fight 25% harder; each level is a level of walls |
-| Citadel | military | 80 ducats, 2 manpower, 20 iron, 25 timber | 2 | another +25% defence, and more walls; needs a fort; needs military 2 |
+| Fort | military | 45 ducats, 12 iron, 18 timber | 2 | defenders here fight 25% harder; each level is a level of walls an attacker must besiege; consumes 1 ducat |
+| Citadel | military | 80 ducats, 2 manpower, 20 iron, 25 timber | 2 | another +25% defence, and more walls; consumes 2 ducats; needs a fort; needs military 2 |
 | Workshops | civil | 40 ducats, 6 iron, 12 timber | 3 | 2 + development ÷ 3 goods; consumes 2 iron, 2 timber |
 | Stables | military | 35 ducats, 2 iron, 12 timber | 1 | lets this province raise cavalry |
 | Cannon foundry | military | 70 ducats, 16 iron, 10 timber | 1 | lets this province cast artillery; consumes 2 iron; needs military 2 |

@@ -572,14 +572,15 @@ def defense_multiplier(
     rules = state.rules
     target_state = state.provinces[target]
     terrain = rules.terrain_defense[state.map.provinces[target].terrain]
-    owner = target_state.owner
-    attacker = modifiers(state, state.provinces[origin].owner)
+    owner, holder = target_state.owner, target_state.holder
+    attacker = modifiers(state, state.provinces[origin].holder)
     forts = max(0, target_state.fort - attacker.ignores_fort_levels - siege)
-    bonus = modifiers(state, owner).fort_bonus_per_level * forts
+    # the walls fight for whoever holds them, with that realm's art of fortification
+    bonus = modifiers(state, holder).fort_bonus_per_level * forts
     if BuildingKind.TRAINING_GROUNDS in target_state.buildings:
         bonus += 0.2 * level_factor(rules, target_state.level(BuildingKind.TRAINING_GROUNDS))
-    if owner is not None and state.nations[owner].capital == target:
-        bonus += rules.capital_bonus
+    if owner is not None and holder == owner and state.nations[owner].capital == target:
+        bonus += rules.capital_bonus  # a capital's own people defend it, not its occupiers
     if state.map.is_sea_crossing(origin, target) and not attacker.navy:
         bonus += rules.sea_crossing_bonus
     return rules.defender_advantage * terrain * (1 + bonus)

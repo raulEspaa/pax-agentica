@@ -274,6 +274,14 @@ const PaxMap = (() => {
             el("text", {x: w / 2 + 2, y: 0.5, class: "plan " + (plan > 0 ? "up" : "down")}, g).textContent = `${plan > 0 ? "+" : "−"}${Math.abs(plan)}`;
           }
         }
+        const walls = (world.forts || [])[i] || 0;
+        if (walls) { // a castle beside the garrison: walls an attacker must besiege
+          const g = el("g", {class: "fortmark", transform: `translate(${p.x + 17 * k} ${p.y + 3 * k}) scale(${1.15 * k})`}, gMarks);
+          el("title", {}, g).textContent = `Walls: ${walls} level${walls > 1 ? "s" : ""} of fortification. An attacker must besiege them, unless enough guns breach them.`;
+          el("path", {class: "tower", d: "M-6 6V-3.5H-6V-6.5H-3.6V-4.6H-1.2V-6.5H1.2V-4.6H3.6V-6.5H6V-3.5V6Z"}, g);
+          el("path", {class: "gate", d: "M-1.6 6V2.6A1.6 1.6 0 0 1 1.6 2.6V6Z"}, g);
+          if (walls > 1) el("text", {x: 7, y: -5, class: "lvl"}, g).textContent = walls;
+        }
         const sg = (world.sieges || [])[i];
         if (sg) { // siege lines before the walls: who, how many, how far along
           const g = el("g", {class: "siegemark", transform: `translate(${p.x} ${p.y - 16 * k}) scale(${1.15 * k})`}, gMarks);
@@ -709,6 +717,7 @@ const PaxMap = (() => {
         <div title="Development: output, score and building slots. ${d.dev} of ${maxDev}."><span>🏛</span><b>${d.dev}</b><i style="width:${Math.round(d.dev / maxDev * 100)}%"></i><small>development</small></div>
         <div title="Regiments in garrison"><span>⚔</span><b>${d.troops === null ? "?" : d.troops}</b><small>regiments</small></div>
         <div title="How much harder defenders fight here: terrain, forts, capital"><span>🛡</span><b>×${defence.toFixed(2)}</b><small>defence</small></div>
+        ${d.fort ? `<div title="Levels of fortification: an attacker must besiege them, unless enough guns breach them; each level makes defenders 25% harder to beat"><span>🏰</span><b>${d.fort}</b><small>walls</small></div>` : ""}
         <div title="${esc(cap(p.terrain))}: ${esc((S.terrainEffects || {})[p.terrain] || "")}"><span>${{plains: "🏞", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"}[p.terrain]}</span><b>${cap(p.terrain)}</b><small>terrain</small></div>
         <div title="${esc(goodOf(S, p.good).name)}: ${esc(yieldWords(goodOf(S, p.good).yield))} per development"><span>${goodOf(S, p.good).icon}</span><b>${esc(goodOf(S, p.good).name)}</b><small>trade good</small></div>
         ${d.faith ? `<div class="${d.heretic ? "heretic" : ""}" title="${d.heretic ? `Its people keep another faith than their ruler's: it yields less until they convert` : `Its people share their ruler's faith`}"><span>${FAITH_ICON[d.faith] || "✝"}</span><b>${cap(d.faith)}</b><small>${d.heretic ? "another faith" : "faith"}</small></div>` : ""}

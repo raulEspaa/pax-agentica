@@ -267,11 +267,13 @@
   function defence(origin, target, breach = 0) {
     const p = prov(target);
     const forts = Math.max(0, p.fort - breach - (V.me.modifiers.ignores_fort_levels || 0));
-    let bonus = R.fort * forts + (p.is_capital ? R.capital : 0);
+    const held = p.controller || p.owner, holder = held ? V.nations.find((n) => n.id === held) : null;
+    const perLevel = holder && holder.technology.engineering >= 4 ? 0.35 : R.fort; // star forts
+    let bonus = perLevel * forts + (p.is_capital && held === p.owner ? R.capital : 0);
+    if (p.buildings.includes("training_grounds")) bonus += 0.2 * (R.levelFactors[((p.building_levels || {}).training_grounds || 1) - 1] || 1);
     if (P[origin].sea.includes(target) && !V.me.modifiers.navy) bonus += R.sea;
-    const owner = p.owner ? V.nations.find((n) => n.id === p.owner) : null;
-    const tech = owner ? 1 + T[0].perLevel * owner.technology.military : 1;
-    const guard = p.general && p.general.nation === p.owner ? 1 + R.generalBonus * p.general.skill : 1;
+    const tech = holder ? 1 + T[0].perLevel * holder.technology.military : 1;
+    const guard = p.general && p.general.nation === held ? 1 + R.generalBonus * p.general.skill : 1;
     return R.defender * R.terrain[P[target].terrain] * (1 + bonus) * tech * guard;
   }
   const myFactor = (general) => (1 + T[0].perLevel * V.me.technology.military) * (general ? 1 + R.generalBonus * general.skill : 1);
@@ -349,7 +351,7 @@
 
   // ------------------------------------------------------------------ the province deed
   // What a work without a yield does, in a few words for its tile.
-  const PERK = {university: "develop −30% here", armory: "½ iron per regiment", fort: "+25% defence",
+  const PERK = {university: "develop −30% here", armory: "½ iron per regiment", fort: "🏰 walls, +25% defence",
     citadel: "+25% more defence", training_grounds: "+20% garrison", stables: "🐎 cavalry here", cannon_foundry: "💣 artillery here",
     military_academy: "+1 general", royal_exchange: "+10% ducats, all realm", observatory: "−15% research", cathedral: "unrest ends ×2",
     barracks: "higher manpower cap", arms_manufactory: "levies need ½ iron, no goods", powder_mill: "+5% power, breaches a fort level",
@@ -1734,6 +1736,7 @@
       controller: V.provinces.map((p) => (p.controller ? nIndex[p.controller] : -1)),
       troops: V.provinces.map((p) => p.troops), dev: V.provinces.map((p) => p.development),
       planned: V.provinces.map((p, i) => (owned(i) && p.troops !== null ? troopsAfter(i) - p.troops : 0)),
+      forts: V.provinces.map((p) => p.fort || 0),
       sieges: V.provinces.map((p) => (p.siege_by ? {by: nIndex[p.siege_by], progress: p.siege_progress, besiegers: p.besiegers} : null)),
       buildings: V.provinces.map((p) => p.buildings.map((b) => bIndex[b])),
       events: V.last_turn_events.filter((e) => e.province).map((e) => [e.kind, pIndex[e.province], e.nations.map((x) => nIndex[x])]),
@@ -1798,6 +1801,7 @@
       <span>Development</span><b>${p.development}</b>${p.faith ? `<span>Faith</span><b>${PaxMap.FAITH_ICON[p.faith]} ${cap(p.faith)}</b>` : ""}<span>Regiments</span><b>${p.troops === null ? "hidden" : `${p.troops}${p.army && p.troops ? ` <small>${KINDS.filter((k) => p.army[k]).map((k) => `${UICON[k]}${p.army[k]}`).join(" ")}</small>` : ""}`}</b>
       ${M[p.id] && p.monument !== null ? `<span>Monument</span><b>${esc(M[p.id].name)} ${p.monument ? "★".repeat(p.monument) : "(a site)"}</b>` : ""}
       ${p.general ? `<span>General</span><b>${esc(p.general.name)} ${stars(p.general.skill)}</b>` : ""}
+      ${p.fort ? `<span>Walls</span><b>🏰 ${p.fort} level${p.fort > 1 ? "s" : ""}: must be besieged</b>` : ""}
       ${p.siege_by ? `<span>Siege</span><b>🏰 ${p.siege_by === G.human ? "yours" : esc(nameOf(p.siege_by))}: ${p.siege_progress}%${p.besiegers !== null ? `, ${p.besiegers} regiments` : ""}</b>` : ""}
       ${owned(i) && troopsAfter(i) !== (p.troops || 0) ? `<span>After orders</span><b>${troopsAfter(i)} regiments</b>` : ""}
       <span>Per year</span><b class="num">${out}</b></div><div class="hint">${extra}</div>`;
@@ -1826,8 +1830,9 @@
   const PROPOSAL_ICON = {alliance: "🤝", non_aggression: "📜", peace: "🕊", trade: "⚖", marriage: "💍", coalition: "🛡", call_to_arms: "⚔"};
   const putOff = new Set();
   const unanswered = () => V.proposals_to_answer.filter((p) => !orders.some((o) => o.type === "respond" && o.proposal_id === p.id));
-  const PROPOSAL_SHORT = (p) => ({alliance: "an alliance", non_aggression: "a non-aggression pact", peace: "peace terms", trade: "a trade",
-    marriage: "a royal marriage", coalition: `a league against ${nameOf(p.enemy)}`, call_to_arms: `a call to arms against ${nameOf(p.enemy)}`})[p.kind] || "a proposal";
+  const PROPOSAL_SHORT = (p) => p.kind === "coalition" ? `a league against ${nameOf(p.enemy)}`
+    : p.kind === "call_to_arms" ? `a call to arms against ${nameOf(p.enemy)}`
+    : {alliance: "an alliance", non_aggression: "a non-aggression pact", peace: "peace terms", trade: "a trade", marriage: "a royal marriage"}[p.kind] || "a proposal";
   function notices() {
     const box = $("notices");
     // out of the way while a window or a province is open; back when the map is clear

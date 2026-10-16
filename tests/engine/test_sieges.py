@@ -133,3 +133,21 @@ def test_peace_sends_the_besiegers_home(state: GameState, play: Play) -> None:
     calm = play(siege)
     assert calm.provinces["vienna"].siege_by is None
     assert calm.provinces["bavaria"].troops > 0
+
+
+def test_walls_fight_for_whoever_holds_them(state: GameState) -> None:
+    from pax_agentica.engine.mechanics import defense_multiplier
+
+    held = defense_multiplier(state, "bavaria", "vienna")  # Austria's own capital, with a fort
+    state.provinces["vienna"].controller = "france"  # France has taken it
+    taken = defense_multiplier(state, "bavaria", "vienna")
+    assert taken < held  # the occupiers have the walls, but not the capital's defenders
+
+
+def test_an_unpaid_fort_stands_unmanned(state: GameState) -> None:
+    from pax_agentica.engine.model import BuildingKind
+
+    vienna = state.provinces["vienna"]
+    assert vienna.fort == 1
+    vienna.idle = [BuildingKind.FORT]  # its garrison went unpaid last year
+    assert vienna.fort == 0

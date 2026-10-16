@@ -135,6 +135,9 @@ svg .pick { fill: none; stroke: #fff6dc; stroke-width: 2.4; stroke-dasharray: 6 
 .badge text { font-family: var(--body); font-weight: 700; font-size: 10px; fill: #f4e8cc; text-anchor: middle;
               dominant-baseline: central; }
 .badge.fog text { fill: #a99a7c; }
+.fortmark .tower { fill: #ddd0ac; stroke: #2a1b0c; stroke-width: 1.1; stroke-linejoin: round; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .7)); }
+.fortmark .gate { fill: #3a2414; }
+.fortmark .lvl { font: 700 8px var(--body); fill: #fff3cf; stroke: #120a04; stroke-width: 2px; paint-order: stroke; }
 .genmark circle { fill: #e6c27e; stroke-width: 1.6; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .7)); }
 .genmark text { font: 700 9px var(--body); fill: #4a3010; text-anchor: middle; dominant-baseline: central; }
 .badge text.plan { text-anchor: start; font-size: 9.5px; stroke: #120a04; stroke-width: 2.6px; paint-order: stroke; }

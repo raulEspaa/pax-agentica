@@ -437,14 +437,18 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="Fort",
             category=military,
             cost=Resources(ducats=45, iron=12, timber=18),
-            effect="defenders here fight 25% harder",
+            effect="defenders here fight 25% harder, and an attacker must besiege its walls; its "
+            "garrison costs a ducat a year, unpaid it stands unmanned",
+            consumes=Resources(ducats=1),
             max_level=2,
         ),
         BuildingKind.CITADEL: BuildingSpec(
             name="Citadel",
             category=military,
             cost=Resources(ducats=80, manpower=2, iron=20, timber=25),
-            effect="defenders here fight another 25% harder",
+            effect="defenders here fight another 25% harder, and its walls add a level to the "
+            "siege; it costs 2 ducats a year, unpaid it stands unmanned",
+            consumes=Resources(ducats=2),
             requires=BuildingKind.FORT,
             requires_tech=(TechBranch.MILITARY, 2),
             max_level=2,
@@ -1173,8 +1177,11 @@ class ProvinceState(BaseModel):
 
     @property
     def fort(self) -> int:
-        """Fort level: the levels of the fortifications (fort, citadel) standing here."""
-        return self.level(BuildingKind.FORT) + self.level(BuildingKind.CITADEL)
+        """Fort level: the levels of the fortifications (fort, citadel) standing and kept up
+        here. A fortification whose upkeep went unpaid is left unmanned: it does not count."""
+        return sum(
+            self.level(b) for b in (BuildingKind.FORT, BuildingKind.CITADEL) if b not in self.idle
+        )
 
     def army(self) -> dict[UnitKind, int]:
         """The garrison by kind, every kind listed."""
