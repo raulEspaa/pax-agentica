@@ -732,6 +732,26 @@ class Rules(BaseModel):
     base_timber_per_province: int = 1  # every province has woodland; timber provinces forests
     good_yield_per_development: int = 1
     stability_income_bonus: float = 0.1  # ducat income x (1 + bonus * stability)
+    # what the land itself adds to (or takes from) a province's yield, whatever its development
+    terrain_yield: dict[Terrain, dict[str, int]] = Field(
+        default_factory=lambda: {
+            Terrain.PLAINS: {"grain": 2},
+            Terrain.FOREST: {"timber": 2, "grain": -1},
+            Terrain.HILLS: {"iron": 1, "manpower": 1},
+            Terrain.MARSH: {"timber": 1, "grain": -1},
+            Terrain.MOUNTAINS: {"iron": 2, "manpower": 1, "grain": -2},
+        }
+    )
+    # developing is cheap where fields can spread, dear where they must be won from the land
+    terrain_develop_cost: dict[Terrain, float] = Field(
+        default_factory=lambda: {
+            Terrain.PLAINS: 0.9,
+            Terrain.FOREST: 1.1,
+            Terrain.HILLS: 1.2,
+            Terrain.MARSH: 1.3,
+            Terrain.MOUNTAINS: 1.5,
+        }
+    )
     recruit_cost: Resources = Resources(ducats=6, manpower=2, iron=2)
     disband_refund: Resources = Resources(manpower=2)  # per regiment sent home
     grain_upkeep_per_regiment: int = 1

@@ -36,16 +36,20 @@ def building_slots(rules: Rules, development: int, extra: int = 0) -> int:
     return 1 + development // rules.development_per_building_slot + extra
 
 
-def land_yield(rules: Rules, good: Good, development: int) -> Resources:
-    """What land of this development and good yields, before buildings."""
+def land_yield(
+    rules: Rules, good: Good, development: int, terrain: Terrain | None = None
+) -> Resources:
+    """What land of this development, good and terrain yields, before buildings."""
     extra = development * rules.good_yield_per_development
-    return Resources(
-        ducats=development + (extra if good is Good.GOLD else 0),
-        manpower=max(1, development // 2),
-        iron=rules.base_iron_per_province + (extra if good is Good.IRON else 0),
-        grain=rules.base_grain_per_province + (extra if good is Good.GRAIN else 0),
-        timber=rules.base_timber_per_province + (extra if good is Good.TIMBER else 0),
-    )
+    ground = rules.terrain_yield.get(terrain, {}) if terrain else {}
+    base = {
+        "ducats": development + (extra if good is Good.GOLD else 0),
+        "manpower": max(1, development // 2),
+        "iron": rules.base_iron_per_province + (extra if good is Good.IRON else 0),
+        "grain": rules.base_grain_per_province + (extra if good is Good.GRAIN else 0),
+        "timber": rules.base_timber_per_province + (extra if good is Good.TIMBER else 0),
+    }
+    return Resources(**{k: max(0, v + ground.get(k, 0)) for k, v in base.items()})
 
 
 def buildings_yield(
@@ -78,8 +82,9 @@ def buildings_yield(
 
 def base_output(state: GameState, province: ProvinceId) -> Resources:
     """The province's yield from its development and its good alone."""
+    definition = state.map.provinces[province]
     return land_yield(
-        state.rules, state.map.provinces[province].good, state.provinces[province].development
+        state.rules, definition.good, state.provinces[province].development, definition.terrain
     )
 
 
@@ -106,7 +111,10 @@ def output_with(
     """What the province would yield at another development or with more buildings, unrest
     aside: the "what if" behind every preview of a work."""
     p = state.provinces[province]
-    base = land_yield(state.rules, state.map.provinces[province].good, development or p.development)
+    definition = state.map.provinces[province]
+    base = land_yield(
+        state.rules, definition.good, development or p.development, definition.terrain
+    )
     mods = modifiers(state, p.owner)
     standing = [b for b in p.buildings if b not in without]
     return base + buildings_yield(
@@ -253,11 +261,18 @@ def develop_cost(
     development: int,
     buildings: Collection[BuildingKind] = (),
     discount: float = 0.0,
+    terrain: Terrain | None = None,
 ) -> Resources:
-    ducats = rules.develop_base_ducats + rules.develop_ducats_per_level * development
+    ground = rules.terrain_develop_cost.get(terrain, 1.0) if terrain else 1.0
+    ducats = math.ceil(
+        (rules.develop_base_ducats + rules.develop_ducats_per_level * development) * ground
+    )
     if BuildingKind.UNIVERSITY in buildings:
         ducats = math.ceil(ducats * (1 - rules.university_develop_discount))
-    timber = rules.develop_timber_base + rules.develop_timber_per_two_levels * (development // 2)
+    timber = math.ceil(
+        (rules.develop_timber_base + rules.develop_timber_per_two_levels * (development // 2))
+        * ground
+    )
     return discounted(Resources(ducats=ducats, timber=timber), discount)
 
 

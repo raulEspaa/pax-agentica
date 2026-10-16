@@ -8,12 +8,13 @@ from pax_agentica.engine.mechanics import (
     army_upkeep,
     building_slots,
     develop_cost,
+    land_yield,
     manpower_cap,
     nation_income,
     province_output,
     recruit_cost,
 )
-from pax_agentica.engine.model import BuildingKind
+from pax_agentica.engine.model import BuildingKind, Good, Terrain
 
 type Play = Callable[..., GameState]
 
@@ -23,16 +24,16 @@ def reasons(state: GameState) -> list[str]:
 
 
 def test_a_gold_province_yields_extra_ducats(state: GameState) -> None:
-    # London: development 7, gold
+    # London: development 7, gold, on plains (+2 grain)
     assert province_output(state, "london") == Resources(
-        ducats=14, manpower=3, iron=1, grain=3, timber=1
+        ducats=14, manpower=3, iron=1, grain=5, timber=1
     )
 
 
 def test_an_iron_province_yields_extra_iron(state: GameState) -> None:
-    # Wales: development 3, iron
+    # Wales: development 3, iron, in the hills (+1 iron, +1 manpower)
     assert province_output(state, "wales") == Resources(
-        ducats=3, manpower=1, iron=4, grain=3, timber=1
+        ducats=3, manpower=2, iron=5, grain=3, timber=1
     )
 
 
@@ -194,8 +195,26 @@ def test_an_unpaid_army_deserts(state: GameState, play: Play) -> None:
 
 def test_a_lumber_mill_adds_timber(state: GameState) -> None:
     state.provinces["finland"].buildings = [BuildingKind.LUMBER_MILL]
-    base = 1 + state.provinces["finland"].development  # finland's good is timber
+    # Finland's good is timber, and its forests give 2 more
+    base = 1 + state.provinces["finland"].development + 2
     assert province_output(state, "finland").timber == 2 * base
+
+
+def test_the_land_shapes_what_a_province_yields(state: GameState) -> None:
+    rules = state.rules
+    plains = land_yield(rules, Good.GOLD, 4, Terrain.PLAINS)
+    mountains = land_yield(rules, Good.GOLD, 4, Terrain.MOUNTAINS)
+    assert plains.grain > mountains.grain
+    assert mountains.iron > plains.iron
+    assert mountains.manpower > plains.manpower
+    assert land_yield(rules, Good.GOLD, 4, Terrain.MOUNTAINS).grain >= 0
+
+
+def test_developing_is_dear_in_mountains_and_cheap_on_plains(state: GameState) -> None:
+    rules = state.rules
+    plains = develop_cost(rules, 5, terrain=Terrain.PLAINS)
+    mountains = develop_cost(rules, 5, terrain=Terrain.MOUNTAINS)
+    assert plains.ducats < develop_cost(rules, 5).ducats < mountains.ducats
 
 
 def test_an_army_without_grain_deserts(state: GameState, play: Play) -> None:

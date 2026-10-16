@@ -223,7 +223,11 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             army=ps.army() if pid in seen else None,
             general=_general(state, pid) if pid in seen else None,
             develop_cost=develop_cost(
-                state.rules, ps.development, ps.buildings, _mods(state, ps.owner).building_discount
+                state.rules,
+                ps.development,
+                ps.buildings,
+                _mods(state, ps.owner).building_discount,
+                definition.terrain,
             ),
             recruit_cost=recruit_cost(state.rules, 1, ps.buildings),
             recruit_costs={

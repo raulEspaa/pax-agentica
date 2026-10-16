@@ -1121,7 +1121,11 @@ class _Resolver:
         if error := self._pay(
             nation,
             develop_cost(
-                self.s.rules, province.development, province.buildings, mods.building_discount
+                self.s.rules,
+                province.development,
+                province.buildings,
+                mods.building_discount,
+                self.s.map.provinces[a.province].terrain,
             ),
         ):
             self._reject(nation, a, error)

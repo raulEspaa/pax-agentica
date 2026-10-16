@@ -55,6 +55,17 @@ breaks the rules is skipped, and the engine tells its author why next turn.
 - 1 iron, 3 grain and 1 timber,
 - plus its good: development × 1 extra grain, iron, timber or ducats (gold).
 
+**The land matters.** Terrain adds to (or takes from) what a province yields, changes what
+developing it costs, and how well it is defended:
+
+| Terrain | Yield | Developing | Defence |
+|---|---|---|---|
+| Plains | +2 grain | 10% cheaper | ×1 |
+| Forest | +2 timber, −1 grain | 10% dearer | ×1.1 |
+| Hills | +1 iron, +1 manpower | 20% dearer | ×1.25 |
+| Marsh | +1 timber, −1 grain | 30% dearer | ×1.25 |
+| Mountains | +2 iron, +1 manpower, −2 grain | 50% dearer | ×1.5 |
+
 **Stability** (−3 to +3) multiplies ducat income by 1 + 0.1 × stability.
 
 **A conquered province is in unrest** for 5 turns and produces nothing.
