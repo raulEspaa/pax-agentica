@@ -414,7 +414,10 @@ def develop_cost(
         * ground
     )
     goods = development // 3 if development >= rules.develop_goods_from else 0
-    return discounted(Resources(ducats=ducats, timber=timber), discount) + Resources(goods=goods)
+    grain = rules.develop_grain_base + rules.develop_grain_per_level * development
+    return discounted(Resources(ducats=ducats, timber=timber), discount) + Resources(
+        goods=goods, grain=grain
+    )
 
 
 def recruit_cost(

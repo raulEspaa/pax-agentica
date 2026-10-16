@@ -35,7 +35,7 @@ def test_each_good_yields_by_its_worth(state: GameState) -> None:
     rules = state.rules
     gold = land_yield(rules, Good.GOLD, 4)
     grain = land_yield(rules, Good.GRAIN, 4)
-    assert gold.ducats == 4 + 12  # gold: three ducats a level
+    assert gold.ducats == 4 + 10  # gold: two and a half ducats a level
     assert grain.grain == 3 + 6  # grain: a level and a half of bread
     assert gold.ducats - 4 > grain.grain - 3  # a ducat is worth more than a sack of grain too
     # London: development 7, cloth, on plains (+2 grain)
@@ -149,8 +149,8 @@ def test_slots_requirements_and_duplicates_are_enforced(state: GameState, play: 
 
 def test_a_university_makes_development_cheaper(state: GameState) -> None:
     plain = develop_cost(state.rules, 6)
-    assert develop_cost(state.rules, 6, [BuildingKind.UNIVERSITY]).ducats == 39
-    assert plain.ducats == 55
+    assert develop_cost(state.rules, 6, [BuildingKind.UNIVERSITY]).ducats == 42
+    assert plain.ducats == 60  # 12 + 8 a level
 
 
 def test_an_armory_halves_the_iron_of_new_regiments(state: GameState) -> None:

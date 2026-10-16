@@ -39,6 +39,11 @@ def test_workshops_turn_iron_and_timber_into_goods(state: GameState, play: Play)
     assert after.nations["france"].resources.goods > new.nations["france"].resources.goods
 
 
+def test_new_townsfolk_must_be_fed(state: GameState) -> None:
+    assert develop_cost(state.rules, 3).grain == 4 + 3
+    assert develop_cost(state.rules, 10).grain > develop_cost(state.rules, 3).grain
+
+
 def test_high_development_and_fine_troops_need_goods(state: GameState, play: Play) -> None:
     assert develop_cost(state.rules, 5).goods == 0
     assert develop_cost(state.rules, 9).goods == 3

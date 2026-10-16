@@ -284,17 +284,29 @@ class _Planner:
                     - Resources(**{res: amount})
                     + Resources(ducats=int(amount * market[res].sell))
                 )
+        # what this year's works will want: developing the three humblest provinces and
+        # deepening the best workings; a rich realm buys the timber and goods it lacks
+        plans = Resources()
+        for pid in sorted(self.owned, key=lambda x: (self.provinces[x].development, x))[:3]:
+            p = self.provinces[pid]
+            if p.development < me.modifiers.max_development:
+                plans = plans + p.develop_cost
+        costs = [c for x in self.owned if (c := self.provinces[x].improve_cost) is not None]
+        best = min(costs, key=lambda c: c.ducats, default=None)
+        if best is not None:
+            plans = plans + best
         wants = {
-            "goods": inputs.goods - income.goods - self.budget.goods + 2,
+            "goods": max(inputs.goods - income.goods + 2, plans.goods) - self.budget.goods,
             "iron": self.v.rules.recruit_cost.iron * 4 - self.budget.iron,
             "grain": upkeep.grain + inputs.grain - income.grain - self.budget.grain // 2,
+            "timber": inputs.timber + plans.timber - self.budget.timber,
         }
         for res, need in wants.items():
             if need <= 0:
                 continue
             amount = min(need, 200)
             cost = int(amount * market[res].buy) + 1
-            if self.budget.ducats >= cost + 40:
+            if self.budget.ducats >= cost + plans.ducats + 40:
                 self.actions.append(Buy(resource=res, amount=amount))  # type: ignore[arg-type]
                 self.budget = self.budget - Resources(ducats=cost) + Resources(**{res: amount})
 
@@ -536,12 +548,33 @@ class _Planner:
                 p,
             ),
         )
-        for pid in candidates[:4]:
+        for pid in candidates[:8]:
             cost = self.provinces[pid].develop_cost
-            if not self.budget.covers(cost + Resources(ducats=reserve)):
+            if not self._afford(cost, reserve):
                 break
             self.actions.append(Develop(province=pid))
             self.budget = self.budget - cost
+
+    def _afford(self, cost: Resources, reserve: int) -> bool:
+        """Whether the budget covers `cost`, buying at the market whatever traded resource is
+        short when the ducats stretch that far (trades are settled before works)."""
+        market = self.v.market
+        short = {
+            res: getattr(cost, res) - getattr(self.budget, res)
+            for res in market
+            if getattr(cost, res) > getattr(self.budget, res)
+        }
+        price = sum(int(n * market[res].buy) + 1 for res, n in short.items())
+        if any(getattr(cost, r) > getattr(self.budget, r) for r in ("manpower",)):
+            return False
+        if self.budget.ducats < cost.ducats + price + reserve:
+            return False
+        for res, n in short.items():
+            self.actions.append(Buy(resource=res, amount=n))  # type: ignore[arg-type]
+            self.budget = (
+                self.budget - Resources(ducats=int(n * market[res].buy) + 1) + Resources(**{res: n})
+            )
+        return True
 
     def _build(self, reserve: int) -> None:
         """One building a turn, chosen by what the realm lacks most."""
@@ -621,7 +654,7 @@ class _Planner:
 
         for pid in sorted(self.owned, key=lambda x: (-value_of(x), x)):
             cost = self.provinces[pid].improve_cost
-            if cost is not None and self.budget.covers(cost + Resources(ducats=reserve + 30)):
+            if cost is not None and self._afford(cost, reserve + 30):
                 self.actions.append(Improve(province=pid))
                 self.budget = self.budget - cost
                 return

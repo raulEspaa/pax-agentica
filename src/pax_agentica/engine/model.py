@@ -796,17 +796,17 @@ class Rules(BaseModel):
             Good.GRAIN: {"grain": 1.5},
             Good.FISH: {"grain": 1.0, "ducats": 0.5},
             Good.HORSES: {"grain": 0.5, "manpower": 0.5},
-            Good.WINE: {"ducats": 2.0},
-            Good.SALT: {"ducats": 2.0},
+            Good.WINE: {"ducats": 1.5},
+            Good.SALT: {"ducats": 1.5},
             Good.WOOL: {"goods": 0.5, "ducats": 1.0},
             Good.CLOTH: {"goods": 1.0, "ducats": 0.5},
             Good.TIMBER: {"timber": 1.5},
             Good.IRON: {"iron": 1.25},
-            Good.COPPER: {"iron": 0.5, "ducats": 1.5},
-            Good.FURS: {"ducats": 1.5, "goods": 0.5},
-            Good.SILVER: {"ducats": 2.5},
-            Good.GOLD: {"ducats": 3.0},
-            Good.SPICES: {"ducats": 2.5, "goods": 0.5},
+            Good.COPPER: {"iron": 0.5, "ducats": 1.25},
+            Good.FURS: {"ducats": 1.25, "goods": 0.5},
+            Good.SILVER: {"ducats": 2.0},
+            Good.GOLD: {"ducats": 2.5},
+            Good.SPICES: {"ducats": 2.0, "goods": 0.5},
         }
     )
     # a province's workings (its mine, vineyard, fishery...): each level adds half its good again
@@ -858,10 +858,12 @@ class Rules(BaseModel):
     ducat_upkeep_per_regiment: float = 0.5  # pay, rounded up for the whole army
     manpower_cap_base: int = 10  # manpower cap = base + years x yearly manpower
     manpower_cap_years: int = 6
-    develop_base_ducats: int = 25
-    develop_ducats_per_level: int = 5
+    develop_base_ducats: int = 12  # cheap to start, dear to finish
+    develop_ducats_per_level: int = 8
     develop_timber_base: int = 2  # timber for new roads, mills and houses
     develop_timber_per_two_levels: int = 1
+    develop_grain_base: int = 4  # grain to feed the new townsfolk: base + the development
+    develop_grain_per_level: int = 1
     max_development: int = 12
     develop_goods_from: int = 6  # from this development, developing also takes goods
     workshop_base_goods: int = 2
