@@ -111,6 +111,11 @@ jobs:
       - name: Smoke test
         run: |
           url="$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format 'value(status.url)')"
-          for i in 1 2 3 4 5; do curl -fsS "$url/healthz" && break; sleep 5; done
+          ok=""
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS "$url/api/health"; then ok=1; break; fi
+            sleep 5
+          done
+          test -n "$ok"
           curl -fsS "$url/api/lobby" > /dev/null
           echo "Live at $url" >> "$GITHUB_STEP_SUMMARY"

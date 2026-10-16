@@ -96,3 +96,7 @@ def test_a_table_written_by_another_server_is_read_again(tmp_path: Path) -> None
     old.post(f"/api/t/{table}/turn", json=RECRUIT, headers={"X-Seat": anne})
     game = new.get(f"/api/t/{table}/game", headers={"X-Seat": anne}).json()
     assert game["view"]["turn"] == 2
+
+
+def test_the_server_says_it_is_alive(lobby: TestClient) -> None:
+    assert lobby.get("/api/health").json() == {"status": "ok"}

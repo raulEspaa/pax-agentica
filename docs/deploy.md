@@ -15,7 +15,7 @@ lint, type, test and secret-scan jobs pass on a push to `main`:
 2. The [`Dockerfile`](../Dockerfile) is built and pushed to Artifact Registry
    (`europe-west1-docker.pkg.dev/pax-agentica-261016/pax/pax-tables:<commit>`).
 3. `gcloud run deploy` rolls the new image out to the `pax-tables` service.
-4. A smoke test calls `/healthz` and `/api/lobby`; the job summary prints the URL.
+4. A smoke test calls `/api/health` (Cloud Run keeps `/healthz` for itself) and `/api/lobby`; the job summary prints the URL.
 
 The job reads four repository **variables** (not secrets): `GCP_PROJECT`, `GCP_REGION`,
 `GCP_WIF_PROVIDER` and `GCP_DEPLOYER`.

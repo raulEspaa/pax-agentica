@@ -312,7 +312,7 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
             raise HTTPException(403, "the replay opens when the game is over")
         return render_html(table.session.record)
 
-    @app.get("/healthz")
+    @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
