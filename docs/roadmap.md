@@ -1,111 +1,95 @@
 # Roadmap: finishing the engine before the AI rulers
 
-Where the game stands, what is shallow, and what is left before the AI work starts. Written
-2026-10-16; tick items off as they land.
+Where the game stands, what is still shallow, and what is left before the AI work starts.
+Revised 2026-10-16, after missions, patronage and mercenaries landed.
 
 ## Where it stands
 
 | Area | Today | Depth |
 |---|---|---|
-| Map and scenario | 69 provinces, nine powers, minors, terrain, fourteen trade goods, monuments, the grudges of 1500 | solid |
-| Economy | five resources, development, buildings that double output, stability | **linear**: income grows in a straight line, iron and timber rarely bind, nothing is ever scarce for long |
-| Trade | bilateral swaps of resources | **thin**: no market, no prices, nothing to specialise for |
-| Technology | three branches with milestones, lore | good |
-| Government | historical rulers with traits, three advisors with tempers | good |
-| Army | four kinds of regiment, combined arms, siege by guns, generals | good |
-| War | one roll per attack; the winner **annexes the province at once** | **shallow**: no occupation, no war score, no exhaustion; a war only ends when someone feels like it, and conquest snowballs |
+| Map and scenario | 69 provinces, nine powers with banners, minors, terrain, fourteen trade goods, monuments, the grudges of 1500 | solid |
+| Economy | six resources, development that eats grain and timber, workings, buildings with inputs, stability | deep |
+| Trade | a European market with moving prices, bilateral trades | good; trade agreements left |
+| Technology | three branches with milestones and lore | good |
+| Government | historical rulers with traits and portraits, a council of three with tempers | good |
+| Army | four kinds of regiment, combined arms, sieges, generals, mercenaries | good |
+| War | occupation, sieges, war score, exhaustion; only a peace moves a border | good |
 | Diplomacy | treaties, opinion, stances, proclamations, peace terms with counter-offers | rich |
-| Goals | score (development) or domination | **thin**: nothing pulls a nation in a direction of its own |
-| AI contract | `NationView` in, `Orders` out, private thoughts and counsel, replay of minds | solid |
+| Goals | five historical missions per crown, prestige, patronage, events of the age | good |
+| Balance of power | nothing stops a conqueror but its neighbours' armies | **missing** |
+| AI contract | `NationView` in, `Orders` out, private thoughts and counsel, replay of minds | solid, but the view is large |
 
-The diplomacy is already deeper than the things it negotiates over. The three thin areas are
-what make a strategy game feel like progress: **what you fight over** (war), **what you are
-trying to achieve** (goals) and **what your economy is for** (trade).
+## Review of the mechanics
 
-## What to build, in order
+**What works.** A year has real decisions: what to develop given grain and timber, which
+workings to deepen, which buildings can be fed, what to buy and sell, whether a war is worth
+its exhaustion, what a peace should cost. Missions give every crown a direction of its own,
+and a rich treasury now has places to go (development, workings, monuments, patronage,
+mercenaries) instead of piling up.
 
-### 1. Occupation, war score and war exhaustion (war) — done
+**What the bot games show** (32 games of nine greedy bots, seeds 200 to 231):
 
-- Taking an enemy province in a war **occupies** it: the owner loses its output, the occupier
-  holds it. Only a peace transfers it (independent minors are still annexed at once: there is
-  no one to sign).
-- **War score** from occupied provinces (by development), battles won and the enemy capital
-  held. A peace may demand at most what the war score covers; an AI can read the number and
-  argue over it.
-- **War exhaustion** grows every year of war and with every lost battle, and costs stability;
-  it pushes both sides to the table.
-- A province with a fort holds out for a **siege** of a year or more unless artillery breaches it.
+- Spain wins 23, France 7. Both grow by swallowing the independent minors around them: Spain
+  takes Portugal, Navarre and the Barbary coast, France Milan, Naples and the Rhine. Every bot
+  fulfils its first conquest missions in every game; the missions that need a great power's
+  land (Vienna, Buda, Kiev) are rarely done.
+- Austria, Hungary and Poland-Lithuania barely grow: their armies eat half their income and
+  their neighbours are great powers, not minors.
+- Bots hire about ten regiments of mercenaries a game and almost never patronise the arts: they
+  spend first.
+- Gold is worth about twice grain per level of development, and buildings no longer multiply
+  it, so a gold province pays well without snowballing.
 
-Why first: it makes peace the centre of every war, which is the negotiation table the AI
-rulers will sit at, and it slows the snowball. Size: large.
+**The one structural gap** is the balance of power: nothing in the rules makes Europe react to
+a conqueror. That is block A below, and it is also the most interesting thing the AI rulers
+will negotiate over.
 
-### 2. Ambitions: missions and prestige (goals) — prestige, faith and events done; missions left
+## Finishing the engine
 
-- Each nation gets a short **mission tree** from its history (France: Milan and Naples; Spain:
-  the Mediterranean; England: the Channel; Austria: Hungary and Bohemia; Ottomans: the Danube;
-  Sweden: out of the Kalmar Union; Russia: Novgorod and Kiev). Completing one pays out (gold,
-  stability, a claim, a permanent bonus) and unlocks the next.
-- **Prestige** from missions, victories, monuments and great works; part of the final score.
-- **Historical events** with a choice: the Reformation (1517), the price revolution, plague,
-  a great harvest. Each choice is an order, so an AI chooses too.
+Four blocks, in order. After them the engine is done: the rules stop changing in ways that
+break a ruler, and the work moves to `agents/`.
 
-Why: progress you can see and want ("two steps from the Italian mission"), and every AI ruler
-gets a motive of its own instead of maximising the same number. Size: medium to large.
+### A. Aggressive expansion and coalitions (balance of power)
 
-### 3. Market, manufactures and production chains (economy and trade) — done (trade agreements left)
+- Every province taken from a minor or by treaty adds **aggressive expansion** to the taker,
+  seen by every court and fading over the years; neighbours of the land taken think worse of
+  the taker.
+- Past a threshold, any court that fears the taker can join a **coalition**: a public defensive
+  league that is called to arms together if the taker attacks any member.
+- The greedy bot joins coalitions against the leader and fears them.
 
-- A sixth resource, **goods** (cloth, glass, arms): made by **workshops** that consume raw
-  materials. Goods are wanted for high development, for luxury that keeps stability, and abroad.
-- Buildings with an **input**: ironworks burn timber (charcoal), the cannon foundry eats iron,
-  barracks eat grain. Output buildings stop being free money; a realm has to be balanced, or trade.
-- A **European market**: sell surpluses and buy shortages at prices that move with total
-  supply and demand. Trade agreements (a treaty) cut the market's toll between partners.
+Why: it is what checks Spain and France in the bot games, and coalitions are pure diplomacy,
+the AI rulers' job. Size: medium.
 
-Why: scarcity and prices create decisions every year, and give courts something to negotiate
-besides war. Size: large; the bots need teaching.
+### B. Agent support
 
-### 4. Reputation and the balance of power (AI fit)
+- A compact **briefing** of the view for a prompt: the realm, threats, open missions, offers to
+  answer, in a page of text. The full view stays for tools.
+- **Calculators** an agent can call: battle odds, what a building or development would yield,
+  what a peace would cost, how far each mission is. Pure functions over the view.
+- **Tournaments**: many seeds, mixed players, a table of wins, standing, survival and missions.
 
-- **Aggressive expansion**: every province taken or demanded cools every neighbour's opinion;
-  past a threshold, they can form a **coalition** (a defensive alliance against you).
-- **Honour**: broken treaties, ignored calls to arms and broken public pledges lower it, and every
-  court sees it. Words start to have a price, which is what makes talking to an AI interesting.
-- **Espionage**: a spymaster (or the chancellor) can steal a glimpse of another court: its
-  treasury, its army, or last year's private `thoughts`. Lying in letters becomes risky.
+Size: small to medium.
 
-Why: emergent politics among the agents, and a reason for them to be honest, or careful.
-Size: medium.
+### C. Freeze the contract
 
-### 5. Agent support in the engine
+- Version `NationView` and `Orders`, export their JSON schema, and a test that fails when they
+  change by accident.
+- `docs/agent-contract.md`: everything a ruler sees and can do, with an example turn.
 
-- A compact **briefing** of the view for prompts (the full view is very large).
-- **Calculators** an agent can call as tools: battle odds, the cost and yield of a building,
-  what a peace would cost. Pure functions over the view.
-- **Tournaments**: many seeds, mixed players, a table of wins, score, survival and honour.
+Size: small.
 
-Size: small to medium. Part of it may belong in `agents/`; the calculators belong to the game.
+### D. Polish
 
-### 6. Polish
+- Balance passes with block A in place (target: no power above a third of the wins).
+- The replay's mind panel shows missions and war score; a short first-year tutorial on the
+  play page.
+- Performance once games run with language models.
 
-A first-year tutorial, balance passes after each block, the replay's mind panel for missions
-and war score, and performance once games run with LLMs.
-
-## Balance to watch
-
-Over 32 bot games with nine powers, fourteen goods and workings (2026-10-16): France wins 13,
-the Ottomans 12, Spain 5. France takes about nine minors a game and Austria loses the Low
-Countries to it; the poorest powers (Poland-Lithuania, Hungary, Sweden) grow slowly because
-their armies eat half their income. Developing now feeds the new townsfolk with grain, which
-lifted grain off the market's floor (0.4 to about 0.8 of its price); iron still sits at 0.4.
-
-What would fix the rest, in order: **aggressive expansion and coalitions** (block 4) to check
-France; **missions** (block 2) to give the small powers a direction; and something for a
-rich treasury to buy once its provinces are developed (Spain and the Ottomans still end with
-over a thousand ducats).
+Left for later, if ever: trade agreements, espionage, a formal honour score.
 
 ## How much is left
 
-Blocks 1 and 2 are the ones I would finish **before** the AI: they decide what the agents talk
-about. Block 3 deepens the economy and can come after the first AI ruler plays. Block 4 is
-best built once there are agents to watch. The `NationView` and `Orders` contract will grow but
-not break, so AI work can start in parallel on the current game.
+Block A is the last mechanic I would add before the AI; B and C are what the AI needs to plug
+in; D can run alongside the first agents. The `NationView` and `Orders` contract will grow
+during A and B and is frozen in C.

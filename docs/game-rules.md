@@ -111,6 +111,7 @@ lost. Barracks raise both. Disbanding a regiment sends its 2 manpower back to th
 | Action | Cost | Effect |
 |---|---|---|
 | `recruit` | 6 ducats, 2 manpower and 2 iron per regiment | regiments appear in one of your provinces |
+| `hire_mercenaries` | 15 ducats per regiment, nothing else; at most 10 regiments a year | pikemen appear in one of your provinces, then serve like any other |
 | `disband` | nothing | regiments go home: no more upkeep, +2 manpower each |
 | `develop` | 12 + 8 × development ducats and 2 + development ÷ 2 timber (times the terrain), 4 + development grain to feed the new townsfolk, and from development 6 development ÷ 3 goods | +1 development (max 12, or 15 with Grand Architecture): more output, more score, more building slots |
 | `improve` | 35 ducats and 6 timber, times the new level | +1 level of workings (max 3) |
@@ -139,7 +140,8 @@ A province has **1 + development ÷ 4** building slots (rounded down): 1 at deve
 4, 3 at 8, 4 at 12 (one more everywhere with Cameralism). Each building can stand once per
 province. Buildings survive conquest, so the conqueror keeps them. Output buildings **double the
 province's base output** of their resource (at least +1), so they are worth more in developed
-provinces.
+provinces. Marketplaces, banks and cathedrals **tax the town, not the mines**: the ducats of the
+province's trade good are left out of their share; workings deepen those instead.
 
 | Building | Kind | Cost | Effect |
 |---|---|---|---|
@@ -342,8 +344,24 @@ your realm. He moves with the regiments he leads, takes command of a province he
 abandoned allies (−5), and fades by 1 a year. Each point gives +0.1% ducat income and makes
 stability 0.2% cheaper, and **half of it counts towards victory**.
 
-**Faith.** England, France, Spain, Austria and Sweden start Catholic, Russia Orthodox, the
-Ottomans Sunni. Courts of the same faith warm to each other by 1 a year, of different faiths cool
+**Patronage.** Once a year, `patronize` spends 40 ducats plus 2 for every point of prestige you
+hold on painters, chapels, feasts and alms, for +4 prestige: the way a rich treasury turns gold
+into glory, dearer the more glory it already has.
+
+**Missions.** Every great power has five ambitions from its history, in `me.missions`: France
+wants Milan, then Naples, and the Rhine; Spain the gold of Seville, Navarre, the two Sicilies
+and the Barbary coast; England Scotland, then Ireland, and Normandy; Austria the crowns of
+Bohemia and Hungary; the Ottomans Bosnia, Buda and then Vienna; Sweden out of the Kalmar Union
+and the Baltic; Russia Kiev and Livonia; Poland-Lithuania Prussia and the Wild Fields; Hungary
+the Black Army and Wallachia. Each mission is a list of goals written as data (hold these
+provinces, a realm of this development, this building here, an alliance with that court, this
+technology, this prestige, an army this large), shown with how far it has come. Some open only
+once an earlier one is done. A mission completes **by itself** at the end of a year in which
+all its goals hold, in front of every court: it pays ducats, prestige or stability, and the last
+of each chain leaves a lasting bonus (+5% ducats, +5% battle power, forts +10%...).
+
+**Faith.** England, France, Spain, Austria, Sweden, Poland-Lithuania and Hungary start
+Catholic, Russia Orthodox, the Ottomans Sunni. Courts of the same faith warm to each other by 1 a year, of different faiths cool
 by 1. The Reformation can turn a Catholic realm Protestant.
 
 **Fortune.** Every year each nation has a 30% chance of an event of the age, a decision for the

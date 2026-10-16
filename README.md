@@ -34,7 +34,7 @@ Westminster Abbey to Hagia Sophia, reward whoever holds them. A tree of learning
 buildings and powers; every throne has a historical ruler who ages and dies, and a council of
 three advisors; named generals lead the armies.
 
-Wars are fought for war score: provinces are occupied, walls besieged, exhaustion mounts, and only a peace moves a border. Prestige, faith and the events of the age (the Reformation, plague, the Fuggers' loans) give every reign its decisions.
+Every crown has five historical missions (France wants Milan and Naples, Spain the gold of Seville and the Barbary coast, the Ottomans Vienna), and a full treasury can buy glory through patronage or Landsknechte by the regiment. Wars are fought for war score: provinces are occupied, walls besieged, exhaustion mounts, and only a peace moves a border. Prestige, faith and the events of the age (the Reformation, plague, the Fuggers' loans) give every reign its decisions.
 
 Diplomacy is the heart of it, because the other thrones will be AI agents. Courts ally, sign
 pacts, trade and send letters; each holds an opinion of every other, raised by gifts and
@@ -60,9 +60,8 @@ reparations.
 
 <p align="center"><img src="docs/assets/play.jpg" alt="The play page: France in 1501, its treasury across the top, its neighbours under the fog of war, and the Realm office with the yearly balance" width="760"></p>
 
-With nine rule-based "greedy" bots, France and the Ottomans win most games by swallowing the
-minors around them, Spain grows rich on silver, wine and spices, and Austria, squeezed between
-France and the Turk, is often carved up. Holding them back takes diplomacy, and that's the AI
+With nine rule-based "greedy" bots, Spain and France win most games by swallowing the minors
+around them, and Austria, squeezed between France and the Turk, is often carved up. Holding them back takes diplomacy, and that's the AI
 rulers' job.
 
 ## Roadmap
