@@ -70,3 +70,10 @@ def test_the_frontier_against_the_turk_starts_behind_walls(state: GameState) -> 
 def test_a_new_game_is_the_same_for_the_same_seed() -> None:
     assert new_game(3) == new_game(3)
     assert new_game(3).seed != new_game(4).seed
+
+
+def test_the_courts_of_1500_remember_their_grudges() -> None:
+    game = new_game(seed=1)
+    assert game.opinion("france", "england") < 0
+    assert game.opinion("spain", "austria") > 0
+    assert game.opinion("hungary", "ottomans") == game.opinion("ottomans", "hungary") < 0

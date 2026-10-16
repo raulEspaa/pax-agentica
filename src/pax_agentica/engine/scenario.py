@@ -363,6 +363,23 @@ def general_name(nation: str, taken: int) -> str:
 
 
 FAITHS = {"ottomans": Faith.SUNNI, "russia": Faith.ORTHODOX}
+# What the courts of 1500 think of each other, both ways. Grudges and friendships fade over the
+# years like any other opinion, so these set the opening and not the whole game.
+STARTING_OPINIONS: dict[tuple[str, str], int] = {
+    ("france", "england"): -25,  # a hundred years of war, ended only in 1453
+    ("france", "austria"): -30,  # the Burgundian succession
+    ("france", "spain"): -15,  # rival claims to Naples
+    ("spain", "austria"): 35,  # the double Habsburg marriage of 1496
+    ("spain", "england"): 25,  # the Treaty of Medina del Campo; Catherine of Aragon's betrothal
+    ("england", "austria"): 10,  # the enemy of my enemy
+    ("ottomans", "hungary"): -40,  # the frontier of Christendom
+    ("ottomans", "austria"): -20,
+    ("ottomans", "poland"): -15,
+    ("poland", "russia"): -35,  # Muscovy wants the lands of Rus' that Lithuania holds
+    ("poland", "hungary"): 25,  # Jagiellonian brothers on both thrones
+    ("hungary", "austria"): -10,  # Habsburg claims to the crown of St Stephen
+    ("sweden", "russia"): -15,  # the war of 1495 over Karelia
+}
 STARTING_PRESTIGE = {"france": 15, "spain": 15, "austria": 15, "ottomans": 20}  # the great crowns
 STARTING_RESOURCES = Resources(ducats=60, manpower=10, iron=10, grain=20, timber=15)
 CAPITAL_GARRISON = 6
@@ -497,7 +514,16 @@ def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> Game
         nations=nations,
         generals=generals,
         next_general_id=len(generals) + 1,
+        opinions=_opinions(),
     )
+
+
+def _opinions() -> dict[str, dict[str, int]]:
+    out: dict[str, dict[str, int]] = {}
+    for (a, b), value in STARTING_OPINIONS.items():
+        out.setdefault(a, {})[b] = value
+        out.setdefault(b, {})[a] = value
+    return out
 
 
 def _garrison(pid: str, dev: int, owner: str | None, capitals: set[str]) -> int:
