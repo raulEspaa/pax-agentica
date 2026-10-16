@@ -181,6 +181,8 @@ class _Resolver:
         self.rng.shuffle(self.order)
         self.researched: set[NationId] = set()
         self.upgraded: set[tuple[ProvinceId, BuildingKind]] = set()  # one level a year each
+        # joint attacks: the provinces each one's armies came from, for the battle's tale
+        self.joined: dict[tuple[NationId, ProvinceId], list[ProvinceId]] = {}
         self.flow: dict[str, int] = dict.fromkeys(TRADED, 0)  # net market purchases this year
         self.fallen: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)
         self.mercenaries: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)  # hired this year
@@ -1892,13 +1894,102 @@ class _Resolver:
     # ------------------------------------------------------------ phase 5: battles
 
     def _combat(self) -> None:
-        queues = {n: list(self._actions(n, Attack)) for n in self.order}
+        queues = {n: self._joined(n, list(self._actions(n, Attack))) for n in self.order}
         while any(queues.values()):
             for nation in self.order:
                 if queues[nation] and self.s.nations[nation].alive:
                     self._attack(nation, queues[nation].pop(0))
                 elif queues[nation]:
                     queues[nation].clear()
+
+    def _joined(self, nation: NationId, attacks: list[Attack]) -> list[Attack]:
+        """A realm's armies that fall on the same province in the same year fight it as one:
+        one battle, their regiments together, led by their best general. The others march
+        into the province the attack starts from (the best general's, else the largest)."""
+        by_target: dict[ProvinceId, list[Attack]] = {}
+        for a in attacks:
+            by_target.setdefault(a.target, []).append(a)
+        out = []
+        for target, group in by_target.items():
+            if len(group) == 1:
+                out.append(group[0])
+                continue
+            ready = []
+            for a in group:
+                if error := self._join_error(nation, a):
+                    self._reject(nation, a, error)
+                else:
+                    ready.append(a)
+            if len(ready) <= 1:
+                out.extend(ready)
+                continue
+
+            def rank(a: Attack) -> tuple[int, int]:
+                general = self.s.general(a.general) if a.general is not None else None
+                return (general.skill if general else 0, a.regiments)
+
+            lead = max(ready, key=rank)
+            base = self.s.provinces[lead.origin]
+            units = dict.fromkeys(UnitKind, 0)
+            for a in ready:
+                origin = self.s.provinces[a.origin]
+                force = (
+                    {k: a.units.get(k, 0) for k in UnitKind}
+                    if a.units is not None
+                    else share(origin.army(), min(a.regiments, origin.troops))
+                )
+                for k in UnitKind:
+                    units[k] += force[k]
+                if a is not lead:  # they join the leading army where it stands
+                    base.add(origin.take(sum(force.values()), force))
+            general = lead.general if lead.general is not None else None
+            self.joined[(nation, target)] = [a.origin for a in ready]
+            out.append(
+                Attack(
+                    origin=lead.origin,
+                    target=target,
+                    regiments=sum(units.values()),
+                    units={k: n for k, n in units.items() if n},
+                    general=general,
+                )
+            )
+        return out
+
+    def _coordination(self, nation: NationId, target: ProvinceId) -> float:
+        """Armies from several provinces are hard to bring onto one field at one hour."""
+        armies = len(self.joined.get((nation, target), [])) or 1
+        rules = self.s.rules
+        return 1 - min(rules.joint_attack_penalty_max, rules.joint_attack_penalty * (armies - 1))
+
+    def _join_error(self, nation: NationId, a: Attack) -> str | None:
+        """Why one army of a joint attack cannot march with the others."""
+        if a.target not in self.s.provinces:
+            return f"there is no province '{a.target}'"
+        if error := self._hold_error(nation, a.origin):
+            return error
+        if not self.s.map.adjacent(a.origin, a.target):
+            return f"{self._pname(a.origin)} and {self._pname(a.target)} do not border"
+        if self.s.provinces[a.origin].troops == 0:
+            return f"no regiments left in {self._pname(a.origin)}"
+        if a.units is not None and (
+            wrong := self._composition_error(a.origin, a.regiments, a.units)
+        ):
+            return wrong
+        _general, error = self._leader(nation, a)
+        if error:
+            return error
+        target = self.s.provinces[a.target]
+        enemy = target.siege_by if target.siege_by not in (None, nation) else target.holder
+        if target.siege_by is None and enemy == nation:
+            return f"{self._pname(a.target)} is already yours"
+        if enemy is not None and enemy != nation:
+            war = self.s.war(nation, enemy)
+            if war is None:
+                return f"you are not at war with {self._name(enemy)}: declare war first"
+            if self.turn < war.since + self.s.rules.mobilization_turns:
+                ready = war.since + self.s.rules.mobilization_turns
+                return f"your armies are still mobilising: attack from turn {ready}"
+        return None
 
     def _attack(self, nation: NationId, a: Attack) -> None:
         if a.target not in self.s.provinces:
@@ -1977,7 +2068,8 @@ class _Resolver:
             defense_multiplier(self.s, a.origin, a.target, siege_levels(rules, force)),
             self.rng,
             attack_factor=battle_factor(self.s, nation, general.skill if general else 0)
-            * self._rivalry(nation, defender),
+            * self._rivalry(nation, defender)
+            * self._coordination(nation, a.target),
             defence_factor=battle_factor(self.s, defender, guard.skill if guard else 0)
             * self._rivalry(defender, nation),
             attack_quality=army_strength(rules, force, ground, attacking=True) / committed,
@@ -2107,7 +2199,8 @@ class _Resolver:
             rules.defender_advantage * rules.terrain_defense[ground],
             self.rng,
             attack_factor=battle_factor(self.s, nation, general.skill if general else 0)
-            * self._rivalry(nation, besieger),
+            * self._rivalry(nation, besieger)
+            * self._coordination(nation, a.target),
             defence_factor=battle_factor(self.s, besieger) * self._rivalry(besieger, nation),
             attack_quality=army_strength(rules, force, ground, attacking=True) / committed,
             defence_quality=army_strength(rules, lines, ground, attacking=False) / dug_in,
@@ -2159,6 +2252,9 @@ class _Resolver:
         attacker_army: Mapping[UnitKind, int],
     ) -> None:
         winner = attacker_name if result.attacker_won else defender_name
+        origins = self.joined.get((nation, a.target), [a.origin])
+        places = [self._pname(o) for o in origins]
+        whence = places[0] if len(places) == 1 else ", ".join(places[:-1]) + " and " + places[-1]
 
         def kinds(army: Mapping[UnitKind, int]) -> str:
             return ", ".join(f"{n} {k.value}" for k, n in army.items() if n)
@@ -2166,7 +2262,7 @@ class _Resolver:
         self._emit(
             EventKind.BATTLE,
             f"Battle of {self._pname(a.target)}: {attacker_name}, {committed} regiments from "
-            f"{self._pname(a.origin)}, against {defender_name}, {defending}. {winner} wins. "
+            f"{whence}, against {defender_name}, {defending}. {winner} wins. "
             f"Lost: {result.attacker_losses} to {result.defender_losses}; {then}",
             nations=(nation, defender) if defender else (nation,),
             province=a.target,
@@ -2175,6 +2271,8 @@ class _Resolver:
             attacker_name=attacker_name,
             defender_name=defender_name,
             origin=a.origin,
+            origins=", ".join(origins),
+            armies=len(origins),
             attacker_regiments=committed,
             defender_regiments=defending,
             attacker_army=kinds(attacker_army),

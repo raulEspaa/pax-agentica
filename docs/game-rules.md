@@ -42,7 +42,8 @@ world; then the engine resolves every order in fixed phases
 3. **Economy**: recruiting, development, buildings, stability. Regiments raised now can march
    and attack this same year.
 4. **Movement** between your own provinces.
-5. **Battles**, taking one attack from each nation in turn.
+5. **Battles**, taking one attack from each nation in turn. A realm's armies that fall on the
+   same province in the same year fight there as one army: a single battle.
 6. **End of turn**: income arrives, the council is paid, armies eat, rulers age (and may die),
    treaties expire, and victory is checked.
 
@@ -325,6 +326,13 @@ technology, milestones, ruler and council.
   × (1 + 0.25 for a fort + 0.25 for a citadel + 0.25 for a capital + 0.25 across a strait).
 - **The loser loses every regiment** in the fight. The winner loses about half the ratio of the
   loser's power to its own, and always keeps at least one regiment.
+- **Armies from several provinces join.** Every `attack` a realm orders on the same province in
+  the same year becomes one battle: their regiments fight together (the combined arms of all of
+  them count), led by the best general among them, and the battle counts once for the war
+  score. Bringing armies from several provinces onto one field is hard: each army after the
+  first costs 10% battle power, 20% at most. The greedy bot joins armies only against a crown it
+  is at war with, and sends what the battle needs and a fifth more. An army that cannot march (not bordering, not at war yet) is dropped, and the others go
+  on without it.
 - **A winning attacker takes the province.** An independent minor is annexed at once. A great
   power's province is **occupied**: the occupier's survivors garrison it and its armies may
   march on from there, but the province still belongs to its owner, who gets nothing from it

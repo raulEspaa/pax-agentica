@@ -161,3 +161,42 @@ def test_a_province_can_be_won_back(state: GameState, play: Play) -> None:
     back = play(war, france=[Attack(origin="gascony", target="languedoc", regiments=30)])
     assert back.provinces["languedoc"].controller is None
     assert EventKind.PROVINCE_LIBERATED in [e.kind for e in back.last_events]
+
+
+def test_armies_falling_on_one_province_fight_one_battle_together(
+    state: GameState, play: Play
+) -> None:
+    war = at_war(state, "spain", "france", play)
+    war.provinces["gascony"].troops = 14
+    war.provinces["navarre"].owner = "spain"
+    war.provinces["navarre"].troops = 8
+    war.provinces["aragon"].troops = 8
+    new = play(
+        war,
+        spain=[
+            Attack(origin="navarre", target="gascony", regiments=8),
+            Attack(origin="aragon", target="gascony", regiments=8),
+        ],
+    )
+    battles = [e for e in new.last_events if e.kind == EventKind.BATTLE]
+    assert len(battles) == 1  # one battle, not two
+    assert battles[0].data["attacker_regiments"] == 16
+    assert battles[0].data["armies"] == 2
+    assert "Navarre and Aragon" in battles[0].summary or "Aragon and Navarre" in battles[0].summary
+    assert new.provinces["navarre"].troops == 0
+    assert new.provinces["aragon"].troops == 0
+    assert sum(new.wars[0].battles.values()) == 1  # it counts once for the war score
+
+
+def test_a_joint_attack_drops_an_army_that_cannot_march(state: GameState, play: Play) -> None:
+    war = at_war(state, "spain", "france", play)
+    war.provinces["aragon"].troops = 10
+    new = play(
+        war,
+        spain=[
+            Attack(origin="aragon", target="languedoc", regiments=10),
+            Attack(origin="madrid", target="languedoc", regiments=5),  # Madrid does not border
+        ],
+    )
+    assert reasons(new) == ["Madrid and Languedoc do not border"]
+    assert [e.kind for e in new.last_events].count(EventKind.BATTLE) <= 1

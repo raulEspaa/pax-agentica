@@ -617,6 +617,7 @@ class _Planner:
                 continue
             spare = self.troops[origin] - self._reserve(origin)
             if spare < need:
+                self._joint_attack(target, need)  # several armies may manage what one cannot
                 continue
             seen = self.provinces[target]
             fighting = (seen.troops or 0) or seen.siege_by is not None
@@ -627,6 +628,32 @@ class _Planner:
             )
             self.troops[origin] -= send
             self.targeted.add(target)
+
+    def _joint_attack(self, target: ProvinceId, need: int) -> None:
+        """Fall on `target` from every neighbouring province at once: the engine joins the
+        armies into one battle."""
+        seen = self.provinces[target]
+        if target in self.targeted or (seen.controller or seen.owner) is None:
+            return  # independents fall to one army; joint blows are for wars between crowns
+        pool = [
+            (o, self.troops[o] - self._reserve(o))
+            for o in sorted(self.mine)
+            if target in self._neighbors(o)
+        ]
+        pool = sorted(((o, n) for o, n in pool if n > 0), key=lambda x: (-x[1], x[0]))
+        if len(pool) < 2 or sum(n for _, n in pool) < need:
+            return
+        left = need + max(1, need // 5)  # what it takes, and a fifth more: not every man
+        for o, n in pool:
+            if left <= 0:
+                break
+            send = min(n, left)
+            self.actions.append(
+                Attack(origin=o, target=target, regiments=send, general=self.leaders.pop(o, None))
+            )
+            self.troops[o] -= send
+            left -= send
+        self.targeted.add(target)
 
     # ------------------------------------------------------------ 5. march
 

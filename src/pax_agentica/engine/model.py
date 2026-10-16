@@ -1135,6 +1135,8 @@ class Rules(BaseModel):
     max_rivals: int = 3
     max_friends: int = 3
     rival_battle_bonus: float = 0.05  # against a declared rival
+    joint_attack_penalty: float = 0.1  # battle power lost for each army that joins another
+    joint_attack_penalty_max: float = 0.2
 
     # victory
     domination_share: float = 0.5  # own this share of all provinces to win outright

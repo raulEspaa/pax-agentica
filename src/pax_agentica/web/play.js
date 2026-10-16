@@ -302,18 +302,32 @@
     if (pickMix) { const out = {}; KINDS.forEach((k) => (out[k] = Math.min(pickMix[k] || 0, here[k]))); return out; }
     return share(here, Math.min(send, troopsAfter(from)));
   }
-  function odds(from, to, army = force(from)) {
+  // The armies already ordered against `to` this year from other provinces: the engine joins
+  // them all into one battle, so the odds count them together.
+  function jointWith(from, to, army) {
+    const joint = {...army};
+    for (const o of orders) {
+      if (o.type !== "attack" || pIndex[o.target] !== to || pIndex[o.origin] === from) continue;
+      const src = prov(pIndex[o.origin]), c = o.units || share(src.army || {infantry: src.troops || 0}, o.regiments);
+      KINDS.forEach((k) => (joint[k] = (joint[k] || 0) + (c[k] || 0)));
+    }
+    return joint;
+  }
+  function odds(from, to, alone = force(from), extraArmies = 0) {
+    const army = jointWith(from, to, alone);
+    const armies = 1 + extraArmies + new Set(orders.filter((o) => o.type === "attack" && pIndex[o.target] === to && pIndex[o.origin] !== from).map((o) => o.origin)).size;
+    const coordination = 1 - Math.min(R.jointPenaltyMax || 0, (R.jointPenalty || 0) * (armies - 1));
     const p = prov(to), g = lead ? generalAt(from) : null;
     const n = KINDS.reduce((t, k) => t + army[k], 0);
     const ground = P[to].terrain;
     if (p.siege_by === G.human) return null; // reinforcements for your own lines: no battle
     if (p.siege_by) { // a relief army against the siege lines
       if (!p.besiegers || !n) return p.besiegers === 0 ? 1 : null;
-      return winChance(strength(army, ground, true) * myFactor(g), p.besiegers, R.defender * R.terrain[ground]);
+      return winChance(strength(army, ground, true) * myFactor(g) * coordination, p.besiegers, R.defender * R.terrain[ground]);
     }
     if (p.troops === null || !n) return null;
     if (!p.troops) return 1;
-    const mine = strength(army, ground, true) * myFactor(g);
+    const mine = strength(army, ground, true) * myFactor(g) * coordination; // joint armies coordinate poorly
     const theirs = p.army ? strength(p.army, ground, false) : p.troops;
     return winChance(mine, theirs, defence(from, to, siege(army)));
   }
@@ -569,9 +583,11 @@
       if (near.length && p.troops !== null) {
         const best = near.sort((a, b) => troopsAfter(b) - troopsAfter(a))[0], g = generalAt(best);
         const chance = odds(best, i, armyAfter(best)) ?? 0;
+        const all = {}; near.forEach((j) => { const a = armyAfter(j); KINDS.forEach((k) => (all[k] = (all[k] || 0) + (a[k] || 0))); });
+        const total = near.reduce((a, j) => a + troopsAfter(j), 0), together = near.length > 1 ? odds(best, i, all, near.length - 1) ?? 0 : null;
         const war = p.owner === null || relation(p.owner).war;
         body += `<section><h4>Attack</h4><p class="note" style="font-style:normal">All ${troopsAfter(best)} regiments of ${esc(P[best].name)}${g ? ` under ${esc(g.name)}` : ""}
-          against ${p.troops}: <b>${Math.round(chance * 100)}% to win</b>.
+          against ${p.troops}: <b>${Math.round(chance * 100)}% to win</b>.${together !== null ? ` With all ${total} from the ${near.length} provinces next door, in one battle: <b>${Math.round(together * 100)}%</b>.` : ""}
           ${war ? `Select ${esc(P[best].name)} and right-click here.` : `You must declare war on ${esc(N[o].name)} first.`}</p></section>`;
       }
       body += monumentCard(i, false, projected()) + info.production + `<section>${info.slotsHtml}</section>`;
@@ -1573,7 +1589,9 @@
       case "assign_general": return `Send ${gname(o.general)} to ${pn(o.province)}`;
       case "move": return `➜ March ${o.regiments} from ${pn(o.origin)} to ${pn(o.target)}${o.general ? ` under ${gname(o.general)}` : ""}`;
       case "attack": { const s = prov(pIndex[o.target]).siege_by, verb = s === G.human ? "Reinforce the siege of" : s ? "Break the siege of" : "Attack";
-        return `⚔ ${verb} ${pn(o.target)} with ${o.regiments} from ${pn(o.origin)}${o.general ? ` under ${gname(o.general)}` : ""}`; }
+        const together = orders.filter((x) => x.type === "attack" && x.target === o.target);
+        const joint = together.length > 1 ? ` · one battle with ${together.reduce((a, x) => a + x.regiments, 0)} regiments from ${together.length} provinces` : "";
+        return `⚔ ${verb} ${pn(o.target)} with ${o.regiments} from ${pn(o.origin)}${o.general ? ` under ${gname(o.general)}` : ""}${joint}`; }
       case "lift_siege": return `🏳 Lift the siege of ${pn(o.province)}`;
       case "declare_war": return `Declare war on ${nn(o.target)}`;
       case "propose_alliance": return `Propose an alliance to ${nn(o.target)}`;
@@ -1812,7 +1830,8 @@
       if (t && t[1] === "move") extra = `Right-click to march ${n} regiments here`;
       if (t && t[1] === "attack") { const c = odds(picked, i), s = prov(i).siege_by;
         const verb = s === G.human ? "send them to the siege lines" : s ? "break the siege" : "attack";
-        extra = `Right-click to ${verb} with ${n}${c !== null ? `: ${Math.round(c * 100)}% to win` : ""}`; }
+        const joined = orders.filter((o) => o.type === "attack" && pIndex[o.target] === i && pIndex[o.origin] !== picked).reduce((a, o) => a + o.regiments, 0);
+        extra = `Right-click to ${verb} with ${n}${joined ? ` (with the ${joined} already sent: one battle)` : ""}${c !== null ? `: ${Math.round(c * 100)}% to win` : ""}`; }
     }
     $("tip").innerHTML = `<b class="t">${esc(P[i].name)}</b><div class="kv">
       <span>Owner</span><b>${p.owner ? esc(nameOf(p.owner)) : "Independent"}</b>
