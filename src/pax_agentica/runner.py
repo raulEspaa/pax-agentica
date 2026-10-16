@@ -47,6 +47,7 @@ class NationSnapshot(BaseModel):
     allies: list[NationId]
     technology: dict[str, int]
     ruler: str = ""  # "King Louis XII"
+    stances: dict[NationId, str] = Field(default_factory=dict)  # declared friends and rivals
 
 
 class GeneralSnapshot(BaseModel):
@@ -110,6 +111,7 @@ def snapshot(state: GameState) -> Snapshot:
                 allies=state.partners(nid, TreatyKind.ALLIANCE),
                 technology={b.value: level for b, level in n.technology.items()},
                 ruler=f"{n.ruler.title} {n.ruler.name}" if n.ruler else "",
+                stances={k: v.value for k, v in n.stances.items()},
             )
             for nid, n in state.nations.items()
         },

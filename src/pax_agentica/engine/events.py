@@ -15,6 +15,8 @@ class EventKind(StrEnum):
     ORDER_REJECTED = "order_rejected"
     # diplomacy
     MESSAGE = "message"
+    PROCLAMATION = "proclamation"
+    STANCE_CHANGED = "stance_changed"
     PROPOSAL_MADE = "proposal_made"
     PROPOSAL_REJECTED = "proposal_rejected"
     PROPOSAL_EXPIRED = "proposal_expired"

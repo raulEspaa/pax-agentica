@@ -14,9 +14,11 @@ from pax_agentica.engine.model import (
     BuildingKind,
     GameState,
     NationId,
+    Personality,
     Ruler,
     Rules,
     TechBranch,
+    Trait,
 )
 
 # Thresholds of the technology milestones (see default_tech_tree).
@@ -93,7 +95,14 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         ruler = me.ruler
         key += (
             tuple(me.technology.values()),
-            (ruler.title, ruler.name, ruler.administration, ruler.diplomacy, ruler.military)
+            (
+                ruler.title,
+                ruler.name,
+                ruler.administration,
+                ruler.diplomacy,
+                ruler.military,
+                tuple(ruler.traits),
+            )
             if ruler
             else None,
             tuple((r, a.name, a.skill) for r, a in sorted(me.advisors.items())),
@@ -128,6 +137,8 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
     power = rules.military_tech_bonus * tech[TechBranch.MILITARY]
     research = 0.0
     stability = 0.0
+    trait_research = 0.0
+    trait_forts = 0.0
     penalty = rules.treaty_break_stability_penalty
     if tech[TechBranch.ECONOMY]:
         lines.append(f"economy technology: +{ducats:.0%} ducats and grain")
@@ -150,6 +161,27 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         if ruler.diplomacy >= 5:
             penalty -= 1
             lines.append(f"{ruler.title} {ruler.name}'s diplomacy: betrayal costs 1 less stability")
+        if Trait.CUNNING in ruler.traits:
+            penalty -= 1
+            lines.append(f"{ruler.name} is cunning: betrayal costs 1 less stability")
+        for trait in ruler.traits:
+            if trait not in TRAIT_EFFECTS:
+                continue
+            field, amount, words = TRAIT_EFFECTS[trait]
+            match field:
+                case "battle_power":
+                    power += amount
+                case "ducat_income":
+                    ducats += amount
+                case "stability_discount":
+                    stability = min(0.8, stability + amount)
+                case "building_discount":
+                    building = min(0.8, building + amount)
+                case "research_discount":
+                    trait_research += amount
+                case "fort_bonus_per_level":
+                    trait_forts += amount
+            lines.append(f"{ruler.name} is {trait.value}: {words}")
 
     for role, advisor in sorted(me.advisors.items()):
         if role == AdvisorRole.TREASURER:
@@ -164,8 +196,9 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             power += bonus
             lines.append(f"marshal {advisor.name}: +{bonus:.0%} battle power")
 
+    research += trait_research
     works, monuments = holdings(state, nation)
-    fort_extra = 0.0
+    fort_extra = trait_forts
     extra_generals = 0
     if BuildingKind.ROYAL_EXCHANGE in works:
         ducats += rules.royal_exchange_income_bonus
@@ -536,6 +569,40 @@ RULERS: dict[str, list[tuple[str, str, str]]] = {
 }
 
 
+W, CA, TH, PI, SC, BU, CU, CH, CR, AM, ME = (
+    Trait.WARLIKE, Trait.CAUTIOUS, Trait.THRIFTY, Trait.PIOUS, Trait.SCHOLAR, Trait.BUILDER,
+    Trait.CUNNING, Trait.CHARMING, Trait.CRUEL, Trait.AMBITIOUS, Trait.MELANCHOLIC,
+)  # fmt: skip
+# The character history gave each of them.
+HISTORICAL_TRAITS: dict[str, list[Trait]] = {
+    "Henry VII": [TH, CA], "Henry VIII": [AM, CH], "Edward VI": [PI, SC], "Mary I": [PI, CR],
+    "Elizabeth I": [CH, CA], "James I": [SC, CA],
+    "Louis XII": [TH, CH], "Francis I": [AM, BU], "Henry II": [W, AM], "Francis II": [ME],
+    "Charles IX": [CR, ME], "Henry III": [SC, PI],
+    "Ferdinand II": [AM, CU], "Joanna": [ME], "Charles I": [AM, PI], "Philip II": [PI, CA],
+    "Philip III": [PI], "Philip IV": [BU, ME],
+    "Maximilian I": [CH, AM], "Charles V": [AM, PI], "Ferdinand I": [CA, PI],
+    "Maximilian II": [CH, SC], "Rudolf II": [SC, ME], "Matthias": [AM],
+    "Bayezid II": [PI, BU], "Selim I": [W, CR], "Suleiman I": [W, BU], "Selim II": [ME],
+    "Murad III": [ME, PI], "Mehmed III": [W, CR],
+    "Sten Sture": [W, CA], "Svante Nilsson": [W], "Gustav I": [TH, AM], "Eric XIV": [SC, ME],
+    "John III": [BU, PI], "Sigismund": [PI],
+    "Ivan III": [AM, CU], "Vasili III": [AM, CA], "Ivan IV": [CR, W], "Feodor I": [PI, ME],
+    "Boris Godunov": [CU, BU], "Michael I": [CA],
+}  # fmt: skip
+
+# What a trait does to the numbers: (Modifiers field, amount, in words).
+TRAIT_EFFECTS: dict[Trait, tuple[str, float, str]] = {
+    Trait.WARLIKE: ("battle_power", 0.05, "+5% battle power"),
+    Trait.CAUTIOUS: ("fort_bonus_per_level", 0.05, "forts 5% stronger"),
+    Trait.THRIFTY: ("ducat_income", 0.05, "+5% ducats"),
+    Trait.PIOUS: ("stability_discount", 0.1, "stability 10% cheaper"),
+    Trait.SCHOLAR: ("research_discount", 0.1, "research 10% cheaper"),
+    Trait.BUILDER: ("building_discount", 0.08, "buildings and development 8% cheaper"),
+    Trait.CRUEL: ("battle_power", 0.03, "+3% battle power"),
+}
+
+
 def make_ruler(nation: NationId, reign: int, turn: int, rng: random.Random, *, age: int) -> Ruler:
     line = RULERS.get(nation, [])
     title, name, bio = (
@@ -544,6 +611,10 @@ def make_ruler(nation: NationId, reign: int, turn: int, rng: random.Random, *, a
 
     def stat() -> int:
         return rng.choice([1, 2, 2, 3, 3, 3, 4, 4, 5, 6])
+
+    traits = HISTORICAL_TRAITS.get(name)
+    if traits is None:  # an heir history never knew: fortune deals the character
+        traits = rng.sample(list(Trait), rng.choice([1, 2]))
 
     return Ruler(
         title=title,
@@ -555,6 +626,7 @@ def make_ruler(nation: NationId, reign: int, turn: int, rng: random.Random, *, a
         since=turn,
         reign=reign,
         bio=bio,
+        traits=list(traits),
     )
 
 
@@ -660,6 +732,7 @@ def advisor_candidates(state: GameState, nation: NationId) -> list[Advisor]:
                     name=name,
                     role=role,
                     skill=rng.choice([1, 1, 2, 2, 3]),
+                    personality=rng.choice(list(Personality)),
                 )
             )
     return pool

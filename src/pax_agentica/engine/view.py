@@ -34,11 +34,13 @@ from pax_agentica.engine.model import (
     GameState,
     Good,
     NationId,
+    Personality,
     ProposalKind,
     ProvinceId,
     Resources,
     Ruler,
     Rules,
+    Stance,
     TechBranch,
     Terrain,
     TreatyKind,
@@ -103,6 +105,7 @@ class CandidateView(_View):
     name: str
     role: AdvisorRole
     skill: int
+    personality: Personality
     hire_cost: int  # ducats, once
     salary: int  # ducats, every year
 
@@ -132,6 +135,7 @@ class MyNation(_View):
     advisors: dict[AdvisorRole, Advisor]
     advisor_candidates: tuple[CandidateView, ...]  # who you can hire right now
     opinions: dict[NationId, int]  # what you think of each court, from -100 to 100
+    stances: dict[NationId, Stance]  # the friends and rivals you have declared (public)
 
 
 class NationSummary(_View):
@@ -147,6 +151,7 @@ class NationSummary(_View):
     generals: int
     ruler: Ruler | None  # public too: every court knows who reigns where
     opinion_of_you: int  # what this court thinks of you, from -100 to 100
+    stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
 
 
 class ProposalView(_View):
@@ -294,6 +299,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             if c.name not in {a.name for a in me.advisors.values()}
         ),
         opinions={n: state.opinion(nation, n) for n in state.nations if n != nation},
+        stances=dict(me.stances),
         generals=tuple(
             GeneralView.model_validate(g.model_dump()) for g in state.generals_of(nation)
         ),
@@ -313,6 +319,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             generals=len(state.generals_of(nid)),
             ruler=ns.ruler,
             opinion_of_you=state.opinion(nid, nation),
+            stances=dict(ns.stances),
         )
         for nid, ns in state.nations.items()
         if nid != nation

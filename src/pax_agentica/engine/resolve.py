@@ -35,6 +35,7 @@ from pax_agentica.engine.actions import (
     HireGeneral,
     Move,
     Orders,
+    Proclaim,
     ProposeAlliance,
     ProposeNonAggression,
     ProposePeace,
@@ -44,6 +45,7 @@ from pax_agentica.engine.actions import (
     Research,
     Respond,
     SendMessage,
+    SetStance,
     Terms,
     UpgradeMonument,
 )
@@ -75,6 +77,8 @@ from pax_agentica.engine.model import (
     ProvinceId,
     ProvinceState,
     Resources,
+    Stance,
+    Trait,
     Treaty,
     TreatyKind,
     UnitKind,
@@ -594,6 +598,7 @@ class _Resolver:
                     self._opine(other, attacker, rules.opinion_betrayal)
             self._opine(defender, attacker, rules.opinion_betrayal * 2)
         self._opine(defender, attacker, rules.opinion_war_declared)
+        self._opine(attacker, defender, rules.opinion_war_declared // 2)  # an enemy is no friend
         if joined_for is not None:
             self._opine(joined_for, attacker, rules.opinion_call_answered)
         self.s.wars.append(War(parties=key, since=self.turn))
@@ -634,6 +639,16 @@ class _Resolver:
                         self._gift(nation, action)
                     case SendMessage():
                         self._message(nation, action)
+                    case SetStance():
+                        self._stance(nation, action)
+                    case Proclaim():
+                        self._emit(
+                            EventKind.PROCLAMATION,
+                            f"{self._name(nation)} proclaims to all Europe",
+                            nations=(nation,),
+                            sender=nation,
+                            text=action.text,
+                        )
                     case _:
                         pass
 
@@ -752,6 +767,32 @@ class _Resolver:
             f"{self._name(nation)} sends {a.resources} to {target.name}",
             nations=(nation, a.target),
             extra=_flat("gift", a.resources),
+        )
+
+    def _stance(self, nation: NationId, a: SetStance) -> None:
+        if error := self._target_error(nation, a.target):
+            self._reject(nation, a, error)
+            return
+        stances = self.s.nations[nation].stances
+        if stances.get(a.target, Stance.NEUTRAL) == a.stance:
+            self._reject(nation, a, f"{self._name(a.target)} is already your {a.stance.value}")
+            return
+        rules = self.s.rules
+        limit = {Stance.RIVAL: rules.max_rivals, Stance.FRIEND: rules.max_friends}.get(a.stance)
+        if limit is not None and sum(1 for v in stances.values() if v == a.stance) >= limit:
+            self._reject(nation, a, f"you already have {limit} {a.stance.value}s")
+            return
+        if a.stance == Stance.NEUTRAL:
+            del stances[a.target]
+            words = f"no longer counts {self._name(a.target)} friend or rival"
+        else:
+            stances[a.target] = a.stance
+            words = f"names {self._name(a.target)} its {a.stance.value}"
+        self._emit(
+            EventKind.STANCE_CHANGED,
+            f"{self._name(nation)} {words}",
+            nations=(nation, a.target),
+            stance=a.stance.value,
         )
 
     def _message(self, nation: NationId, a: SendMessage) -> None:
@@ -1260,8 +1301,10 @@ class _Resolver:
             target.troops,
             defense_multiplier(self.s, a.origin, a.target, siege_levels(rules, force)),
             self.rng,
-            attack_factor=battle_factor(self.s, nation, general.skill if general else 0),
-            defence_factor=battle_factor(self.s, defender, guard.skill if guard else 0),
+            attack_factor=battle_factor(self.s, nation, general.skill if general else 0)
+            * self._rivalry(nation, defender),
+            defence_factor=battle_factor(self.s, defender, guard.skill if guard else 0)
+            * self._rivalry(defender, nation),
             attack_quality=army_strength(rules, force, ground, attacking=True) / committed,
             defence_quality=army_strength(rules, held, ground, attacking=False) / target.troops,
         )
@@ -1285,6 +1328,14 @@ class _Resolver:
             self._capture(nation, a.target, survivors, general)
         else:
             target.take(result.defender_losses)
+
+    def _rivalry(self, nation: NationId | None, against: NationId | None) -> float:
+        """Regiments fight harder against a declared rival."""
+        if nation is None or against is None:
+            return 1.0
+        if self.s.nations[nation].stances.get(against) == Stance.RIVAL:
+            return 1 + self.s.rules.rival_battle_bonus
+        return 1.0
 
     def _capture(
         self,
@@ -1414,6 +1465,17 @@ class _Resolver:
             for b in alive:
                 if a != b and enemies & set(self.s.enemies_of(b)):
                     self._opine(a, b, rules.opinion_shared_enemy)
+            for target, stance in self.s.nations[a].stances.items():
+                if target in alive:  # a declared stance colours both courts
+                    self._opine(target, a, rules.opinion_stance.get(stance.value, 0))
+                    self._opine(a, target, rules.opinion_stance.get(stance.value, 0))
+            ruler = self.s.nations[a].ruler
+            traits = ruler.traits if ruler else []
+            for other in alive:
+                if Trait.CHARMING in traits:
+                    self._opine(other, a, rules.opinion_charming)
+                if Trait.CRUEL in traits:
+                    self._opine(other, a, rules.opinion_cruel)
 
     def _produce_and_feed(self, nation: NationId) -> None:
         """Income arrives, the manpower pool is capped, and the army is fed and paid. Every

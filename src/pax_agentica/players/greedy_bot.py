@@ -28,6 +28,7 @@ from pax_agentica.engine.actions import (
     HireAdvisor,
     HireGeneral,
     Move,
+    Proclaim,
     ProposeAlliance,
     ProposeNonAggression,
     ProposePeace,
@@ -35,6 +36,7 @@ from pax_agentica.engine.actions import (
     Recruit,
     Research,
     Respond,
+    SetStance,
     Terms,
     UpgradeMonument,
 )
@@ -43,8 +45,10 @@ from pax_agentica.engine.model import (
     AdvisorRole,
     BuildingKind,
     Good,
+    Personality,
     ProposalKind,
     ProvinceId,
+    Stance,
     TechBranch,
     TreatyKind,
     UnitKind,
@@ -97,6 +101,7 @@ class _Planner:
             p.recipient for p in view.proposals_sent if p.kind == ProposalKind.PEACE
         }
         self.targeted: set[ProvinceId] = set()
+        self.declared: str | None = None
         self.leaders: dict[ProvinceId, int] = {}
         self.actions: list[Action] = []
 
@@ -109,7 +114,12 @@ class _Planner:
         self._march_to_the_border()
         self._invest()
         self._diplomacy()
-        return Orders(actions=self.actions[:MAX_ACTIONS_PER_TURN])
+        self._stances()
+        return Orders(
+            actions=self.actions[:MAX_ACTIONS_PER_TURN],
+            thoughts=self._thoughts(),
+            counsel=self._counsel(),
+        )
 
     # ------------------------------------------------------------ geography
 
@@ -265,6 +275,19 @@ class _Planner:
             self.actions.append(DeclareWar(target=best))
             self.enemies.add(best)
             self.mobilising.add(best)
+            self.declared = best
+            name = self._nation_name(best)
+            self.actions.append(
+                Proclaim(
+                    text=self.rng.choice(
+                        [
+                            f"{name} has wronged us long enough. {self.me.name} takes up arms.",
+                            f"Let all Europe know: {self.me.name} marches against {name}.",
+                            f"Our patience with {name} is spent. God defend the right.",
+                        ]
+                    )
+                )
+            )
 
     # ------------------------------------------------------------ 3. recruit
 
@@ -567,6 +590,89 @@ class _Planner:
                     note=f"Give us {border[0].name} and this war ends.",
                 )
         return ProposePeace(target=enemy)
+
+    def _nation_name(self, nid: str) -> str:
+        return next((n.name for n in self.v.nations if n.id == nid), nid)
+
+    # ------------------------------------------------------------ 8. voices
+
+    def _stances(self) -> None:
+        """Name the enemy we fight (or most fear) our rival, and our allies our friends."""
+        mine = self.me.stances
+        rival = sorted(self.enemies)[0] if self.enemies else None
+        rivals = sum(1 for v in mine.values() if v == Stance.RIVAL)
+        if rival and mine.get(rival) != Stance.RIVAL and rivals < self.v.rules.max_rivals:
+            self.actions.append(SetStance(target=rival, stance=Stance.RIVAL))
+        friends = sum(1 for v in mine.values() if v == Stance.FRIEND)
+        for ally in sorted(self.allies):
+            if mine.get(ally) != Stance.FRIEND and friends < self.v.rules.max_friends:
+                self.actions.append(SetStance(target=ally, stance=Stance.FRIEND))
+                friends += 1
+
+    def _thoughts(self) -> str:
+        """What this ruler would say to themself about the year: the reasons behind the orders."""
+        me, parts = self.me, []
+        if self.declared:
+            parts.append(f"We outnumber {self._nation_name(self.declared)} on the border: war.")
+        if self.enemies:
+            parts.append(
+                "At war with " + ", ".join(self._nation_name(e) for e in sorted(self.enemies)) + "."
+            )
+        else:
+            parts.append("At peace.")
+        recruits = sum(a.regiments for a in self.actions if isinstance(a, Recruit))
+        attacks = [a for a in self.actions if isinstance(a, Attack)]
+        if recruits:
+            parts.append(f"Raise {recruits} regiments.")
+        if attacks:
+            places = ", ".join(self.provinces[a.target].name for a in attacks)
+            parts.append(f"Strike at {places}.")
+        works = [a for a in self.actions if isinstance(a, Build | Research | UpgradeMonument)]
+        if works:
+            parts.append(f"Invest in {len(works)} works and studies.")
+        hated = min(me.opinions.items(), key=lambda kv: kv[1], default=None)
+        if hated and hated[1] < -20:
+            parts.append(f"{self._nation_name(hated[0])} hates us ({hated[1]}).")
+        return " ".join(parts)
+
+    def _counsel(self) -> dict[AdvisorRole, str]:
+        """Each seated advisor speaks in their own temper."""
+        me, out = self.me, {}
+        net = me.income_per_turn.ducats - me.army_upkeep_per_turn.ducats
+        for role, adviser in me.advisors.items():
+            temper = adviser.personality
+            if role == AdvisorRole.TREASURER:
+                line = (
+                    f"We take in {me.income_per_turn.ducats} ducats and spend "
+                    f"{me.army_upkeep_per_turn.ducats} on the army."
+                )
+                line += (
+                    " Spend nothing we need not."
+                    if temper == Personality.FRUGAL or net < 5
+                    else " Build: money makes money."
+                )
+            elif role == AdvisorRole.MARSHAL:
+                threat = max(sorted(self.mine), key=self._threat, default=None)
+                line = f"We have {me.regiments} regiments."
+                if temper == Personality.HAWK:
+                    line += " Strike first, Majesty: the weak neighbour will not stay weak."
+                elif threat and self._threat(threat) > 0:
+                    line += f" {self.provinces[threat].name} is outnumbered; reinforce it."
+                else:
+                    line += " The borders hold."
+            else:
+                friendly = max(me.opinions.items(), key=lambda kv: kv[1], default=None)
+                line = (
+                    f"{self._nation_name(friendly[0])} looks on us kindly; court them."
+                    if friendly and friendly[1] > 10
+                    else "No court loves us; a gift would open doors."
+                )
+                if temper == Personality.DOVE and self.enemies:
+                    line += " And make peace while it is cheap."
+                if temper == Personality.SCHEMER:
+                    line += " Let our rivals bleed each other first."
+            out[role] = line[:600]
+        return out
 
     def _war_value(self, enemy: str) -> float:
         return sum(v for v, _o, t, _n in self._targets() if self.provinces[t].owner == enemy)

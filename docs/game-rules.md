@@ -171,7 +171,26 @@ Rulers age a year every turn. Past 40 each year carries a growing chance of deat
 year over 40). The heir, next in the historical line, comes with new skills, and a new reign
 costs 1 stability.
 
-**The council.** Three seats, each filled by an advisor of skill 1 to 3:
+**Character.** Every ruler has one or two traits: the historical ones what history gave them
+(Suleiman warlike and a builder, Ivan IV cruel and warlike, Philip II pious and cautious), an heir
+history never knew whatever fortune deals.
+
+| Trait | Effect |
+|---|---|
+| Warlike | +5% battle power |
+| Cautious | forts 5% stronger |
+| Thrifty | +5% ducats |
+| Pious | stability 10% cheaper |
+| Scholar | research 10% cheaper |
+| Builder | buildings and development 8% cheaper |
+| Cunning | breaking a treaty costs 1 less stability |
+| Charming | every court warms to them: +2 opinion a year |
+| Cruel | +3% battle power, but every court cools: −1 opinion a year |
+| Ambitious, Melancholic | no effect on the numbers: who they are, for whoever plays them |
+
+**The council.** Three seats, each filled by an advisor of skill 1 to 3, and of a temper (hawk,
+dove, schemer, loyal, frugal or visionary) that has no effect on the numbers but tells an AI
+advisor how to counsel:
 
 | Seat | Per point of skill |
 |---|---|
@@ -262,12 +281,26 @@ No terms at all is a white peace. The recipient can accept, reject, or reject wi
 proposal next turn. Trades can be countered too (goods only). Back and forth, one turn at a time,
 two courts can haggle a war to its end; that is the table an AI ruler negotiates at.
 
+### Stances and proclamations
+
+`set_stance` declares a court your **friend** or your **rival** (or neutral again), at most three
+of each. Stances are public. Each year a declared stance moves both courts' opinions (+2 between
+friends, −3 between rivals), and your regiments fight **5% harder against a declared rival**.
+
+`proclaim` speaks to all Europe: every court reads it next turn, and it binds nobody.
+
+### What a ruler thinks
+
+`Orders` carry two private fields the engine ignores: `thoughts`, the ruler's reasoning for the
+year, and `counsel`, what each advisor said. No other court ever sees them; they are kept in the
+game record, and the replay shows them, year by year, as each court's mind.
+
 ### Opinion
 
 Every court has an opinion of every other, from −100 to 100, and sees what each court thinks of
 it (`opinion_of_you`). Gifts raise it (+1 for every 4 ducats' worth, up to +25), as do trades
 (+5), pacts (+10), alliances (+20), peace (+5), an answered call to arms (+20) and a common enemy
-(+3 a year). A declaration of war costs −40 with its victim, a lost province −10, an ignored call
+(+3 a year). A declaration of war costs −40 with its victim (and the aggressor thinks 20 less of its victim), a lost province −10, an ignored call
 to arms −30, and breaking a treaty −10 with **every** court (−20 more with the victim). Opinions
 fade by a tenth every year. The rules never act on opinion; rulers do.
 

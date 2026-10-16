@@ -19,6 +19,7 @@ from pax_agentica.engine.model import (
     NationId,
     ProvinceId,
     Resources,
+    Stance,
     TechBranch,
     UnitKind,
 )
@@ -26,6 +27,9 @@ from pax_agentica.engine.model import (
 MAX_ACTIONS_PER_TURN = 50
 MAX_MESSAGE_CHARS = 500
 MAX_NOTE_CHARS = 300
+MAX_PROCLAMATION_CHARS = 400
+MAX_THOUGHTS_CHARS = 2000
+MAX_COUNSEL_CHARS = 600
 
 Regiments = Annotated[int, Field(gt=0, le=500, description="Number of regiments (1 or more).")]
 
@@ -293,6 +297,24 @@ class UpgradeMonument(_Action):
     province: ProvinceId
 
 
+class SetStance(_Action):
+    """Declare a court your friend or your rival, or neutral again. Stances are public: every
+    court sees them. A friend warms to you every year, a rival cools, and your regiments fight 5%
+    harder against a declared rival. At most three friends and three rivals."""
+
+    type: Literal["set_stance"] = "set_stance"
+    target: NationId
+    stance: Stance
+
+
+class Proclaim(_Action):
+    """Speak to all Europe: a public proclamation every court reads next turn. Like letters, it
+    binds nobody."""
+
+    type: Literal["proclaim"] = "proclaim"
+    text: str = Field(min_length=1, max_length=MAX_PROCLAMATION_CHARS)
+
+
 class Gift(_Action):
     """Give resources to another nation, no strings attached."""
 
@@ -333,7 +355,9 @@ type Action = Annotated[
     | Respond
     | CancelTreaty
     | Gift
-    | SendMessage,
+    | SendMessage
+    | SetStance
+    | Proclaim,
     Field(discriminator="type"),
 ]
 
@@ -344,3 +368,13 @@ class Orders(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     actions: list[Action] = Field(default_factory=list, max_length=MAX_ACTIONS_PER_TURN)
+    thoughts: str = Field(
+        default="",
+        max_length=MAX_THOUGHTS_CHARS,
+        description="The ruler's private reasoning this year. No other court sees it; it is kept "
+        "in the record, for the chronicle of the game.",
+    )
+    counsel: dict[AdvisorRole, Annotated[str, Field(max_length=MAX_COUNSEL_CHARS)]] = Field(
+        default_factory=dict,
+        description="What each advisor counselled this year, by seat. Private, like `thoughts`.",
+    )

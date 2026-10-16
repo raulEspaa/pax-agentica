@@ -232,6 +232,42 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
     }
 
 
+class Trait(StrEnum):
+    """A ruler's character. Some move the numbers a little; all of them tell an AI ruler (and a
+    reader) who this person is."""
+
+    WARLIKE = "warlike"  # +5% battle power
+    CAUTIOUS = "cautious"  # forts +5%
+    THRIFTY = "thrifty"  # +5% ducats
+    PIOUS = "pious"  # stability 10% cheaper
+    SCHOLAR = "scholar"  # research 10% cheaper
+    BUILDER = "builder"  # buildings and development 8% cheaper
+    CUNNING = "cunning"  # breaking a treaty costs 1 less stability
+    CHARMING = "charming"  # every court warms to them: +2 opinion a year
+    CRUEL = "cruel"  # +3% battle power, but every court cools: -1 opinion a year
+    AMBITIOUS = "ambitious"  # hungry for land and glory
+    MELANCHOLIC = "melancholic"  # withdrawn, brooding, hard to read
+
+
+class Personality(StrEnum):
+    """How an advisor leans when counselling the crown."""
+
+    HAWK = "hawk"  # war is the answer
+    DOVE = "dove"  # peace is cheaper
+    SCHEMER = "schemer"  # serves themself first
+    LOYAL = "loyal"  # serves the crown first
+    FRUGAL = "frugal"  # counts every ducat
+    VISIONARY = "visionary"  # thinks in generations
+
+
+class Stance(StrEnum):
+    """A court's declared attitude towards another, public to all Europe."""
+
+    FRIEND = "friend"
+    NEUTRAL = "neutral"
+    RIVAL = "rival"
+
+
 class AdvisorRole(StrEnum):
     TREASURER = "treasurer"  # the economy
     CHANCELLOR = "chancellor"  # learning and envoys
@@ -250,6 +286,7 @@ class Ruler(BaseModel):
     since: int  # the turn of the coronation
     reign: int = 0  # how many rulers came before in this game
     bio: str = ""  # who they were, as history remembers them
+    traits: list[Trait] = Field(default_factory=list)  # their character
 
 
 class Advisor(BaseModel):
@@ -259,6 +296,7 @@ class Advisor(BaseModel):
     name: str
     role: AdvisorRole
     skill: int = Field(ge=1, le=3)
+    personality: Personality = Personality.LOYAL
 
 
 class BuildingCategory(StrEnum):
@@ -803,6 +841,14 @@ class Rules(BaseModel):
     opinion_call_ignored: int = -30
     opinion_shared_enemy: int = 3  # a year, fighting the same enemy
     opinion_decay: float = 0.1  # a year, towards zero
+    opinion_stance: dict[str, int] = Field(
+        default_factory=lambda: {"friend": 2, "rival": -3}  # a year, towards the declarer
+    )
+    opinion_charming: int = 2  # a year, from every court
+    opinion_cruel: int = -1  # a year, from every court
+    max_rivals: int = 3
+    max_friends: int = 3
+    rival_battle_bonus: float = 0.05  # against a declared rival
 
     # victory
     domination_share: float = 0.5  # own this share of all provinces to win outright
@@ -881,6 +927,7 @@ class NationState(BaseModel):
     technology: dict[TechBranch, int] = Field(default_factory=lambda: dict.fromkeys(TechBranch, 0))
     ruler: Ruler | None = None
     advisors: dict[AdvisorRole, Advisor] = Field(default_factory=dict)
+    stances: dict[NationId, Stance] = Field(default_factory=dict)  # declared friends and rivals
 
 
 class General(BaseModel):
