@@ -24,7 +24,7 @@ trying to achieve** (goals) and **what your economy is for** (trade).
 
 ## What to build, in order
 
-### 1. Occupation, war score and war exhaustion (war)
+### 1. Occupation, war score and war exhaustion (war) — done
 
 - Taking an enemy province in a war **occupies** it: the owner loses its output, the occupier
   holds it. Only a peace transfers it (independent minors are still annexed at once: there is
@@ -39,7 +39,7 @@ trying to achieve** (goals) and **what your economy is for** (trade).
 Why first: it makes peace the centre of every war, which is the negotiation table the AI
 rulers will sit at, and it slows the snowball. Size: large.
 
-### 2. Ambitions: missions and prestige (goals)
+### 2. Ambitions: missions and prestige (goals) — prestige, faith and events done; missions left
 
 - Each nation gets a short **mission tree** from its history (France: Milan and Naples; Spain:
   the Mediterranean; England: the Channel; Austria: Hungary and Bohemia; Ottomans: the Danube;
@@ -52,7 +52,7 @@ rulers will sit at, and it slows the snowball. Size: large.
 Why: progress you can see and want ("two steps from the Italian mission"), and every AI ruler
 gets a motive of its own instead of maximising the same number. Size: medium to large.
 
-### 3. Market, manufactures and production chains (economy and trade)
+### 3. Market, manufactures and production chains (economy and trade) — done (trade agreements left)
 
 - A sixth resource, **goods** (cloth, glass, arms): made by **workshops** that consume raw
   materials. Goods are wanted for high development, for luxury that keeps stability, and abroad.
@@ -89,6 +89,13 @@ Size: small to medium. Part of it may belong in `agents/`; the calculators belon
 
 A first-year tutorial, balance passes after each block, the replay's mind panel for missions
 and war score, and performance once games run with LLMs.
+
+## Balance to watch
+
+Over 72 bot games after blocks 1 to 3, France, Austria and the Ottomans win nearly every game:
+with wars harder to win, growth comes from the independent minors around them, and Spain,
+England, Sweden and Russia have few. Iron and timber sink to the market's floor because every
+bot sells its surplus. Both want a pass once missions give the smaller powers a direction.
 
 ## How much is left
 

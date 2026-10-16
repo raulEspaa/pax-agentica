@@ -24,12 +24,14 @@ state directly, so a clever (or confused) agent can't cheat its way to victory.
 
 An arcade grand strategy game: **68 provinces** from Lisbon to Moscow, **seven great powers**
 (England, France, Spain, Austria, the Ottomans, Sweden and Russia) and a scatter of independent
-minors to swallow. Five resources (ducats, manpower, iron, grain and timber) feed recruiting,
-development, civil and military buildings, great works and stability. Armies mix pikemen,
+minors to swallow. Six resources (ducats, manpower, iron, grain, timber and goods) feed recruiting,
+development, civil and military buildings (some of which consume), great works and stability, with a European market whose prices move with what every court buys and sells. Armies mix pikemen,
 archers, cavalry and artillery, each with its ground; sixteen historical monuments, from
 Westminster Abbey to Hagia Sophia, reward whoever holds them. A tree of learning unlocks new
 buildings and powers; every throne has a historical ruler who ages and dies, and a council of
 three advisors; named generals lead the armies.
+
+Wars are fought for war score: provinces are occupied, walls besieged, exhaustion mounts, and only a peace moves a border. Prestige, faith and the events of the age (the Reformation, plague, the Fuggers' loans) give every reign its decisions.
 
 Diplomacy is the heart of it, because the other thrones will be AI agents. Courts ally, sign
 pacts, trade and send letters; each holds an opinion of every other, raised by gifts and
