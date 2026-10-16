@@ -207,6 +207,7 @@
     send = Infinity; lead = true; pickMix = null;
     const o = picked >= 0 ? prov(picked).owner : null;
     if (o && o !== G.human) focus = nIndex[o];
+    else if (o === G.human) focus = -1; // your own land: the diplomacy map shows your relations again
     render();
   }
   function command(i) { // right-click: march or attack from the selected province
@@ -716,7 +717,7 @@
       const color = N[nIndex[n.id]].color, waiting = V.proposals_to_answer.filter((p) => p.sender === n.id).length;
       return `<div class="nrow court ${nIndex[n.id] === focus ? "sel" : ""}" data-n="${n.id}" tabindex="0">
         ${n.ruler ? portrait(n.ruler, color, 38) : `<span class="shield" style="background:${color}"></span>`}
-        <div><b>${esc(n.name)}</b>${waiting ? ` <span class="count">${waiting}</span>` : ""}<small>${n.ruler ? `${esc(n.ruler.title)} ${esc(n.ruler.name)}` : ""}</small>
+        <div><b>${PaxMap.flag(n.id, color, 20, "flag inline")} ${esc(n.name)}</b>${waiting ? ` <span class="count">${waiting}</span>` : ""}<small>${n.ruler ? `${esc(n.ruler.title)} ${esc(n.ruler.name)}` : ""}</small>
           <div class="chips">${opinionBadge(n.opinion_of_you, "Their opinion of you: ")}${stanceChip(n.stances[G.human], "toward you")}${stanceChip(V.me.stances[n.id], "yours")}${chipsFor(n.id)}</div></div></div>`;
     }).join("");
     const alive = focus >= 0 && focus !== me && V.nations.find((n) => n.id === N[focus].id)?.alive;
@@ -1129,11 +1130,15 @@
     else if (mode === "diplomacy" && focus < 0 || mode === "diplomacy" && focus === me) L.innerHTML = `<b class="lh">How the courts stand with you</b>
       <div class="ramp" style="background:linear-gradient(90deg,${[-60, -30, 0, 30, 60].map(PaxMap.OPINION).join(",")})"></div>
       <div class="rampends"><span>hostile −60</span><span>neutral</span><span>friendly +60</span></div>
-      <div class="row"><i style="background:#e3bd5c"></i>You</div><div class="row"><i style="background:#2f7a45"></i>Allied</div>
-      <div class="row"><i style="background:#7e2219"></i>At war</div><div class="row"><i style="background:#cfc6ae"></i>Independent minor</div>
+      <div class="row"><i style="background:#e3bd5c"></i>You</div><div class="row"><i style="background:#2f5f9a"></i>Allied</div>
+      <div class="row"><i style="background:#5c1712"></i>At war</div><div class="row"><i style="background:#cfc6ae"></i>Independent minor</div>
       <p class="sub">Over each capital: ⚔ war · 🤝 alliance · 📜 pact, truce or tribute · ✖ rival · ♥ calls you friend. Click a nation to see its own wars and allies.</p>`;
-    else if (mode === "diplomacy") L.innerHTML = `<div class="row"><i style="background:#e3bd5c"></i>${esc(N[focus >= 0 ? focus : me].name)}</div>
-      <div class="row"><i style="background:#5aa56f"></i>Allies</div><div class="row"><i style="background:#c9a54a"></i>Pacts and truces</div><div class="row"><i style="background:#c4473b"></i>At war</div>`;
+    else if (mode === "diplomacy") {
+      L.innerHTML = `<b class="lh">Seen from ${esc(N[focus].name)}</b><div class="row"><i style="background:#e3bd5c"></i>${esc(N[focus].name)}</div>
+        <div class="row"><i style="background:#2f5f9a"></i>Its allies</div><div class="row"><i style="background:#5c1712"></i>Its enemies</div>
+        <div class="row"><i style="background:#8f897c"></i>Neither</div><button class="btn" id="dipback">Back to how the courts see you</button>`;
+      $("dipback").onclick = () => { focus = -1; picked = -1; render(); };
+    }
     else L.innerHTML = `<div class="row"><i style="background:var(--free)"></i>Independent minor</div><div class="row">? Hidden by the fog of war</div>
       <div class="row"><span style="color:#8a6420">★</span> Capital <span style="margin-left:8px">⚑</span> General</div>
       <div class="row"><i style="border:2px solid #3f8f55"></i>March <i style="border:2px solid #b8392b"></i>Attack</div>`;
@@ -1160,7 +1165,7 @@
 
   // ------------------------------------------------------------------ render
   function render() {
-    $("myshield").style.background = N[me].color;
+    $("myshield").innerHTML = PaxMap.flag(N[me].id, N[me].color, 34);
     $("myname").textContent = N[me].name;
     $("year").textContent = V.year;
     $("turnlabel").textContent = `Turn ${V.turn} of ${V.max_turns}`;
@@ -1181,7 +1186,7 @@
   window.addEventListener("keydown", (e) => {
     if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
     if (e.key >= "1" && e.key <= String(MODES.length)) { mode = MODES[+e.key - 1][0]; render(); }
-    if (e.key === "Escape") { if ($("modal").classList.contains("open")) $("modal").classList.remove("open"); else { picked = -1; render(); } }
+    if (e.key === "Escape") { if ($("modal").classList.contains("open")) $("modal").classList.remove("open"); else { picked = -1; if (mode === "diplomacy") focus = -1; render(); } }
   });
   await load();
   requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add("ready")));

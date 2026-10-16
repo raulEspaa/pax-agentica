@@ -21,6 +21,30 @@ const PaxMap = (() => {
   const TERRAIN = {plains: "#a9b06c", forest: "#4f6d36", hills: "#a58c5a", marsh: "#5f7e6b", mountains: "#8d8678"};
   const RES = [["ducats", "Ducats", "💰"], ["manpower", "Manpower", "👥"], ["iron", "Iron", "⛏"],
                ["grain", "Grain", "🌾"], ["timber", "Timber", "🪵"], ["goods", "Goods", "🧵"]];
+  // the banners of 1500, simplified for a 30 by 20 field
+  const FLEUR = (x, y, c) => `<path transform="translate(${x} ${y}) scale(.5)" fill="${c}" d="M0 -6 C2 -4 2 -2 0 0 C-2 -2 -2 -4 0 -6Z M0 0 C3 -3 6 -2 5 1 C4 3 2 2 1 1Z M0 0 C-3 -3 -6 -2 -5 1 C-4 3 -2 2 -1 1Z M-3 2 H3 V3.2 H-3Z M-.8 3 V6 H.8 V3Z"/>`;
+  const EAGLE = (x, y, s, c, heads) => `<g transform="translate(${x} ${y}) scale(${s})" fill="${c}">
+    <path d="M0 -3 C2 -3 2 1 1.5 4 L3 7 H-3 L-1.5 4 C-2 1 -2 -3 0 -3Z"/>
+    <path d="M1 -2 C4 -4 7 -3 9 -6 C8 -1 6 2 1.5 2Z M-1 -2 C-4 -4 -7 -3 -9 -6 C-8 -1 -6 2 -1.5 2Z"/>
+    ${heads === 2 ? `<circle cx="-1.6" cy="-4.4" r="1.3"/><circle cx="1.6" cy="-4.4" r="1.3"/><path d="M-1.6 -5.6 l.6 -1.2 l.6 1.2Z M1 -5.6 l.6 -1.2 l.6 1.2Z"/>`
+      : `<circle cx="0" cy="-4.6" r="1.4"/><path d="M-1 -6 l1 -1.6 l1 1.6Z"/>`}</g>`;
+  const FLAGS = {
+    england: `<rect width="30" height="20" fill="#f4f1e8"/><rect x="12.5" width="5" height="20" fill="#c8102e"/><rect y="7.5" width="30" height="5" fill="#c8102e"/>`,
+    france: `<rect width="30" height="20" fill="#1f3f9a"/>${FLEUR(9, 6.5, "#f2c230")}${FLEUR(21, 6.5, "#f2c230")}${FLEUR(15, 14, "#f2c230")}`,
+    spain: `<rect width="15" height="10" fill="#c22a24"/><rect x="15" width="15" height="10" fill="#f4f1e8"/><rect y="10" width="15" height="10" fill="#f4f1e8"/><rect x="15" y="10" width="15" height="10" fill="#c22a24"/>
+      <path fill="#f2c230" d="M4.5 8 V4 H5.8 V2.6 H7 V4 H8 V2.6 H9.2 V4 H10.5 V8Z M19.5 18 V14 H20.8 V12.6 H22 V14 H23 V12.6 H24.2 V14 H25.5 V18Z"/>
+      <path fill="#7a2a7e" d="M19 8 C19 5 20.5 3 22.5 3 C24.5 3 25.5 5 24.5 6 C26 6.5 26 8 25 8Z M4 18 C4 15 5.5 13 7.5 13 C9.5 13 10.5 15 9.5 16 C11 16.5 11 18 10 18Z"/>`,
+    austria: `<rect width="30" height="20" fill="#c8102e"/><rect y="6.7" width="30" height="6.6" fill="#f4f1e8"/>`,
+    ottomans: `<rect width="30" height="20" fill="#b3201a"/><circle cx="13" cy="10" r="5.2" fill="#f4f1e8"/><circle cx="14.6" cy="10" r="4.3" fill="#b3201a"/>`,
+    sweden: `<rect width="30" height="20" fill="#1d5aa6"/><rect x="8.5" width="4" height="20" fill="#f2c230"/><rect y="8" width="30" height="4" fill="#f2c230"/>`,
+    russia: `<rect width="30" height="20" fill="#8e1b1b"/>${EAGLE(15, 9.5, 1.15, "#f2c230", 2)}`,
+    poland: `<rect width="30" height="20" fill="#c22a3a"/>${EAGLE(15, 9.5, 1.15, "#f4f1e8", 1)}`,
+    hungary: `${[0, 1, 2, 3, 4, 5, 6, 7].map((k) => `<rect y="${k * 2.5}" width="15" height="2.5" fill="${k % 2 ? "#f4f1e8" : "#c22a24"}"/>`).join("")}
+      <rect x="15" width="15" height="20" fill="#c22a24"/><path fill="#4b8a3c" d="M15 20 C17 16 19 16 20 17 C21 15 24 15 25 17 C26 16 28 16 30 20Z"/>
+      <path fill="#f4f1e8" d="M21.8 16 V4 H23.2 V16Z M19.5 6.5 H25.5 V7.7 H19.5Z M20.2 9.8 H24.8 V11 H20.2Z"/>`,
+  };
+  // a nation's banner as inline SVG; independent lands fly a plain pennon of their colour
+  const flag = (id, color = "#9a8f78", w = 30, cls = "flag") => `<svg class="${cls}" viewBox="0 0 30 20" width="${w}" height="${Math.round(w * 2 / 3)}" aria-hidden="true">${FLAGS[id] || `<rect width="30" height="20" fill="${color}"/>`}<rect x=".5" y=".5" width="29" height="19" fill="none" stroke="rgba(0,0,0,.55)"/></svg>`;
   // trade goods: names, icons and yields come with the game (S.goods); this is the fallback
   const GOOD = {grain: "Grain", iron: "Iron", gold: "Gold", timber: "Timber"};
   const GOOD_COLOR = {grain: "#dcd59e", fish: "#7aa7c2", horses: "#a7794a", wine: "#7d3f68", salt: "#e7e1d2",
@@ -150,8 +174,8 @@ const PaxMap = (() => {
         if (o === w.focus) return "#e3bd5c";
         const r = w.diplo[o];
         if (!r) return "#8f897c";
-        if (r.war) return "#7e2219";
-        if (r.ally) return "#2f7a45";
+        if (r.war) return "#5c1712";
+        if (r.ally) return "#2f5f9a";
         return OPINION(r.opinion);
       }
       if (w.mode === "diplomacy") {
@@ -159,8 +183,8 @@ const PaxMap = (() => {
         if (f < 0) return o < 0 ? "var(--free)" : mix(N[o].color, "#8a8478", .55);
         if (o === f) return "#e3bd5c";
         if (o < 0) return "#b9b09a";
-        if (w.relations.wars.includes(o)) return "#c4473b";
-        if (w.relations.allies.includes(o)) return "#5aa56f";
+        if (w.relations.wars.includes(o)) return "#5c1712";
+        if (w.relations.allies.includes(o)) return "#2f5f9a";
         if ((w.relations.pacts || []).includes(o)) return "#c9a54a";
         return "#8f897c";
       }
@@ -274,7 +298,7 @@ const PaxMap = (() => {
     function paint(next) {
       world = next;
       provPaths.forEach((e, i) => { e.style.fill = fillFor(i); });
-      freePaths.forEach((e, i) => { e.style.display = world.owner[i] < 0 && world.mode === "political" ? "" : "none"; });
+      freePaths.forEach((e, i) => { e.style.display = world.owner[i] < 0 && (world.mode === "political" || world.mode === "diplomacy") ? "" : "none"; });
       occPaths.forEach((e, i) => { const c = (world.controller || [])[i];
         const show = c >= 0 && (world.mode === "political" || world.mode === "diplomacy");
         e.style.display = show ? "" : "none"; if (show) e.setAttribute("fill", `url(#occ${c})`); });
@@ -658,7 +682,7 @@ const PaxMap = (() => {
       vista: vista(S, i, d),
       header: `<header class="deedhead">${d.view ? `<figure class="view"><img src="${d.view.src}" alt="${esc(d.view.city)} in the 1570s" width="570" height="225">
           <figcaption>${esc(d.view.city)}, as ${esc(d.view.by)} engraved it</figcaption></figure>` : vista(S, i, d)}
-        <div class="ribbon"><span class="shield" style="background:${d.owner >= 0 ? N[d.owner].color : "var(--free)"}"></span>
+        <div class="ribbon">${d.owner >= 0 ? flag(N[d.owner].id, N[d.owner].color, 36) : `<span class="shield" style="background:var(--free)"></span>`}
           <div><h2 id="deedname">${esc(p.name)}</h2><div class="owner">${d.owner >= 0 ? `${kind} of ${owner}` : `Independent ${kind.toLowerCase()}`}</div></div></div>
         <button class="x" data-close aria-label="Close the province deed" title="Close (Esc)">×</button></header>`,
       facts: `<section class="strip num">
@@ -677,5 +701,5 @@ const PaxMap = (() => {
   }
 
   const yieldWords = (y) => Object.entries(y).map(([k, v]) => `+${v} ${k}`).join(", ") || "nothing";
-  return {create, deedInfo, goodOf, yieldWords, GOOD_COLOR, OPINION, vista, portrait, usePortraits, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
+  return {flag, create, deedInfo, goodOf, yieldWords, GOOD_COLOR, OPINION, vista, portrait, usePortraits, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
 })();

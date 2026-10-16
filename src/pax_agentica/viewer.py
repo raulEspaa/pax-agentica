@@ -1,6 +1,6 @@
 """The map in the browser: a self-contained HTML replay, and the data the play page shares.
 
-The map is real geography: `data/europe_1500.json` holds the 68 provinces (and the wasteland
+The map is real geography: `data/europe_1500.json` holds the 69 provinces (and the wasteland
 around them) as SVG paths, built from Natural Earth by `scripts/build_map.py`. The drawing code
 lives in `web/map.js` and `web/map.css`, shared by the replay (inlined into one offline HTML
 file) and by the play server (served as static files).

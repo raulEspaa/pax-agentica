@@ -49,3 +49,5 @@ cropped to 570×225.
 | moscow | Moscow | Frans Hogenberg | ? | Public domain | [Frans Hogenberg, Moscauw (FL167448546 2370014).jpg](https://commons.wikimedia.org/wiki/File:Frans_Hogenberg,_Moscauw_(FL167448546_2370014).jpg) |
 | buda | Buda | Georg Braun; Frans Hogenberg | 1572 | Public domain | [Braun Buda UBHD.jpg](https://commons.wikimedia.org/wiki/File:Braun_Buda_UBHD.jpg) |
 | constantinople | Constantinople | Braun & Hogenberg | 1572 | Public domain | [Constantinople Braun Hogenberg Marmara 01.jpg](https://commons.wikimedia.org/wiki/File:Constantinople_Braun_Hogenberg_Marmara_01.jpg) |
+| seville | Seville | Georg Braun; Frans Hogenberg | 1572 | Public domain | [Braun Sevilla UBHD.jpg](https://commons.wikimedia.org/wiki/File:Braun_Sevilla_UBHD.jpg) |
+| bohemia | Prague | Georg Braun; Frans Hogenberg | 1572 | Public domain | [Braun Praha UBHD.jpg](https://commons.wikimedia.org/wiki/File:Braun_Praha_UBHD.jpg) |

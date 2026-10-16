@@ -7,7 +7,7 @@ Where the game stands, what is shallow, and what is left before the AI work star
 
 | Area | Today | Depth |
 |---|---|---|
-| Map and scenario | 68 provinces, nine powers, minors, terrain, fourteen trade goods, monuments, the grudges of 1500 | solid |
+| Map and scenario | 69 provinces, nine powers, minors, terrain, fourteen trade goods, monuments, the grudges of 1500 | solid |
 | Economy | five resources, development, buildings that double output, stability | **linear**: income grows in a straight line, iron and timber rarely bind, nothing is ever scarce for long |
 | Trade | bilateral swaps of resources | **thin**: no market, no prices, nothing to specialise for |
 | Technology | three branches with milestones, lore | good |

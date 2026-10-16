@@ -72,3 +72,25 @@ Commons, cropped and scaled to 160×200. The licence column is Commons' own stat
 | Svante Nilsson | Unknown author | 16th century | Public domain | [Svante Sture.jpg](https://commons.wikimedia.org/wiki/File:Svante_Sture.jpg) |
 | Ivan IV | Unknown author | 18th century | Public domain | [Ivan IV by anonim (18th c., GIM).jpg](https://commons.wikimedia.org/wiki/File:Ivan_IV_by_anonim_(18th_c.,_GIM).jpg) |
 | Feodor I | Unknown painter | 1630 | Public domain | [Feodor I of Russia (parsuna, 1630s, Moscow History museum).jpg](https://commons.wikimedia.org/wiki/File:Feodor_I_of_Russia_(parsuna,_1630s,_Moscow_History_museum).jpg) |
+| John I Albert | Anonymous (graphic from book by Zygmunt Gloger (1845-1910))  | 1903 | Public domain | [PL_Gloger-Encyklopedja_staropolska_ilustrowana_T.4_454a.jpg](https://commons.wikimedia.org/wiki/File:PL_Gloger-Encyklopedja_staropolska_ilustrowana_T.4_454a.jpg) |
+| Alexander | Jan Goraj | circa 1504 | Public domain | [Goraj_Miracle_of_Saint_Simeon_Stylites_(detail).jpg](https://commons.wikimedia.org/wiki/File:Goraj_Miracle_of_Saint_Simeon_Stylites_%28detail%29.jpg) |
+| Sigismund I | Hans von Kulmbach | circa 1511/1518 | Public domain | [Kulmbach_Sigismund_I_the_Old.jpg](https://commons.wikimedia.org/wiki/File:Kulmbach_Sigismund_I_the_Old.jpg) |
+| Sigismund II | Lucas Cranach the Younger | circa 1553| Public domain | [Cranach_the_Younger_Sigismund_II_Augustus.jpg](https://commons.wikimedia.org/wiki/File:Cranach_the_Younger_Sigismund_II_Augustus.jpg) |
+| Stephen Báthory | After Martin Kober | second half of the 19th century | Public domain | [Anonymous_Stephen_Báthory_(detail)_01.jpg](https://commons.wikimedia.org/wiki/File:Anonymous_Stephen_B%C3%A1thory_%28detail%29_01.jpg) |
+| Sigismund III | Pieter Soutman | circa 1624| Public domain | [Soutman_Sigismund_III_Vasa_in_coronation_robes.jpg](https://commons.wikimedia.org/wiki/File:Soutman_Sigismund_III_Vasa_in_coronation_robes.jpg) |
+| Vladislaus II | Master of Litoměřice Altarpiece | 1509 | Public domain | [Vladislaus_II_of_Bohemia_and_Hungary.jpg](https://commons.wikimedia.org/wiki/File:Vladislaus_II_of_Bohemia_and_Hungary.jpg) |
+| Louis II | Hans Krell | circa 1526| Public domain | [Hans_Krell_-_Portrait_of_King_Louis_II_of_Hungary_(c.1526).jpg](https://commons.wikimedia.org/wiki/File:Hans_Krell_-_Portrait_of_King_Louis_II_of_Hungary_%28c.1526%29.jpg) |
+| John Zápolya | Erhard Schön (1491-1542) | 16th century| Public domain | [Szapolyai_János_fametszet.jpg](https://commons.wikimedia.org/wiki/File:Szapolyai_J%C3%A1nos_fametszet.jpg) |
+| John Sigismund | Dominicus Custos | circa 1600| Public domain | [Jan_Zygmunt_Zapolya.jpg](https://commons.wikimedia.org/wiki/File:Jan_Zygmunt_Zapolya.jpg) |
+| Sigismund Báthory | Dominicus Custos | ? | Public domain | [Zsgmondbáthory.jpg](https://commons.wikimedia.org/wiki/File:Zsgmondb%C3%A1thory.jpg) |
+| Jan Łaski | anonymous plate | 1864 | Public domain | [Jan_Łaski_primate_of_Poland.PNG](https://commons.wikimedia.org/wiki/File:Jan_%C5%81aski_primate_of_Poland.PNG) |
+| Piotr Tomicki | Stanisław Samostrzelnik | circa 1530| Public domain | [Piotr_Tomicki_by_Stanisław_Samostrzelnik.jpg](https://commons.wikimedia.org/wiki/File:Piotr_Tomicki_by_Stanis%C5%82aw_Samostrzelnik.jpg) |
+| Jan Zamoyski | Jan Szwankowski | before 1602| Public domain | [Jan_Zamoyski.PNG](https://commons.wikimedia.org/wiki/File:Jan_Zamoyski.PNG) |
+| Mikołaj Radziwiłł | ? | poł. XIX wieku | Public domain | [Mikołaj_Radziwiłł_Czarny.JPG](https://commons.wikimedia.org/wiki/File:Miko%C5%82aj_Radziwi%C5%82%C5%82_Czarny.JPG) |
+| Andrzej Frycz Modrzewski | Jan Matejko | 1869 | Public domain | [Andrzej_Frycz_Modrzewski.JPG](https://commons.wikimedia.org/wiki/File:Andrzej_Frycz_Modrzewski.JPG) |
+| Piotr Kmita | Anonymous plate | before 1907| Public domain | [Piotr_Kmita_Sobieński.JPG](https://commons.wikimedia.org/wiki/File:Piotr_Kmita_Sobie%C5%84ski.JPG) |
+| Jan Dantyszek | Unknown author | before 1650| Public domain | [Ioannes_Dantiscus_Episcopus_Culmensis_1650_(5756655)_(cropped).jpg](https://commons.wikimedia.org/wiki/File:Ioannes_Dantiscus_Episcopus_Culmensis_1650_%285756655%29_%28cropped%29.jpg) |
+| István Werbőczy | Unknown author | 1860 | Public domain | [Verbőczy_István.jpg](https://commons.wikimedia.org/wiki/File:Verb%C5%91czy_Istv%C3%A1n.jpg) |
+| George Martinuzzi | Unidentified painter | 18th century| Public domain | [Fráter_György_MTA.jpg](https://commons.wikimedia.org/wiki/File:Fr%C3%A1ter_Gy%C3%B6rgy_MTA.jpg) |
+| Péter Perényi | Unknown author | before 1850| Public domain | [Perényi_Péter_országbíró_portréja_(Boksay_József_Múzeum,_Ungvár).jpg](https://commons.wikimedia.org/wiki/File:Per%C3%A9nyi_P%C3%A9ter_orsz%C3%A1gb%C3%ADr%C3%B3_portr%C3%A9ja_%28Boksay_J%C3%B3zsef_M%C3%BAzeum%2C_Ungv%C3%A1r%29.jpg) |
+| János Corvinus | Imre Madách (1823–1864) Hungarian writer and poet | ? | Public domain | [Corvin_János_Madách.jpg](https://commons.wikimedia.org/wiki/File:Corvin_J%C3%A1nos_Mad%C3%A1ch.jpg) |

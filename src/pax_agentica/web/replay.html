@@ -173,7 +173,7 @@ function ledger(f) {
   $("ledger").innerHTML = rows.map(([n, k, s]) => `
     <tr class="row ${s.alive ? "" : "dead"} ${k === selected ? "sel" : ""}" data-k="${k}" tabindex="0"
         aria-label="${esc(n.name)}: ${s.provinces} provinces, score ${s.score}">
-      <td><div class="nm"><span class="shield" style="background:${n.color}"></span>
+      <td><div class="nm">${PaxMap.flag(n.id, n.color, 22)}
         <div>${esc(n.name)}${k === D.winner && frame === last ? " 👑" : ""}${s.alive ? "" : " ☠"}
         <div class="ruler">ruled by ${esc(D.rulers[k])}</div></div></div></td>
       <td>${s.provinces}</td><td>${s.score}</td><td>${secret(k) ? "?" : s.army}</td><td class="duc">${secret(k) ? "?" : s.res[0]}</td>
@@ -201,7 +201,7 @@ function card(f) {
   const buildings = f.b.reduce((a, b, i) => a + (f.o[i] === selected ? b.length : 0), 0);
   box.innerHTML = `<h3>${esc(n.name)} <small>${s.alive ? "capital " + esc(P[s.capital].name) : "fallen"}</small></h3>
     <div class="body">
-      <div class="who"><span class="shield" style="background:${n.color}"></span>
+      <div class="who">${PaxMap.flag(n.id, n.color, 36)}
         <div><b>${esc(n.name)}</b><span>${s.ruler ? esc(s.ruler) + ", " : ""}ruled by ${esc(D.rulers[selected])}. ${s.provinces} provinces, ${buildings} buildings, score ${s.score}.</span></div></div>
       ${hidden ? `<p class="muted">Its treasury is hidden from ${esc(N[seeAs].name)}.</p>` : `<div class="res num">
         ${RES.map(([, label], k) => `<div title="${label}: in the treasury, and the change per year"><b>${s.res[k]}</b>${label.toLowerCase()}<i class="${inc[k] < 0 ? "neg" : ""}">${sign(inc[k])}</i></div>`).join("")}

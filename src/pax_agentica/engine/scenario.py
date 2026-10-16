@@ -40,7 +40,9 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     ("lisbon", "Lisbon", P, GO, 4, None, -8.6, 39.0),
     ("galicia", "Galicia", H, GR, 2, "spain", -7.6, 42.6),
     ("madrid", "Madrid", P, GR, 5, "spain", -3.7, 40.4),
-    ("andalusia", "Andalusia", P, GO, 3, "spain", -4.8, 37.5),
+    # Seville: the Casa de Contratación (1503) will take in all the gold of the Indies
+    ("seville", "Seville", P, GO, 5, "spain", -6.0, 37.4),
+    ("andalusia", "Granada", H, CL, 3, "spain", -3.6, 37.2),  # the silk of the Nasrids
     ("valencia", "Valencia", P, GR, 3, "spain", -0.8, 39.3),
     ("aragon", "Aragon", X, IR, 3, "spain", 0.4, 41.7),
     ("navarre", "Navarre", X, GR, 2, None, -1.9, 42.9),
@@ -119,7 +121,9 @@ _LAND_BORDERS: list[tuple[str, str]] = [
     # Iberia
     ("lisbon", "galicia"),
     ("lisbon", "madrid"),
-    ("lisbon", "andalusia"),
+    ("lisbon", "seville"),
+    ("seville", "madrid"),
+    ("seville", "andalusia"),
     ("galicia", "madrid"),
     ("madrid", "andalusia"),
     ("madrid", "valencia"),
@@ -257,7 +261,8 @@ _SEA_CROSSINGS: list[tuple[str, str]] = [
     ("wales", "ireland"),  # the Irish Sea
     ("scotland", "ireland"),  # the North Channel
     ("naples", "sicily"),  # the Strait of Messina
-    ("andalusia", "morocco"),  # the Strait of Gibraltar
+    ("seville", "morocco"),  # the Strait of Gibraltar
+    ("andalusia", "morocco"),  # the Alborán crossing
     ("scania", "zealand"),  # the Øresund
     ("zealand", "jutland"),  # the Great Belt
     ("stockholm", "finland"),  # the Åland crossing
@@ -401,7 +406,8 @@ EXTRA_GARRISON = {
 GOODS_1500: dict[str, Good] = {
     "london": Good.CLOTH, "york": Good.WOOL, "wales": Good.IRON, "scotland": Good.FISH,
     "ireland": Good.WOOL, "lisbon": Good.SPICES, "galicia": Good.FISH, "madrid": Good.WOOL,
-    "andalusia": Good.WINE, "valencia": Good.WINE, "aragon": Good.WOOL, "navarre": Good.IRON,
+    "andalusia": Good.CLOTH, "seville": Good.GOLD, "valencia": Good.WINE, "aragon": Good.WOOL,
+    "navarre": Good.IRON,
     "morocco": Good.GOLD, "algiers": Good.SALT, "tunis": Good.GRAIN,
     "paris": Good.GRAIN, "normandy": Good.GRAIN, "brittany": Good.SALT, "champagne": Good.WINE,
     "lyon": Good.CLOTH, "gascony": Good.WINE, "languedoc": Good.WINE, "provence": Good.SALT,

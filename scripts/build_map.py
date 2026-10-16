@@ -1,6 +1,6 @@
 """Build the Europe 1500 map asset from Natural Earth data.
 
-Real administrative regions (Natural Earth 1:10m admin-1, public domain) are merged into the 68
+Real administrative regions (Natural Earth 1:10m admin-1, public domain) are merged into the 69
 game provinces; land that belongs to no province becomes wasteland. The result is
 projected (Lambert azimuthal equal-area, centred on Europe), simplified as a coverage so that
 neighbours keep sharing exactly the same border, and written as SVG path data.
@@ -62,9 +62,9 @@ COUNTRIES: dict[str, tuple[tuple[str, ...], float]] = {
     "JEY": (("normandy",), 300),
     "GGY": (("normandy",), 300),
     "PRT": (("lisbon",), 600),
-    "ESP": (("galicia", "madrid", "andalusia", "valencia", "aragon", "navarre"), 700),
+    "ESP": (("galicia", "madrid", "seville", "andalusia", "valencia", "aragon", "navarre"), 700),
     "AND": (("aragon",), 300),
-    "GIB": (("andalusia",), 300),
+    "GIB": (("seville",), 300),
     "FRA": (
         (
             "paris",
@@ -176,8 +176,12 @@ OVERRIDES: dict[tuple[str, str], str | None] = {
     ("ESP", "region:Valenciana"): "valencia",
     ("ESP", "region:Murcia"): "valencia",
     ("ESP", "region:Islas Baleares"): "valencia",
-    ("ESP", "region:Andalucía"): "andalusia",
-    ("ESP", "region:Extremadura"): "andalusia",
+    ("ESP", "region:Andalucía"): "andalusia",  # the old kingdom of Granada
+    ("ESP", "Sevilla"): "seville",  # the Guadalquivir, Cádiz and the road to the Indies
+    ("ESP", "Huelva"): "seville",
+    ("ESP", "Cádiz"): "seville",
+    ("ESP", "Córdoba"): "seville",
+    ("ESP", "region:Extremadura"): "seville",
     ("ESP", "region:Melilla"): "morocco",
     # Italy
     ("ITA", "region:Piemonte"): "milan",

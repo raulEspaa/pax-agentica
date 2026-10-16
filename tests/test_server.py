@@ -22,7 +22,7 @@ def test_the_page_and_its_assets_are_served(client: TestClient) -> None:
 
 def test_the_static_map_describes_every_province(client: TestClient) -> None:
     static = client.get("/api/static").json()
-    assert len(static["provinces"]) == 68
+    assert len(static["provinces"]) == 69
     assert {b["id"] for b in static["buildings"]} >= {"marketplace", "fort", "lumber_mill"}
 
 

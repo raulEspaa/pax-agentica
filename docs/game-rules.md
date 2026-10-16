@@ -6,7 +6,7 @@ else to play. Every number here comes from `Rules` in
 
 ## The world
 
-- **68 provinces** from Lisbon to Moscow and from Norrland to Tunis
+- **69 provinces** from Lisbon to Moscow and from Norrland to Tunis
   ([`scenario.py`](../src/pax_agentica/engine/scenario.py)). Each one has a **terrain**, a
   **trade good** (one of fourteen, see below), a **development** level (1–12), **workings**
   (0–3), **buildings** and a garrison of **regiments**.
@@ -441,7 +441,7 @@ refuses or ignores it **dissolves the alliance**, in public.
 
 ## Victory
 
-- **Domination**: rule half the provinces of Europe (34 of 68), or be the last nation standing.
+- **Domination**: rule half the provinces of Europe (35 of 69), or be the last nation standing.
 - **Otherwise**, when the turn limit (50 by default) runs out, the highest **standing** wins:
   the total development you own plus half your prestige. Ties go to more provinces, then more
   ducats.

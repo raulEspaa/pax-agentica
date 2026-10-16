@@ -630,6 +630,16 @@ def default_monuments() -> dict[str, MonumentSpec]:
             lore="The red palace of the Nasrid sultans, surrendered to Ferdinand and Isabella "
             "in 1492 with all the silk trade of Granada.",
         ),
+        "seville": m(
+            name="The Giralda",
+            bonus="ducat_income",
+            per_level=0.03,
+            effect="+3% ducats",
+            level_1500=1,
+            lore="The minaret of the Almohads, now the bell tower of the largest cathedral in "
+            "Christendom, finished in 1506. Below it, the Casa de Contratación will weigh every "
+            "ounce of the gold of the Indies.",
+        ),
         "madrid": m(
             name="El Escorial",
             bonus="building_discount",
@@ -701,6 +711,33 @@ def default_monuments() -> dict[str, MonumentSpec]:
             level_1500=2,
             lore="The Jagiellonian seat on its rock over the Vistula, crowning a kingdom that "
             "stretches to the Black Sea.",
+        ),
+        "buda": m(
+            name="The Corvinian Library",
+            bonus="research_discount",
+            per_level=0.05,
+            effect="research 5% cheaper",
+            level_1500=2,
+            lore="King Matthias Corvinus gathered two thousand illuminated codices in his palace "
+            "on Castle Hill, the greatest library north of the Alps after the Vatican's.",
+        ),
+        "bohemia": m(
+            name="St. Vitus Cathedral",
+            bonus="stability_discount",
+            per_level=0.06,
+            effect="stability 6% cheaper",
+            level_1500=1,
+            lore="Peter Parler's Gothic choir above Prague, left unfinished by the Hussite wars; "
+            "the crown of St. Wenceslas waits in its chapel.",
+        ),
+        "lithuania": m(
+            name="Trakai Island Castle",
+            bonus="fort_bonus_per_level",
+            per_level=0.05,
+            effect="forts +5% stronger",
+            level_1500=1,
+            lore="The red-brick castle of Grand Duke Vytautas on its lake, from which Lithuania "
+            "once ruled from the Baltic to the Black Sea.",
         ),
         "rhineland": m(
             name="Cologne Cathedral",

@@ -170,5 +170,13 @@
  "constantinople": {
   "city": "Constantinople",
   "by": "Braun and Hogenberg"
+ },
+ "seville": {
+  "city": "Seville",
+  "by": "Braun and Hogenberg"
+ },
+ "bohemia": {
+  "city": "Prague",
+  "by": "Braun and Hogenberg"
  }
 }
