@@ -67,6 +67,7 @@
         if (st.turn !== V.turn || st.finished) {
           const before = V; G = await (await api("/game")).json();
           orders = []; picked = -1; afterLoad(); report(before);
+          if (document.hidden) document.title = `⚑ ${V.year}: your turn · Pax Agentica`;
         } else { G.waiting_for = st.waiting_for; G.submitted = st.submitted; G.seconds_left = st.seconds_left; G.force_in = st.force_in;
           if (st.closed && G.table) G.table.closed = st.closed; banner(); }
       } catch {}
@@ -1448,6 +1449,7 @@
   }
 
   $("endturn").onclick = endTurn;
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) document.title = "Pax Agentica"; });
   // A first-year guide, shown once and on demand
   const GUIDE = [
     ["👑 Your realm", "You rule one great power of Europe in 1500. Across the top: what your treasury holds and what it gains a year. The <b>Economy</b> office shows where every ducat comes from and goes, your taxes and your materials."],
