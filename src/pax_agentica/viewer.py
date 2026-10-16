@@ -286,6 +286,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "monumentCost": amounts(rules.monument_cost),
             "maxMonument": rules.max_monument_level,
             "tributeYears": rules.tribute_years,
+            "peaceCostArmyLimit": rules.peace_cost_army_limit,
             "combinedShare": rules.combined_arms_share,
             "combinedBonus": {str(k): v for k, v in rules.combined_arms_bonus.items()},
             "siegeShare": rules.artillery_share_per_fort_level,

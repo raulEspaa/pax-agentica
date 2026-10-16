@@ -107,7 +107,7 @@ function visible(f, k) {
 function world() {
   const f = F[frame], seen = visible(f, seeAs), focus = mode === "diplomacy" ? selected : selected;
   return {
-    mode, owner: f.o, dev: f.v, buildings: f.b,
+    mode, owner: f.o, controller: f.c || [], dev: f.v, buildings: f.b,
     troops: f.t.map((t, i) => (seen && !seen.has(i) ? null : t)),
     alive: f.n.map((s) => s.alive),
     capitals: new Set(f.n.filter((s) => s.alive).map((s) => s.capital)),

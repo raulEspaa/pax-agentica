@@ -60,6 +60,8 @@ const PaxMap = (() => {
       </filter>
       <pattern id="hatchWaste" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
         <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(0,0,0,.22)" stroke-width="1.6"/></pattern>
+      ${N.map((n, k) => `<pattern id="occ${k}" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="4" height="9" fill="${n.color}"/><rect x="4" width="1" height="9" fill="#1a120b" opacity=".35"/></pattern>`).join("")}
       <pattern id="hatchFree" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
         <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(90,66,30,.28)" stroke-width="1"/></pattern>
       <pattern id="t-mountains" width="16" height="13" patternUnits="userSpaceOnUse">
@@ -98,6 +100,8 @@ const PaxMap = (() => {
     const provPaths = P.map((p, i) => { const e = el("path", {d: p.d, class: "prov"}, gLand); e.dataset.i = i; return e; });
     const gFree = el("g", off, svg);
     const freePaths = P.map((p) => el("path", {d: p.d, fill: "url(#hatchFree)"}, gFree));
+    const gOcc = el("g", off, svg); // occupied land: the occupier's colours in stripes over the owner's
+    const occPaths = P.map((p) => el("path", {d: p.d, class: "occupied"}, gOcc));
     const gTerrain = el("g", off, svg);
     P.forEach((p) => { if (p.terrain !== "plains") el("path", {d: p.d, fill: `url(#t-${p.terrain})`}, gTerrain); });
     const gTexture = el("g", {"clip-path": "url(#landclip)", ...off}, svg);
@@ -196,8 +200,8 @@ const PaxMap = (() => {
       if (!world) return;
       const k = px(), close = view.w < maxW() * 0.6;
       P.forEach((p, i) => {
-        const o = world.owner[i];
-        if (world.capitals.has(i) && o >= 0) el("path", {class: "capital", transform: `translate(${p.x} ${p.y - 14 * k}) scale(${1.1 * k})`,
+        const o = (world.controller || [])[i] >= 0 ? world.controller[i] : world.owner[i];
+        if (world.capitals.has(i) && world.owner[i] >= 0) el("path", {class: "capital", transform: `translate(${p.x} ${p.y - 14 * k}) scale(${1.1 * k})`,
           d: "M0-6 1.8-1.9 6.2-1.9 2.7 0.9 4 5.3 0-2.4-4 5.3-2.7 0.9-6.2-1.9-1.8-1.9Z"}, gMarks);
         const troops = world.troops[i], hidden = troops === null;
         if ((troops > 0 || (hidden && close)) && (o >= 0 || close)) {
@@ -240,6 +244,9 @@ const PaxMap = (() => {
       world = next;
       provPaths.forEach((e, i) => { e.style.fill = fillFor(i); });
       freePaths.forEach((e, i) => { e.style.display = world.owner[i] < 0 && world.mode === "political" ? "" : "none"; });
+      occPaths.forEach((e, i) => { const c = (world.controller || [])[i];
+        const show = c >= 0 && (world.mode === "political" || world.mode === "diplomacy");
+        e.style.display = show ? "" : "none"; if (show) e.setAttribute("fill", `url(#occ${c})`); });
       gTerrain.style.opacity = world.mode === "terrain" ? .7 : world.mode === "political" ? .3 : .12;
       const f = world.focus;
       borders.forEach(({a, b, e, g}) => {

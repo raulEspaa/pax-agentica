@@ -63,6 +63,12 @@
   .counsel { display: grid; grid-template-columns: 34px 1fr; gap: 8px; align-items: start; margin: 6px 0; font-size: 13.5px; color: var(--ink-2); }
   .counsel q { font-style: italic; color: var(--ink); }
   .voices { padding-bottom: 0; } .voices q { font-style: italic; }
+  .warbox { margin: 8px 0; padding: 7px 9px; border: 1px solid #9a3a2a; background: rgba(120, 30, 20, .18); }
+  .warbox .row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+  .bar.score { display: block; position: relative; height: 7px; border: 1px solid var(--brass-lo);
+               background: linear-gradient(90deg, #7a2a20, #4a4030 50%, #3a6a3a); }
+  .bar.score b { position: absolute; top: -3px; width: 3px; height: 11px; margin-left: -1px; background: var(--brass-hi); box-shadow: 0 0 0 1px #000; }
+  .sub.warn { color: #f08a7a; }
   .office .lore { font-style: italic; color: var(--ink-3); font-size: 13px; line-height: 1.35; margin: 4px 0; }
   .nrow.court { grid-template-columns: 38px 1fr; }
   .nrow.court small { display: block; }
