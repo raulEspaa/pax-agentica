@@ -216,6 +216,7 @@ class ProposeAlliance(_Action):
 
     type: Literal["propose_alliance"] = "propose_alliance"
     target: NationId
+    note: str = Field(default="", max_length=300)  # a word to go with it
 
 
 class ProposeNonAggression(_Action):
@@ -223,6 +224,29 @@ class ProposeNonAggression(_Action):
 
     type: Literal["propose_non_aggression"] = "propose_non_aggression"
     target: NationId
+    note: str = Field(default="", max_length=300)
+
+
+class ProposeMarriage(_Action):
+    """Offer a royal marriage between the two houses. It lasts until war breaks it: both courts
+    warm to each other by rules.opinion_marriage_yearly every year. At most rules.max_marriages
+    for a realm."""
+
+    type: Literal["propose_marriage"] = "propose_marriage"
+    target: NationId
+    note: str = Field(default="", max_length=300)
+
+
+class ProposeCoalition(_Action):
+    """Invite `target` into a defensive league against `against`, a power whose infamy has
+    reached rules.coalition_infamy. Once signed, if `against` declares war on either of you, the
+    other (and every other court leagued against it) goes to war at once, without being asked.
+    The league dissolves when the conqueror's infamy falls below rules.coalition_dissolves."""
+
+    type: Literal["propose_coalition"] = "propose_coalition"
+    target: NationId
+    against: NationId
+    note: str = Field(default="", max_length=300)
 
 
 Note = Annotated[
@@ -292,6 +316,7 @@ class RequestCallToArms(_Action):
     type: Literal["call_to_arms"] = "call_to_arms"
     target: NationId
     enemy: NationId
+    note: str = Field(default="", max_length=300)
 
 
 class Respond(_Action):
@@ -310,11 +335,12 @@ class Respond(_Action):
 
 
 class CancelTreaty(_Action):
-    """End an alliance or non-aggression pact openly. No stability cost."""
+    """End an alliance, a non-aggression pact, a marriage or every coalition with `target`
+    openly. No stability cost."""
 
     type: Literal["cancel_treaty"] = "cancel_treaty"
     target: NationId
-    kind: Literal["alliance", "non_aggression"]
+    kind: Literal["alliance", "non_aggression", "marriage", "coalition"]
 
 
 class Improve(_Action):
@@ -419,6 +445,8 @@ type Action = Annotated[
     | DeclareWar
     | ProposeAlliance
     | ProposeNonAggression
+    | ProposeMarriage
+    | ProposeCoalition
     | ProposePeace
     | ProposeTrade
     | RequestCallToArms

@@ -43,6 +43,8 @@ from pax_agentica.engine.actions import (
     Patronize,
     Proclaim,
     ProposeAlliance,
+    ProposeCoalition,
+    ProposeMarriage,
     ProposeNonAggression,
     ProposePeace,
     ProposeTrade,
@@ -117,6 +119,32 @@ class GameOverError(Exception):
     """Raised when asked to resolve a turn of a finished game."""
 
 
+# Diplomatic events the courts remember (see GameState.diplomacy).
+DIPLOMATIC = frozenset(
+    {
+        EventKind.MESSAGE,
+        EventKind.PROPOSAL_MADE,
+        EventKind.PROPOSAL_REJECTED,
+        EventKind.PROPOSAL_EXPIRED,
+        EventKind.PROPOSAL_COUNTERED,
+        EventKind.TREATY_SIGNED,
+        EventKind.TREATY_BROKEN,
+        EventKind.TREATY_CANCELLED,
+        EventKind.TREATY_EXPIRED,
+        EventKind.WAR_DECLARED,
+        EventKind.JOINED_WAR,
+        EventKind.CALL_TO_ARMS_IGNORED,
+        EventKind.PEACE_SIGNED,
+        EventKind.GIFT,
+        EventKind.TRADE_COMPLETED,
+        EventKind.TRADE_FAILED,
+        EventKind.PROVINCE_CEDED,
+        EventKind.COALITION_JOINED,
+        EventKind.COALITION_DISSOLVED,
+    }
+)
+
+
 def resolve_turn(state: GameState, orders: Mapping[NationId, Orders]) -> GameState:
     """Resolve one turn. Pure: `state` is not modified; a new state is returned.
 
@@ -171,17 +199,19 @@ class _Resolver:
         extra: Mapping[str, EventValue] | None = None,
         **data: EventValue,
     ) -> None:
-        self.events.append(
-            Event(
-                turn=self.turn,
-                kind=kind,
-                summary=summary,
-                nations=nations,
-                province=province,
-                audience=audience,
-                data={**data, **(extra or {})},
-            )
+        event = Event(
+            turn=self.turn,
+            kind=kind,
+            summary=summary,
+            nations=nations,
+            province=province,
+            audience=audience,
+            data={**data, **(extra or {})},
         )
+        self.events.append(event)
+        if kind in DIPLOMATIC and len(nations) >= 2:  # remembered between the courts
+            self.s.diplomacy.append(event)
+            del self.s.diplomacy[: -self.s.rules.diplomacy_log]
 
     def _reject(self, nation: NationId, action: Action, reason: str) -> None:
         self._emit(
@@ -485,6 +515,31 @@ class _Resolver:
                 self._make_peace(s, r, p)
             case ProposalKind.TRADE:
                 self._trade(p)
+            case ProposalKind.MARRIAGE:
+                error = self._marriage_error(s, r) or self._marriage_error(r, s)
+                if error:
+                    self._expired(p, error)
+                    return
+                self.s.treaties.append(
+                    Treaty(kind=TreatyKind.MARRIAGE, parties=pair(s, r), since=self.turn)
+                )
+                self._opine(s, r, self.s.rules.opinion_treaty["marriage"])
+                self._opine(r, s, self.s.rules.opinion_treaty["marriage"])
+                self._emit(
+                    EventKind.TREATY_SIGNED,
+                    f"The houses of {names} are joined by a royal marriage",
+                    nations=(s, r),
+                    treaty=TreatyKind.MARRIAGE.value,
+                )
+            case ProposalKind.COALITION:
+                against = p.enemy
+                error = (
+                    self._coalition_error(s, r, against) if against else "no one to league against"
+                )
+                if error or against is None:
+                    self._expired(p, error or "no one to league against")
+                    return
+                self._join_coalition(s, r, against)
             case ProposalKind.CALL_TO_ARMS:
                 enemy = p.enemy
                 if enemy is None or not self.s.nations[enemy].alive or not self.s.at_war(s, enemy):
@@ -492,6 +547,106 @@ class _Resolver:
                     return
                 if not self.s.at_war(r, enemy):
                     self._start_war(r, enemy, joined_for=s)
+
+    def _marriage_error(self, nation: NationId, other: NationId) -> str | None:
+        if error := self._target_error(nation, other):
+            return error
+        if self.s.at_war(nation, other):
+            return f"you are at war with {self._name(other)}"
+        if self.s.treaty(nation, other, TreatyKind.MARRIAGE):
+            return "the houses are already joined"
+        if len(self.s.partners(nation, TreatyKind.MARRIAGE)) >= self.s.rules.max_marriages:
+            return f"{self._name(nation)} has no more heirs to marry"
+        return None
+
+    def _coalition_error(self, nation: NationId, other: NationId, against: NationId) -> str | None:
+        if error := self._target_error(nation, other) or self._target_error(nation, against):
+            return error
+        if against in (nation, other):
+            return "a league cannot stand against one of its own members"
+        if self.s.at_war(nation, other):
+            return f"you are at war with {self._name(other)}"
+        infamy = self.s.nations[against].infamy
+        if infamy < self.s.rules.coalition_infamy:
+            return (
+                f"{self._name(against)}'s infamy ({infamy:.0f}) does not frighten Europe yet: "
+                f"a league needs {self.s.rules.coalition_infamy:.0f}"
+            )
+        if any(
+            t.kind == TreatyKind.COALITION
+            and t.against == against
+            and t.parties == pair(nation, other)
+            for t in self.s.treaties
+        ):
+            return f"you are already leagued with {self._name(other)} against {self._name(against)}"
+        return None
+
+    def _join_coalition(self, a: NationId, b: NationId, against: NationId) -> None:
+        self.s.treaties.append(
+            Treaty(kind=TreatyKind.COALITION, parties=pair(a, b), since=self.turn, against=against)
+        )
+        self._opine(a, b, self.s.rules.opinion_coalition)
+        self._opine(b, a, self.s.rules.opinion_coalition)
+        self._opine(against, a, -self.s.rules.opinion_coalition)
+        self._opine(against, b, -self.s.rules.opinion_coalition)
+        self._emit(
+            EventKind.COALITION_JOINED,
+            f"{self._name(a)} and {self._name(b)} league together against {self._name(against)}",
+            nations=(a, b, against),
+            against=against,
+        )
+
+    def league(self, against: NationId) -> set[NationId]:
+        """Every court in a coalition against `against`."""
+        return {
+            n
+            for t in self.s.treaties
+            if t.kind == TreatyKind.COALITION and t.against == against
+            for n in t.parties
+        }
+
+    def _expand(self, taker: NationId, province: ProvinceId) -> None:
+        """Land taken from a minor or by treaty: infamy for the taker, alarm next door."""
+        rules = self.s.rules
+        me = self.s.nations[taker]
+        added = rules.infamy_per_development * self.s.provinces[province].development
+        before = me.infamy
+        me.infamy += added
+        worried = {
+            self.s.provinces[n].owner
+            for n in self.s.map.all_neighbors(province)
+            if self.s.provinces[n].owner not in (None, taker)
+        }
+        for other in sorted(o for o in worried if o is not None):
+            self._opine(other, taker, round(rules.infamy_opinion * added))
+        if before < rules.coalition_infamy <= me.infamy:
+            self._emit(
+                EventKind.INFAMY,
+                f"Europe grows wary of {me.name}: its conquests (infamy {me.infamy:.0f}) may "
+                f"draw a coalition against it",
+                nations=(taker,),
+                infamy=round(me.infamy, 1),
+            )
+
+    def _infamy_fades(self) -> None:
+        rules = self.s.rules
+        for nation in self.s.nations.values():
+            nation.infamy = max(0.0, nation.infamy - rules.infamy_decay)
+        for treaty in [t for t in self.s.treaties if t.kind == TreatyKind.COALITION]:
+            target = treaty.against
+            if target is None:
+                continue
+            gone = not self.s.nations[target].alive
+            if gone or self.s.nations[target].infamy < rules.coalition_dissolves:
+                self.s.treaties.remove(treaty)
+                a, b = treaty.parties
+                self._emit(
+                    EventKind.COALITION_DISSOLVED,
+                    f"The league of {self._name(a)} and {self._name(b)} against "
+                    f"{self._name(target)} dissolves: there is nothing left to fear",
+                    nations=(a, b, target),
+                    against=target,
+                )
 
     def _counter(self, nation: NationId, p: Proposal, a: Respond, t: Terms) -> None:
         """Reject `p` and send its sender our own terms `t` instead."""
@@ -676,6 +831,7 @@ class _Resolver:
                 self._send_home(general, frm, province)
         state.owner = to
         state.controller = None
+        self._expand(to, province)
         state.unrest = self.s.rules.ceded_unrest_turns
         self._opine(frm, to, self.s.rules.opinion_province_taken // 2)
         self._emit(
@@ -757,6 +913,21 @@ class _Resolver:
             f"{self._name(attacker)} declares war on {self._name(defender)}",
             nations=(attacker, defender),
         )
+        if attacker in self.league(defender):  # a member strikes: the others are invited along
+            for member in sorted(self.league(defender) - {attacker}):
+                if self.s.nations[member].alive and not self.s.at_war(member, defender):
+                    self._propose(
+                        ProposalKind.CALL_TO_ARMS,
+                        attacker,
+                        member,
+                        enemy=defender,
+                        note="The league marches. Join us.",
+                    )
+        league = self.league(attacker)
+        if defender in league:  # the coalition answers at once, without being asked
+            for member in sorted(league - {defender}):
+                if self.s.nations[member].alive and not self.s.at_war(member, attacker):
+                    self._start_war(member, attacker, joined_for=defender)
         for ally in self.s.partners(defender, TreatyKind.ALLIANCE):
             if ally != attacker and not self.s.at_war(ally, attacker):
                 self._propose(ProposalKind.CALL_TO_ARMS, defender, ally, enemy=attacker)
@@ -771,7 +942,13 @@ class _Resolver:
                         self._declare_war(nation, action)
                     case CancelTreaty():
                         self._cancel(nation, action)
-                    case ProposeAlliance() | ProposeNonAggression() | ProposePeace():
+                    case (
+                        ProposeAlliance()
+                        | ProposeNonAggression()
+                        | ProposePeace()
+                        | ProposeMarriage()
+                        | ProposeCoalition()
+                    ):
                         self._propose_treaty(nation, action)
                     case ProposeTrade():
                         self._propose_trade(nation, action)
@@ -806,11 +983,13 @@ class _Resolver:
         if error := self._target_error(nation, a.target):
             self._reject(nation, a, error)
             return
-        treaty = self.s.treaty(nation, a.target, TreatyKind(a.kind))
-        if treaty is None:
+        key = pair(nation, a.target)
+        ending = [t for t in self.s.treaties if t.parties == key and t.kind == TreatyKind(a.kind)]
+        if not ending:
             self._reject(nation, a, f"no {a.kind.replace('_', ' ')} with {self._name(a.target)}")
             return
-        self.s.treaties.remove(treaty)
+        for treaty in ending:
+            self.s.treaties.remove(treaty)
         self._emit(
             EventKind.TREATY_CANCELLED,
             f"{self._name(nation)} ends its {a.kind.replace('_', ' ')} with {self._name(a.target)}",
@@ -819,7 +998,13 @@ class _Resolver:
         )
 
     def _propose_treaty(
-        self, nation: NationId, a: ProposeAlliance | ProposeNonAggression | ProposePeace
+        self,
+        nation: NationId,
+        a: ProposeAlliance
+        | ProposeNonAggression
+        | ProposePeace
+        | ProposeMarriage
+        | ProposeCoalition,
     ) -> None:
         if error := self._target_error(nation, a.target):
             self._reject(nation, a, error)
@@ -835,6 +1020,21 @@ class _Resolver:
                 kind = ProposalKind.ALLIANCE
             case ProposeNonAggression():
                 kind = ProposalKind.NON_AGGRESSION
+            case ProposeMarriage():
+                kind = ProposalKind.MARRIAGE
+                if error := self._marriage_error(nation, a.target):
+                    self._reject(nation, a, error)
+                    return
+            case ProposeCoalition():
+                kind = ProposalKind.COALITION
+                if error := self._coalition_error(nation, a.target, a.against):
+                    self._reject(nation, a, error)
+                    return
+                if self._pending(kind, nation, a.target):
+                    self._reject(nation, a, "you already have that proposal pending")
+                    return
+                self._propose(kind, nation, a.target, enemy=a.against, note=a.note)
+                return
         if kind != ProposalKind.PEACE:
             if at_war:
                 self._reject(nation, a, f"you are at war with {self._name(a.target)}")
@@ -856,7 +1056,7 @@ class _Resolver:
                 return
             self._propose(kind, nation, a.target, **_terms(a, kind))
             return
-        self._propose(kind, nation, a.target)
+        self._propose(kind, nation, a.target, note=a.note)
 
     def _request_call(self, nation: NationId, a: RequestCallToArms) -> None:
         error = self._target_error(nation, a.target) or self._target_error(nation, a.enemy)
@@ -871,7 +1071,7 @@ class _Resolver:
         if error:
             self._reject(nation, a, error)
             return
-        self._propose(ProposalKind.CALL_TO_ARMS, nation, a.target, enemy=a.enemy)
+        self._propose(ProposalKind.CALL_TO_ARMS, nation, a.target, enemy=a.enemy, note=a.note)
 
     def _propose_trade(self, nation: NationId, a: ProposeTrade) -> None:
         if error := self._target_error(nation, a.target):
@@ -1760,6 +1960,7 @@ class _Resolver:
         state.owner = nation
         state.set_army(troops)
         state.unrest = self.s.rules.unrest_turns
+        self._expand(nation, province)
         loser = self._name(previous) if previous else "independence"
         if previous is not None:
             self._opine(previous, nation, self.s.rules.opinion_province_taken)
@@ -1872,6 +2073,7 @@ class _Resolver:
             self._produce_and_feed(nation)
         self._pay_tributes()
         self._taxes()
+        self._infamy_fades()
         self._missions()
         self._drift_opinions()
         self._weary()
@@ -2035,6 +2237,13 @@ class _Resolver:
                     same = self.s.nations[a].faith == self.s.nations[b].faith
                     drift = rules.opinion_same_faith if same else rules.opinion_other_faith
                     self._opine(a, b, drift)
+            feared = self.s.nations[a].infamy
+            if feared >= rules.coalition_infamy / 2:  # a conqueror cools every court
+                for other in alive:
+                    if other != a:
+                        self._opine(other, a, -int(feared // 10) - 1)
+            for spouse in self.s.partners(a, TreatyKind.MARRIAGE):
+                self._opine(a, spouse, rules.opinion_marriage_yearly)
             for target, stance in self.s.nations[a].stances.items():
                 if target in alive:  # a declared stance colours both courts
                     self._opine(target, a, rules.opinion_stance.get(stance.value, 0))

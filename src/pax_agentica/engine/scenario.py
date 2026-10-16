@@ -400,6 +400,10 @@ PROVINCE_GARRISON = 2
 # Balance, measured over many bot games: without these the Ottomans walk through the east and
 # France, surrounded, is torn apart.
 EXTRA_GARRISON = {
+    # Portugal of the spice fleets, the Wattasid sultans of Fez and the corsair coast.
+    "lisbon": 4,
+    "morocco": 2,
+    **dict.fromkeys(("algiers", "tunis", "navarre"), 1),
     # The Danube principalities raise real armies.
     **dict.fromkeys(("wallachia", "bosnia"), 3),
     # The marches against Tatar and Turk.

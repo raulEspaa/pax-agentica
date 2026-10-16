@@ -113,6 +113,7 @@ class TreatyView(_View):
     partner: NationId
     until_turn: int | None
     payer: NationId | None = None  # tribute and army limit: the side bound by it
+    against: NationId | None = None  # coalition: the conqueror the league stands against
     amount: int = 0  # tribute: ducats a year; army limit: regiments
 
 
@@ -204,6 +205,7 @@ class MyNation(_View):
     missions: tuple[MissionView, ...]  # your ambitions: done at the end of a year all goals hold
     patronage_cost: int  # ducats for patronize (+rules.patronage_prestige prestige), once a year
     tax: int  # -2 very low ... +2 very high; change it with set_taxes
+    infamy: float  # your conquests' weight on Europe; past rules.coalition_infamy, leagues form
     ledger: tuple[LedgerLine, ...]  # where this year's resources come from and go, line by line
     score: int
     at_war_with: tuple[NationId, ...]
@@ -239,6 +241,9 @@ class NationSummary(_View):
     standing: int
     faith: Faith
     stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
+    infamy: float  # its conquests' weight on Europe; from rules.coalition_infamy, a league may form
+    leagued_against: tuple[NationId, ...]  # the conquerors this court has leagued against
+    correspondence: tuple[Event, ...]  # what last passed between this court and you, oldest first
 
 
 class ProposalView(_View):
@@ -348,6 +353,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             partner=t.parties[1] if t.parties[0] == nation else t.parties[0],
             until_turn=t.until,
             payer=t.payer,
+            against=t.against,
             amount=t.amount,
         )
         for t in state.treaties
@@ -376,6 +382,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         loans=tuple(me.loans),
         missions=_missions(state, nation),
         tax=me.tax,
+        infamy=round(me.infamy, 1),
         ledger=_ledger(state, nation),
         patronage_cost=state.rules.patronage_base
         + state.rules.patronage_per_prestige * me.prestige,
@@ -442,6 +449,17 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             prestige=ns.prestige,
             standing=state.standing(nid),
             faith=ns.faith,
+            infamy=round(ns.infamy, 1),
+            leagued_against=tuple(
+                sorted(
+                    {
+                        t.against
+                        for t in state.treaties
+                        if t.kind == TreatyKind.COALITION and nid in t.parties and t.against
+                    }
+                )
+            ),
+            correspondence=_correspondence(state, nation, nid),
         )
         for nid, ns in state.nations.items()
         if nid != nation
@@ -588,3 +606,17 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
         for line in lines
         if any(line.amount.values())
     )
+
+
+CORRESPONDENCE = 14  # exchanges remembered per court in the view
+
+
+def _correspondence(state: GameState, nation: NationId, other: NationId) -> tuple[Event, ...]:
+    """The last exchanges between two courts that `nation` witnessed: letters, proposals and
+    their answers, treaties, wars, gifts. Oldest first, like a letter book."""
+    between = [
+        e
+        for e in state.diplomacy
+        if nation in e.nations and other in e.nations and e.visible_to(nation)
+    ]
+    return tuple(between[-CORRESPONDENCE:])

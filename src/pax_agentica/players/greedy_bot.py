@@ -35,6 +35,8 @@ from pax_agentica.engine.actions import (
     Patronize,
     Proclaim,
     ProposeAlliance,
+    ProposeCoalition,
+    ProposeMarriage,
     ProposeNonAggression,
     ProposePeace,
     ProposeTrade,
@@ -380,11 +382,25 @@ class _Planner:
                 return value(p.give) >= value(p.receive) and self.budget.covers(p.receive)
             case ProposalKind.CALL_TO_ARMS:
                 return p.enemy in self._border_nations() or self.rng.random() < 0.5
+            case ProposalKind.MARRIAGE:
+                return self.me.opinions.get(p.sender, 0) >= -10 and self.rng.random() < 0.8
+            case ProposalKind.COALITION:
+                target = p.enemy
+                if target is None or target in self.friends:
+                    return False
+                return (
+                    self._fears(target)
+                    or target in self._border_nations()
+                    or self.me.opinions.get(target, 0) <= -20
+                )
+        return False
 
     # ------------------------------------------------------------ 2. war
 
     def _maybe_declare_war(self) -> None:
         if self.enemies or self.v.turn < 3:
+            return
+        if self._strike_with_the_league():
             return
         easy = [c for c in self._targets() if c[3] <= self.troops[c[1]]]
         if easy and self.rng.random() > 0.1:
@@ -901,6 +917,66 @@ class _Planner:
     def _war_value(self, enemy: str) -> float:
         return sum(v for v, _o, t, _n in self._targets() if self.provinces[t].owner == enemy)
 
+    def _strike_with_the_league(self) -> bool:
+        """Leagued against a conqueror next door: strike while it is busy, or when the league
+        together outweighs it."""
+        against = {t.against for t in self.me.treaties if t.kind == TreatyKind.COALITION}
+        for nid in sorted(a for a in against if a and a in self._border_nations()):
+            them = next((n for n in self.v.nations if n.id == nid), None)
+            if them is None or not them.alive:
+                continue
+            members = [n for n in self.v.nations if nid in n.leagued_against and n.alive]
+            weight = self.me.score + sum(n.score for n in members if n.id != self.me.id)
+            busy = bool(them.at_war_with)
+            if (busy or weight >= 1.3 * them.score) and self.rng.random() < 0.35:
+                self.actions.append(DeclareWar(target=nid))
+                self.enemies.add(nid)
+                self.mobilising.add(nid)
+                self.declared = nid
+                self.actions.append(
+                    Proclaim(text=f"The league stands against {them.name}. Its conquests end here.")
+                )
+                return True
+        return False
+
+    def _league(self, pending: set[tuple[ProposalKind, str]], others: list[str]) -> None:
+        """Against a conqueror Europe fears, look for partners among its other neighbours."""
+        rules = self.v.rules
+        feared = [
+            n
+            for n in self.v.nations
+            if n.alive
+            and n.id != self.me.id
+            and n.infamy >= rules.coalition_infamy
+            and n.id not in self.friends
+            and (n.id in self._border_nations() or self._fears(n.id))
+        ]
+        if not feared or self.rng.random() > 0.5:
+            return
+        target = max(feared, key=lambda n: (n.infamy, n.id))
+        leagued = {
+            t.partner
+            for t in self.me.treaties
+            if t.kind == TreatyKind.COALITION and t.against == target.id
+        }
+        near = {
+            p.owner
+            for p in self.v.provinces
+            if p.owner and p.owner not in (target.id, self.me.id)
+            for q in (*p.neighbors, *p.sea_neighbors)
+            if self.provinces[q].owner == target.id
+        }
+        partners = sorted(n for n in others if n in near and n != target.id and n not in leagued)
+        for partner in partners[:2]:
+            if (ProposalKind.COALITION, partner) not in pending:
+                self.actions.append(
+                    ProposeCoalition(
+                        target=partner,
+                        against=target.id,
+                        note=f"{target.name} swallows its neighbours one by one. Stand with us.",
+                    )
+                )
+
     def _diplomacy(self) -> None:
         pending = {(p.kind, p.recipient) for p in self.v.proposals_sent}
         targets = {self.provinces[t].owner for _v, _o, t, _n in self._targets()}
@@ -935,6 +1011,16 @@ class _Planner:
         if offer and (ProposalKind.TRADE, partner) not in pending and self.rng.random() < 0.4:
             give, receive = offer
             self.actions.append(ProposeTrade(target=partner, give=give, receive=receive))
+
+        self._league(pending, others)
+        liked = [n for n in others if self.me.opinions.get(n, 0) >= 10]
+        marriages = sum(t.kind == TreatyKind.MARRIAGE for t in self.me.treaties)
+        if liked and marriages < self.v.rules.max_marriages and self.rng.random() < 0.06:
+            bride = self.rng.choice(liked)
+            if (ProposalKind.MARRIAGE, bride) not in pending and not any(
+                t.kind == TreatyKind.MARRIAGE and t.partner == bride for t in self.me.treaties
+            ):
+                self.actions.append(ProposeMarriage(target=bride))
 
         borders = self._border_nations()
         friendly = self.rng.choice(others)

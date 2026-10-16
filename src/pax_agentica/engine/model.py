@@ -1021,8 +1021,19 @@ class Rules(BaseModel):
     opinion_gift_max: int = 25
     opinion_trade: int = 5
     opinion_treaty: dict[str, int] = Field(
-        default_factory=lambda: {"alliance": 20, "non_aggression": 10, "peace": 5}
+        default_factory=lambda: {"alliance": 20, "non_aggression": 10, "peace": 5, "marriage": 15}
     )
+    opinion_marriage_yearly: int = 2  # both courts warm by this every year of a marriage
+    max_marriages: int = 3
+    # aggressive expansion: each province taken (from a minor, or by treaty) adds this much
+    # infamy per level of its development; neighbours of the land think worse of the taker
+    infamy_per_development: float = 1.0
+    infamy_decay: float = 1.0  # a year
+    infamy_opinion: int = -2  # per point of infamy added, for every court bordering the land
+    coalition_infamy: float = 12.0  # from here, courts may league against the conqueror
+    coalition_dissolves: float = 5.0  # below this, the league has nothing left to fear
+    opinion_coalition: int = 10
+    diplomacy_log: int = 1000  # diplomatic events kept for the courts' memories
     opinion_war_declared: int = -40  # the victim's opinion of the aggressor
     opinion_betrayal: int = -10  # everyone else's opinion of a treaty breaker
     opinion_province_taken: int = -10
@@ -1167,6 +1178,7 @@ class NationState(BaseModel):
     loans: list[Loan] = Field(default_factory=list)
     missions_done: list[str] = Field(default_factory=list)  # see engine/missions.py
     tax: int = Field(default=0, ge=-2, le=2)  # -2 very low ... +2 very high, see Rules.tax_*
+    infamy: float = 0.0  # aggressive expansion: grows with every province taken, fades yearly
 
 
 class PendingEvent(BaseModel):
@@ -1199,6 +1211,8 @@ class TreatyKind(StrEnum):
     TRUCE = "truce"
     TRIBUTE = "tribute"  # a peace term: `payer` pays `amount` ducats a year
     ARMY_LIMIT = "army_limit"  # a peace term: `payer` may not recruit beyond `amount` regiments
+    MARRIAGE = "marriage"  # a royal marriage: the courts warm to each other every year
+    COALITION = "coalition"  # a defensive league against `against`: attack one, fight both
 
 
 class Treaty(BaseModel):
@@ -1207,6 +1221,7 @@ class Treaty(BaseModel):
     since: int
     until: int | None = None  # last turn it is in force; None: until cancelled
     payer: NationId | None = None  # tribute and army limit: the side bound by it
+    against: NationId | None = None  # coalition: the power the league stands against
     amount: int = 0
 
 
@@ -1222,6 +1237,8 @@ class ProposalKind(StrEnum):
     PEACE = "peace"
     TRADE = "trade"
     CALL_TO_ARMS = "call_to_arms"
+    MARRIAGE = "marriage"
+    COALITION = "coalition"  # `enemy`: the power the league would stand against
 
 
 class Proposal(BaseModel):
@@ -1262,6 +1279,9 @@ class GameState(BaseModel):
     market: dict[str, float] = Field(default_factory=dict)  # current prices; empty: the base
     opinions: dict[NationId, dict[NationId, int]] = Field(default_factory=dict)  # a's of b
     last_events: list[Event] = Field(default_factory=list)  # what happened last turn
+    # every diplomatic exchange of the game (letters, proposals, answers, treaties, wars), so
+    # each court can be reminded of what passed between it and the others; the oldest drop off
+    diplomacy: list[Event] = Field(default_factory=list)
     finished: bool = False
     winner: NationId | None = None
 
