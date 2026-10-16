@@ -282,6 +282,47 @@ def siege_levels(rules: Rules, army: Mapping[UnitKind, int]) -> int:
     return math.floor(share / rules.artillery_share_per_fort_level + 1e-9)
 
 
+def siege_walls(
+    state: GameState, nation: NationId, province: ProvinceId, army: Mapping[UnitKind, int]
+) -> int:
+    """Fort levels still standing against this army: what its guns and its nation's
+    technology do not knock off."""
+    ignored = modifiers(state, nation).ignores_fort_levels
+    return max(0, state.provinces[province].fort - ignored - siege_levels(state.rules, army))
+
+
+def siege_modifiers(state: GameState, province: ProvinceId) -> list[tuple[str, int]]:
+    """What is added to the besiegers' die this year, line by line."""
+    rules = state.rules
+    p = state.provinces[province]
+    if p.siege_by is None:
+        return []
+    army = p.siege_army()
+    walls = siege_walls(state, p.siege_by, province, army)
+    out = [("walls", -walls)]
+    if army[UnitKind.ARTILLERY]:
+        out.append(("cannon", 1))
+    if p.siege_years:
+        out.append(("the garrison starves", p.siege_years))
+    if sum(army.values()) < rules.siege_ring_per_wall * walls:
+        out.append(("too few to close the ring", -2))
+    if p.owner is not None:
+        if modifiers(state, p.owner).fort_bonus_per_level >= rules.fort_bonus_per_level + 0.1:
+            out.append(("star forts", -1))
+        if state.nations[p.owner].capital == province:
+            out.append(("a capital's defenders", -1))
+    return [(label, value) for label, value in out if value]
+
+
+def siege_result(rules: Rules, score: int) -> tuple[int, str]:
+    """The progress a siege score buys, and what it is called."""
+    gain, name = rules.siege_results[0][1:]
+    for least, progress, called in rules.siege_results:
+        if score >= least:
+            gain, name = progress, called
+    return gain, name
+
+
 def battle_factor(state: GameState, nation: NationId | None, general_skill: int = 0) -> float:
     """How much harder an army fights thanks to its nation's military technology and its
     general. Independent levies have neither."""
@@ -308,6 +349,9 @@ def army_of(state: GameState, nation: NationId) -> dict[UnitKind, int]:
     for p in state.provinces.values():
         if p.holder == nation:
             for kind, n in p.army().items():
+                total[kind] += n
+        if p.siege_by == nation:
+            for kind, n in p.siege_army().items():
                 total[kind] += n
     return total
 

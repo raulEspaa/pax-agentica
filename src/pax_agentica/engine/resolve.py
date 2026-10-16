@@ -39,6 +39,7 @@ from pax_agentica.engine.actions import (
     HireGeneral,
     HireMercenaries,
     Improve,
+    LiftSiege,
     Move,
     Orders,
     Patronize,
@@ -62,6 +63,7 @@ from pax_agentica.engine.actions import (
 )
 from pax_agentica.engine.events import Event, EventKind, EventValue
 from pax_agentica.engine.mechanics import (
+    BattleResult,
     army_of,
     army_strength,
     army_upkeep,
@@ -81,6 +83,9 @@ from pax_agentica.engine.mechanics import (
     recruit_cost,
     research_cost,
     siege_levels,
+    siege_modifiers,
+    siege_result,
+    siege_walls,
     stability_cost,
     war_score,
 )
@@ -172,7 +177,6 @@ class _Resolver:
         self.order = list(alive)
         self.rng.shuffle(self.order)
         self.researched: set[NationId] = set()
-        self.besieged: set[ProvinceId] = set()  # sieges pressed this year
         self.flow: dict[str, int] = dict.fromkeys(TRADED, 0)  # net market purchases this year
         self.fallen: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)
         self.mercenaries: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)  # hired this year
@@ -269,6 +273,8 @@ class _Resolver:
             return f"you do not own {self._pname(province)}"
         if p.controller:
             return f"{self._pname(province)} is occupied by {self._name(p.controller)}"
+        if p.siege_by:
+            return f"{self._pname(province)} is besieged by {self._name(p.siege_by)}"
         return None
 
     def _hold_error(self, me: NationId, province: ProvinceId) -> str | None:
@@ -840,7 +846,6 @@ class _Resolver:
                     self._send_home(general, p.controller, pid)
                 p.set_army({})
                 p.controller = None
-                p.siege_by, p.siege_years = None, 0
 
     def _send_home(self, general: General, nation: NationId, leaving: ProvinceId) -> None:
         free = [x for x in self.s.held_by(nation) if x != leaving and not self.s.general_in(x)]
@@ -1792,8 +1797,20 @@ class _Resolver:
 
     def _movement(self) -> None:
         for nation in self.order:
+            for lift in self._actions(nation, LiftSiege):
+                p = self.s.provinces.get(lift.province)
+                if p is None or p.siege_by != nation:
+                    self._reject(nation, lift, "you are not besieging it")
+                else:
+                    self._lift(lift.province, "by order")
+        for nation in self.order:
             for a in self._actions(nation, Move):
                 error = self._hold_error(nation, a.origin) or self._hold_error(nation, a.target)
+                if not error and (by := self.s.provinces[a.target].siege_by):
+                    error = (
+                        f"{self._pname(a.target)} is besieged by {self._name(by)}: attack the "
+                        "siege lines to relieve it"
+                    )
                 if not error and not self.s.map.adjacent(a.origin, a.target):
                     error = f"{self._pname(a.origin)} and {self._pname(a.target)} do not border"
                 if not error:
@@ -1858,6 +1875,12 @@ class _Resolver:
             )
             return
         origin, target = self.s.provinces[a.origin], self.s.provinces[a.target]
+        if target.siege_by == nation:
+            self._reinforce(nation, a)
+            return
+        if target.siege_by is not None:
+            self._relieve(nation, a)
+            return
         defender = target.holder
         if defender == nation:
             self._reject(nation, a, f"{self._pname(a.target)} is already yours")
@@ -1922,19 +1945,23 @@ class _Resolver:
             attack_quality=army_strength(rules, force, ground, attacking=True) / committed,
             defence_quality=army_strength(rules, held, ground, attacking=False) / target.troops,
         )
-        verdict = "wins" if result.attacker_won else "is repulsed"
-        self._emit(
-            EventKind.BATTLE,
-            f"Battle of {self._pname(a.target)}: {attacker_name} ({committed}) attacks "
-            f"{defender_name} ({target.troops}) from {self._pname(a.origin)} and {verdict}; "
-            f"losses {result.attacker_losses} to {result.defender_losses}",
-            nations=(nation, defender) if defender else (nation,),
-            province=a.target,
-            attacker_regiments=committed,
-            defender_regiments=target.troops,
-            attacker_losses=result.attacker_losses,
-            defender_losses=result.defender_losses,
-            attacker_won=result.attacker_won,
+        then = (
+            ("the walls still stand: a siege begins" if walls else "the province is taken")
+            if result.attacker_won
+            else "the attack is thrown back"
+        )
+        self._battle_event(
+            a,
+            nation,
+            defender,
+            attacker_name,
+            defender_name,
+            committed,
+            target.troops,
+            result,
+            then,
+            defender_army=held,
+            attacker_army=force,
         )
         self._battle_counts(nation, defender, won=result.attacker_won)
         if result.attacker_won:
@@ -1949,10 +1976,8 @@ class _Resolver:
             target.take(result.defender_losses)
 
     def _walls(self, nation: NationId, province: ProvinceId, force: dict[UnitKind, int]) -> int:
-        """Fort levels still standing against this army: each holds out a year of siege."""
-        target = self.s.provinces[province]
-        ignored = modifiers(self.s, nation).ignores_fort_levels
-        return max(0, target.fort - ignored - siege_levels(self.s.rules, force))
+        """Fort levels still standing against this army: they must be besieged."""
+        return siege_walls(self.s, nation, province, force)
 
     def _siege(
         self,
@@ -1962,25 +1987,267 @@ class _Resolver:
         general: General | None,
         walls: int,
     ) -> None:
+        """The garrison is gone but walls stand: the army digs in before them. Its general
+        stays behind at `a.origin`."""
+        del general
         target = self.s.provinces[a.target]
-        target.siege_years = target.siege_years + 1 if target.siege_by == nation else 1
-        target.siege_by = nation
-        self.besieged.add(a.target)
-        if target.siege_years > walls:  # each level of wall holds out a year
-            target.siege_by, target.siege_years = None, 0
-            self._capture(nation, a.target, force, general, origin=a.origin)
-            return
-        self.s.provinces[a.origin].add(force)  # the besiegers camp at home for the winter
+        target.end_siege()
+        target.siege_by, target.siege_from = nation, a.origin
+        target.besiegers = {k: n for k, n in force.items() if n}
+        regiments = sum(force.values())
         self._emit(
             EventKind.SIEGE,
-            f"The walls of {self._pname(a.target)} hold against {self._name(nation)}: "
-            f"they fall at the next assault after {walls} year{'s' if walls > 1 else ''} of siege "
-            f"({target.siege_years} so far)",
+            f"{self._name(nation)} lays siege to {self._pname(a.target)}: {regiments} regiments "
+            f"dig in before {walls} level{'s' if walls > 1 else ''} of walls",
             nations=(nation, target.holder) if target.holder else (nation,),
             province=a.target,
-            years=target.siege_years,
+            started=True,
             walls=walls,
+            regiments=regiments,
+            progress=0,
         )
+
+    def _reinforce(self, nation: NationId, a: Attack) -> None:
+        """More regiments for one's own siege lines; with guns enough, they storm at once."""
+        target = self.s.provinces[a.target]
+        holder = target.holder
+        if holder is not None and not self.s.at_war(nation, holder):
+            self._reject(nation, a, f"you are no longer at war with {self._name(holder)}")
+            return
+        if error := self._composition_error(a.origin, a.regiments, a.units):
+            self._reject(nation, a, error)
+            return
+        force = self.s.provinces[a.origin].take(a.regiments, a.units)
+        lines = target.siege_army()
+        merged = {k: lines[k] + force[k] for k in UnitKind}
+        target.besiegers = {k: n for k, n in merged.items() if n}
+        if self._walls(nation, a.target, merged) == 0:  # enough guns now: storm the breach
+            army = target.end_siege()
+            self._capture(nation, a.target, army, origin=a.origin)
+            return
+        self._emit(
+            EventKind.SIEGE,
+            f"{self._name(nation)} sends {sum(force.values())} more regiments to the siege of "
+            f"{self._pname(a.target)} ({sum(merged.values())} in the lines)",
+            nations=(nation, holder) if holder else (nation,),
+            province=a.target,
+            regiments=sum(merged.values()),
+            progress=target.siege_progress,
+        )
+
+    def _relieve(self, nation: NationId, a: Attack) -> None:
+        """An army marches on the siege lines before a friendly town."""
+        target = self.s.provinces[a.target]
+        besieger = target.siege_by
+        assert besieger is not None  # noqa: S101 (the caller checked)
+        if not self.s.at_war(nation, besieger):
+            self._reject(
+                nation, a, f"{self._name(besieger)} besieges {self._pname(a.target)} already"
+            )
+            return
+        if self.s.provinces[a.origin].troops == 0:
+            self._reject(nation, a, f"no regiments left in {self._pname(a.origin)}")
+            return
+        if error := self._composition_error(a.origin, a.regiments, a.units):
+            self._reject(nation, a, error)
+            return
+        general, error = self._leader(nation, a)
+        if error:
+            self._reject(nation, a, error)
+            return
+        origin = self.s.provinces[a.origin]
+        force = origin.take(min(a.regiments, origin.troops), a.units)
+        committed = sum(force.values())
+        lines = target.siege_army()
+        dug_in = sum(lines.values())
+        rules = self.s.rules
+        ground = self.s.map.provinces[a.target].terrain
+        result = fight(
+            rules,
+            committed,
+            dug_in,
+            rules.defender_advantage * rules.terrain_defense[ground],
+            self.rng,
+            attack_factor=battle_factor(self.s, nation, general.skill if general else 0)
+            * self._rivalry(nation, besieger),
+            defence_factor=battle_factor(self.s, besieger) * self._rivalry(besieger, nation),
+            attack_quality=army_strength(rules, force, ground, attacking=True) / committed,
+            defence_quality=army_strength(rules, lines, ground, attacking=False) / dug_in,
+        )
+        name = self._name(nation) + (f" under {general.name}" if general else "")
+        then = "the siege is broken" if result.attacker_won else "the siege goes on"
+        self._battle_event(
+            a,
+            nation,
+            besieger,
+            name,
+            f"{self._name(besieger)}'s siege lines",
+            committed,
+            dug_in,
+            result,
+            then,
+            defender_army=lines,
+            attacker_army=force,
+        )
+        self._battle_counts(nation, besieger, won=result.attacker_won)
+        if result.attacker_won:
+            target.besiegers = {}  # beaten: the lines are destroyed
+            self._lift(a.target, f"{self._name(nation)} breaks the siege lines")
+            fallen = share(force, result.attacker_losses)
+            survivors = {k: force[k] - fallen[k] for k in UnitKind}
+            if target.holder == nation:  # into the town they saved
+                target.add(survivors)
+                if general is not None and self.s.general_in(a.target) is None:
+                    general.province = a.target
+            else:
+                origin.add(survivors)
+        else:
+            beaten = share(lines, result.defender_losses)
+            target.besiegers = {k: lines[k] - beaten[k] for k in UnitKind if lines[k] - beaten[k]}
+
+    def _battle_event(
+        self,
+        a: Attack,
+        nation: NationId,
+        defender: NationId | None,
+        attacker_name: str,
+        defender_name: str,
+        committed: int,
+        defending: int,
+        result: BattleResult,
+        then: str,
+        *,
+        defender_army: Mapping[UnitKind, int],
+        attacker_army: Mapping[UnitKind, int],
+    ) -> None:
+        winner = attacker_name if result.attacker_won else defender_name
+
+        def kinds(army: Mapping[UnitKind, int]) -> str:
+            return ", ".join(f"{n} {k.value}" for k, n in army.items() if n)
+
+        self._emit(
+            EventKind.BATTLE,
+            f"Battle of {self._pname(a.target)}: {attacker_name}, {committed} regiments from "
+            f"{self._pname(a.origin)}, against {defender_name}, {defending}. {winner} wins. "
+            f"Lost: {result.attacker_losses} to {result.defender_losses}; {then}",
+            nations=(nation, defender) if defender else (nation,),
+            province=a.target,
+            attacker=nation,
+            defender=defender or "",
+            attacker_name=attacker_name,
+            defender_name=defender_name,
+            origin=a.origin,
+            attacker_regiments=committed,
+            defender_regiments=defending,
+            attacker_army=kinds(attacker_army),
+            defender_army=kinds(defender_army),
+            attacker_losses=result.attacker_losses,
+            defender_losses=result.defender_losses,
+            attacker_power=round(result.attacker_power, 1),
+            defender_power=round(result.defender_power, 1),
+            attacker_won=result.attacker_won,
+            then=then,
+        )
+
+    def _camp(
+        self, nation: NationId, preferred: ProvinceId | None, near: ProvinceId
+    ) -> ProvinceId | None:
+        """Where a lifted siege's army goes: whence it came, else next door, else home."""
+        held = set(self.s.held_by(nation))
+        if preferred in held:
+            return preferred
+        for p in sorted(self.s.map.all_neighbors(near)):
+            if p in held:
+                return p
+        capital = self.s.nations[nation].capital
+        if capital in held:
+            return capital
+        return min(held) if held else None
+
+    def _lift(self, province: ProvinceId, why: str) -> None:
+        """End a siege; its army, if any is left, marches back."""
+        p = self.s.provinces[province]
+        besieger = p.siege_by
+        if besieger is None:
+            return
+        came = p.siege_from
+        army = p.end_siege()
+        regiments = sum(army.values())
+        home = self._camp(besieger, came, province) if regiments else None
+        if home is not None:
+            self.s.provinces[home].add(army)
+        back = f": {regiments} regiments march back to {self._pname(home)}" if home else ""
+        self._emit(
+            EventKind.SIEGE,
+            f"The siege of {self._pname(province)} by {self._name(besieger)} is lifted "
+            f"({why}){back}",
+            nations=(besieger, p.holder) if p.holder else (besieger,),
+            province=province,
+            lifted=True,
+            regiments=regiments,
+        )
+
+    def _sieges(self) -> None:
+        """Every siege rolls its year: a die, the modifiers, and the progress they buy."""
+        rules = self.s.rules
+        for pid in sorted(self.s.provinces):
+            p = self.s.provinces[pid]
+            besieger = p.siege_by
+            if besieger is None:
+                continue
+            if not self.s.nations[besieger].alive:
+                p.end_siege()
+                continue
+            if p.holder == besieger:  # it changed hands by treaty: the lines move in
+                p.add(p.end_siege())
+                continue
+            if p.holder is not None and not self.s.at_war(besieger, p.holder):
+                self._lift(pid, "the war is over")
+                continue
+            army = p.siege_army()
+            regiments = sum(army.values())
+            if regiments == 0:
+                p.end_siege()
+                continue
+            if self._walls(besieger, pid, army) == 0:
+                self._capture(besieger, pid, p.end_siege(), origin=p.siege_from)
+                continue
+            mods = siege_modifiers(self.s, pid)
+            die = self.rng.randint(1, 6)
+            score = die + sum(v for _, v in mods)
+            gain, result = siege_result(rules, score)
+            p.siege_years += 1
+            lost = 0
+            if gain == rules.siege_results[0][1]:  # the worst roll: disease
+                lost = max(1, round(regiments * rules.siege_disease))
+                gone = share(army, lost)
+                army = {k: army[k] - gone[k] for k in UnitKind}
+                p.besiegers = {k: n for k, n in army.items() if n}
+            p.siege_progress = min(100, p.siege_progress + gain)
+            sums = "".join(f" {'+' if v > 0 else '-'}{abs(v)} {label}" for label, v in mods)
+            self._emit(
+                EventKind.SIEGE,
+                f"Siege of {self._pname(pid)} by {self._name(besieger)}, year {p.siege_years}: "
+                f"rolled {die}{sums} = {score}: {result} (+{gain}%)"
+                + (f", {lost} regiments dead of it" if lost else "")
+                + f". {p.siege_progress}% done",
+                nations=(besieger, p.holder) if p.holder else (besieger,),
+                province=pid,
+                die=die,
+                score=score,
+                result=result,
+                gain=gain,
+                progress=p.siege_progress,
+                modifiers="; ".join(f"{label} {v:+d}" for label, v in mods),
+                lost=lost,
+                regiments=sum(army.values()),
+            )
+            left = sum(army.values())
+            if p.siege_progress >= 100 and left > 0:
+                came = p.siege_from
+                self._capture(besieger, pid, p.end_siege(), origin=came)
+            elif left == 0:
+                p.end_siege()
 
     def _battle_counts(self, attacker: NationId, defender: NationId | None, *, won: bool) -> None:
         """Battles between great powers feed the war score and the loser's exhaustion."""
@@ -2026,7 +2293,8 @@ class _Resolver:
         beaten = self.s.general_in(province)
         if beaten is not None and beaten.nation != nation:
             self._general_falls(beaten, province)
-        state.siege_by, state.siege_years = None, 0
+        if state.siege_by is not None:
+            self._lift(province, "the town has fallen")
         if previous is not None and (previous == nation or not self.s.at_war(nation, previous)):
             self._liberate(nation, province, troops, general, origin)
             return
@@ -2133,8 +2401,8 @@ class _Resolver:
             if p.controller == nation:  # its occupying armies melt away
                 p.controller = None
                 p.set_army({})
-            if p.siege_by == nation:
-                p.siege_by, p.siege_years = None, 0
+            if p.siege_by == nation:  # and its siege lines
+                p.end_siege()
         self.s.wars = [w for w in self.s.wars if nation not in w.parties]
         self.s.treaties = [t for t in self.s.treaties if nation not in t.parties]
         self.s.proposals = [
@@ -2160,9 +2428,7 @@ class _Resolver:
         self._weary()
         self._fortune()
         self._move_prices()
-        for pid, p in self.s.provinces.items():  # a siege not pressed this year is lifted
-            if p.siege_by and pid not in self.besieged:
-                p.siege_by, p.siege_years = None, 0
+        self._sieges()
         for province in self.s.provinces.values():
             settles = 2 if BuildingKind.CATHEDRAL in province.buildings else 1
             province.unrest = max(0, province.unrest - settles)

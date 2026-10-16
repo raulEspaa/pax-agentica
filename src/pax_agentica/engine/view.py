@@ -35,6 +35,7 @@ from pax_agentica.engine.mechanics import (
     province_output,
     recruit_cost,
     research_cost,
+    siege_modifiers,
     war_score,
     workings_yield,
 )
@@ -83,7 +84,11 @@ class ProvinceView(_View):
     owner: NationId | None  # None: independent
     controller: NationId | None  # an enemy occupying it in a war (it yields nothing meanwhile)
     siege_by: NationId | None  # who besieges its walls
-    siege_years: int  # years of siege won against it so far
+    siege_years: int  # years the siege has lasted
+    siege_progress: int  # 0 to 100: at 100 the walls fall
+    besiegers: int | None  # regiments in the siege lines (None: hidden by the fog of war)
+    # what is added to the besiegers' die next year (1 to 6), line by line; see rules.siege_results
+    siege_modifiers: tuple[tuple[str, int], ...]
     terrain: Terrain
     good: Good
     development: int
@@ -308,6 +313,9 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             controller=ps.controller,
             siege_by=ps.siege_by,
             siege_years=ps.siege_years,
+            siege_progress=ps.siege_progress,
+            besiegers=sum(ps.besiegers.values()) if pid in seen or ps.siege_by == nation else None,
+            siege_modifiers=tuple(siege_modifiers(state, pid)),
             terrain=definition.terrain,
             good=definition.good,
             development=ps.development,

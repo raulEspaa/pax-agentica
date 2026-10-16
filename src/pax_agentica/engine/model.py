@@ -960,6 +960,17 @@ class Rules(BaseModel):
         default_factory=lambda: {3: 0.1, 4: 0.15}  # kinds present -> battle power
     )
     artillery_share_per_fort_level: float = 0.1  # this share of guns ignores one fort level
+    # sieges: each year the besiegers roll a die, add the modifiers, and the score buys progress
+    # (lowest score first: from this score on, this much progress, so called)
+    siege_results: tuple[tuple[int, int, str], ...] = (
+        (-99, 10, "disease in the camp"),
+        (1, 30, "the walls hold"),
+        (2, 45, "the trenches creep closer"),
+        (4, 65, "hunger in the town"),
+        (6, 100, "a breach in the walls"),
+    )
+    siege_disease: float = 0.1  # share of the besiegers disease carries off on the worst roll
+    siege_ring_per_wall: int = 5  # regiments a level of wall needs to close the ring around it
 
     # monuments: raising one to level n costs n times these
     monuments: dict[str, MonumentSpec] = Field(default_factory=default_monuments)
@@ -1111,7 +1122,11 @@ class ProvinceState(BaseModel):
     idle: list[BuildingKind] = Field(default_factory=list)  # buildings whose inputs went unpaid
     workings: NonNegativeInt = 0  # level of its mine, vineyard, fishery... (0 to 3)
     siege_by: NationId | None = None  # who besieges its walls
-    siege_years: NonNegativeInt = 0  # years of siege won so far
+    siege_years: NonNegativeInt = 0  # years the siege has lasted
+    siege_progress: NonNegativeInt = 0  # 0 to 100: at 100 the walls fall
+    # the besieging army, camped in the siege lines: regiments by kind
+    besiegers: dict[UnitKind, NonNegativeInt] = Field(default_factory=dict)
+    siege_from: ProvinceId | None = None  # where the besiegers came from, and go back to
     faith: Faith | None = None  # what its people believe; set for every province by the scenario
 
     @property
@@ -1133,6 +1148,17 @@ class ProvinceState(BaseModel):
             left -= out[kind]
         out[UnitKind.INFANTRY] = left
         return out
+
+    def siege_army(self) -> dict[UnitKind, int]:
+        """The besiegers by kind, every kind listed."""
+        return {k: self.besiegers.get(k, 0) for k in UnitKind}
+
+    def end_siege(self) -> dict[UnitKind, int]:
+        """Clear the siege; returns the besiegers, for the caller to send somewhere."""
+        army = self.siege_army()
+        self.siege_by, self.siege_years, self.siege_progress = None, 0, 0
+        self.besiegers, self.siege_from = {}, None
+        return army
 
     def set_army(self, army: dict[UnitKind, int]) -> None:
         self.troops = sum(army.values())
@@ -1337,8 +1363,12 @@ class GameState(BaseModel):
         return self.score(nation) + int(prestige)
 
     def troops_of(self, nation: NationId) -> int:
-        """Every regiment of a nation, in its own provinces and in those it occupies."""
-        return sum(s.troops for s in self.provinces.values() if s.holder == nation)
+        """Every regiment of a nation, in its own provinces, in those it occupies and in its
+        siege lines."""
+        held = sum(s.troops for s in self.provinces.values() if s.holder == nation)
+        return held + sum(
+            sum(s.besiegers.values()) for s in self.provinces.values() if s.siege_by == nation
+        )
 
     def held_by(self, nation: NationId) -> list[ProvinceId]:
         """Provinces a nation holds: its own not occupied by an enemy, and those it occupies."""

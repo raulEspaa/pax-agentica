@@ -182,7 +182,11 @@ class Move(_Action):
 class Attack(_Action):
     """Attack an adjacent province owned by a nation you are at war with, or an independent one.
 
-    If you win, your surviving regiments take the province.
+    If you win, your surviving regiments take the province. Behind walls they lay a siege
+    instead: they camp before the walls, which fall once the siege reaches 100% (see
+    `siege_modifiers` on the province). Attacking a province you besiege sends reinforcements
+    to the siege lines; attacking a province of yours (or an ally's) under siege fights the
+    besiegers to relieve it.
     """
 
     type: Literal["attack"] = "attack"
@@ -198,6 +202,13 @@ class Attack(_Action):
         "out to send a proportional mix. Cavalry charges best on plains; every tenth of the "
         "army in artillery knocks a fort level off.",
     )
+
+
+class LiftSiege(_Action):
+    """Raise a siege you lay: the besiegers march back to one of your provinces next to it."""
+
+    type: Literal["lift_siege"] = "lift_siege"
+    province: ProvinceId
 
 
 # ---------------------------------------------------------------- diplomacy
@@ -453,6 +464,7 @@ type Action = Annotated[
     | DismissAdvisor
     | Move
     | Attack
+    | LiftSiege
     | DeclareWar
     | ProposeAlliance
     | ProposeNonAggression

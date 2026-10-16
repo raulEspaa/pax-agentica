@@ -188,9 +188,15 @@ class _Planner:
 
     def _needed(self, origin: ProvinceId, target: ProvinceView) -> int:
         defenders = target.troops or 0
-        if defenders == 0:
-            return 1
+        if defenders == 0:  # behind walls, enough men to close the ring
+            return max(1, self.v.rules.siege_ring_per_wall * target.fort)
         return math.floor(defenders * self._defense(origin, target) * self.margin) + 1
+
+    def _relief_needed(self, target: ProvinceView) -> int:
+        rules = self.v.rules
+        lines = target.besiegers or 0
+        ground = rules.defender_advantage * rules.terrain_defense[target.terrain]
+        return math.floor(lines * ground * self.margin) + 1
 
     def _targets(self) -> list[tuple[float, ProvinceId, ProvinceId, int]]:
         """(value, origin, target, regiments needed) for every province we could attack."""
@@ -199,6 +205,13 @@ class _Planner:
             for t in self._neighbors(origin):
                 target = self.provinces[t]
                 holder = target.controller or target.owner
+                if target.siege_by == self.me.id:
+                    continue  # our lines are already there
+                if target.siege_by is not None:
+                    if holder == self.me.id and target.siege_by in self.enemies:
+                        need = self._relief_needed(target)  # break the enemy's siege
+                        found.append((target.development * 3 / need, origin, t, need))
+                    continue
                 if holder == self.me.id:
                     continue
                 ours = target.owner == self.me.id  # occupied by the enemy: win it back first
@@ -582,7 +595,9 @@ class _Planner:
             spare = self.troops[origin] - self._reserve(origin)
             if spare < need:
                 continue
-            send = spare if (self.provinces[target].troops or 0) else min(spare, 2)
+            seen = self.provinces[target]
+            fighting = (seen.troops or 0) or seen.siege_by is not None
+            send = spare if fighting else min(spare, max(2, need + 2))
             leader = self.leaders.pop(origin, None)
             self.actions.append(
                 Attack(origin=origin, target=target, regiments=send, general=leader)

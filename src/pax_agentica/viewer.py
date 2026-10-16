@@ -339,6 +339,9 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "combinedShare": rules.combined_arms_share,
             "combinedBonus": {str(k): v for k, v in rules.combined_arms_bonus.items()},
             "siegeShare": rules.artillery_share_per_fort_level,
+            "siegeResults": [list(r) for r in rules.siege_results],
+            "siegeDisease": rules.siege_disease,
+            "siegeRing": rules.siege_ring_per_wall,
         },
     }
 

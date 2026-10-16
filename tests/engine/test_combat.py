@@ -144,19 +144,12 @@ def test_a_peace_that_takes_the_last_province_ends_a_nation(state: GameState, pl
     assert EventKind.NATION_ELIMINATED in [e.kind for e in new.last_events]
 
 
-def test_walls_hold_a_year_unless_guns_breach_them(state: GameState, play: Play) -> None:
+def test_guns_enough_breach_walls_at_the_first_assault(state: GameState, play: Play) -> None:
     war = at_war(state, "france", "austria", play)  # Vienna has a fort
-    war.provinces["bavaria"].owner, war.provinces["bavaria"].troops = "france", 60
+    war.provinces["bavaria"].owner = "france"
+    war.provinces["bavaria"].set_army({UnitKind.INFANTRY: 50, UnitKind.ARTILLERY: 10})
     war.provinces["vienna"].troops = 1
-    first = play(war, france=[Attack(origin="bavaria", target="vienna", regiments=60)])
-    assert first.provinces["vienna"].holder == "austria"
-    assert first.provinces["vienna"].siege_years == 1
-    assert EventKind.SIEGE in [e.kind for e in first.last_events]
-    second = play(first, france=[Attack(origin="bavaria", target="vienna", regiments=50)])
-    assert second.provinces["vienna"].controller == "france"
-    gunned = war.model_copy(deep=True)
-    gunned.provinces["bavaria"].set_army({UnitKind.INFANTRY: 50, UnitKind.ARTILLERY: 10})
-    breached = play(gunned, france=[Attack(origin="bavaria", target="vienna", regiments=60)])
+    breached = play(war, france=[Attack(origin="bavaria", target="vienna", regiments=60)])
     assert breached.provinces["vienna"].controller == "france"  # a sixth of guns: no siege
 
 

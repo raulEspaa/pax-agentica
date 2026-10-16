@@ -39,7 +39,8 @@ world; then the engine resolves every order in fixed phases
 
 1. **Answers** to last turn's proposals. Unanswered proposals expire.
 2. **Diplomacy**: declarations of war, cancelled treaties, new proposals, gifts, messages.
-3. **Economy**: recruiting, development, buildings, stability.
+3. **Economy**: recruiting, development, buildings, stability. Regiments raised now can march
+   and attack this same year.
 4. **Movement** between your own provinces.
 5. **Battles**, taking one attack from each nation in turn.
 6. **End of turn**: income arrives, the council is paid, armies eat, rulers age (and may die),
@@ -314,10 +315,34 @@ technology, milestones, ruler and council.
   march on from there, but the province still belongs to its owner, who gets nothing from it
   meanwhile. Only a peace transfers it; at peace, whatever is still occupied goes back, and its
   garrison goes home. An owner (or an ally) who beats the occupier frees the province.
-- **Walls hold out.** A fort or citadel stands a year of siege per level: the attacker must win
-  that many years running before the next assault takes the province. A siege not pressed for a
-  year is lifted. Every tenth of the attacking army in artillery knocks one level off, and so
-  does Field Artillery.
+- **Walls must be besieged.** Every tenth of the attacking army in artillery knocks one fort
+  level off, and so does Field Artillery; enough guns storm the walls at once. Otherwise, once
+  the garrison is beaten (or if there was none), the army **digs in before the walls**: it stays
+  in the siege lines, still paid and fed, and its general stays home. At the end of every year
+  the siege rolls a die (1 to 6) and adds:
+
+  | Modifier | |
+  |---|---|
+  | each fort level still standing | −1 |
+  | cannon among the besiegers | +1 |
+  | each year the siege has lasted (the garrison starves) | +1 |
+  | fewer than 5 regiments per level of wall: the ring is not closed | −2 |
+  | the defender has Star Forts | −1 |
+  | a capital | −1 |
+
+  | Score | Result | Progress |
+  |---|---|---|
+  | 0 or less | disease in the camp: a tenth of the besiegers die | +10% |
+  | 1 | the walls hold | +30% |
+  | 2 to 3 | the trenches creep closer | +45% |
+  | 4 to 5 | hunger in the town | +65% |
+  | 6 or more | a breach in the walls | +100% |
+
+  At 100% the town falls to the besiegers (taken, occupied or freed, as an assault would).
+  Attacking a province you besiege sends reinforcements to the lines; `lift_siege` marches them
+  back next door. The defender (or an ally at war with the besieger) breaks the siege by
+  attacking the lines: a battle on open ground, without the walls. A besieged town cannot be
+  marched into, nor raise levies or build. A peace lifts the siege.
 - **An occupied capital** costs its owner 1 stability. A capital only changes hands in a peace,
   and only to the side that occupies it; a nation that loses its last province is gone.
 
