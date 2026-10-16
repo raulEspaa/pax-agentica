@@ -199,6 +199,13 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             lines.append(f"marshal {advisor.name}: +{bonus:.0%} battle power")
 
     research += trait_research
+    if me.prestige:
+        ducats += rules.prestige_income_bonus * me.prestige
+        stability = min(0.8, stability + rules.prestige_stability_discount * me.prestige)
+        lines.append(
+            f"prestige {me.prestige}: +{rules.prestige_income_bonus * me.prestige:.0%} ducats, "
+            f"stability {rules.prestige_stability_discount * me.prestige:.0%} cheaper"
+        )
     if me.war_exhaustion:
         weary = rules.exhaustion_income_penalty * me.war_exhaustion
         ducats -= weary

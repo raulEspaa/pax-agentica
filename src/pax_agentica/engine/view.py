@@ -13,6 +13,7 @@ A player never receives the `GameState`; it receives a `NationView` built here. 
 
 from pydantic import BaseModel, ConfigDict
 
+from pax_agentica.engine import fortune
 from pax_agentica.engine.events import Event
 from pax_agentica.engine.mechanics import (
     army_of,
@@ -32,9 +33,12 @@ from pax_agentica.engine.model import (
     Advisor,
     AdvisorRole,
     BuildingKind,
+    Faith,
     GameState,
     Good,
+    Loan,
     NationId,
+    PendingEvent,
     Personality,
     ProposalKind,
     ProvinceId,
@@ -117,6 +121,21 @@ class CandidateView(_View):
     salary: int  # ducats, every year
 
 
+class OptionView(_View):
+    label: str
+    effects: str  # what it does, in words
+
+
+class EventView(_View):
+    id: int  # answer with choose_option(event_id=id, option=index)
+    event: str
+    title: str
+    text: str
+    province: ProvinceId | None
+    options: tuple[OptionView, ...]
+    deadline_turn: int  # unanswered by the end of this turn, the first option is taken
+
+
 class MyNation(_View):
     id: NationId
     name: str
@@ -133,7 +152,11 @@ class MyNation(_View):
         ProvinceId, ...
     ]  # where your armies stand: your own unoccupied land and what you occupy
     war_exhaustion: float  # 0 to 20: costs ducats, and stability from 10
-    prestige: int
+    prestige: int  # 0 to 100: ducats, cheaper stability, and half of it counts towards victory
+    standing: int  # development plus half the prestige: what wins when time runs out
+    faith: Faith
+    pending_events: tuple[EventView, ...]  # decisions awaiting the crown
+    loans: tuple[Loan, ...]
     score: int
     at_war_with: tuple[NationId, ...]
     wars: tuple[WarView, ...]
@@ -165,6 +188,8 @@ class NationSummary(_View):
     opinion_of_you: int  # what this court thinks of you, from -100 to 100
     war_exhaustion: float
     prestige: int
+    standing: int
+    faith: Faith
     stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
 
 
@@ -288,6 +313,10 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         held=tuple(state.held_by(nation)),
         war_exhaustion=me.war_exhaustion,
         prestige=me.prestige,
+        standing=state.standing(nation),
+        faith=me.faith,
+        pending_events=tuple(_event_view(state, nation, e) for e in me.pending_events),
+        loans=tuple(me.loans),
         score=state.score(nation),
         at_war_with=tuple(state.enemies_of(nation)),
         wars=tuple(
@@ -349,6 +378,8 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             stances=dict(ns.stances),
             war_exhaustion=ns.war_exhaustion,
             prestige=ns.prestige,
+            standing=state.standing(nid),
+            faith=ns.faith,
         )
         for nid, ns in state.nations.items()
         if nid != nation
@@ -373,6 +404,21 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         ),
         last_turn_events=tuple(e for e in state.last_events if e.visible_to(nation)),
         rules=state.rules,
+    )
+
+
+def _event_view(state: GameState, nation: NationId, e: PendingEvent) -> EventView:
+    spec = fortune.EVENTS_BY_ID[e.event]
+    return EventView(
+        id=e.id,
+        event=e.event,
+        title=spec.title,
+        text=fortune.describe(spec, state, nation, e.province),
+        province=e.province,
+        options=tuple(
+            OptionView(label=o.label, effects=fortune.effects_text(o)) for o in spec.options
+        ),
+        deadline_turn=e.turn + 1,
     )
 
 

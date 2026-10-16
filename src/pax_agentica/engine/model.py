@@ -260,6 +260,13 @@ class Personality(StrEnum):
     VISIONARY = "visionary"  # thinks in generations
 
 
+class Faith(StrEnum):
+    CATHOLIC = "catholic"
+    PROTESTANT = "protestant"
+    ORTHODOX = "orthodox"
+    SUNNI = "sunni"
+
+
 class Stance(StrEnum):
     """A court's declared attitude towards another, public to all Europe."""
 
@@ -876,6 +883,24 @@ class Rules(BaseModel):
     opinion_call_ignored: int = -30
     opinion_shared_enemy: int = 3  # a year, fighting the same enemy
     opinion_decay: float = 0.1  # a year, towards zero
+    opinion_same_faith: int = 1  # a year
+    opinion_other_faith: int = -1  # a year
+
+    # prestige: 0 to 100
+    prestige_max: int = 100
+    prestige_decay: int = 1  # a year
+    prestige_battle: int = 1  # won against a great power (the loser loses as much)
+    prestige_province: int = 3  # gained by treaty (the giver loses as much)
+    prestige_monument_level: int = 2  # times the new level
+    prestige_great_work: int = 5
+    prestige_treaty_broken: int = -10
+    prestige_call_ignored: int = -5
+    prestige_income_bonus: float = 0.001  # ducat income per point
+    prestige_stability_discount: float = 0.002  # per point
+    prestige_in_score: float = 0.5  # what a point of prestige is worth in the final score
+
+    # fortune: a chance each year of an event for each nation
+    event_chance: float = 0.3
     opinion_stance: dict[str, int] = Field(
         default_factory=lambda: {"friend": 2, "rival": -3}  # a year, towards the declarer
     )
@@ -973,6 +998,24 @@ class NationState(BaseModel):
     stances: dict[NationId, Stance] = Field(default_factory=dict)  # declared friends and rivals
     war_exhaustion: float = 0.0  # 0 to 20: years of war, defeats and occupation weigh on the realm
     prestige: int = 0  # 0 to 100: glory won in war, works and wise choices
+    faith: Faith = Faith.CATHOLIC
+    pending_events: list[PendingEvent] = Field(default_factory=list)  # decisions awaiting the crown
+    events_seen: list[str] = Field(default_factory=list)  # once-only events already met
+    loans: list[Loan] = Field(default_factory=list)
+
+
+class PendingEvent(BaseModel):
+    """An event waiting for the crown's answer (see `fortune.py`)."""
+
+    id: int
+    event: str
+    turn: int  # when it happened; unanswered by the end of the next turn, option 0 is taken
+    province: ProvinceId | None = None
+
+
+class Loan(BaseModel):
+    yearly: int  # ducats repaid every year
+    until: int  # last turn of repayment
 
 
 class General(BaseModel):
@@ -1050,6 +1093,7 @@ class GameState(BaseModel):
     next_proposal_id: int = 1
     generals: list[General] = Field(default_factory=list)
     next_general_id: int = 1
+    next_event_id: int = 1
     opinions: dict[NationId, dict[NationId, int]] = Field(default_factory=dict)  # a's of b
     last_events: list[Event] = Field(default_factory=list)  # what happened last turn
     finished: bool = False
@@ -1091,6 +1135,11 @@ class GameState(BaseModel):
     def score(self, nation: NationId) -> int:
         """Total development owned: the tie-breaking score when time runs out."""
         return sum(s.development for s in self.provinces.values() if s.owner == nation)
+
+    def standing(self, nation: NationId) -> int:
+        """What wins the game when time runs out: development, and half the prestige."""
+        prestige = self.nations[nation].prestige * self.rules.prestige_in_score
+        return self.score(nation) + int(prestige)
 
     def troops_of(self, nation: NationId) -> int:
         """Every regiment of a nation, in its own provinces and in those it occupies."""

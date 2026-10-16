@@ -315,6 +315,15 @@ class Proclaim(_Action):
     text: str = Field(min_length=1, max_length=MAX_PROCLAMATION_CHARS)
 
 
+class ChooseOption(_Action):
+    """Answer one of your pending events (see `me.pending_events`) with one of its options, by
+    index. Unanswered by the end of the next year, an event takes its first option."""
+
+    type: Literal["choose_option"] = "choose_option"
+    event_id: int
+    option: int = Field(ge=0)
+
+
 class Gift(_Action):
     """Give resources to another nation, no strings attached."""
 
@@ -357,7 +366,8 @@ type Action = Annotated[
     | Gift
     | SendMessage
     | SetStance
-    | Proclaim,
+    | Proclaim
+    | ChooseOption,
     Field(discriminator="type"),
 ]
 

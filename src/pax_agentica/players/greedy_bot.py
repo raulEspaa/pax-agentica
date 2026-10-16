@@ -23,6 +23,7 @@ from pax_agentica.engine.actions import (
     Attack,
     BoostStability,
     Build,
+    ChooseOption,
     DeclareWar,
     Develop,
     HireAdvisor,
@@ -40,6 +41,7 @@ from pax_agentica.engine.actions import (
     Terms,
     UpgradeMonument,
 )
+from pax_agentica.engine.fortune import EVENTS_BY_ID, Option
 from pax_agentica.engine.model import (
     AdvisorRole,
     BuildingKind,
@@ -105,11 +107,13 @@ class _Planner:
         }
         self.targeted: set[ProvinceId] = set()
         self.declared: str | None = None
+        self.decided: list[str] = []
         self.leaders: dict[ProvinceId, int] = {}
         self.actions: list[Action] = []
 
     def run(self) -> Orders:
         self._answer_proposals()
+        self._decide_events()
         self._maybe_declare_war()
         self._recruit()
         self._command()
@@ -255,6 +259,30 @@ class _Planner:
         tribute = round(5 * p.ask_tribute * self.v.rules.tribute_years / income)
         limit = self.v.rules.peace_cost_army_limit if p.limit_army is not None else 0
         return provinces + lump + tribute + limit
+
+    def _decide_events(self) -> None:
+        """Weigh each answer to the crown's pending events by what it gives and takes."""
+        for pending in self.me.pending_events:
+            spec = EVENTS_BY_ID[pending.event]
+            best = max(
+                range(len(spec.options)), key=lambda k: (self._option_worth(spec.options[k]), -k)
+            )
+            self.actions.append(ChooseOption(event_id=pending.id, option=best))
+            self.decided.append(f"{spec.title}: {spec.options[best].label.lower()}")
+
+    def _option_worth(self, o: Option) -> float:
+        if -o.ducats > self.budget.ducats:
+            return -1e9  # cannot pay
+        total: float = o.ducats + o.grain + 2 * (o.iron + o.timber) + 3 * o.manpower
+        total += o.stability * (60 if self.me.stability <= 0 else 25) + 4 * o.prestige
+        total += 45 * o.development - 15 * o.unrest + 8 * o.regiments
+        total += 2 * o.opinion + 30 * o.general_skill
+        if o.faith:
+            total -= 40  # a bot keeps the faith of its fathers
+        if o.loan:
+            yearly, years = o.loan
+            total -= 0.9 * yearly * years
+        return total
 
     def _fears(self, nation: str) -> bool:
         their = next((n for n in self.v.nations if n.id == nation), None)
@@ -686,6 +714,8 @@ class _Planner:
         works = [a for a in self.actions if isinstance(a, Build | Research | UpgradeMonument)]
         if works:
             parts.append(f"Invest in {len(works)} works and studies.")
+        for choice in self.decided:
+            parts.append(f"{choice}.")
         hated = min(me.opinions.items(), key=lambda kv: kv[1], default=None)
         if hated and hated[1] < -20:
             parts.append(f"{self._nation_name(hated[0])} hates us ({hated[1]}).")

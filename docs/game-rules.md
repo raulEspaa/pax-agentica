@@ -284,6 +284,37 @@ power per point of skill** to the regiments he leads (`move` and `attack` take a
 your realm. He moves with the regiments he leads, takes command of a province he conquers, and
 **falls** if his province is taken.
 
+## Prestige, faith and fortune
+
+**Prestige** (0 to 100) is a realm's glory. It grows with battles won against great powers
+(+1), land won by treaty (+3 a province), monuments raised (+2 times the new level), great works
+(+5) and some decisions; it falls with battles lost, land ceded, broken treaties (−10) and
+abandoned allies (−5), and fades by 1 a year. Each point gives +0.1% ducat income and makes
+stability 0.2% cheaper, and **half of it counts towards victory**.
+
+**Faith.** England, France, Spain, Austria and Sweden start Catholic, Russia Orthodox, the
+Ottomans Sunni. Courts of the same faith warm to each other by 1 a year, of different faiths cool
+by 1. The Reformation can turn a Catholic realm Protestant.
+
+**Fortune.** Every year each nation has a 30% chance of an event of the age, a decision for the
+crown, which waits in `me.pending_events` until answered with `choose_option`; unanswered by the
+end of the next year, it takes its first option.
+
+| Event | When | The choice |
+|---|---|---|
+| The Reformation | from 1517, Catholic realms, once | defend the old faith (+1 stability, +5 prestige) or take the Church's lands (+150 ducats, −1 stability, turn Protestant) |
+| Plague | in a town of development 3 or more | pay 40 ducats to quarantine, or lose a level of development, men and stability |
+| A great harvest | any year | +30 grain, or sell it for +35 ducats |
+| The Fuggers' loan | any year | 120 ducats now for 16 a year over ten years, or nothing |
+| A master seeks a patron | once | 70 ducats for +8 prestige and +1 stability (Leonardo for France, Holbein for England, Titian, Dürer, Sinan…) |
+| The peasants rise | at negative stability | pay 50 ducats for +1 stability, or put it down: regiments lost, unrest |
+| Silver from the Indies | Spain, from 1545, once | +200 ducats and −1 stability, or +90 |
+| A comet | any year | pay astronomers for prestige, or lose stability |
+| A captain with new ideas | with a general | 60 ducats for a star on your best general |
+| The nobles grumble | at stability 0 or more | confirm their privileges, or stand above them |
+| A great fair | any year | a charter for gold and goodwill, or a heavy tax |
+| A new vein | in an iron or gold province | open a mine (+1 development) or sell the rights |
+
 ## Diplomacy
 
 | Action | What happens |
@@ -361,8 +392,9 @@ refuses or ignores it **dissolves the alliance**, in public.
 ## Victory
 
 - **Domination**: rule half the provinces of Europe (34 of 68), or be the last nation standing.
-- **Otherwise**, when the turn limit (50 by default) runs out, the highest **score** wins. Score
-  is the total development you own. Ties go to more provinces, then more ducats.
+- **Otherwise**, when the turn limit (50 by default) runs out, the highest **standing** wins:
+  the total development you own plus half your prestige. Ties go to more provinces, then more
+  ducats.
 
 ## Playing it yourself
 

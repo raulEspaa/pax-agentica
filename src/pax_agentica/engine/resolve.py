@@ -19,6 +19,7 @@ import math
 import random
 from collections.abc import Iterator, Mapping
 
+from pax_agentica.engine import fortune
 from pax_agentica.engine.actions import (
     Action,
     AssignGeneral,
@@ -26,6 +27,7 @@ from pax_agentica.engine.actions import (
     BoostStability,
     Build,
     CancelTreaty,
+    ChooseOption,
     DeclareWar,
     Develop,
     Disband,
@@ -70,10 +72,13 @@ from pax_agentica.engine.mechanics import (
     war_score,
 )
 from pax_agentica.engine.model import (
+    RESOURCE_NAMES,
     BuildingKind,
     GameState,
     General,
+    Loan,
     NationId,
+    PendingEvent,
     Proposal,
     ProposalKind,
     ProvinceId,
@@ -358,6 +363,9 @@ class _Resolver:
 
     def _answers(self) -> None:
         for nation in self.order:
+            for choice in self._actions(nation, ChooseOption):
+                self._choose(nation, choice)
+        for nation in self.order:
             for action in self._actions(nation, Respond):
                 proposal = next((p for p in self.s.proposals if p.id == action.proposal_id), None)
                 if proposal is None or proposal.recipient != nation:
@@ -372,6 +380,60 @@ class _Resolver:
                     self._counter(nation, proposal, action, action.counter)
                 else:
                     self._decline(proposal)
+
+    def _choose(self, nation: NationId, a: ChooseOption) -> None:
+        me = self.s.nations[nation]
+        pending = next((e for e in me.pending_events if e.id == a.event_id), None)
+        if pending is None:
+            self._reject(nation, a, f"no pending event #{a.event_id}")
+            return
+        spec = fortune.EVENTS_BY_ID[pending.event]
+        if a.option >= len(spec.options):
+            self._reject(nation, a, f"{spec.title} has {len(spec.options)} options")
+            return
+        self._decide(nation, pending, a.option)
+
+    def _decide(self, nation: NationId, pending: PendingEvent, option: int) -> None:
+        """Carry out the crown's answer to an event."""
+        me = self.s.nations[nation]
+        me.pending_events.remove(pending)
+        spec = fortune.EVENTS_BY_ID[pending.event]
+        o = spec.options[option]
+        gain = Resources(**{k: max(0, getattr(o, k, 0)) for k in RESOURCE_NAMES})
+        cost = Resources(**{k: max(0, -getattr(o, k, 0)) for k in RESOURCE_NAMES})
+        me.resources = me.resources + gain - cost.capped_by(me.resources)
+        if o.stability:
+            self._change_stability(nation, o.stability, spec.title.lower())
+        if o.prestige:
+            self._prestige(nation, o.prestige, spec.title.lower())
+        if o.war_exhaustion:
+            self._exhaust(nation, o.war_exhaustion)
+        here = self.s.provinces.get(pending.province) if pending.province else None
+        if here is not None and here.owner == nation:
+            if o.development:
+                here.development = max(1, here.development + o.development)
+            if o.unrest:
+                here.unrest = max(here.unrest, o.unrest)
+            if o.regiments:
+                here.take(min(here.troops, -o.regiments))
+        if o.opinion:
+            for other in self.s.alive_nations():
+                self._opine(other, nation, o.opinion)
+        if o.faith:
+            me.faith = o.faith
+        if o.loan:
+            yearly, years = o.loan
+            me.loans.append(Loan(yearly=yearly, until=self.turn + years))
+        if o.general_skill and (generals := self.s.generals_of(nation)):
+            best = max(generals, key=lambda g: (g.skill, -g.id))
+            best.skill = min(3, best.skill + o.general_skill)
+        self._emit(
+            EventKind.EVENT_DECIDED,
+            f"{me.name}, {spec.title.lower()}: {o.label.lower()}",
+            nations=(nation,),
+            event=spec.id,
+            option=option,
+        )
 
     def _accept(self, p: Proposal) -> None:
         s, r = p.sender, p.recipient
@@ -486,6 +548,7 @@ class _Resolver:
             return
         self.s.treaties.remove(alliance)
         self._opine(p.sender, p.recipient, self.s.rules.opinion_call_ignored)
+        self._prestige(p.recipient, self.s.rules.prestige_call_ignored, "abandoned an ally")
         self._emit(
             EventKind.CALL_TO_ARMS_IGNORED,
             f"{self._name(p.recipient)} abandons its ally {self._name(p.sender)} in the war "
@@ -591,32 +654,13 @@ class _Resolver:
         """Hand a province over by treaty. If the receiver occupies it, its garrison stays;
         otherwise the old garrison goes home and its general rides back."""
         state = self.s.provinces[province]
-        if state.controller == to:
-            state.controller = None
-            state.owner = to
-            state.unrest = self.s.rules.ceded_unrest_turns
-            self._opine(frm, to, self.s.rules.opinion_province_taken // 2)
-            self._emit(
-                EventKind.PROVINCE_CEDED,
-                f"{self._name(frm)} cedes {self._pname(province)} to {self._name(to)}",
-                nations=(frm, to),
-                province=province,
-            )
-            self._after_loss(frm, province, to)
-            return
-        giver = self.s.nations[frm]
-        giver.resources = giver.resources + self.s.rules.disband_refund.times(state.troops)
-        state.set_army({})
-        general = self.s.general_in(province)
-        if general is not None:
-            free = [
-                p for p in self.s.provinces_of(frm) if p != province and not self.s.general_in(p)
-            ]
-            home = giver.capital if giver.capital in free else (free[0] if free else None)
-            if home is None:
-                self.s.generals.remove(general)
-            else:
-                general.province = home
+        if state.controller != to:
+            giver = self.s.nations[frm]
+            giver.resources = giver.resources + self.s.rules.disband_refund.times(state.troops)
+            state.set_army({})
+            general = self.s.general_in(province)
+            if general is not None:
+                self._send_home(general, frm, province)
         state.owner = to
         state.controller = None
         state.unrest = self.s.rules.ceded_unrest_turns
@@ -627,6 +671,8 @@ class _Resolver:
             nations=(frm, to),
             province=province,
         )
+        self._prestige(to, self.s.rules.prestige_province, "land won by treaty")
+        self._prestige(frm, -self.s.rules.prestige_province, "land lost by treaty")
         self._after_loss(frm, province, to)
 
     def _trade(self, p: Proposal) -> None:
@@ -675,6 +721,7 @@ class _Resolver:
         if broken:
             penalty = modifiers(self.s, attacker).treaty_break_penalty
             self._change_stability(attacker, -penalty, "broke a treaty")
+            self._prestige(attacker, self.s.rules.prestige_treaty_broken, "broke a treaty")
             for other in self.s.alive_nations():
                 if other not in key:
                     self._opine(other, attacker, rules.opinion_betrayal)
@@ -991,6 +1038,7 @@ class _Resolver:
             self._reject(nation, a, error)
             return
         province.monument = level
+        self._prestige(nation, rules.prestige_monument_level * level, spec.name)
         self._emit(
             EventKind.MONUMENT_RAISED,
             f"{self._name(nation)} raises {spec.name} to level {level}",
@@ -1258,6 +1306,8 @@ class _Resolver:
             self._reject(nation, a, error)
             return
         province.buildings.append(a.building)
+        if spec.unique:
+            self._prestige(nation, rules.prestige_great_work, spec.name)
         self._emit(
             EventKind.BUILT,
             f"{self._name(nation)} builds {_article(spec.name)} in {where}",
@@ -1469,6 +1519,8 @@ class _Resolver:
             return
         winner, loser = (attacker, defender) if won else (defender, attacker)
         war.battles[winner] = war.battles.get(winner, 0) + 1
+        self._prestige(winner, self.s.rules.prestige_battle, "a battle won")
+        self._prestige(loser, -self.s.rules.prestige_battle, "a battle lost")
         self._exhaust(loser, self.s.rules.exhaustion_per_battle_lost)
 
     def _exhaust(self, nation: NationId, amount: float) -> None:
@@ -1627,6 +1679,7 @@ class _Resolver:
         self._pay_tributes()
         self._drift_opinions()
         self._weary()
+        self._fortune()
         for pid, p in self.s.provinces.items():  # a siege not pressed this year is lifted
             if p.siege_by and pid not in self.besieged:
                 p.siege_by, p.siege_years = None, 0
@@ -1647,6 +1700,57 @@ class _Resolver:
         self._check_victory()
         if not self.s.finished:
             self.s.turn += 1
+
+    def _fortune(self) -> None:
+        """Last year's unanswered events take their first option; debts are paid; and fortune
+        may bring each nation a new event for next year."""
+        rules = self.s.rules
+        for nation in self.s.alive_nations():
+            me = self.s.nations[nation]
+            for pending in [e for e in me.pending_events if e.turn < self.turn]:
+                self._decide(nation, pending, 0)
+            for loan in list(me.loans):
+                paid = min(loan.yearly, me.resources.ducats)
+                me.resources = me.resources - Resources(ducats=paid)
+                if loan.until <= self.turn:
+                    me.loans.remove(loan)
+            if me.prestige > 0:
+                me.prestige = max(0, me.prestige - rules.prestige_decay)
+            if me.pending_events:
+                continue
+            drawn = fortune.roll(self.s, nation, self.rng, rules.event_chance)
+            if drawn is None:
+                continue
+            spec, province = drawn
+            pending = PendingEvent(
+                id=self.s.next_event_id, event=spec.id, turn=self.turn, province=province
+            )
+            self.s.next_event_id += 1
+            me.pending_events.append(pending)
+            if spec.once:
+                me.events_seen.append(spec.id)
+            self._emit(
+                EventKind.EVENT_HAPPENED,
+                f"{spec.title} in {me.name}: the crown must decide",
+                nations=(nation,),
+                audience=(nation,),
+                event=spec.id,
+            )
+
+    def _prestige(self, nation: NationId, delta: int, reason: str) -> None:
+        me = self.s.nations[nation]
+        new = max(0, min(self.s.rules.prestige_max, me.prestige + delta))
+        if new == me.prestige:
+            return
+        me.prestige = new
+        self._emit(
+            EventKind.PRESTIGE_CHANGED,
+            f"{me.name}'s prestige is now {new} ({reason})",
+            nations=(nation,),
+            audience=(nation,),
+            prestige=new,
+            delta=delta,
+        )
 
     def _weary(self) -> None:
         """War exhaustion: every year of war, every province under occupation, weighs on a
@@ -1699,6 +1803,11 @@ class _Resolver:
             for b in alive:
                 if a != b and enemies & set(self.s.enemies_of(b)):
                     self._opine(a, b, rules.opinion_shared_enemy)
+            for b in alive:
+                if a != b:
+                    same = self.s.nations[a].faith == self.s.nations[b].faith
+                    drift = rules.opinion_same_faith if same else rules.opinion_other_faith
+                    self._opine(a, b, drift)
             for target, stance in self.s.nations[a].stances.items():
                 if target in alive:  # a declared stance colours both courts
                     self._opine(target, a, rules.opinion_stance.get(stance.value, 0))
@@ -1765,7 +1874,11 @@ class _Resolver:
                 reason = f"rules {len(self.s.provinces_of(winner))} of {total} provinces"
             elif self.turn >= self.s.max_turns:
                 winner = min(alive, key=self._ranking)
-                reason = f"highest score ({self.s.score(winner)} development) when time ran out"
+                reason = (
+                    f"highest standing ({self.s.standing(winner)}: development "
+                    f"{self.s.score(winner)}, prestige {self.s.nations[winner].prestige}) "
+                    "when time ran out"
+                )
         if winner is None:
             return
         self.s.finished = True
@@ -1779,7 +1892,7 @@ class _Resolver:
 
     def _ranking(self, nation: NationId) -> tuple[int, int, int, str]:
         return (
-            -self.s.score(nation),
+            -self.s.standing(nation),
             -len(self.s.provinces_of(nation)),
             -self.s.nations[nation].resources.ducats,
             nation,

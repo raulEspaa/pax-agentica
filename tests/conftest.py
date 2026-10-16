@@ -11,9 +11,10 @@ type Play = Callable[..., GameState]
 
 @pytest.fixture
 def state() -> GameState:
-    """A fresh game whose rulers are young and middling, so no death or diplomatic gift
-    surprises a test."""
+    """A fresh game whose rulers are young and middling, and where fortune sends no events, so
+    no death, gift or plague surprises a test."""
     game = new_game(seed=7)
+    game.rules = game.rules.model_copy(update={"event_chance": 0.0})  # fortune only on request
     for nation in game.nations.values():
         assert nation.ruler is not None
         nation.ruler.age = 20

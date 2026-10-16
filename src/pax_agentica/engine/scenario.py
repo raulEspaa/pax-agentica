@@ -10,6 +10,7 @@ import random
 
 from pax_agentica.engine.model import (
     BuildingKind,
+    Faith,
     GameState,
     General,
     Good,
@@ -329,6 +330,8 @@ def general_name(nation: str, taken: int) -> str:
     return names[taken] if taken < len(names) else f"General no. {taken + 1}"
 
 
+FAITHS = {"ottomans": Faith.SUNNI, "russia": Faith.ORTHODOX}
+STARTING_PRESTIGE = {"france": 15, "spain": 15, "austria": 15, "ottomans": 20}  # the great crowns
 STARTING_RESOURCES = Resources(ducats=60, manpower=10, iron=10, grain=20, timber=15)
 CAPITAL_GARRISON = 6
 PROVINCE_GARRISON = 2
@@ -410,6 +413,8 @@ def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> Game
             capital=capital,
             resources=STARTING_RESOURCES,
             stability=1,
+            faith=FAITHS.get(nid, Faith.CATHOLIC),
+            prestige=STARTING_PRESTIGE.get(nid, 10),
         )
         for nid, name, color, capital in _NATIONS
     }

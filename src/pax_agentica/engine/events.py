@@ -46,6 +46,9 @@ class EventKind(StrEnum):
     ADVISOR_HIRED = "advisor_hired"
     ADVISOR_LEFT = "advisor_left"
     SUCCESSION = "succession"
+    EVENT_HAPPENED = "event_happened"
+    EVENT_DECIDED = "event_decided"
+    PRESTIGE_CHANGED = "prestige_changed"
     STABILITY_CHANGED = "stability_changed"
     DESERTION = "desertion"
     # war
