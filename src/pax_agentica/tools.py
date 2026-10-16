@@ -128,7 +128,14 @@ def _output(view: NationView, p: ProvinceView, *, development: int, buildings: l
     rules, mods = view.rules, view.me.modifiers
     base = land_yield(rules, p.good, development, p.terrain)
     built = buildings_yield(
-        rules, base, buildings, mods.marketplace_share, mods.mill_share, development, p.good
+        rules,
+        base,
+        buildings,
+        mods.marketplace_share,
+        mods.mill_share,
+        development,
+        p.good,
+        p.building_levels,
     )
     works = good_yield(rules, p.good, development, rules.workings_bonus * workings)
     return base + built + works
@@ -163,6 +170,7 @@ def work_gain(view: NationView, province: ProvinceId, work: str) -> dict[str, An
         "gain": _gain(after, before),
         "cost": view.me.building_costs[kind].amounts(),
         "consumes_a_year": spec.consumes.amounts(),
+        "upgradable_to": spec.max_level,
         "effect": spec.effect,
     }
 

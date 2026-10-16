@@ -22,7 +22,7 @@ def test_the_page_and_its_assets_are_served(client: TestClient) -> None:
 
 def test_the_static_map_describes_every_province(client: TestClient) -> None:
     static = client.get("/api/static").json()
-    assert len(static["provinces"]) == 70
+    assert len(static["provinces"]) == 104
     assert {b["id"] for b in static["buildings"]} >= {"marketplace", "fort", "lumber_mill"}
 
 
@@ -81,6 +81,7 @@ def test_the_page_previews_what_each_work_would_add(client: TestClient) -> None:
         "gascony",
         "languedoc",
         "normandy",
+        "burgundy",
     }
     paris = previews["paris"]
     assert paris["buildings"]["marketplace"]["ducats"] > 0  # it doubles the province's ducats
@@ -98,4 +99,4 @@ def test_a_saved_game_resumes_exactly_where_it_stopped(tmp_path: Path) -> None:
     record = GameRecord.model_validate_json(save.read_text(encoding="utf-8"))
     resumed = Session.resume(record, "france", session.rulers)
     assert resumed.state == session.state
-    assert resumed.state.provinces["lyon"].development == 5
+    assert resumed.state.provinces["lyon"].development == 4

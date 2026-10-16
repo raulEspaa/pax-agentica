@@ -193,6 +193,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                 if spec.requires_tech
                 else None,
                 "unique": spec.unique,
+                "maxLevel": spec.max_level,
             }
             for kind in KINDS
             for spec in [rules.buildings[kind]]
@@ -306,6 +307,9 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "maxGenerals": rules.max_generals,
             "generalBonus": rules.general_bonus_per_skill,
             "slotEvery": rules.development_per_building_slot,
+            "slots": rules.building_slots,
+            "levelFactors": list(rules.building_level_factors),
+            "upgradeCosts": list(rules.building_upgrade_costs),
             "defender": rules.defender_advantage,
             "terrain": {t.value: v for t, v in rules.terrain_defense.items()},
             "fort": rules.fort_bonus_per_level,

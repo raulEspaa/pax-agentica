@@ -6,8 +6,8 @@ from pax_agentica.engine import GameState, new_game
 from pax_agentica.engine.scenario import EXTRA_GARRISON
 
 
-def test_the_map_has_70_provinces_and_nine_great_powers(state: GameState) -> None:
-    assert len(state.provinces) == 70
+def test_the_map_has_104_provinces_and_nine_great_powers(state: GameState) -> None:
+    assert len(state.provinces) == 104
     assert sorted(state.nations) == [
         "austria",
         "brandenburg",

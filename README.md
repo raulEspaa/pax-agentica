@@ -22,7 +22,7 @@ state directly, so a clever (or confused) agent can't cheat its way to victory.
 
 ## The game: Europe, 1500
 
-An arcade grand strategy game: **70 provinces** from Lisbon to Moscow, **nine great powers**
+An arcade grand strategy game: **104 provinces** from Lisbon to the Volga, **nine great powers**
 (England, France, Spain, the Danubian Austria, the Ottomans, Sweden, Russia, Poland-Lithuania and
 Brandenburg-Prussia)
 and a scatter of independent minors to swallow. Every province is known for one of fourteen

@@ -31,9 +31,34 @@ OUTPUT_BUILDINGS = {
 # ---------------------------------------------------------------- economy
 
 
-def building_slots(rules: Rules, development: int, extra: int = 0) -> int:
-    """More developed provinces have room for more buildings."""
-    return 1 + development // rules.development_per_building_slot + extra
+def building_slots(rules: Rules, development: int = 0, extra: int = 0) -> int:
+    """Every province has the same room for buildings; some realms find a little more."""
+    del development
+    return rules.building_slots + extra
+
+
+def level_factor(rules: Rules, level: int) -> float:
+    """What a building does (and eats) at this level, times its first level's."""
+    if level <= 0:
+        return 0.0
+    return rules.building_level_factors[min(level, len(rules.building_level_factors)) - 1]
+
+
+def building_consumes(rules: Rules, kind: BuildingKind, level: int = 1) -> Resources:
+    """What a building eats a year at its level."""
+    f = level_factor(rules, level)
+    return Resources(
+        **{k: math.ceil(v * f - 1e-9) for k, v in rules.buildings[kind].consumes.amounts().items()}
+    )
+
+
+def upgrade_cost(rules: Rules, kind: BuildingKind, level: int, discount: float = 0.0) -> Resources:
+    """What raising a building to `level` costs."""
+    scale = rules.building_upgrade_costs[min(level, len(rules.building_upgrade_costs)) - 1]
+    base = rules.buildings[kind].cost
+    return discounted(
+        Resources(**{k: math.ceil(v * scale) for k, v in base.amounts().items()}), discount
+    )
 
 
 def land_yield(
@@ -68,6 +93,7 @@ def buildings_yield(
     mill_share: float | None = None,
     development: int = 0,
     good: Good | None = None,
+    levels: Mapping[BuildingKind, int] | None = None,
 ) -> Resources:
     """The extra yield of the buildings: mostly a share of the base yield, so the same building
     pays off more in a more developed province. Technology can raise some shares. Marketplaces,
@@ -83,18 +109,18 @@ def buildings_yield(
         BuildingKind.LUMBER_MILL: mill_share,
     }
     for building in buildings:
+        f = level_factor(rules, (levels or {}).get(building, 1))
         if field := OUTPUT_BUILDINGS.get(building):
-            share = shares.get(building) or rules.building_output_bonus
+            share = (shares.get(building) or rules.building_output_bonus) * f
             extra[field] += max(1, math.floor(amounts[field] * share))
         elif building == BuildingKind.BANK:
-            extra["ducats"] += 3 + math.floor(amounts["ducats"] * 0.5)
+            extra["ducats"] += math.floor((3 + amounts["ducats"] * 0.5) * f)
         elif building == BuildingKind.CATHEDRAL:
-            extra["manpower"] += 1
-            extra["ducats"] += math.floor(amounts["ducats"] * 0.25)
+            extra["manpower"] += math.floor(1 * f)
+            extra["ducats"] += math.floor(amounts["ducats"] * 0.25 * f)
         elif building == BuildingKind.WORKSHOP:
-            extra["goods"] += rules.workshop_base_goods + (
-                development // rules.workshop_goods_per_development
-            )
+            made = rules.workshop_base_goods + development // rules.workshop_goods_per_development
+            extra["goods"] += math.floor(made * f)
     return Resources(**extra)
 
 
@@ -118,6 +144,7 @@ def building_output(state: GameState, province: ProvinceId) -> Resources:
         mods.mill_share,
         p.development,
         state.map.provinces[province].good,
+        p.levels,
     )
     return built + workings_yield(state, province)
 
@@ -147,6 +174,7 @@ def output_with(
     extra: Collection[BuildingKind] = (),
     without: Collection[BuildingKind] = (),
     workings: int | None = None,
+    upgrade: BuildingKind | None = None,
 ) -> Resources:
     """What the province would yield at another development, with more buildings or deeper
     workings, unrest aside: the "what if" behind every preview of a work."""
@@ -157,6 +185,9 @@ def output_with(
     )
     mods = modifiers(state, p.owner)
     standing = [b for b in p.buildings if b not in without]
+    levels = dict(p.levels)
+    if upgrade is not None:
+        levels[upgrade] = p.level(upgrade) + 1
     return _keep(
         base
         + buildings_yield(
@@ -167,6 +198,7 @@ def output_with(
             mods.mill_share,
             development or p.development,
             definition.good,
+            levels,
         )
         + workings_yield(state, province, workings, development),
         faith_penalty(state, province),
@@ -337,9 +369,11 @@ def army_upkeep(
     army = {UnitKind.INFANTRY: regiments} if isinstance(regiments, int) else regiments
     pay = sum(n * rules.units[k].pay for k, n in army.items())
     rations = sum(n * rules.units[k].rations for k, n in army.items())
+    wear = sum(n * (3 if k == UnitKind.ARTILLERY else 1) for k, n in army.items())
     return Resources(
         grain=math.ceil(rations * rules.grain_upkeep_per_regiment * grain_factor - 1e-9),
         ducats=math.ceil(pay * rules.ducat_upkeep_per_regiment - 1e-9),
+        iron=wear // rules.iron_upkeep_per_regiments,  # shot, powder, horseshoes and repairs
     )
 
 
@@ -397,8 +431,8 @@ def building_inputs(state: GameState, nation: NationId) -> list[tuple[ProvinceId
 def inputs_upkeep(state: GameState, nation: NationId) -> Resources:
     """What a nation's buildings consume in a year, if all of them work."""
     total = Resources()
-    for _pid, b in building_inputs(state, nation):
-        total = total + state.rules.buildings[b].consumes
+    for pid, b in building_inputs(state, nation):
+        total = total + building_consumes(state.rules, b, state.provinces[pid].level(b))
     return total
 
 
@@ -407,10 +441,17 @@ def market_price(state: GameState, resource: str) -> float:
     return state.market.get(resource, state.rules.market_prices[resource])
 
 
-def market_total(state: GameState, resource: str, amount: int, *, buying: bool) -> int:
+def market_cut(state: GameState, nation: NationId | None = None) -> float:
+    """The merchants' cut a nation pays on the market, buying and selling, after its bonuses."""
+    return state.rules.market_spread * (1 - modifiers(state, nation).trade_bonus)
+
+
+def market_total(
+    state: GameState, resource: str, amount: int, *, buying: bool, nation: NationId | None = None
+) -> int:
     """What buying (or selling) `amount` units costs (or brings), the merchants' cut included."""
     price = market_price(state, resource)
-    spread = state.rules.market_spread
+    spread = market_cut(state, nation)
     if buying:
         return math.ceil(amount * price * (1 + spread))
     return math.floor(amount * price * (1 - spread))
@@ -492,8 +533,9 @@ def develop_cost(
     )
     goods = development // 3 if development >= rules.develop_goods_from else 0
     grain = rules.develop_grain_base + rules.develop_grain_per_level * development
+    iron = max(0, development - rules.develop_iron_from + 1)
     return discounted(Resources(ducats=ducats, timber=timber), discount) + Resources(
-        goods=goods, grain=grain
+        goods=goods, grain=grain, iron=iron
     )
 
 
@@ -535,7 +577,7 @@ def defense_multiplier(
     forts = max(0, target_state.fort - attacker.ignores_fort_levels - siege)
     bonus = modifiers(state, owner).fort_bonus_per_level * forts
     if BuildingKind.TRAINING_GROUNDS in target_state.buildings:
-        bonus += 0.2
+        bonus += 0.2 * level_factor(rules, target_state.level(BuildingKind.TRAINING_GROUNDS))
     if owner is not None and state.nations[owner].capital == target:
         bonus += rules.capital_bonus
     if state.map.is_sea_crossing(origin, target) and not attacker.navy:

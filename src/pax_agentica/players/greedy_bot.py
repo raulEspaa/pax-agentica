@@ -49,6 +49,7 @@ from pax_agentica.engine.actions import (
     SetStance,
     SetTaxes,
     Terms,
+    UpgradeBuilding,
     UpgradeMonument,
 )
 from pax_agentica.engine.fortune import EVENTS_BY_ID, Option
@@ -640,7 +641,8 @@ class _Planner:
         self._taxes()
         self._research(reserve)
         self._council(reserve)
-        self._build(reserve)
+        for _ in range(1 + (self.budget.ducats > 250) + (self.budget.ducats > 500)):
+            self._build(reserve)  # a rich treasury raises more than one work a year
         self._improve(reserve)
         self._convert(reserve)
         self._monument(reserve)
@@ -733,17 +735,25 @@ class _Planner:
             (BuildingKind.CATHEDRAL, richest[:1]),
             (BuildingKind.BANK, richest),
         ]
-        owned = {b for pid in self.owned for b in self.provinces[pid].buildings}
+        planned = [a for a in self.actions if isinstance(a, Build | UpgradeBuilding)]
+        owned = {b for pid in self.owned for b in self.provinces[pid].buildings} | {
+            a.building for a in planned if isinstance(a, Build)
+        }
+        busy = {(a.province, a.building) for a in planned}
         cost = me.building_costs
         for kind, places in wishes:
             spec = rules.buildings[kind]
             for pid in places:
                 p = self.provinces[pid]
+                if (pid, kind) in busy:
+                    continue
+                slots_left = p.building_slots - len(p.buildings)
+                slots_left -= sum(1 for a in planned if isinstance(a, Build) and a.province == pid)
                 if (
                     kind not in p.buildings
                     and not (spec.unique and kind in owned)
                     and (spec.requires is None or spec.requires in p.buildings)
-                    and len(p.buildings) < p.building_slots
+                    and slots_left > 0
                     and not p.unrest
                     and self._unlocked(spec.requires_tech)
                     and self.budget.covers(cost[kind] + Resources(ducats=reserve))
@@ -751,6 +761,16 @@ class _Planner:
                     self.actions.append(Build(province=pid, building=kind))
                     self.budget = self.budget - cost[kind]
                     return
+                level = p.building_levels.get(kind, 0)
+                if 0 < level < spec.max_level and kind not in p.idle and not p.unrest:
+                    scale = rules.building_upgrade_costs[level]
+                    price = Resources(
+                        **{k: math.ceil(v * scale) for k, v in cost[kind].amounts().items()}
+                    )
+                    if self.budget.covers(price + Resources(ducats=reserve + 20)):
+                        self.actions.append(UpgradeBuilding(province=pid, building=kind))
+                        self.budget = self.budget - price
+                        return
 
     def _improve(self, reserve: int) -> None:
         """Deepen the mine (or vineyard, or fishery) of the province whose good pays best."""

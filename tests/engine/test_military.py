@@ -129,7 +129,7 @@ def test_a_general_falls_with_his_province(state: GameState, play: Play) -> None
 def test_a_general_must_be_where_his_order_starts(state: GameState, play: Play) -> None:
     (general,) = state.generals_of("spain")
     new = play(
-        state, spain=[Move(origin="galicia", target="madrid", regiments=1, general=general.id)]
+        state, spain=[Move(origin="galicia", target="castile", regiments=1, general=general.id)]
     )
     assert reasons(new) == [f"{general.name} is not in Galicia"]
 

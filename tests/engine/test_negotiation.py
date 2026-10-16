@@ -70,6 +70,7 @@ def test_terms_must_make_sense(state: GameState, play: Play) -> None:
         "Paris is a capital: it changes hands only if Spain occupies it",
         "Normandy does not border Spain",
     ]
+    war.provinces["lyon"].controller = "spain"  # a little more war score
     chained = play(war, spain=[ProposePeace(target="france", demand=["gascony", "brittany"])])
     assert reasons(chained) == []  # Brittany borders Gascony, which Spain would get too
 
@@ -100,7 +101,8 @@ def test_an_army_limit_stops_recruiting(state: GameState, play: Play) -> None:
 
 def test_a_peace_can_be_countered_and_the_counter_accepted(state: GameState, play: Play) -> None:
     war = at_war(state, play, holding=("languedoc", "gascony"))
-    offer = play(war, spain=[ProposePeace(target="france", demand=["languedoc", "gascony"])])
+    offer = play(war, spain=[ProposePeace(target="france", demand=["languedoc"])])
+    assert reasons(offer) == []
     counter = Terms(give=Resources(ducats=20), note="Gold, not land.")
     countered = play(
         offer,

@@ -77,10 +77,20 @@ class Develop(_Action):
 
 class Build(_Action):
     """Construct a building in one of your provinces. Each costs and does what the rules'
-    `buildings` catalogue says. A province has 1 + development // 4 building slots, holds each
+    `buildings` catalogue says. Every province has `rules.building_slots` slots, holds each
     building once, and a citadel needs a fort first."""
 
     type: Literal["build"] = "build"
+    province: ProvinceId
+    building: BuildingKind
+
+
+class UpgradeBuilding(_Action):
+    """Raise a building standing in one of your provinces to its next level: it does more (and
+    eats more), by `rules.building_level_factors`, up to its `max_level`. It costs its own
+    cost times `rules.building_upgrade_costs` for the new level. Once a year per building."""
+
+    type: Literal["upgrade_building"] = "upgrade_building"
     province: ProvinceId
     building: BuildingKind
 
@@ -453,6 +463,7 @@ type Action = Annotated[
     | Develop
     | Disband
     | Build
+    | UpgradeBuilding
     | UpgradeMonument
     | Improve
     | Convert

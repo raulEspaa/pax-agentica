@@ -39,9 +39,9 @@ def test_each_good_yields_by_its_worth(state: GameState) -> None:
     assert gold.ducats == 4 + 10  # gold: two and a half ducats a level
     assert grain.grain == 3 + 6  # grain: a level and a half of bread
     assert gold.ducats - 4 > grain.grain - 3  # a ducat is worth more than a sack of grain too
-    # London: development 7, cloth, on plains (+2 grain)
+    # London: development 6, cloth, on plains (+2 grain)
     assert province_output(state, "london") == Resources(
-        ducats=7 + 3, manpower=3, iron=1, grain=5, timber=1, goods=7
+        ducats=6 + 3, manpower=3, iron=1, grain=5, timber=1, goods=6
     )
 
 
@@ -67,8 +67,8 @@ def test_stability_scales_ducat_income(state: GameState) -> None:
 def test_the_end_of_turn_pays_income_feeds_and_pays_the_army(state: GameState, play: Play) -> None:
     before = state.nations["england"].resources
     income = nation_income(state, "england")
-    upkeep = army_upkeep(state.rules, state.troops_of("england"))  # 10 regiments
-    assert upkeep == Resources(grain=10, ducats=5)
+    upkeep = army_upkeep(state.rules, state.troops_of("england"))  # 14 regiments
+    assert upkeep == Resources(grain=14, ducats=7, iron=1)  # an iron a year for ten regiments
     after = play(state).nations["england"].resources
     assert after == before + income - upkeep
 
@@ -100,17 +100,17 @@ def test_development_raises_output_and_score(state: GameState, play: Play) -> No
     assert new.score("england") == state.score("england") + 1
 
 
-def test_more_development_means_more_building_slots(state: GameState) -> None:
-    assert building_slots(state.rules, 3) == 1
-    assert building_slots(state.rules, 4) == 2
-    assert building_slots(state.rules, 12) == 4
+def test_every_province_has_five_building_slots(state: GameState) -> None:
+    assert building_slots(state.rules, 3) == 5
+    assert building_slots(state.rules, 12) == 5
+    assert building_slots(state.rules, 3, extra=1) == 6
 
 
 def test_a_marketplace_doubles_the_town_s_ducats(state: GameState, play: Play) -> None:
-    before = province_output(state, "london")  # development 7, and 3 ducats from its cloth
+    before = province_output(state, "london")  # development 6, and 3 ducats from its cloth
     new = play(state, england=[Build(province="london", building=BuildingKind.MARKETPLACE)])
     assert new.provinces["london"].buildings == [BuildingKind.MARKETPLACE]
-    assert province_output(new, "london").ducats == before.ducats + 7  # the cloth is not taxed
+    assert province_output(new, "london").ducats == before.ducats + 6  # the cloth is not taxed
     spent = state.rules.buildings[BuildingKind.MARKETPLACE].cost
     expected = (
         state.nations["england"].resources
@@ -128,6 +128,7 @@ def test_a_small_bonus_still_adds_one(state: GameState) -> None:
 
 
 def test_slots_requirements_and_duplicates_are_enforced(state: GameState, play: Play) -> None:
+    state.rules = state.rules.model_copy(update={"building_slots": 1})
     state.nations["england"].resources = Resources(
         ducats=999, manpower=99, iron=99, grain=99, timber=99
     )
@@ -137,21 +138,22 @@ def test_slots_requirements_and_duplicates_are_enforced(state: GameState, play: 
             Build(province="wales", building=BuildingKind.CITADEL),  # needs a fort
             Build(province="wales", building=BuildingKind.FORT),
             Build(province="wales", building=BuildingKind.FORT),  # already there
-            Build(province="wales", building=BuildingKind.BARRACKS),  # wales has 1 slot
+            Build(province="wales", building=BuildingKind.BARRACKS),  # no slot left
         ],
     )
     assert new.provinces["wales"].buildings == [BuildingKind.FORT]
     assert reasons(new) == [
         "a citadel needs a fort",
         "Wales already has a fort",
-        "all 1 building slots of Wales are taken; develop it to 4 for another",
+        "all 1 building slots of Wales are taken: upgrade what stands there",
     ]
 
 
 def test_a_university_makes_development_cheaper(state: GameState) -> None:
     plain = develop_cost(state.rules, 6)
-    assert develop_cost(state.rules, 6, [BuildingKind.UNIVERSITY]).ducats == 42
-    assert plain.ducats == 60  # 12 + 8 a level
+    assert develop_cost(state.rules, 6, [BuildingKind.UNIVERSITY]).ducats == 37
+    assert plain.ducats == 52  # 10 + 7 a level
+    assert plain.iron == 3  # tools and nails from development 4
 
 
 def test_an_armory_halves_the_iron_of_new_regiments(state: GameState) -> None:
@@ -161,8 +163,8 @@ def test_an_armory_halves_the_iron_of_new_regiments(state: GameState) -> None:
 
 def test_conquerors_keep_the_buildings(state: GameState, play: Play) -> None:
     state.provinces["lisbon"].buildings = [BuildingKind.MARKETPLACE]
-    state.provinces["madrid"].troops = 40
-    new = play(state, spain=[Attack(origin="madrid", target="lisbon", regiments=40)])
+    state.provinces["seville"].troops = 40
+    new = play(state, spain=[Attack(origin="seville", target="lisbon", regiments=40)])
     assert new.provinces["lisbon"].owner == "spain"
     assert new.provinces["lisbon"].buildings == [BuildingKind.MARKETPLACE]
 

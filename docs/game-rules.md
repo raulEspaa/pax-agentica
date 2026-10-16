@@ -6,7 +6,7 @@ else to play. Every number here comes from `Rules` in
 
 ## The world
 
-- **70 provinces** from Lisbon to Moscow and from Norrland to Tunis
+- **104 provinces** from Lisbon to Nizhny Novgorod and from Trøndelag to Tunis
   ([`scenario.py`](../src/pax_agentica/engine/scenario.py)). Each one has a **terrain**, a
   **trade good** (one of fourteen, see below), a **development** level (1–12), **workings**
   (0–3), **buildings** and a garrison of **regiments**.
@@ -115,8 +115,9 @@ the army, the council, building inputs, loans and tribute.
 
 **Armies cost every year.** At the end of each turn every regiment eats 1 grain, and the army is
 paid half a ducat per regiment (rounded up for the whole army; cavalry and artillery cost
-double, cavalry eats double). Regiments that cannot
-be fed or paid desert.
+double, cavalry eats double), and wears an iron a year for every ten regiments (a gun counts
+as three) in shot, powder and repairs. Regiments that cannot be fed or paid desert; an army
+short of iron makes do with worn gear.
 
 **Manpower is finite.** The pool fills up to 10 + 6 × your yearly manpower; anything above is
 lost. Barracks raise both. Disbanding a regiment sends its 2 manpower back to the pool.
@@ -126,7 +127,7 @@ lost. Barracks raise both. Disbanding a regiment sends its 2 manpower back to th
 | `recruit` | 6 ducats, 2 manpower and 2 iron per regiment | regiments appear in one of your provinces |
 | `hire_mercenaries` | 15 ducats per regiment, nothing else; at most 10 regiments a year | pikemen appear in one of your provinces, then serve like any other |
 | `disband` | nothing | regiments go home: no more upkeep, +2 manpower each |
-| `develop` | 12 + 8 × development ducats and 2 + development ÷ 2 timber (times the terrain), 4 + development grain to feed the new townsfolk, and from development 6 development ÷ 3 goods | +1 development (max 12, or 15 with Grand Architecture): more output, more score, more building slots |
+| `develop` | 10 + 7 × development ducats and 3 + development timber (times the terrain), 4 + development grain to feed the new townsfolk, from development 4 an iron a level above 3 (tools and nails), and from development 5 development ÷ 3 goods | +1 development (max 12, or 15 with Grand Architecture): more output and more score |
 | `improve` | 35 ducats and 6 timber, times the new level | +1 level of workings (max 3) |
 | `build` | see below | a building in one of your provinces |
 | `boost_stability` | 50 ducats, less with a diplomatic ruler | +1 stability (max +3) |
@@ -142,47 +143,55 @@ cannot be paid **stands idle** that year and yields nothing.
 ### The European market
 
 `buy` and `sell` trade grain, iron, timber and goods at the market's price, plus or minus the
-merchants' 15% cut, at once and before anything else that year. Prices start at 1 ducat for grain,
-2 for iron, 1.5 for timber and 3 for goods; what all Europe buys and sells in a year moves them
-(by a quarter for every 60 units of net demand), and they drift back a tenth of the way to their
-usual level every year, never below 40% or above three times it.
+**merchants' cut** (15%), at once and before anything else that year. Prices start at 1 ducat for
+grain, 2 for iron, 1.5 for timber and 3 for goods; what all Europe buys and sells in a year moves
+them (by a quarter for every 100 units of net demand), and they drift back a fifth of the way to
+their usual level every year, never below 60% or above three times it.
+
+A realm's **trade bonuses** waive part of the cut, buying and selling alike, up to 80% of it:
+each level of economy technology 4%, each level of each marketplace it owns 2% (up to 20%), a
+treasurer 3% per point of skill, a royal exchange 25%, and England's Merchant Adventurers 20%.
+The view's `market` shows each realm its own prices.
 
 ### Buildings
 
-A province has **1 + development ÷ 4** building slots (rounded down): 1 at development 3, 2 at
-4, 3 at 8, 4 at 12 (one more everywhere with Cameralism). Each building can stand once per
-province. Buildings survive conquest, so the conqueror keeps them. Output buildings **double the
+Every province has **5 building slots**, whatever its development (one more everywhere with
+Cameralism). Each building can stand once per province, and most can be **upgraded**
+(`upgrade_building`, once a year per building) to level 2 or 3: a level does 1.6 and 2.2 times
+what the first does, and eats as much more (rounded up); reaching level 2 costs the building's
+own cost again, level 3 one and a half times it. A fort or citadel at level 2 counts as two levels
+of walls. Buildings survive conquest, so the conqueror keeps them. Output buildings **double the
 province's base output** of their resource (at least +1), so they are worth more in developed
 provinces. Marketplaces, banks and cathedrals **tax the town, not the mines**: the ducats of the
 province's trade good are left out of their share; workings deepen those instead.
 
-| Building | Kind | Cost | Effect |
-|---|---|---|---|
-| Marketplace | civil | 50 ducats, 6 timber | doubles the province's ducats; consumes 1 goods |
-| Workshops | civil | 55 ducats, 6 timber | 2 + development ÷ 3 goods; consumes 1 iron and 1 timber |
-| Farm estates | civil | 40 ducats, 5 timber | doubles the province's grain |
-| Ironworks | civil | 60 ducats, 8 timber | doubles the province's iron; consumes 2 timber; needs engineering 1 |
-| Lumber mill | civil | 45 ducats, 4 iron | doubles the province's timber |
-| University | civil | 90 ducats, 12 timber | developing this province costs 30% fewer ducats; consumes 1 goods; needs economy 2 |
-| Bank | civil | 80 ducats, 4 iron, 6 timber | +3 ducats and +50% of the province's ducats; needs economy 1 |
-| Cathedral | civil | 110 ducats, 2 manpower, 20 timber | +1 manpower and +25% of the province's ducats; unrest ends twice as fast; needs economy 4 |
-| Barracks | military | 50 ducats, 3 iron, 6 timber | doubles the province's manpower, and a higher cap; consumes 2 grain |
-| Armory | military | 60 ducats, 8 iron, 4 timber | regiments recruited here need half the iron; needs military 1 |
-| Training grounds | military | 70 ducats, 2 manpower, 8 timber | the garrison here fights 20% harder; needs military 3 |
-| Fort | military | 60 ducats, 6 iron, 10 timber | defenders here fight 25% harder |
-| Citadel | military | 100 ducats, 2 manpower, 12 iron, 15 timber | another +25% defence; needs a fort and military 2 |
-| Stables | military | 45 ducats, 8 timber | lets this province raise cavalry |
-| Cannon foundry | military | 90 ducats, 10 iron, 6 timber | lets this province cast artillery; consumes 2 iron; needs military 2 |
+| Building | Kind | Cost | Levels | Effect |
+|---|---|---|---|---|
+| Marketplace | civil | 40 ducats, 2 iron, 12 timber | 3 | doubles the province's ducats; consumes 1 goods |
+| Farm estates | civil | 30 ducats, 2 iron, 10 timber | 3 | doubles the province's grain; consumes 1 timber |
+| Ironworks | civil | 45 ducats, 4 iron, 12 timber | 3 | doubles the province's iron; consumes 2 timber; needs engineering 1 |
+| Lumber mill | civil | 35 ducats, 6 iron, 4 timber | 3 | doubles the province's timber; consumes 1 iron |
+| University | civil | 75 ducats, 4 iron, 20 timber | 1 | developing this province costs 30% fewer ducats; consumes 1 goods; needs economy 2 |
+| Bank | civil | 65 ducats, 6 iron, 12 timber | 3 | +3 ducats and +50% of the province's ducats; consumes 1 goods; needs economy 1 |
+| Cathedral | civil | 90 ducats, 2 manpower, 6 iron, 30 timber | 2 | +1 manpower and +25% of the province's ducats; unrest ends twice as fast; consumes 1 goods; needs economy 4 |
+| Barracks | military | 40 ducats, 6 iron, 10 timber | 3 | doubles the province's manpower, and a higher cap; consumes 1 iron, 2 grain |
+| Armory | military | 45 ducats, 12 iron, 8 timber | 1 | regiments recruited here need half the iron; needs military 1 |
+| Training grounds | military | 55 ducats, 2 manpower, 4 iron, 12 timber | 3 | the garrison here fights 20% harder; needs military 3 |
+| Fort | military | 45 ducats, 12 iron, 18 timber | 2 | defenders here fight 25% harder; each level is a level of walls |
+| Citadel | military | 80 ducats, 2 manpower, 20 iron, 25 timber | 2 | another +25% defence, and more walls; needs a fort; needs military 2 |
+| Workshops | civil | 40 ducats, 6 iron, 12 timber | 3 | 2 + development ÷ 3 goods; consumes 2 iron, 2 timber |
+| Stables | military | 35 ducats, 2 iron, 12 timber | 1 | lets this province raise cavalry |
+| Cannon foundry | military | 70 ducats, 16 iron, 10 timber | 1 | lets this province cast artillery; consumes 2 iron; needs military 2 |
 
 **Great works** stand once in a realm and are felt across all of it:
 
 | Great work | Cost | Effect |
 |---|---|---|
-| Military academy | 140 ducats, 6 iron, 12 timber | one more general; generals appointed here start a star higher; needs military 3 |
-| Royal exchange | 160 ducats, 4 iron, 14 timber | +10% ducat income; consumes 2 goods; needs economy 3 |
-| Observatory | 120 ducats, 4 iron, 10 timber | research 15% cheaper; needs economy 2 |
-| Arms manufactory | 130 ducats, 10 iron, 10 timber | every levy in the realm needs half the iron and no goods; consumes 3 iron; needs military 1 |
-| Powder mill | 120 ducats, 6 iron, 12 timber | +5% battle power, and guns breach one more fort level; consumes 2 timber; needs military 2 |
+| Military academy | 115 ducats, 10 iron, 20 timber | one more general; generals appointed here start a star higher; needs military 3 |
+| Arms manufactory | 105 ducats, 16 iron, 16 timber | every levy in the realm needs half the iron and no goods; consumes 3 iron; needs military 1 |
+| Powder mill | 95 ducats, 10 iron, 18 timber | +5% battle power, and guns breach one more fort level; consumes 2 timber; needs military 2 |
+| Royal exchange | 130 ducats, 6 iron, 22 timber | +10% ducat income, and the merchants' cut 25% lower; consumes 2 goods; needs economy 3 |
+| Observatory | 95 ducats, 8 iron, 16 timber | research 15% cheaper; needs economy 2 |
 
 ### Monuments
 

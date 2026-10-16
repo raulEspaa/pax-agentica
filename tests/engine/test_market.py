@@ -34,7 +34,7 @@ def test_cloth_provinces_weave_goods(state: GameState) -> None:
 def test_workshops_turn_iron_and_timber_into_goods(state: GameState, play: Play) -> None:
     state.nations["france"].resources = RICH
     new = play(state, france=[Build(province="paris", building=BuildingKind.WORKSHOP)])
-    assert province_output(new, "paris").goods == 2 + 6 // 3
+    assert province_output(new, "paris").goods == 2 + 5 // 3
     after = play(new)
     assert after.nations["france"].resources.goods > new.nations["france"].resources.goods
 
@@ -45,13 +45,13 @@ def test_new_townsfolk_must_be_fed(state: GameState) -> None:
 
 
 def test_high_development_and_fine_troops_need_goods(state: GameState, play: Play) -> None:
-    assert develop_cost(state.rules, 5).goods == 0
+    assert develop_cost(state.rules, 4).goods == 0
     assert develop_cost(state.rules, 9).goods == 3
     state.nations["france"].resources = Resources(ducats=500, manpower=50, iron=50, timber=50)
     new = play(
         state,
         france=[
-            Develop(province="paris"),  # development 6: wants 2 goods
+            Develop(province="paris"),  # development 5: wants a bale of goods
             Recruit(province="paris", regiments=1, unit=UnitKind.ARCHERS),
         ],
     )

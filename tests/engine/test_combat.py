@@ -52,13 +52,13 @@ def test_battles_depend_only_on_the_seed(state: GameState) -> None:
 
 
 def test_conquering_an_independent_province(state: GameState, play: Play) -> None:
-    state.provinces["madrid"].troops = 30
-    new = play(state, spain=[Attack(origin="madrid", target="lisbon", regiments=30)])
+    state.provinces["seville"].troops = 30
+    new = play(state, spain=[Attack(origin="seville", target="lisbon", regiments=30)])
     lisbon = new.provinces["lisbon"]
     assert lisbon.owner == "spain"
     assert 0 < lisbon.troops <= 30
     assert lisbon.unrest == state.rules.unrest_turns - 1  # one turn of unrest already passed
-    assert new.provinces["madrid"].troops == 0
+    assert new.provinces["seville"].troops == 0
     kinds = [e.kind for e in new.last_events]
     assert EventKind.BATTLE in kinds
     assert EventKind.PROVINCE_CAPTURED in kinds
@@ -66,7 +66,7 @@ def test_conquering_an_independent_province(state: GameState, play: Play) -> Non
 
 def test_an_empty_province_falls_without_a_battle(state: GameState, play: Play) -> None:
     state.provinces["lisbon"].troops = 0
-    new = play(state, spain=[Attack(origin="madrid", target="lisbon", regiments=1)])
+    new = play(state, spain=[Attack(origin="seville", target="lisbon", regiments=1)])
     assert new.provinces["lisbon"].owner == "spain"
     assert EventKind.BATTLE not in [e.kind for e in new.last_events]
 
@@ -132,7 +132,7 @@ def test_an_occupied_capital_costs_stability_and_stays_a_capital(
 
 def test_a_peace_that_takes_the_last_province_ends_a_nation(state: GameState, play: Play) -> None:
     war = at_war(state, "spain", "england", play)
-    for lost in ("york", "wales"):
+    for lost in ("york", "wales", "east_anglia", "devon"):
         war.provinces[lost].owner = "spain"
     war.provinces["london"].controller = "spain"  # Spain holds the capital
     offer = play(war, spain=[ProposePeace(target="england", demand=["london"])])

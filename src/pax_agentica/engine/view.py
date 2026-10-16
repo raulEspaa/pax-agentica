@@ -29,6 +29,7 @@ from pax_agentica.engine.mechanics import (
     faith_penalty,
     inputs_upkeep,
     manpower_cap,
+    market_cut,
     market_price,
     nation_income,
     nation_upkeep,
@@ -94,10 +95,11 @@ class ProvinceView(_View):
     development: int
     fort: int  # fortification level: 1 with a fort, 2 with a citadel too
     buildings: tuple[BuildingKind, ...]
+    building_levels: dict[BuildingKind, int]  # the level of every building standing (1 to 3)
     idle: tuple[
         BuildingKind, ...
     ]  # buildings whose inputs went unpaid last year: they yield nothing
-    building_slots: int  # 1 + development // 4
+    building_slots: int  # rules.building_slots, and one more with Cameralism
     output_per_turn: Resources  # what it yields its owner each turn (nothing during unrest)
     building_output_per_turn: Resources  # the part of that output its buildings add
     unrest: int  # turns before a recently conquered province produces again
@@ -321,6 +323,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             development=ps.development,
             fort=ps.fort,
             buildings=tuple(ps.buildings),
+            building_levels={b: ps.level(b) for b in ps.buildings},
             idle=tuple(ps.idle),
             building_slots=building_slots(
                 state.rules, ps.development, _mods(state, ps.owner).extra_building_slots
@@ -504,11 +507,12 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         market={
             res: PriceView(
                 price=round(price, 2),
-                buy=round(price * (1 + state.rules.market_spread), 2),
-                sell=round(price * (1 - state.rules.market_spread), 2),
+                buy=round(price * (1 + cut), 2),
+                sell=round(price * (1 - cut), 2),
             )
             for res in TRADED
             for price in [market_price(state, res)]
+            for cut in [market_cut(state, nation)]
         },
         rules=state.rules,
     )

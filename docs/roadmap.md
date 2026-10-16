@@ -8,7 +8,7 @@ agent tools landed.
 
 | Area | Today | Depth |
 |---|---|---|
-| Map and scenario | 70 provinces, nine powers with banners (the Danubian Austria and Brandenburg-Prussia in the middle), minors, terrain, fourteen trade goods, monuments, the grudges of 1500 | solid |
+| Map and scenario | 104 provinces, nine powers with banners (the Danubian Austria and Brandenburg-Prussia in the middle), minors, terrain, fourteen trade goods, monuments, the grudges of 1500 | solid |
 | Economy | six resources, development that eats grain and timber, workings, buildings with inputs, taxes, a ledger by source, stability | deep |
 | Trade | a European market with moving prices, bilateral trades | good; trade agreements left |
 | Technology | three branches with milestones and lore | good |
@@ -87,6 +87,10 @@ Size: small.
   After faith landed (32 games, seeds 200 to 231) France wins 20, Spain 9, the Ottomans 3:
   France is now the one to check. With sieges that camp before the walls: France 22, Spain 9,
   Austria 1.
+  With 104 provinces, five slots, building levels and the material-heavy economy of 2026-10-16
+  (buildings and development cost more timber and iron and fewer ducats, armies wear iron,
+  market floor at 60%): Austria 12, Spain 10, France 9, the Ottomans 1. The spread between seeds
+  is wide: a one-point change in Silesia gave Spain 14, Austria 13, France 3.
 - The replay's mind panel shows missions and war score; a short first-year tutorial on the
   play page.
 - Performance once games run with language models.

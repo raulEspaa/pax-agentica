@@ -59,6 +59,7 @@ from pax_agentica.engine.actions import (
     SetStance,
     SetTaxes,
     Terms,
+    UpgradeBuilding,
     UpgradeMonument,
 )
 from pax_agentica.engine.events import Event, EventKind, EventValue
@@ -68,6 +69,7 @@ from pax_agentica.engine.mechanics import (
     army_strength,
     army_upkeep,
     battle_factor,
+    building_consumes,
     building_cost,
     building_inputs,
     building_slots,
@@ -87,6 +89,7 @@ from pax_agentica.engine.mechanics import (
     siege_result,
     siege_walls,
     stability_cost,
+    upgrade_cost,
     war_score,
 )
 from pax_agentica.engine.model import (
@@ -177,6 +180,7 @@ class _Resolver:
         self.order = list(alive)
         self.rng.shuffle(self.order)
         self.researched: set[NationId] = set()
+        self.upgraded: set[tuple[ProvinceId, BuildingKind]] = set()  # one level a year each
         self.flow: dict[str, int] = dict.fromkeys(TRADED, 0)  # net market purchases this year
         self.fallen: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)
         self.mercenaries: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)  # hired this year
@@ -1217,6 +1221,8 @@ class _Resolver:
                         self._disband(nation, action)
                     case Build():
                         self._build(nation, action)
+                    case UpgradeBuilding():
+                        self._upgrade_building(nation, action)
                     case UpgradeMonument():
                         self._upgrade_monument(nation, action)
                     case Improve():
@@ -1249,7 +1255,7 @@ class _Resolver:
     def _market(self, nation: NationId, a: Buy | Sell) -> None:
         me = self.s.nations[nation]
         buying = isinstance(a, Buy)
-        total = market_total(self.s, a.resource, a.amount, buying=buying)
+        total = market_total(self.s, a.resource, a.amount, buying=buying, nation=nation)
         goods = Resources(**{a.resource: a.amount})
         if buying:
             if error := self._pay(nation, Resources(ducats=total)):
@@ -1773,10 +1779,8 @@ class _Resolver:
         ):
             error = f"your realm already has {_article(spec.name)}: there can be only one"
         elif len(province.buildings) >= slots:
-            error = (
-                f"all {slots} building slots of {where} are taken; develop it to "
-                f"{(slots) * rules.development_per_building_slot} for another"
-            )
+            error = f"all {slots} building slots of {where} are taken: upgrade what stands there"
+
         else:
             error = self._pay(nation, building_cost(rules, a.building, mods.building_discount))
         if error:
@@ -1791,6 +1795,40 @@ class _Resolver:
             nations=(nation,),
             province=a.province,
             building=a.building.value,
+        )
+
+    def _upgrade_building(self, nation: NationId, a: UpgradeBuilding) -> None:
+        if error := self._own_error(nation, a.province):
+            self._reject(nation, a, error)
+            return
+        rules = self.s.rules
+        province = self.s.provinces[a.province]
+        spec = rules.buildings[a.building]
+        where = self._pname(a.province)
+        level = province.level(a.building)
+        if not level:
+            error = f"{where} has no {spec.name.lower()} to upgrade"
+        elif level >= spec.max_level:
+            error = f"the {spec.name.lower()} of {where} is at its highest level ({level})"
+        elif (a.province, a.building) in self.upgraded:
+            error = f"the {spec.name.lower()} of {where} is already being upgraded this year"
+        else:
+            mods = modifiers(self.s, nation)
+            error = self._pay(
+                nation, upgrade_cost(rules, a.building, level + 1, mods.building_discount)
+            )
+        if error:
+            self._reject(nation, a, error)
+            return
+        self.upgraded.add((a.province, a.building))
+        province.levels[a.building] = level + 1
+        self._emit(
+            EventKind.BUILT,
+            f"{self._name(nation)} raises the {spec.name.lower()} of {where} to level {level + 1}",
+            nations=(nation,),
+            province=a.province,
+            building=a.building.value,
+            level=level + 1,
         )
 
     # ------------------------------------------------------------ phase 4: movement
@@ -2525,7 +2563,7 @@ class _Resolver:
         available = self.s.nations[nation].resources + income
         paid, idle = Resources(), []
         for pid, kind in building_inputs(self.s, nation):
-            need = self.s.rules.buildings[kind].consumes
+            need = building_consumes(self.s.rules, kind, self.s.provinces[pid].level(kind))
             if available.covers(need):
                 available = available - need
                 paid = paid + need
@@ -2632,6 +2670,8 @@ class _Resolver:
         unfed = math.ceil((upkeep.grain - paid.grain) / max(1e-9, upkeep.grain / regiments))
         unpaid = math.ceil((upkeep.ducats - paid.ducats) / max(1e-9, upkeep.ducats / regiments))
         deserters = max(unfed, unpaid)
+        if deserters <= 0:  # short only of iron: the army makes do with worn gear
+            return
         deserted = 0
         for _ in range(deserters):
             garrisons = [p for p in self.s.held_by(nation) if self.s.provinces[p].troops]

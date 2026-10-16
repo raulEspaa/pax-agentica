@@ -44,8 +44,8 @@ def test_a_royal_marriage_warms_two_courts_every_year(state: GameState, play: Pl
 
 
 def test_conquest_breeds_infamy_and_alarm_next_door(state: GameState, play: Play) -> None:
-    state.provinces["madrid"].troops = 40
-    new = play(state, spain=[Attack(origin="madrid", target="navarre", regiments=40)])
+    state.provinces["castile"].troops = 40
+    new = play(state, spain=[Attack(origin="castile", target="navarre", regiments=40)])
     assert new.provinces["navarre"].owner == "spain"
     assert new.nations["spain"].infamy > 0
     assert new.opinion("france", "spain") < 0  # France borders Navarre

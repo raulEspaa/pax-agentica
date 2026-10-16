@@ -56,6 +56,7 @@ class Modifiers(BaseModel):
     arms_manufactory: bool = False  # levies need half the iron and no goods
     navy: bool = False  # attacks across a strait give the defender no sea-crossing bonus
     faith_tolerance: float = 0.0  # share of the penalty for provinces of another faith forgiven
+    trade_bonus: float = 0.0  # share of the merchants' cut waived, buying and selling
     sources: tuple[str, ...] = ()  # one line per bonus, for humans and prompts
 
 
@@ -69,8 +70,9 @@ TRADITIONS: dict[NationId, tuple[str, str, dict[str, float]]] = {
     ),
     "england": (
         "The Navy Royal",
-        "attacks across a strait face no sea-crossing bonus, and +5% ducats from the wool trade",
-        {"navy": 1.0, "ducat_income": 0.05},
+        "attacks across a strait face no sea-crossing bonus, and the Merchant Adventurers waive "
+        "a fifth of the merchants' cut",
+        {"navy": 1.0, "trade": 0.2},
     ),
     "ottomans": (
         "The millet system",
@@ -114,6 +116,13 @@ def holdings(
     return tuple(sorted(works)), tuple(sorted(monuments))
 
 
+def market_towns(state: GameState, nation: NationId) -> int:
+    """The levels of every marketplace a nation owns: its merchants' weight on the market."""
+    return sum(
+        p.level(BuildingKind.MARKETPLACE) for p in state.provinces.values() if p.owner == nation
+    )
+
+
 _CACHE: dict[tuple[object, ...], tuple[Rules, Modifiers]] = {}
 
 
@@ -139,6 +148,7 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             else None,
             tuple((r, a.name, a.skill) for r, a in sorted(me.advisors.items())),
             holdings(state, nation),  # type: ignore[arg-type]
+            market_towns(state, nation),  # type: ignore[arg-type]
             round(me.war_exhaustion, 1),
             me.prestige,
             tuple(me.missions_done),
@@ -177,8 +187,12 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
     trait_forts = 0.0
     penalty = rules.treaty_break_stability_penalty
     navy, grain_upkeep, tolerance = False, 1.0, 0.0
+    trade = rules.trade_bonus_per_economy_level * tech[TechBranch.ECONOMY]
+    if trade:
+        lines.append(f"economy technology: the merchants' cut {trade:.0%} lower")
     if nation in TRADITIONS:
         title, words, effects = TRADITIONS[nation]
+        trade += effects.get("trade", 0.0)
         ducats += effects.get("ducat_income", 0.0)
         power += effects.get("battle_power", 0.0)
         grain_upkeep += effects.get("grain_upkeep", 0.0)
@@ -233,7 +247,12 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         if role == AdvisorRole.TREASURER:
             bonus = rules.treasurer_income_bonus * advisor.skill
             ducats += bonus
-            lines.append(f"treasurer {advisor.name}: +{bonus:.0%} ducats")
+            dealing = rules.trade_bonus_per_treasurer_skill * advisor.skill
+            trade += dealing
+            lines.append(
+                f"treasurer {advisor.name}: +{bonus:.0%} ducats, the merchants' cut "
+                f"{dealing:.0%} lower"
+            )
         elif role == AdvisorRole.CHANCELLOR:
             research = rules.chancellor_research_discount * advisor.skill
             lines.append(f"chancellor {advisor.name}: research {research:.0%} cheaper")
@@ -268,7 +287,18 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
     extra_generals = 0
     if BuildingKind.ROYAL_EXCHANGE in works:
         ducats += rules.royal_exchange_income_bonus
-        lines.append(f"royal exchange: +{rules.royal_exchange_income_bonus:.0%} ducats")
+        trade += rules.royal_exchange_trade_bonus
+        lines.append(
+            f"royal exchange: +{rules.royal_exchange_income_bonus:.0%} ducats, the merchants' "
+            f"cut {rules.royal_exchange_trade_bonus:.0%} lower"
+        )
+    towns = min(
+        rules.trade_bonus_marketplaces_max,
+        rules.trade_bonus_per_marketplace * market_towns(state, nation),
+    )
+    if towns:
+        trade += towns
+        lines.append(f"your marketplaces: the merchants' cut {towns:.0%} lower")
     if BuildingKind.OBSERVATORY in works:
         research += rules.observatory_research_discount
         lines.append(f"observatory: research {rules.observatory_research_discount:.0%} cheaper")
@@ -337,6 +367,7 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         grain_upkeep_factor=(0.8 if milestones["canals"] else 1.0) * grain_upkeep,
         navy=navy,
         faith_tolerance=tolerance,
+        trade_bonus=min(rules.trade_bonus_max, trade),
         fort_bonus_per_level=(0.35 if milestones["star"] else rules.fort_bonus_per_level)
         + fort_extra,
         ignores_fort_levels=(1 if milestones["artillery"] else 0) + (1 if powder else 0),

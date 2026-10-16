@@ -232,6 +232,11 @@ class Session:
                 kind.value: (now - output_with(state, pid, without=(kind,))).model_dump()
                 for kind in p.buildings
             }
+            upgrades = {
+                kind.value: (output_with(state, pid, upgrade=kind) - now).model_dump()
+                for kind in p.buildings
+                if p.level(kind) < state.rules.buildings[kind].max_level
+            }
             develop = output_with(state, pid, development=p.development + 1) - now
             improve = output_with(state, pid, workings=p.workings + 1) - now
             out[pid] = {
@@ -239,6 +244,7 @@ class Session:
                 "improve": improve.model_dump(),
                 "buildings": gains,
                 "built": built,
+                "upgrades": upgrades,
             }
         return out
 
