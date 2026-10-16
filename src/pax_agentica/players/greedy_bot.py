@@ -40,7 +40,6 @@ from pax_agentica.engine.actions import (
     Terms,
     UpgradeMonument,
 )
-from pax_agentica.engine.events import EventKind
 from pax_agentica.engine.model import (
     AdvisorRole,
     BuildingKind,
@@ -89,8 +88,12 @@ class _Planner:
         self.rng = rng
         self.margin = margin
         self.provinces = {p.id: p for p in view.provinces}
-        self.mine = {p.id for p in view.provinces if p.owner == view.me.id}
+        me = view.me.id
+        # Where our regiments stand (our land and what we occupy), and what we can build on.
+        self.mine = {p.id for p in view.provinces if (p.controller or p.owner) == me}
+        self.owned = {p.id for p in view.provinces if p.owner == me and not p.controller}
         self.troops = {pid: self.provinces[pid].troops or 0 for pid in self.mine}
+        self.score_of = {w.enemy: w.war_score for w in view.me.wars}
         self.budget = view.me.resources
         self.enemies = set(view.me.at_war_with)
         self.old_enemies = set(self.enemies)
@@ -128,7 +131,11 @@ class _Planner:
         return p.neighbors + p.sea_neighbors
 
     def _border_nations(self) -> set[str]:
-        owners = {self.provinces[n].owner for pid in self.mine for n in self._neighbors(pid)}
+        owners = {
+            self.provinces[n].controller or self.provinces[n].owner
+            for pid in self.mine
+            for n in self._neighbors(pid)
+        }
         return {o for o in owners if o is not None and o != self.me.id}
 
     def _reserve(self, pid: ProvinceId) -> int:
@@ -168,24 +175,27 @@ class _Planner:
         for origin in sorted(self.mine):
             for t in self._neighbors(origin):
                 target = self.provinces[t]
-                if target.owner is None or (
-                    target.owner in self.enemies
-                    and target.owner not in self.suing_for_peace | self.mobilising
+                holder = target.controller or target.owner
+                if holder == self.me.id:
+                    continue
+                ours = target.owner == self.me.id  # occupied by the enemy: win it back first
+                if holder is None or (
+                    holder in self.enemies and holder not in self.suing_for_peace | self.mobilising
                 ):
                     need = self._needed(origin, target)
-                    found.append((target.development / need, origin, t, need))
+                    worth = target.development * (2 if ours else 1)
+                    found.append((worth / need, origin, t, need))
         found.sort(key=lambda c: (-c[0], c[1], c[2]))
         return found
 
     # ------------------------------------------------------------ 1. proposals
 
     def _losing_to(self, enemy: str) -> bool:
-        lost = any(
-            e.kind == EventKind.PROVINCE_CAPTURED and e.nations == (enemy, self.me.id)
-            for e in self.v.last_turn_events
-        )
+        """Behind in the war score, worn out, or simply outmatched."""
+        if self.score_of.get(enemy, 0) <= -15 or self.me.war_exhaustion >= 10:
+            return True
         their = next((n for n in self.v.nations if n.id == enemy), None)
-        return lost or (their is not None and their.score > self.me.score * 1.5)
+        return their is not None and their.score > self.me.score * 1.5
 
     def _answer_proposals(self) -> None:
         for p in self.v.proposals_to_answer:
@@ -201,7 +211,11 @@ class _Planner:
             self.actions.append(Respond(proposal_id=p.id, accept=accept, counter=counter))
 
     def _counter(self, p: ProposalView) -> Terms | None:
-        """Haggle: a beaten court offers gold for land; a trader asks for a fairer deal."""
+        """Haggle: a winner names its price, a beaten court offers gold for land, a trader asks
+        for a fairer deal."""
+        if p.kind == ProposalKind.PEACE and self.score_of.get(p.sender, 0) >= 10:
+            ours = self._peace_terms(p.sender)
+            return Terms(demand=ours.demand, receive=ours.receive, note=ours.note)
         if p.kind == ProposalKind.PEACE and self._losing_to(p.sender):
             gold = min(self.budget.ducats // 4, 60)
             return Terms(give=Resources(ducats=gold), note="Take gold, not our land.")
@@ -222,6 +236,26 @@ class _Planner:
         gain = value(p.give) + sum(dev[x] for x in p.cede) * 30 + p.pay_tribute * years
         return cost - gain
 
+    def _offered_worth(self, p: ProposalView) -> int:
+        """What a peace offers us, in war score: their land and gold, as the engine prices it."""
+        their = next((n for n in self.v.nations if n.id == p.sender), None)
+        total = max(1, their.score if their else 1)
+        land = sum(max(5, round(100 * self.provinces[x].development / total)) for x in p.cede)
+        income = max(10, self.me.income_per_turn.ducats)  # a rough stand-in for theirs
+        gold = round(10 * value(p.give) / income)
+        tribute = round(5 * p.pay_tribute * self.v.rules.tribute_years / income)
+        return land + gold + tribute
+
+    def _war_score_cost(self, p: ProposalView) -> int:
+        """What a peace demands of us, in war score, as the engine prices it."""
+        mine = max(1, self.me.score)
+        provinces = sum(max(5, round(100 * self.provinces[x].development / mine)) for x in p.demand)
+        income = max(10, self.me.income_per_turn.ducats)
+        lump = round(10 * value(p.receive) / income) if not p.receive.is_empty() else 0
+        tribute = round(5 * p.ask_tribute * self.v.rules.tribute_years / income)
+        limit = self.v.rules.peace_cost_army_limit if p.limit_army is not None else 0
+        return provinces + lump + tribute + limit
+
     def _fears(self, nation: str) -> bool:
         their = next((n for n in self.v.nations if n.id == nation), None)
         return their is not None and their.score >= self.me.score * 0.9
@@ -231,10 +265,15 @@ class _Planner:
             case ProposalKind.PEACE:
                 overstretched = len(self.old_enemies) >= 2
                 losing = overstretched or self._losing_to(p.sender)
-                cost = self._cost_of_peace(p)
-                if cost > 0:  # they ask for something: only when beaten, and not everything
-                    return losing and cost <= 40 * self.me.score // max(1, len(self.mine))
-                return losing or cost < 0 or self.rng.random() < 0.4
+                weary = self.me.war_exhaustion >= 6
+                earned = -self.score_of.get(p.sender, 0)  # their war score against us
+                asked = self._war_score_cost(p)
+                if asked > 0:  # they ask for something: grant what they have won, no more
+                    return asked <= max(0, earned) + 5 or (weary and asked <= earned + 20)
+                won = self.score_of.get(p.sender, 0)
+                if won >= 10:  # we are winning: a peace must pay for what we hold
+                    return self._offered_worth(p) >= 0.6 * won or self.me.war_exhaustion >= 12
+                return losing or weary or self._cost_of_peace(p) < 0 or self.rng.random() < 0.4
             case ProposalKind.ALLIANCE:
                 if len(self.allies) >= 2:
                     return False
@@ -311,6 +350,14 @@ class _Planner:
         exposed = sorted(p for p in self.mine if self._exposed(p))
         return exposed[0] if exposed else self.me.capital
 
+    def _levy_province(self) -> ProvinceId | None:
+        """Where to raise regiments: our own free land nearest the front."""
+        staging = self._staging_province()
+        if staging in self.owned:
+            return staging
+        near = [p for p in self.owned if staging in self._neighbors(p)]
+        return min(near) if near else (min(self.owned) if self.owned else None)
+
     def _recruit(self) -> None:
         cost = self.v.rules.recruit_cost
         # In peace, only what the harvest can feed; at war, eat into the granaries too.
@@ -329,9 +376,9 @@ class _Planner:
             if need:
                 limits.append(have // need)
         regiments = min(limits)
-        if regiments <= 0 or not self.mine:
+        where = self._levy_province()
+        if regiments <= 0 or where is None:
             return
-        where = self._staging_province()
         offered = self.provinces[where].recruit_costs
         # A balanced army: a quarter archers, a fifth horse where there are stables, a tenth
         # guns in war where there is a foundry; pikemen for the rest.
@@ -411,7 +458,7 @@ class _Planner:
         candidates = sorted(
             (
                 p
-                for p in self.mine
+                for p in self.owned
                 if self.provinces[p].development < self.me.modifiers.max_development
             ),
             key=lambda p: (
@@ -432,11 +479,11 @@ class _Planner:
         rules, me = self.v.rules, self.me
 
         def best(field: str) -> list[ProvinceId]:
-            output = {p: getattr(self.provinces[p].output_per_turn, field) for p in self.mine}
-            return sorted(self.mine, key=lambda p: (-output[p], p))
+            output = {p: getattr(self.provinces[p].output_per_turn, field) for p in self.owned}
+            return sorted(self.owned, key=lambda p: (-output[p], p))
 
         wishes: list[tuple[BuildingKind, list[ProvinceId]]] = []
-        capital = self.provinces.get(me.capital)
+        capital = self.provinces.get(me.capital) if me.capital in self.owned else None
         if capital and any(
             self.provinces[n].owner in self.enemies for n in self._neighbors(capital.id)
         ):
@@ -450,7 +497,7 @@ class _Planner:
         if self.budget.timber < 10:
             wishes.append((BuildingKind.LUMBER_MILL, best("timber")))
         richest = best("ducats")
-        staging = self._staging_province()
+        staging = self._levy_province() or me.capital
         if self.enemies:
             wishes.append((BuildingKind.ARMORY, [staging]))
         if self.enemies:
@@ -468,7 +515,7 @@ class _Planner:
             (BuildingKind.CATHEDRAL, richest[:1]),
             (BuildingKind.BANK, richest),
         ]
-        owned = {b for pid in self.mine for b in self.provinces[pid].buildings}
+        owned = {b for pid in self.owned for b in self.provinces[pid].buildings}
         cost = me.building_costs
         for kind, places in wishes:
             spec = rules.buildings[kind]
@@ -490,7 +537,7 @@ class _Planner:
     def _monument(self, reserve: int) -> None:
         """Raise a monument when the treasury is comfortably full."""
         rules = self.v.rules
-        for pid in sorted(self.mine):
+        for pid in sorted(self.owned):
             level = self.provinces[pid].monument
             if level is None or level >= rules.max_monument_level or self.provinces[pid].unrest:
                 continue
@@ -571,25 +618,34 @@ class _Planner:
             return ProposePeace(
                 target=enemy, give=Resources(ducats=gold), note="Let this end. We will pay."
             )
+        score = self.score_of.get(enemy, 0)
         their = next((n for n in self.v.nations if n.id == enemy), None)
-        if their is not None and their.score * 1.3 < self.me.score:
-            border = sorted(
-                (
-                    self.provinces[n]
-                    for pid in self.mine
-                    for n in self._neighbors(pid)
-                    if self.provinces[n].owner == enemy and not self.provinces[n].is_capital
-                ),
-                key=lambda p: (-p.development, p.id),
+        if their is None or score < 10:
+            return ProposePeace(target=enemy)
+        # Ask for what we hold of theirs, as far as the war score covers it.
+        held = sorted(
+            (p for p in self.v.provinces if p.owner == enemy and p.controller == self.me.id),
+            key=lambda p: (-p.development, p.id),
+        )
+        demand, spent = [], 0
+        for p in held:
+            cost = max(5, round(100 * p.development / max(1, their.score)))
+            if p.is_capital or spent + cost > score:
+                continue
+            demand.append(p)
+            spent += cost
+        if demand:
+            names = ", ".join(p.name for p in demand)
+            return ProposePeace(
+                target=enemy,
+                demand=[p.id for p in demand],
+                note=f"Our soldiers stand in {names}. Sign them over and the war is done.",
             )
-            if border:
-                return ProposePeace(
-                    target=enemy,
-                    demand=[border[0].id],
-                    receive=Resources(ducats=30),
-                    note=f"Give us {border[0].name} and this war ends.",
-                )
-        return ProposePeace(target=enemy)
+        return ProposePeace(
+            target=enemy,
+            receive=Resources(ducats=min(score, 60)),
+            note="Pay for the trouble and go in peace.",
+        )
 
     def _nation_name(self, nid: str) -> str:
         return next((n.name for n in self.v.nations if n.id == nid), nid)
@@ -685,8 +741,12 @@ class _Planner:
         for enemy in sorted(self.old_enemies):
             stalled = enemy not in targets
             overstretched = len(self.old_enemies) >= 2 and enemy != keep
+            pressing = self.score_of.get(enemy, 0) >= 25 or self.me.war_exhaustion >= 8
             if (ProposalKind.PEACE, enemy) not in pending and (
-                overstretched or self._losing_to(enemy) or (stalled and self.rng.random() < 0.3)
+                overstretched
+                or pressing
+                or self._losing_to(enemy)
+                or (stalled and self.rng.random() < 0.3)
             ):
                 self.actions.append(self._peace_terms(enemy))
 

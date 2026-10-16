@@ -6,9 +6,9 @@ from collections.abc import Callable
 import pytest
 
 from pax_agentica.engine import EventKind, GameState
-from pax_agentica.engine.actions import Attack, DeclareWar, Move
+from pax_agentica.engine.actions import Attack, DeclareWar, Move, ProposePeace, Respond
 from pax_agentica.engine.mechanics import defense_multiplier, fight
-from pax_agentica.engine.model import BuildingKind
+from pax_agentica.engine.model import BuildingKind, UnitKind
 
 type Play = Callable[..., GameState]
 
@@ -88,7 +88,7 @@ def test_armies_cannot_attack_in_the_turn_war_is_declared(state: GameState, play
     assert reasons(new) == ["your armies are still mobilising: attack from turn 2"]
     new.provinces["aragon"].troops = 40
     later = play(new, spain=[Attack(origin="aragon", target="languedoc", regiments=40)])
-    assert later.provinces["languedoc"].owner == "spain"
+    assert later.provinces["languedoc"].holder == "spain"  # occupied: the peace decides
 
 
 def test_you_can_only_attack_bordering_provinces(state: GameState, play: Play) -> None:
@@ -112,29 +112,59 @@ def test_moves_only_between_your_own_bordering_provinces(state: GameState, play:
         ],
     )
     assert new.provinces["aragon"].troops == 6
-    assert reasons(new) == ["you do not own Lisbon", "only 2 regiments in Madrid"]
+    assert reasons(new) == ["you do not hold Lisbon", "only 2 regiments in Madrid"]
 
 
-def test_losing_the_capital_moves_it_and_costs_stability(state: GameState, play: Play) -> None:
+def test_an_occupied_capital_costs_stability_and_stays_a_capital(
+    state: GameState, play: Play
+) -> None:
     war = at_war(state, "spain", "england", play)
     war.provinces["normandy"].owner = "spain"
     war.provinces["normandy"].troops = 200
     war.provinces["london"].troops = 1
     new = play(war, spain=[Attack(origin="normandy", target="london", regiments=200)])
     england = new.nations["england"]
-    assert new.provinces["london"].owner == "spain"
-    assert england.capital == "york"  # the most developed province left
+    assert new.provinces["london"].owner == "england"
+    assert new.provinces["london"].controller == "spain"
+    assert england.capital == "london"
     assert england.stability == war.nations["england"].stability - 1
 
 
-def test_a_nation_without_provinces_is_eliminated(state: GameState, play: Play) -> None:
+def test_a_peace_that_takes_the_last_province_ends_a_nation(state: GameState, play: Play) -> None:
     war = at_war(state, "spain", "england", play)
-    for pid in ("york", "wales"):
-        war.provinces[pid].owner = "spain"
-    war.provinces["normandy"].owner = "spain"
-    war.provinces["normandy"].troops = 200
-    war.provinces["london"].troops = 1
-    new = play(war, spain=[Attack(origin="normandy", target="london", regiments=200)])
+    for lost in ("york", "wales"):
+        war.provinces[lost].owner = "spain"
+    war.provinces["london"].controller = "spain"  # Spain holds the capital
+    offer = play(war, spain=[ProposePeace(target="england", demand=["london"])])
+    assert reasons(offer) == []
+    proposal = next(p.id for p in offer.proposals if p.recipient == "england")
+    new = play(offer, england=[Respond(proposal_id=proposal, accept=True)])
     assert not new.nations["england"].alive
     assert not new.enemies_of("spain")
     assert EventKind.NATION_ELIMINATED in [e.kind for e in new.last_events]
+
+
+def test_walls_hold_a_year_unless_guns_breach_them(state: GameState, play: Play) -> None:
+    war = at_war(state, "france", "austria", play)  # Vienna has a fort
+    war.provinces["bavaria"].owner, war.provinces["bavaria"].troops = "france", 60
+    war.provinces["vienna"].troops = 1
+    first = play(war, france=[Attack(origin="bavaria", target="vienna", regiments=60)])
+    assert first.provinces["vienna"].holder == "austria"
+    assert first.provinces["vienna"].siege_years == 1
+    assert EventKind.SIEGE in [e.kind for e in first.last_events]
+    second = play(first, france=[Attack(origin="bavaria", target="vienna", regiments=50)])
+    assert second.provinces["vienna"].controller == "france"
+    gunned = war.model_copy(deep=True)
+    gunned.provinces["bavaria"].set_army({UnitKind.INFANTRY: 50, UnitKind.ARTILLERY: 10})
+    breached = play(gunned, france=[Attack(origin="bavaria", target="vienna", regiments=60)])
+    assert breached.provinces["vienna"].controller == "france"  # a sixth of guns: no siege
+
+
+def test_a_province_can_be_won_back(state: GameState, play: Play) -> None:
+    war = at_war(state, "spain", "france", play)
+    war.provinces["languedoc"].controller = "spain"
+    war.provinces["languedoc"].troops = 1
+    war.provinces["gascony"].troops = 30
+    back = play(war, france=[Attack(origin="gascony", target="languedoc", regiments=30)])
+    assert back.provinces["languedoc"].controller is None
+    assert EventKind.PROVINCE_LIBERATED in [e.kind for e in back.last_events]

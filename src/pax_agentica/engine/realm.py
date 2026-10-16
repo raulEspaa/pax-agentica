@@ -107,6 +107,8 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             else None,
             tuple((r, a.name, a.skill) for r, a in sorted(me.advisors.items())),
             holdings(state, nation),  # type: ignore[arg-type]
+            round(me.war_exhaustion, 1),
+            me.prestige,
         )
     cached = _CACHE.get(key)
     if cached is not None and cached[0] is state.rules:
@@ -197,6 +199,10 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             lines.append(f"marshal {advisor.name}: +{bonus:.0%} battle power")
 
     research += trait_research
+    if me.war_exhaustion:
+        weary = rules.exhaustion_income_penalty * me.war_exhaustion
+        ducats -= weary
+        lines.append(f"war exhaustion {me.war_exhaustion:.1f}: -{weary:.0%} ducats")
     works, monuments = holdings(state, nation)
     fort_extra = trait_forts
     extra_generals = 0

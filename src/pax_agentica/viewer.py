@@ -311,6 +311,7 @@ def _frame(
             amounts(buildings_yield(rules, b, ks)) for b, ks in zip(base, kinds, strict=True)
         ],
         "o": [nations.index(p.owner) if p.owner else -1 for p in provinces],
+        "c": [nations.index(p.controller) if p.controller else -1 for p in provinces],
         "g": [
             [order.index(g.province), nations.index(g.nation), g.name, g.skill]
             for g in snapshot.generals

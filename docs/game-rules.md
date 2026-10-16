@@ -245,10 +245,34 @@ technology, milestones, ruler and council.
   × (1 + 0.25 for a fort + 0.25 for a citadel + 0.25 for a capital + 0.25 across a strait).
 - **The loser loses every regiment** in the fight. The winner loses about half the ratio of the
   loser's power to its own, and always keeps at least one regiment.
-- **A winning attacker takes the province.** The survivors become its garrison, and an empty
-  province falls without a fight.
-- **Losing your capital** moves it to your most developed province and costs 1 stability.
-  Losing every province ends your nation.
+- **A winning attacker takes the province.** An independent minor is annexed at once. A great
+  power's province is **occupied**: the occupier's survivors garrison it and its armies may
+  march on from there, but the province still belongs to its owner, who gets nothing from it
+  meanwhile. Only a peace transfers it; at peace, whatever is still occupied goes back, and its
+  garrison goes home. An owner (or an ally) who beats the occupier frees the province.
+- **Walls hold out.** A fort or citadel stands a year of siege per level: the attacker must win
+  that many years running before the next assault takes the province. A siege not pressed for a
+  year is lifted. Every tenth of the attacking army in artillery knocks one level off, and so
+  does Field Artillery.
+- **An occupied capital** costs its owner 1 stability. A capital only changes hands in a peace,
+  and only to the side that occupies it; a nation that loses its last province is gone.
+
+### War score and exhaustion
+
+Each war has a **war score** from each side, from −100 to 100: the share of the enemy's land
+(by development) you occupy, +15 for its capital, and +2 for each battle won (up to 20), minus
+the same for them. A peace **may only demand what your war score covers**:
+
+| Demand | Costs in war score |
+|---|---|
+| a province | its share of the loser's development (at least 5) |
+| a lump sum | 10 per year of the loser's ducat income it is worth |
+| a tribute | half that, for all its years |
+| an army limit | 15 |
+
+Offering is never limited. **War exhaustion** (0 to 20) grows by 1 for each war each year, 0.5 for
+each battle lost and 0.5 a year for each of your provinces occupied; it falls by 2 a year at
+peace. Each point costs 1% of ducat income, and from 10 it costs 1 stability every year.
 
 ### Generals
 

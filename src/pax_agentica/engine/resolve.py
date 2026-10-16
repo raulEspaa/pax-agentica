@@ -62,10 +62,12 @@ from pax_agentica.engine.mechanics import (
     fight,
     manpower_cap,
     nation_income,
+    peace_cost,
     recruit_cost,
     research_cost,
     siege_levels,
     stability_cost,
+    war_score,
 )
 from pax_agentica.engine.model import (
     BuildingKind,
@@ -124,6 +126,7 @@ class _Resolver:
         self.order = list(alive)
         self.rng.shuffle(self.order)
         self.researched: set[NationId] = set()
+        self.besieged: set[ProvinceId] = set()  # sieges pressed this year
         self.fallen: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)
 
     def run(self) -> GameState:
@@ -193,10 +196,22 @@ class _Resolver:
         return None
 
     def _own_error(self, me: NationId, province: ProvinceId) -> str | None:
+        """For works and levies: the province must be yours, and not under occupation."""
         if province not in self.s.provinces:
             return f"there is no province '{province}'"
-        if self.s.provinces[province].owner != me:
+        p = self.s.provinces[province]
+        if p.owner != me:
             return f"you do not own {self._pname(province)}"
+        if p.controller:
+            return f"{self._pname(province)} is occupied by {self._name(p.controller)}"
+        return None
+
+    def _hold_error(self, me: NationId, province: ProvinceId) -> str | None:
+        """For armies: the province must be held by you, as owner or occupier."""
+        if province not in self.s.provinces:
+            return f"there is no province '{province}'"
+        if self.s.provinces[province].holder != me:
+            return f"you do not hold {self._pname(province)}"
         return None
 
     def _pay(self, nation: NationId, cost: Resources) -> str | None:
@@ -234,24 +249,49 @@ class _Resolver:
         if len(set(moving)) != len(moving):
             return "a province appears twice in the terms"
         capitals = {n.capital for n in self.s.nations.values() if n.alive}
-        for pids, owner in ((t.cede, sender), (t.demand, recipient)):
+        for pids, owner, receiver in ((t.cede, sender, recipient), (t.demand, recipient, sender)):
             for pid in pids:
                 if pid not in self.s.provinces:
                     return f"there is no province '{pid}'"
                 if self.s.provinces[pid].owner != owner:
                     return f"{self._pname(pid)} does not belong to {self._name(owner)}"
-                if pid in capitals:
-                    return f"{self._pname(pid)} is a capital and cannot be handed over"
+                if pid in capitals and self.s.provinces[pid].controller != receiver:
+                    return (
+                        f"{self._pname(pid)} is a capital: it changes hands only if "
+                        f"{self._name(receiver)} occupies it"
+                    )
         for pids, receiver in ((t.cede, recipient), (t.demand, sender)):
-            held = set(self.s.provinces_of(receiver))
+            held = set(self.s.held_by(receiver))
             waiting = set(pids)
             while waiting:
-                joined = {p for p in waiting if any(self.s.map.adjacent(p, h) for h in held)}
+                joined = {
+                    p
+                    for p in waiting
+                    if self.s.provinces[p].controller == receiver
+                    or any(self.s.map.adjacent(p, h) for h in held)
+                }
                 if not joined:
                     lost = ", ".join(self._pname(p) for p in sorted(waiting))
                     return f"{lost} does not border {self._name(receiver)}"
                 held |= joined
                 waiting -= joined
+        return None
+
+    def _score_error(self, sender: NationId, recipient: NationId, t: Terms) -> str | None:
+        """A peace may only demand what the sender's war score covers."""
+        cost = peace_cost(
+            self.s,
+            recipient,
+            provinces=t.demand,
+            lump=t.receive,
+            tribute=t.ask_tribute,
+            army_limit=t.limit_army is not None,
+        )
+        if not cost:
+            return None
+        score = war_score(self.s, sender, recipient)
+        if cost > max(0, score):
+            return f"your war score ({score}) does not cover these demands (they cost {cost})"
         return None
 
     def _describe_terms(self, p: Proposal) -> str:
@@ -386,7 +426,7 @@ class _Resolver:
             if not self.s.at_war(nation, other):
                 error = "you are no longer at war"
             else:
-                error = self._terms_error(nation, other, t)
+                error = self._terms_error(nation, other, t) or self._score_error(nation, other, t)
         elif p.kind == ProposalKind.TRADE:
             if t.cede or t.demand or t.pay_tribute or t.ask_tribute or t.limit_army is not None:
                 error = "a trade's counter-offer can only give and receive"
@@ -512,6 +552,7 @@ class _Resolver:
                     )
                 )
                 paid += f"; {self._name(b)} keeps at most {terms.limit_army} regiments"
+        self._return_occupied(a, b)
         for x, y in ((a, b), (b, a)):
             self._opine(x, y, self.s.rules.opinion_treaty["peace"])
         self._emit(
@@ -521,9 +562,48 @@ class _Resolver:
             nations=(a, b),
         )
 
+    def _return_occupied(self, a: NationId, b: NationId) -> None:
+        """At peace, what each side still occupies of the other goes back, and its garrison
+        goes home."""
+        for pid, p in self.s.provinces.items():
+            if p.controller and {p.owner, p.controller} == {a, b}:
+                occupier = self.s.nations[p.controller]
+                occupier.resources = occupier.resources + self.s.rules.disband_refund.times(
+                    p.troops
+                )
+                general = self.s.general_in(pid)
+                if general is not None and general.nation == p.controller:
+                    self._send_home(general, p.controller, pid)
+                p.set_army({})
+                p.controller = None
+                p.siege_by, p.siege_years = None, 0
+
+    def _send_home(self, general: General, nation: NationId, leaving: ProvinceId) -> None:
+        free = [x for x in self.s.held_by(nation) if x != leaving and not self.s.general_in(x)]
+        capital = self.s.nations[nation].capital
+        home = capital if capital in free else (free[0] if free else None)
+        if home is None:
+            self.s.generals.remove(general)
+        else:
+            general.province = home
+
     def _cede(self, province: ProvinceId, frm: NationId, to: NationId) -> None:
-        """Hand a province over by treaty: its garrison goes home, its general rides back."""
+        """Hand a province over by treaty. If the receiver occupies it, its garrison stays;
+        otherwise the old garrison goes home and its general rides back."""
         state = self.s.provinces[province]
+        if state.controller == to:
+            state.controller = None
+            state.owner = to
+            state.unrest = self.s.rules.ceded_unrest_turns
+            self._opine(frm, to, self.s.rules.opinion_province_taken // 2)
+            self._emit(
+                EventKind.PROVINCE_CEDED,
+                f"{self._name(frm)} cedes {self._pname(province)} to {self._name(to)}",
+                nations=(frm, to),
+                province=province,
+            )
+            self._after_loss(frm, province, to)
+            return
         giver = self.s.nations[frm]
         giver.resources = giver.resources + self.s.rules.disband_refund.times(state.troops)
         state.set_army({})
@@ -538,6 +618,7 @@ class _Resolver:
             else:
                 general.province = home
         state.owner = to
+        state.controller = None
         state.unrest = self.s.rules.ceded_unrest_turns
         self._opine(frm, to, self.s.rules.opinion_province_taken // 2)
         self._emit(
@@ -546,6 +627,7 @@ class _Resolver:
             nations=(frm, to),
             province=province,
         )
+        self._after_loss(frm, province, to)
 
     def _trade(self, p: Proposal) -> None:
         s, r = self.s.nations[p.sender], self.s.nations[p.recipient]
@@ -707,7 +789,9 @@ class _Resolver:
             if not self.s.nations[nation].resources.covers(a.give):
                 self._reject(nation, a, f"you cannot pay {a.give}")
                 return
-            if error := self._terms_error(nation, a.target, a):
+            if error := self._terms_error(nation, a.target, a) or self._score_error(
+                nation, a.target, a
+            ):
                 self._reject(nation, a, error)
                 return
             self._propose(kind, nation, a.target, **_terms(a, kind))
@@ -984,7 +1068,7 @@ class _Resolver:
         if general is None or general.nation != nation:
             self._reject(nation, a, f"you have no general #{a.general}")
             return
-        if error := self._own_error(nation, a.province):
+        if error := self._hold_error(nation, a.province):
             self._reject(nation, a, error)
             return
         other = self.s.general_in(a.province)
@@ -1088,7 +1172,7 @@ class _Resolver:
         return general, None
 
     def _disband(self, nation: NationId, a: Disband) -> None:
-        if error := self._own_error(nation, a.province):
+        if error := self._hold_error(nation, a.province):
             self._reject(nation, a, error)
             return
         province = self.s.provinces[a.province]
@@ -1187,7 +1271,7 @@ class _Resolver:
     def _movement(self) -> None:
         for nation in self.order:
             for a in self._actions(nation, Move):
-                error = self._own_error(nation, a.origin) or self._own_error(nation, a.target)
+                error = self._hold_error(nation, a.origin) or self._hold_error(nation, a.target)
                 if not error and not self.s.map.adjacent(a.origin, a.target):
                     error = f"{self._pname(a.origin)} and {self._pname(a.target)} do not border"
                 if not error:
@@ -1243,7 +1327,7 @@ class _Resolver:
         if a.target not in self.s.provinces:
             self._reject(nation, a, f"there is no province '{a.target}'")
             return
-        if error := self._own_error(nation, a.origin):
+        if error := self._hold_error(nation, a.origin):
             self._reject(nation, a, error)
             return
         if not self.s.map.adjacent(a.origin, a.target):
@@ -1252,7 +1336,7 @@ class _Resolver:
             )
             return
         origin, target = self.s.provinces[a.origin], self.s.provinces[a.target]
-        defender = target.owner
+        defender = target.holder
         if defender == nation:
             self._reject(nation, a, f"{self._pname(a.target)} is already yours")
             return
@@ -1288,8 +1372,12 @@ class _Resolver:
         if general:
             attacker_name += f" under {general.name}"
         defender_name = self._name(defender) if defender else "the local levies"
+        walls = self._walls(nation, a.target, force)
         if target.troops == 0:
-            self._capture(nation, a.target, force, general)
+            if walls:
+                self._siege(nation, a, force, general, walls)
+            else:
+                self._capture(nation, a.target, force, general, origin=a.origin)
             return
         guard = self.s.general_in(a.target)
         if guard and guard.nation != defender:
@@ -1326,12 +1414,69 @@ class _Resolver:
             defender_losses=result.defender_losses,
             attacker_won=result.attacker_won,
         )
+        self._battle_counts(nation, defender, won=result.attacker_won)
         if result.attacker_won:
             fallen = share(force, result.attacker_losses)
             survivors = {k: force[k] - fallen[k] for k in UnitKind}
-            self._capture(nation, a.target, survivors, general)
+            if walls:
+                target.set_army({})  # the garrison is beaten, the walls still stand
+                self._siege(nation, a, survivors, general, walls)
+            else:
+                self._capture(nation, a.target, survivors, general, origin=a.origin)
         else:
             target.take(result.defender_losses)
+
+    def _walls(self, nation: NationId, province: ProvinceId, force: dict[UnitKind, int]) -> int:
+        """Fort levels still standing against this army: each holds out a year of siege."""
+        target = self.s.provinces[province]
+        ignored = modifiers(self.s, nation).ignores_fort_levels
+        return max(0, target.fort - ignored - siege_levels(self.s.rules, force))
+
+    def _siege(
+        self,
+        nation: NationId,
+        a: Attack,
+        force: dict[UnitKind, int],
+        general: General | None,
+        walls: int,
+    ) -> None:
+        target = self.s.provinces[a.target]
+        target.siege_years = target.siege_years + 1 if target.siege_by == nation else 1
+        target.siege_by = nation
+        self.besieged.add(a.target)
+        if target.siege_years > walls:  # each level of wall holds out a year
+            target.siege_by, target.siege_years = None, 0
+            self._capture(nation, a.target, force, general, origin=a.origin)
+            return
+        self.s.provinces[a.origin].add(force)  # the besiegers camp at home for the winter
+        self._emit(
+            EventKind.SIEGE,
+            f"The walls of {self._pname(a.target)} hold against {self._name(nation)}: "
+            f"they fall at the next assault after {walls} year{'s' if walls > 1 else ''} of siege "
+            f"({target.siege_years} so far)",
+            nations=(nation, target.holder) if target.holder else (nation,),
+            province=a.target,
+            years=target.siege_years,
+            walls=walls,
+        )
+
+    def _battle_counts(self, attacker: NationId, defender: NationId | None, *, won: bool) -> None:
+        """Battles between great powers feed the war score and the loser's exhaustion."""
+        if defender is None:
+            return
+        war = self.s.war(attacker, defender)
+        if war is None:
+            return
+        winner, loser = (attacker, defender) if won else (defender, attacker)
+        war.battles[winner] = war.battles.get(winner, 0) + 1
+        self._exhaust(loser, self.s.rules.exhaustion_per_battle_lost)
+
+    def _exhaust(self, nation: NationId, amount: float) -> None:
+        state = self.s.nations[nation]
+        rules = self.s.rules
+        state.war_exhaustion = round(
+            max(0.0, min(rules.exhaustion_max, state.war_exhaustion + amount)), 2
+        )
 
     def _rivalry(self, nation: NationId | None, against: NationId | None) -> float:
         """Regiments fight harder against a declared rival."""
@@ -1347,14 +1492,25 @@ class _Resolver:
         province: ProvinceId,
         troops: dict[UnitKind, int],
         general: General | None = None,
+        *,
+        origin: ProvinceId | None = None,
     ) -> None:
+        """Take a province. Independent land is annexed at once; a great power's is occupied
+        until a peace says otherwise; one's own (or an ally's) is liberated."""
         state: ProvinceState = self.s.provinces[province]
         previous = state.owner
         beaten = self.s.general_in(province)
         if beaten is not None and beaten.nation != nation:
             self._general_falls(beaten, province)
+        state.siege_by, state.siege_years = None, 0
+        if previous is not None and (previous == nation or not self.s.at_war(nation, previous)):
+            self._liberate(nation, province, troops, general, origin)
+            return
         if general is not None and self.s.general_in(province) is None:
             general.province = province
+        if previous is not None:
+            self._occupy(nation, province, troops)
+            return
         state.owner = nation
         state.set_army(troops)
         state.unrest = self.s.rules.unrest_turns
@@ -1367,23 +1523,69 @@ class _Resolver:
             nations=(nation, previous) if previous else (nation,),
             province=province,
         )
-        if previous is None:
-            return
-        remaining = self.s.provinces_of(previous)
+
+    def _after_loss(self, loser: NationId, province: ProvinceId, to: NationId) -> None:
+        """A nation lost a province for good: it may have to move its capital, or vanish."""
+        remaining = self.s.provinces_of(loser)
         if not remaining:
-            self._eliminate(previous, by=nation)
+            self._eliminate(loser, by=to)
             return
-        loser_state = self.s.nations[previous]
+        loser_state = self.s.nations[loser]
         if loser_state.capital == province:
             new_capital = min(remaining, key=lambda p: (-self.s.provinces[p].development, p))
             loser_state.capital = new_capital
             self._emit(
                 EventKind.CAPITAL_MOVED,
                 f"{loser_state.name} loses its capital and moves it to {self._pname(new_capital)}",
-                nations=(previous,),
+                nations=(loser,),
                 province=new_capital,
             )
-            self._change_stability(previous, -1, "lost its capital")
+            self._change_stability(loser, -1, "lost its capital")
+
+    def _occupy(self, nation: NationId, province: ProvinceId, troops: dict[UnitKind, int]) -> None:
+        state = self.s.provinces[province]
+        owner = state.owner
+        assert owner is not None  # noqa: S101 (only great powers' land is occupied)
+        state.controller = nation
+        state.set_army(troops)
+        self._opine(owner, nation, self.s.rules.opinion_province_taken)
+        self._emit(
+            EventKind.PROVINCE_OCCUPIED,
+            f"{self._name(nation)} occupies {self._pname(province)}, "
+            f"a province of {self._name(owner)}",
+            nations=(nation, owner),
+            province=province,
+        )
+        if self.s.nations[owner].capital == province:
+            self._change_stability(owner, -1, "its capital is occupied")
+
+    def _liberate(
+        self,
+        nation: NationId,
+        province: ProvinceId,
+        troops: dict[UnitKind, int],
+        general: General | None,
+        origin: ProvinceId | None,
+    ) -> None:
+        """Win back a province from its occupier, for oneself or for an ally."""
+        state = self.s.provinces[province]
+        owner = state.owner
+        state.controller = None
+        if owner == nation:
+            state.set_army(troops)
+            if general is not None and self.s.general_in(province) is None:
+                general.province = province
+        else:  # an ally's land: hand it back and go home
+            state.set_army({})
+            if origin is not None:
+                self.s.provinces[origin].add(troops)
+        self._emit(
+            EventKind.PROVINCE_LIBERATED,
+            f"{self._name(nation)} frees {self._pname(province)}"
+            + (f" for {self._name(owner)}" if owner and owner != nation else ""),
+            nations=(nation, owner) if owner and owner != nation else (nation,),
+            province=province,
+        )
 
     def _general_falls(self, general: General, province: ProvinceId) -> None:
         self.s.generals.remove(general)
@@ -1400,6 +1602,12 @@ class _Resolver:
         self.s.generals = [g for g in self.s.generals if g.nation != nation]
         state.alive = False
         state.resources = Resources()
+        for p in self.s.provinces.values():
+            if p.controller == nation:  # its occupying armies melt away
+                p.controller = None
+                p.set_army({})
+            if p.siege_by == nation:
+                p.siege_by, p.siege_years = None, 0
         self.s.wars = [w for w in self.s.wars if nation not in w.parties]
         self.s.treaties = [t for t in self.s.treaties if nation not in t.parties]
         self.s.proposals = [
@@ -1418,6 +1626,10 @@ class _Resolver:
             self._produce_and_feed(nation)
         self._pay_tributes()
         self._drift_opinions()
+        self._weary()
+        for pid, p in self.s.provinces.items():  # a siege not pressed this year is lifted
+            if p.siege_by and pid not in self.besieged:
+                p.siege_by, p.siege_years = None, 0
         for province in self.s.provinces.values():
             settles = 2 if BuildingKind.CATHEDRAL in province.buildings else 1
             province.unrest = max(0, province.unrest - settles)
@@ -1435,6 +1647,24 @@ class _Resolver:
         self._check_victory()
         if not self.s.finished:
             self.s.turn += 1
+
+    def _weary(self) -> None:
+        """War exhaustion: every year of war, every province under occupation, weighs on a
+        realm; peace lets it recover. Past the threshold, it costs stability."""
+        rules = self.s.rules
+        for nation in self.s.alive_nations():
+            wars = len(self.s.enemies_of(nation))
+            if wars:
+                lost = len(self.s.occupied_from(nation))
+                self._exhaust(
+                    nation,
+                    rules.exhaustion_per_war_year * wars
+                    + rules.exhaustion_per_province_occupied * lost,
+                )
+            else:
+                self._exhaust(nation, -rules.exhaustion_recovery)
+            if self.s.nations[nation].war_exhaustion >= rules.exhaustion_unrest_threshold:
+                self._change_stability(nation, -1, "war exhaustion")
 
     def _pay_tributes(self) -> None:
         for t in self.s.treaties:
@@ -1504,7 +1734,7 @@ class _Resolver:
         deserters = max(unfed, unpaid)
         deserted = 0
         for _ in range(deserters):
-            garrisons = [p for p in self.s.provinces_of(nation) if self.s.provinces[p].troops]
+            garrisons = [p for p in self.s.held_by(nation) if self.s.provinces[p].troops]
             if not garrisons:
                 break
             biggest = min(garrisons, key=lambda p: (-self.s.provinces[p].troops, p))

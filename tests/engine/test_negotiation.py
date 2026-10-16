@@ -13,7 +13,9 @@ from pax_agentica.engine.actions import (
     Respond,
     Terms,
 )
+from pax_agentica.engine.mechanics import war_score
 from pax_agentica.engine.model import TreatyKind
+from pax_agentica.engine.realm import modifiers
 
 type Play = Callable[..., GameState]
 
@@ -30,28 +32,33 @@ def proposal_to(state: GameState, nation: str) -> int:
     return next(p.id for p in state.proposals if p.recipient == nation)
 
 
-def at_war(state: GameState, play: Play) -> GameState:
-    return play(state, spain=[DeclareWar(target="france")])
+def at_war(state: GameState, play: Play, *, holding: tuple[str, ...] = ()) -> GameState:
+    """Spain at war with France, occupying `holding`."""
+    war = play(state, spain=[DeclareWar(target="france")])
+    for pid in holding:
+        war.provinces[pid].controller = "spain"
+    return war
 
 
 # ---------------------------------------------------------------- terms
 
 
 def test_a_peace_can_hand_over_provinces(state: GameState, play: Play) -> None:
-    war = at_war(state, play)
+    war = at_war(state, play, holding=("languedoc",))
     offer = play(war, spain=[ProposePeace(target="france", demand=["languedoc"], note="Yield.")])
     proposal = next(p for p in offer.proposals if p.recipient == "france")
     assert proposal.demand == ["languedoc"]
     assert proposal.note == "Yield."
     done = play(offer, france=[Respond(proposal_id=proposal.id, accept=True)])
     assert done.provinces["languedoc"].owner == "spain"
+    assert done.provinces["languedoc"].controller is None
     assert done.provinces["languedoc"].unrest > 0
     assert not done.at_war("spain", "france")
     assert EventKind.PROVINCE_CEDED in kinds(done)
 
 
 def test_terms_must_make_sense(state: GameState, play: Play) -> None:
-    war = at_war(state, play)
+    war = at_war(state, play, holding=("gascony", "languedoc"))
     bad = play(
         war,
         spain=[
@@ -60,7 +67,7 @@ def test_terms_must_make_sense(state: GameState, play: Play) -> None:
         ],
     )
     assert reasons(bad) == [
-        "Paris is a capital and cannot be handed over",
+        "Paris is a capital: it changes hands only if Spain occupies it",
         "Normandy does not border Spain",
     ]
     chained = play(war, spain=[ProposePeace(target="france", demand=["gascony", "brittany"])])
@@ -68,7 +75,7 @@ def test_terms_must_make_sense(state: GameState, play: Play) -> None:
 
 
 def test_a_tribute_is_paid_every_year(state: GameState, play: Play) -> None:
-    war = at_war(state, play)
+    war = at_war(state, play, holding=("languedoc", "gascony"))
     offer = play(war, spain=[ProposePeace(target="france", ask_tribute=10)])
     done = play(offer, france=[Respond(proposal_id=proposal_to(offer, "france"), accept=True)])
     tribute = done.treaty("spain", "france", TreatyKind.TRIBUTE)
@@ -80,7 +87,7 @@ def test_a_tribute_is_paid_every_year(state: GameState, play: Play) -> None:
 
 
 def test_an_army_limit_stops_recruiting(state: GameState, play: Play) -> None:
-    war = at_war(state, play)
+    war = at_war(state, play, holding=("languedoc", "gascony"))
     offer = play(war, spain=[ProposePeace(target="france", limit_army=20)])
     done = play(offer, france=[Respond(proposal_id=proposal_to(offer, "france"), accept=True)])
     done.nations["france"].resources = Resources(ducats=500, manpower=100, iron=100)
@@ -92,7 +99,7 @@ def test_an_army_limit_stops_recruiting(state: GameState, play: Play) -> None:
 
 
 def test_a_peace_can_be_countered_and_the_counter_accepted(state: GameState, play: Play) -> None:
-    war = at_war(state, play)
+    war = at_war(state, play, holding=("languedoc", "gascony"))
     offer = play(war, spain=[ProposePeace(target="france", demand=["languedoc", "gascony"])])
     counter = Terms(give=Resources(ducats=20), note="Gold, not land.")
     countered = play(
@@ -110,6 +117,7 @@ def test_a_peace_can_be_countered_and_the_counter_accepted(state: GameState, pla
     done = play(countered, spain=[Respond(proposal_id=reply.id, accept=True)])
     assert not done.at_war("spain", "france")
     assert done.provinces["languedoc"].owner == "france"
+    assert done.provinces["languedoc"].controller is None  # the occupation ends with the war
     assert done.nations["spain"].resources.ducats >= spain_before + 20
 
 
@@ -176,3 +184,36 @@ def test_each_court_sees_what_the_others_think_of_it(state: GameState, play: Pla
     france = next(n for n in view.nations if n.id == "france")
     assert france.opinion_of_you > 0
     assert view_for(gift, "france").me.opinions["england"] > 0
+
+
+# ---------------------------------------------------------------- war score
+
+
+def test_war_score_counts_land_capital_and_battles(state: GameState, play: Play) -> None:
+    war = at_war(state, play)
+    assert war_score(war, "spain", "france") == 0
+    war.provinces["languedoc"].controller = "spain"
+    occupied = war_score(war, "spain", "france")
+    assert occupied > 0
+    assert war_score(war, "france", "spain") == -occupied
+    war.provinces["paris"].controller = "spain"
+    assert war_score(war, "spain", "france") >= occupied + war.rules.war_score_capital
+
+
+def test_a_peace_cannot_demand_more_than_the_war_score(state: GameState, play: Play) -> None:
+    war = at_war(state, play)
+    greedy = play(war, spain=[ProposePeace(target="france", receive=Resources(ducats=50))])
+    assert reasons(greedy)[0].startswith("your war score (0) does not cover these demands")
+    generous = play(war, spain=[ProposePeace(target="france", give=Resources(ducats=10))])
+    assert reasons(generous) == []  # offering is always allowed
+
+
+def test_war_wears_a_realm_down_and_peace_heals_it(state: GameState, play: Play) -> None:
+    war = at_war(state, play, holding=("languedoc",))
+    tired = play(war)
+    assert tired.nations["france"].war_exhaustion > tired.nations["spain"].war_exhaustion > 0
+    assert modifiers(tired, "france").ducat_income < modifiers(state, "france").ducat_income
+    offer = play(tired, spain=[ProposePeace(target="france")])
+    calm = play(offer, france=[Respond(proposal_id=proposal_to(offer, "france"), accept=True)])
+    rested = play(calm)
+    assert rested.nations["france"].war_exhaustion < tired.nations["france"].war_exhaustion

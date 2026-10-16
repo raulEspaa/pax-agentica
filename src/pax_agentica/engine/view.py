@@ -26,6 +26,7 @@ from pax_agentica.engine.mechanics import (
     province_output,
     recruit_cost,
     research_cost,
+    war_score,
 )
 from pax_agentica.engine.model import (
     Advisor,
@@ -65,6 +66,9 @@ class ProvinceView(_View):
     id: ProvinceId
     name: str
     owner: NationId | None  # None: independent
+    controller: NationId | None  # an enemy occupying it in a war (it yields nothing meanwhile)
+    siege_by: NationId | None  # who besieges its walls
+    siege_years: int  # years of siege won against it so far
     terrain: Terrain
     good: Good
     development: int
@@ -98,6 +102,9 @@ class WarView(_View):
     enemy: NationId
     since_turn: int
     attacks_allowed_from_turn: int  # armies mobilise for a while after a war starts
+    war_score: int  # -100 to 100, your side: what a peace may demand of them
+    battles_won: int
+    battles_lost: int
 
 
 class CandidateView(_View):
@@ -121,7 +128,12 @@ class MyNation(_View):
     manpower_cap: int  # the pool never grows beyond this; barracks raise it
     regiments: int
     army: dict[UnitKind, int]  # every regiment you have, by kind
-    provinces: tuple[ProvinceId, ...]
+    provinces: tuple[ProvinceId, ...]  # the provinces you own
+    held: tuple[
+        ProvinceId, ...
+    ]  # where your armies stand: your own unoccupied land and what you occupy
+    war_exhaustion: float  # 0 to 20: costs ducats, and stability from 10
+    prestige: int
     score: int
     at_war_with: tuple[NationId, ...]
     wars: tuple[WarView, ...]
@@ -151,6 +163,8 @@ class NationSummary(_View):
     generals: int
     ruler: Ruler | None  # public too: every court knows who reigns where
     opinion_of_you: int  # what this court thinks of you, from -100 to 100
+    war_exhaustion: float
+    prestige: int
     stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
 
 
@@ -188,9 +202,8 @@ class NationView(_View):
 def visible_provinces(state: GameState, nation: NationId) -> set[ProvinceId]:
     """Where `nation` can count troops: its own and its allies' land, and every border."""
     allies = set(state.partners(nation, TreatyKind.ALLIANCE))
-    seen = {p for p, s in state.provinces.items() if s.owner == nation or s.owner in allies}
-    own = state.provinces_of(nation)
-    for province in own:
+    seen = {p for p, s in state.provinces.items() if s.holder == nation or s.holder in allies}
+    for province in state.held_by(nation):
         seen.update(state.map.all_neighbors(province))
     return seen
 
@@ -207,6 +220,9 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             id=pid,
             name=definition.name,
             owner=ps.owner,
+            controller=ps.controller,
+            siege_by=ps.siege_by,
+            siege_years=ps.siege_years,
             terrain=definition.terrain,
             good=definition.good,
             development=ps.development,
@@ -235,7 +251,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
                 for kind, spec in state.rules.units.items()
                 if spec.requires is None or spec.requires in ps.buildings
             }
-            if ps.owner == nation
+            if ps.owner == nation and not ps.controller
             else {},
             monument=ps.monument if pid in state.rules.monuments else None,
             neighbors=definition.neighbors,
@@ -269,16 +285,23 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         regiments=state.troops_of(nation),
         army=army_of(state, nation),
         provinces=tuple(state.provinces_of(nation)),
+        held=tuple(state.held_by(nation)),
+        war_exhaustion=me.war_exhaustion,
+        prestige=me.prestige,
         score=state.score(nation),
         at_war_with=tuple(state.enemies_of(nation)),
         wars=tuple(
             WarView(
-                enemy=w.parties[1] if w.parties[0] == nation else w.parties[0],
+                enemy=enemy,
                 since_turn=w.since,
                 attacks_allowed_from_turn=w.since + state.rules.mobilization_turns,
+                war_score=war_score(state, nation, enemy),
+                battles_won=w.battles.get(nation, 0),
+                battles_lost=w.battles.get(enemy, 0),
             )
             for w in state.wars
             if nation in w.parties
+            for enemy in [w.parties[1] if w.parties[0] == nation else w.parties[0]]
         ),
         treaties=treaties,
         technology=dict(me.technology),
@@ -324,6 +347,8 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             ruler=ns.ruler,
             opinion_of_you=state.opinion(nid, nation),
             stances=dict(ns.stances),
+            war_exhaustion=ns.war_exhaustion,
+            prestige=ns.prestige,
         )
         for nid, ns in state.nations.items()
         if nid != nation

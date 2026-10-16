@@ -52,6 +52,9 @@ class EventKind(StrEnum):
     MOVED = "moved"
     BATTLE = "battle"
     PROVINCE_CAPTURED = "province_captured"
+    PROVINCE_OCCUPIED = "province_occupied"
+    PROVINCE_LIBERATED = "province_liberated"
+    SIEGE = "siege"
     CAPITAL_MOVED = "capital_moved"
     NATION_ELIMINATED = "nation_eliminated"
     # end

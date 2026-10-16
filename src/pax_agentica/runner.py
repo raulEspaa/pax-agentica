@@ -27,6 +27,7 @@ from pax_agentica.players import Player
 
 class ProvinceSnapshot(BaseModel):
     owner: NationId | None
+    controller: NationId | None = None  # an occupier in a war
     troops: int
     development: int
     fort: int
@@ -89,6 +90,7 @@ def snapshot(state: GameState) -> Snapshot:
         provinces={
             pid: ProvinceSnapshot(
                 owner=p.owner,
+                controller=p.controller,
                 troops=p.troops,
                 development=p.development,
                 fort=p.fort,

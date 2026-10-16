@@ -184,6 +184,8 @@ def test_a_gift_arrives_at_once(state: GameState, play: Play) -> None:
 
 def test_peace_can_carry_reparations(state: GameState, play: Play) -> None:
     war = play(state, spain=[DeclareWar(target="france")])
+    for pid in ("languedoc", "gascony"):  # enough war score for the demand
+        war.provinces[pid].controller = "spain"
     war.nations["france"].resources = Resources(ducats=10)
     demand = ProposePeace(target="france", receive=Resources(ducats=40))
     offered = play(war, spain=[demand])

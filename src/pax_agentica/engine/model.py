@@ -845,6 +845,21 @@ class Rules(BaseModel):
     non_aggression_turns: int = 10
     truce_turns: int = 5
     tribute_years: int = 10  # a peace's yearly tribute is paid this long
+    # war score: what each side has won, from its enemy's land, capital and battles (0 to 100)
+    war_score_capital: int = 15
+    war_score_per_battle: int = 2
+    war_score_battles_max: int = 20
+    # what a demand in a peace costs, in war score
+    peace_cost_army_limit: int = 15
+    peace_cost_per_year_of_income: int = 10  # a lump sum worth a year of the payer's ducats
+    # war exhaustion
+    exhaustion_per_war_year: float = 1.0
+    exhaustion_per_battle_lost: float = 0.5
+    exhaustion_per_province_occupied: float = 0.5  # a year, for each of your provinces held
+    exhaustion_recovery: float = 2.0  # a year at peace
+    exhaustion_max: float = 20.0
+    exhaustion_income_penalty: float = 0.01  # ducat income per point
+    exhaustion_unrest_threshold: float = 10.0  # from here, -1 stability a year
     ceded_unrest_turns: int = 2  # a province handed over by treaty settles faster than a conquest
 
     # opinion: what each court thinks of each other, from -100 to 100
@@ -887,6 +902,14 @@ class ProvinceState(BaseModel):
     # Regiments of each kind other than infantry; whatever else `troops` counts is infantry.
     units: dict[UnitKind, NonNegativeInt] = Field(default_factory=dict)
     monument: NonNegativeInt = 0  # level of the province's monument, if it has one (0: a site)
+    controller: NationId | None = None  # an enemy occupying it in a war; None: its owner holds it
+    siege_by: NationId | None = None  # who besieges its walls
+    siege_years: NonNegativeInt = 0  # years of siege won so far
+
+    @property
+    def holder(self) -> NationId | None:
+        """Whoever holds the province now: its occupier in a war, else its owner."""
+        return self.controller or self.owner
 
     @property
     def fort(self) -> int:
@@ -948,6 +971,8 @@ class NationState(BaseModel):
     ruler: Ruler | None = None
     advisors: dict[AdvisorRole, Advisor] = Field(default_factory=dict)
     stances: dict[NationId, Stance] = Field(default_factory=dict)  # declared friends and rivals
+    war_exhaustion: float = 0.0  # 0 to 20: years of war, defeats and occupation weigh on the realm
+    prestige: int = 0  # 0 to 100: glory won in war, works and wise choices
 
 
 class General(BaseModel):
@@ -980,6 +1005,7 @@ class Treaty(BaseModel):
 class War(BaseModel):
     parties: tuple[NationId, NationId]  # sorted
     since: int
+    battles: dict[NationId, int] = Field(default_factory=dict)  # battles won by each side
 
 
 class ProposalKind(StrEnum):
@@ -1067,7 +1093,20 @@ class GameState(BaseModel):
         return sum(s.development for s in self.provinces.values() if s.owner == nation)
 
     def troops_of(self, nation: NationId) -> int:
-        return sum(s.troops for s in self.provinces.values() if s.owner == nation)
+        """Every regiment of a nation, in its own provinces and in those it occupies."""
+        return sum(s.troops for s in self.provinces.values() if s.holder == nation)
+
+    def held_by(self, nation: NationId) -> list[ProvinceId]:
+        """Provinces a nation holds: its own not occupied by an enemy, and those it occupies."""
+        return sorted(p for p, s in self.provinces.items() if s.holder == nation)
+
+    def occupied_from(self, owner: NationId, by: NationId | None = None) -> list[ProvinceId]:
+        """`owner`'s provinces occupied by an enemy (by `by`, if given)."""
+        return sorted(
+            p
+            for p, s in self.provinces.items()
+            if s.owner == owner and s.controller and (by is None or s.controller == by)
+        )
 
     def opinion(self, of: NationId, about: NationId) -> int:
         """What `of` thinks of `about`, from -100 to 100."""

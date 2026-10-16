@@ -123,8 +123,10 @@ def output_with(
 
 
 def province_output(state: GameState, province: ProvinceId) -> Resources:
-    """What one province yields per turn, before the stability modifier. Nothing in unrest."""
-    if state.provinces[province].unrest:
+    """What one province yields per turn, before the stability modifier. Nothing in unrest, and
+    nothing while an enemy occupies it."""
+    p = state.provinces[province]
+    if p.unrest or p.controller:
         return Resources()
     return base_output(state, province) + building_output(state, province)
 
@@ -228,7 +230,7 @@ def army_of(state: GameState, nation: NationId) -> dict[UnitKind, int]:
     """Every regiment of a nation, by kind."""
     total = dict.fromkeys(UnitKind, 0)
     for p in state.provinces.values():
-        if p.owner == nation:
+        if p.holder == nation:
             for kind, n in p.army().items():
                 total[kind] += n
     return total
@@ -252,8 +254,66 @@ def manpower_cap(state: GameState, nation: NationId) -> int:
     yearly = sum(
         base_output(state, p).manpower + building_output(state, p).manpower
         for p in state.provinces_of(nation)
+        if not state.provinces[p].controller
     )
     return rules.manpower_cap_base + rules.manpower_cap_years * yearly
+
+
+# ---------------------------------------------------------------- war score
+
+
+def war_score(state: GameState, me: NationId, enemy: NationId) -> int:
+    """How the war between `me` and `enemy` stands, from my side, from -100 to 100: the share
+    of each side's land (by development) the other occupies, its capital, and battles won."""
+    war = state.war(me, enemy)
+    if war is None:
+        return 0
+    return min(100, _won(state, me, enemy, war.battles)) - min(
+        100, _won(state, enemy, me, war.battles)
+    )
+
+
+def _won(state: GameState, side: NationId, against: NationId, battles: Mapping[str, int]) -> int:
+    rules = state.rules
+    theirs = [p for p, s in state.provinces.items() if s.owner == against]
+    total = sum(state.provinces[p].development for p in theirs) or 1
+    held = sum(
+        state.provinces[p].development for p in theirs if state.provinces[p].controller == side
+    )
+    capital = state.nations[against].capital
+    score = round(100 * held / total)
+    if state.provinces[capital].controller == side:
+        score += rules.war_score_capital
+    score += min(rules.war_score_battles_max, battles.get(side, 0) * rules.war_score_per_battle)
+    return score
+
+
+def peace_cost(
+    state: GameState,
+    payer: NationId,
+    *,
+    provinces: Collection[ProvinceId] = (),
+    lump: Resources | None = None,
+    tribute: int = 0,
+    army_limit: bool = False,
+) -> int:
+    """What demands on `payer` cost in war score: a province its share of the payer's land, a
+    lump sum by years of the payer's income, a tribute by half that, an army limit a flat price."""
+    rules = state.rules
+    owned = [p for p, s in state.provinces.items() if s.owner == payer]
+    total = sum(state.provinces[p].development for p in owned) or 1
+    cost = sum(max(5, round(100 * state.provinces[p].development / total)) for p in provinces)
+    income = max(10, nation_income(state, payer).ducats)
+    if lump is not None:
+        worth = lump.ducats + 2 * (lump.iron + lump.timber) + 3 * lump.manpower + lump.grain
+        cost += round(rules.peace_cost_per_year_of_income * worth / income)
+    if tribute:
+        cost += round(
+            rules.peace_cost_per_year_of_income * tribute * rules.tribute_years / income / 2
+        )
+    if army_limit:
+        cost += rules.peace_cost_army_limit
+    return cost
 
 
 def develop_cost(

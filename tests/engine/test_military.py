@@ -111,7 +111,7 @@ def test_a_general_marches_and_conquers_with_his_regiments(state: GameState, pla
     won = play(
         war, spain=[Attack(origin="aragon", target="languedoc", regiments=30, general=general.id)]
     )
-    assert won.provinces["languedoc"].owner == "spain"
+    assert won.provinces["languedoc"].holder == "spain"
     assert won.general(general.id).province == "languedoc"  # type: ignore[union-attr]
 
 
