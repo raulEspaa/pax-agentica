@@ -101,7 +101,9 @@
   }
   function afterLoad() {
     V = G.view; me = nIndex[G.human];
-    if (!afterLoad.done) { afterLoad.done = true; setTimeout(eventSheet, 400); }
+    if (!afterLoad.done) { afterLoad.done = true;
+      let seen = false; try { seen = !!localStorage.getItem("pax-guided"); localStorage.setItem("pax-guided", "1"); } catch {}
+      setTimeout(() => (seen || V.turn > 1 ? eventSheet() : guide(0)), 400); }
     if (!map.homed) { map.home(V.me.provinces.map((p) => pIndex[p])); map.homed = true; }
     render();
   }
@@ -1446,6 +1448,39 @@
   }
 
   $("endturn").onclick = endTurn;
+  // A first-year guide, shown once and on demand
+  const GUIDE = [
+    ["👑 Your realm", "You rule one great power of Europe in 1500. Across the top: what your treasury holds and what it gains a year. The <b>Economy</b> office shows where every ducat comes from and goes, your taxes and your materials."],
+    ["🏛 Your provinces", "Click one of your provinces to open its deed: <b>develop</b> it (more output and score), raise its <b>workings</b> (its mine, vineyard or looms) and <b>build</b> in its slots. Some buildings eat materials every year; without them they stand idle."],
+    ["⚔ War", "Declare war in the <b>Envoys</b> office; armies need a year to mobilise. Select a province with regiments, then right-click (or use the March buttons on a phone) to march or attack. Taken land is occupied: only a <b>peace treaty</b> moves borders, and your war score sets what you may demand."],
+    ["🤝 Diplomacy", "In <b>Envoys</b>, write to every court and attach proposals: alliances, pacts, royal marriages, trade, leagues against a feared conqueror. Courts marked 👤 are other players; the rest are bots that answer and remember. Conquest breeds <b>infamy</b>, and Europe may league against you."],
+    ["📜 The year", "Queue your orders, then <b>End the year</b>: every ruler's orders are carried out together. Your <b>Crown</b> office holds your missions, your court and patronage. After the last year, the highest standing (development plus half your prestige) wins."],
+  ];
+  function guide(step = 0) {
+    const [title, text] = GUIDE[step];
+    $("sheet").innerHTML = `<h2 id="modaltitle">${title}</h2><p>${text}</p>
+      <div class="row"><span class="sub">${step + 1} of ${GUIDE.length}</span>
+      ${step > 0 ? `<button class="btn" id="gprev">Back</button>` : ""}
+      <button class="btn" id="gnext">${step + 1 < GUIDE.length ? "Next" : "To the throne"}</button></div>`;
+    $("modal").classList.add("open");
+    if (step > 0) $("gprev").onclick = () => guide(step - 1);
+    $("gnext").onclick = () => { if (step + 1 < GUIDE.length) guide(step + 1); else { $("modal").classList.remove("open"); eventSheet(); } };
+  }
+  $("guide").onclick = () => guide(0);
+  $("feedback").onclick = () => {
+    $("sheet").innerHTML = `<h2 id="modaltitle">Tell us what to fix</h2>
+      <p class="sub">A bug, something unclear, an idea. It is read by the people making the game, with the year and your realm attached.</p>
+      <textarea id="fbtext" maxlength="2000" style="width:100%;min-height:120px;box-sizing:border-box"></textarea>
+      <div class="row"><button class="btn" id="fbsend">Send</button><button class="btn" id="fbclose">Close</button></div>`;
+    $("modal").classList.add("open");
+    $("fbclose").onclick = () => $("modal").classList.remove("open");
+    $("fbsend").onclick = async () => {
+      const text = $("fbtext").value.trim(); if (!text) return;
+      const r = await fetch("/api/feedback", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({text, table: TABLE, nation: G.human, year: V.year})}).catch(() => null);
+      $("modal").classList.remove("open"); flash(r && r.ok ? "Thank you: your note is on its way." : "The note could not be sent.");
+    };
+  };
   $("zin").onclick = () => map.zoomAt(1 / 1.4); $("zout").onclick = () => map.zoomAt(1.4);
   $("zhome").onclick = () => map.home(V.me.provinces.map((p) => pIndex[p]));
   window.addEventListener("keydown", (e) => {

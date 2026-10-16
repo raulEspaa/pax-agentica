@@ -35,7 +35,7 @@ from pax_agentica.engine import NationId, Orders, new_game
 from pax_agentica.players import Player
 from pax_agentica.players.greedy_bot import GreedyBot
 from pax_agentica.runner import GameRecord
-from pax_agentica.server import Session, add_assets
+from pax_agentica.server import Session, add_assets, add_feedback
 from pax_agentica.viewer import europe_map, render_html, static_payload
 
 MAX_TABLES = 30  # open at once
@@ -358,6 +358,7 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
     web = files("pax_agentica").joinpath("web")
     static = static_payload(new_game(1), europe_map())
     add_assets(app, static)
+    add_feedback(app, saves / "feedback")
     app.state.lobby = lobby
 
     def playable(table: Table) -> None:

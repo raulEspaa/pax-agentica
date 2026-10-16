@@ -248,6 +248,17 @@
   .node.doing { animation: glow 1.8s ease-in-out infinite alternate; }
   @keyframes glow { from { box-shadow: 0 0 0 1px var(--brass-hi), 0 0 4px rgba(236, 208, 140, .2); } to { box-shadow: 0 0 0 1px var(--brass-hi), 0 0 16px rgba(236, 208, 140, .55); } }
   @media (prefers-reduced-motion: reduce) { .node.doing { animation: none; } }
+  /* phones: the treasury and the map modes wrap instead of widening the page */
+  @media (max-width: 700px) {
+    .top { gap: 8px; padding: 6px 8px; }
+    .treasury { flex-wrap: wrap; gap: 3px; width: 100%; }
+    .treasury > div { min-width: 0; flex: 1 1 54px; padding: 2px 4px; }
+    .treasury b { font-size: 14px; }
+    .modes { flex-wrap: wrap; width: 100%; }
+    .modes .btn { flex: 1 1 auto; padding: 0 6px; font-size: 12.5px; }
+    .offices button { font-size: 10px; }
+    .banner .btn { margin: 4px 4px 0 0; }
+  }
   .node.locked { opacity: .55; }
   .node .btn { margin-top: 4px; height: 24px; padding: 0 8px; font-size: 12.5px; }
   .link { width: 2px; height: 10px; margin: 0 auto; background: var(--brass-lo); }
@@ -315,7 +326,8 @@
       </nav>
       <section class="office" id="office" role="tabpanel"></section>
       <section class="ordersbox" id="orders"></section>
-      <p class="help">Left-click your province to select its regiments; right-click a green province to march, a red one to attack.
+      <p class="help"><button class="btn" id="guide">How to play</button> <button class="btn" id="feedback">Send feedback</button></p>
+      <p class="help">Left-click your province to select its regiments; right-click a green province to march, a red one to attack (on a phone, use the March buttons in the province's Army tab).
         <kbd>1</kbd>–<kbd>5</kbd> map modes, <kbd>Esc</kbd> deselects.</p>
     </aside>
   </div>

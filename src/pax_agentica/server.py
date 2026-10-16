@@ -8,6 +8,7 @@ they decide in parallel while the engine waits for you to end the turn.
 """
 
 import asyncio
+import secrets
 import time
 from collections.abc import Mapping, Sequence
 from importlib.resources import files
@@ -16,6 +17,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response
+from pydantic import BaseModel, Field
 
 from pax_agentica.engine import (
     Event,
@@ -265,6 +267,32 @@ def _events(events: list[Event]) -> list[dict[str, Any]]:
     return [e.model_dump(mode="json", exclude={"audience"}) for e in events]
 
 
+class Feedback(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+    table: str | None = Field(default=None, max_length=20)
+    nation: str | None = Field(default=None, max_length=20)
+    year: int | None = None
+
+
+MAX_FEEDBACK = 1000  # notes kept; beyond this the box is full
+
+
+def add_feedback(app: FastAPI, folder: Path | None) -> None:
+    """A box for play-testers' notes: one JSON file each, read by whoever runs the server."""
+
+    @app.post("/api/feedback")
+    def feedback(note: Feedback) -> dict[str, str]:
+        if folder is None:
+            raise HTTPException(503, "this server keeps no feedback")
+        folder.mkdir(parents=True, exist_ok=True)
+        if sum(1 for _ in folder.glob("*.json")) >= MAX_FEEDBACK:
+            raise HTTPException(507, "the feedback box is full")
+        stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+        path = folder / f"{stamp}-{secrets.token_hex(3)}.json"
+        path.write_text(note.model_dump_json() + "\n", encoding="utf-8")
+        return {"status": "thank you"}
+
+
 def add_assets(app: FastAPI, static: dict[str, Any]) -> None:
     """The page's scripts, styles, engravings and portraits: only the files we ship."""
     web = files("pax_agentica").joinpath("web")
@@ -299,6 +327,7 @@ def create_app(session: Session) -> FastAPI:
     web = files("pax_agentica").joinpath("web")
     static = static_payload(session.state, europe_map())
     add_assets(app, static)
+    add_feedback(app, session.save_to.parent / "feedback" if session.save_to else None)
 
     @app.get("/", response_class=HTMLResponse)
     def page() -> str:

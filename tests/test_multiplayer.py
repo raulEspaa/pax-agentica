@@ -183,3 +183,14 @@ def test_views_travel_compressed(lobby: TestClient) -> None:
     table, anne = open_table(lobby)
     r = lobby.get(f"/api/t/{table}/game", headers={"X-Seat": anne, "Accept-Encoding": "gzip"})
     assert r.headers.get("content-encoding") == "gzip"
+
+
+def test_testers_can_leave_a_note(lobby: TestClient, tmp_path: Path) -> None:
+    r = lobby.post(
+        "/api/feedback", json={"text": "The map is lovely.", "nation": "france", "year": 1503}
+    )
+    assert r.status_code == 200
+    notes = list((tmp_path / "feedback").glob("*.json"))
+    assert len(notes) == 1
+    assert "lovely" in notes[0].read_text()
+    assert lobby.post("/api/feedback", json={"text": ""}).status_code == 422

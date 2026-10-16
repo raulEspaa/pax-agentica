@@ -30,6 +30,12 @@ The job reads four repository **variables** (not secrets): `GCP_PROJECT`, `GCP_R
 | Invitation code | Secret Manager `pax-invite-code`, given to the service as `PAX_INVITE_CODE` |
 | Budget | an alert at 50%, 90% and 100% of 10 EUR a month |
 
+Tables close by themselves when their last player leaves, after three days without anyone
+playing, or once the game is over; a closed table keeps its replay for a week, then its files
+are deleted. The server keeps only a summary of each table in memory and reads a game when
+someone opens it (lets it go again after fifteen minutes unvisited), so a cold start is quick
+and memory stays small; one 50-year game takes about 24 MB, its save about 2 MB.
+
 During a roll-out the old and the new revision run side by side for a few seconds; a table is
 read again from its save whenever another revision has written it since, so no year is lost.
 
@@ -48,8 +54,11 @@ python3 -c "import secrets; print(secrets.token_urlsafe(9), end='')" | gcloud se
 # the server's logs
 gcloud run services logs read pax-tables --project pax-agentica-261016 --region europe-west1 --limit 50
 
-# the saved tables
+# the saved tables (and their small summaries)
 gcloud storage ls gs://pax-agentica-261016-tables
+
+# the testers' notes, newest last
+gcloud storage cat "gs://pax-agentica-261016-tables/feedback/*.json"
 ```
 
 ## Setting it up again from nothing

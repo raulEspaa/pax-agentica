@@ -18,7 +18,14 @@ rest. It is how the game gets tested by people before the AI rulers arrive, and 
   open the same seat on another device: anyone with that link plays your nation.
 - Letters, proposals, alliances and peace treaties between players go through the game's own
   diplomacy, exactly as they will between AI rulers.
+- **Leave the table** gives your throne back to a bot. Once you have ended the year, you can
+  stop waiting for an absent friend after ten minutes (**Don't wait for them**): they do
+  nothing that year.
+- A table closes when its last player leaves, after three days without anyone playing, or
+  when the game ends; it keeps its replay for a week.
 - The full replay, with every ruler's private thoughts, opens only when the game is over.
+- **How to play** opens a five-step guide (it also opens on a player's first visit), and
+  **Send feedback** leaves a note for whoever runs the server.
 
 ## On your own network
 
