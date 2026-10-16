@@ -1,6 +1,6 @@
 """Build the Europe 1500 map asset from Natural Earth data.
 
-Real administrative regions (Natural Earth 1:10m admin-1, public domain) are merged into the 69
+Real administrative regions (Natural Earth 1:10m admin-1, public domain) are merged into the 70
 game provinces; land that belongs to no province becomes wasteland. The result is
 projected (Lambert azimuthal equal-area, centred on Europe), simplified as a coverage so that
 neighbours keep sharing exactly the same border, and written as SVG path data.
@@ -84,7 +84,7 @@ COUNTRIES: dict[str, tuple[tuple[str, ...], float]] = {
     "BEL": (("flanders",), 300),
     "LUX": (("flanders", "rhineland"), 300),
     "NLD": (("holland",), 400),
-    "DEU": (("rhineland", "hamburg", "brandenburg", "saxony", "bavaria"), 600),
+    "DEU": (("rhineland", "hamburg", "brandenburg", "pomerania", "saxony", "bavaria"), 600),
     "CHE": (("switzerland",), 400),
     "LIE": (("switzerland",), 300),
     "AUT": (("vienna", "tyrol", "styria"), 400),
@@ -209,7 +209,7 @@ OVERRIDES: dict[tuple[str, str], str | None] = {
     ("DEU", "Hamburg"): "hamburg",
     ("DEU", "Bremen"): "hamburg",
     ("DEU", "Niedersachsen"): "hamburg",
-    ("DEU", "Mecklenburg-Vorpommern"): "brandenburg",
+    ("DEU", "Mecklenburg-Vorpommern"): "pomerania",
     ("DEU", "Berlin"): "brandenburg",
     ("DEU", "Brandenburg"): "brandenburg",
     ("DEU", "Sachsen"): "saxony",
@@ -235,7 +235,7 @@ OVERRIDES: dict[tuple[str, str], str | None] = {
     ("POL", "Pomeranian"): "prussia",
     ("POL", "Warmian-Masurian"): "prussia",
     ("POL", "Kuyavian-Pomeranian"): "prussia",
-    ("POL", "West Pomeranian"): "brandenburg",
+    ("POL", "West Pomeranian"): "pomerania",
     ("POL", "Lubusz"): "brandenburg",
     ("POL", "Lower Silesian"): "bohemia",
     ("POL", "Opole"): "bohemia",

@@ -242,12 +242,12 @@ def test_an_army_without_grain_deserts(state: GameState, play: Play) -> None:
 
 
 def test_workings_deepen_what_a_province_is_known_for(state: GameState, play: Play) -> None:
-    state.nations["hungary"].resources = Resources(ducats=500, timber=100)
+    state.nations["austria"].resources = Resources(ducats=500, timber=100)
     before = province_output(state, "bohemia").ducats  # silver
-    new = play(state, hungary=[Improve(province="bohemia")])
+    new = play(state, austria=[Improve(province="bohemia")])
     assert new.provinces["bohemia"].workings == 1
     assert province_output(new, "bohemia").ducats > before
-    view = view_for(new, "hungary")
+    view = view_for(new, "austria")
     bohemia = next(p for p in view.provinces if p.id == "bohemia")
     assert bohemia.improve_cost == state.rules.improve_cost.times(2)
 

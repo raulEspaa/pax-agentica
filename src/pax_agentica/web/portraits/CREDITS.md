@@ -78,11 +78,6 @@ Commons, cropped and scaled to 160×200. The licence column is Commons' own stat
 | Sigismund II | Lucas Cranach the Younger | circa 1553| Public domain | [Cranach_the_Younger_Sigismund_II_Augustus.jpg](https://commons.wikimedia.org/wiki/File:Cranach_the_Younger_Sigismund_II_Augustus.jpg) |
 | Stephen Báthory | After Martin Kober | second half of the 19th century | Public domain | [Anonymous_Stephen_Báthory_(detail)_01.jpg](https://commons.wikimedia.org/wiki/File:Anonymous_Stephen_B%C3%A1thory_%28detail%29_01.jpg) |
 | Sigismund III | Pieter Soutman | circa 1624| Public domain | [Soutman_Sigismund_III_Vasa_in_coronation_robes.jpg](https://commons.wikimedia.org/wiki/File:Soutman_Sigismund_III_Vasa_in_coronation_robes.jpg) |
-| Vladislaus II | Master of Litoměřice Altarpiece | 1509 | Public domain | [Vladislaus_II_of_Bohemia_and_Hungary.jpg](https://commons.wikimedia.org/wiki/File:Vladislaus_II_of_Bohemia_and_Hungary.jpg) |
-| Louis II | Hans Krell | circa 1526| Public domain | [Hans_Krell_-_Portrait_of_King_Louis_II_of_Hungary_(c.1526).jpg](https://commons.wikimedia.org/wiki/File:Hans_Krell_-_Portrait_of_King_Louis_II_of_Hungary_%28c.1526%29.jpg) |
-| John Zápolya | Erhard Schön (1491-1542) | 16th century| Public domain | [Szapolyai_János_fametszet.jpg](https://commons.wikimedia.org/wiki/File:Szapolyai_J%C3%A1nos_fametszet.jpg) |
-| John Sigismund | Dominicus Custos | circa 1600| Public domain | [Jan_Zygmunt_Zapolya.jpg](https://commons.wikimedia.org/wiki/File:Jan_Zygmunt_Zapolya.jpg) |
-| Sigismund Báthory | Dominicus Custos | ? | Public domain | [Zsgmondbáthory.jpg](https://commons.wikimedia.org/wiki/File:Zsgmondb%C3%A1thory.jpg) |
 | Jan Łaski | anonymous plate | 1864 | Public domain | [Jan_Łaski_primate_of_Poland.PNG](https://commons.wikimedia.org/wiki/File:Jan_%C5%81aski_primate_of_Poland.PNG) |
 | Piotr Tomicki | Stanisław Samostrzelnik | circa 1530| Public domain | [Piotr_Tomicki_by_Stanisław_Samostrzelnik.jpg](https://commons.wikimedia.org/wiki/File:Piotr_Tomicki_by_Stanis%C5%82aw_Samostrzelnik.jpg) |
 | Jan Zamoyski | Jan Szwankowski | before 1602| Public domain | [Jan_Zamoyski.PNG](https://commons.wikimedia.org/wiki/File:Jan_Zamoyski.PNG) |
@@ -93,4 +88,14 @@ Commons, cropped and scaled to 160×200. The licence column is Commons' own stat
 | István Werbőczy | Unknown author | 1860 | Public domain | [Verbőczy_István.jpg](https://commons.wikimedia.org/wiki/File:Verb%C5%91czy_Istv%C3%A1n.jpg) |
 | George Martinuzzi | Unidentified painter | 18th century| Public domain | [Fráter_György_MTA.jpg](https://commons.wikimedia.org/wiki/File:Fr%C3%A1ter_Gy%C3%B6rgy_MTA.jpg) |
 | Péter Perényi | Unknown author | before 1850| Public domain | [Perényi_Péter_országbíró_portréja_(Boksay_József_Múzeum,_Ungvár).jpg](https://commons.wikimedia.org/wiki/File:Per%C3%A9nyi_P%C3%A9ter_orsz%C3%A1gb%C3%ADr%C3%B3_portr%C3%A9ja_%28Boksay_J%C3%B3zsef_M%C3%BAzeum%2C_Ungv%C3%A1r%29.jpg) |
-| János Corvinus | Imre Madách (1823–1864) Hungarian writer and poet | ? | Public domain | [Corvin_János_Madách.jpg](https://commons.wikimedia.org/wiki/File:Corvin_J%C3%A1nos_Mad%C3%A1ch.jpg) |
+| Joachim I Nestor | Lucas Cranach the Elder | 1529 | Public domain | [Joachim_I_Nestor,_Elector_of_Brandenburg,_by_Lucas_Cranach_the_Elder_(1529).jpg](https://commons.wikimedia.org/wiki/File:Joachim_I_Nestor%2C_Elector_of_Brandenburg%2C_by_Lucas_Cranach_the_Elder_%281529%29.jpg) |
+| Joachim II Hector | Lucas Cranach the Younger | 1570 | Public domain | [Joachim_II_of_Brandenburg_by_Lucas_Cranach_the_Younger.jpg](https://commons.wikimedia.org/wiki/File:Joachim_II_of_Brandenburg_by_Lucas_Cranach_the_Younger.jpg) |
+| John George | Unidentified painter | circa 1593 | Public domain | [Brandenburg_Court_miniaturist_(Royal_Collection)_-_Johann_Georg,_Elector_of_Brandenburg.jpg](https://commons.wikimedia.org/wiki/File:Brandenburg_Court_miniaturist_%28Royal_Collection%29_-_Johann_Georg%2C_Elector_of_Brandenburg.jpg) |
+| Joachim Frederick | Unknown author | 1605 | Public domain | [JoachimFriedrichBrandenburg1605.JPG](https://commons.wikimedia.org/wiki/File:JoachimFriedrichBrandenburg1605.JPG) |
+| John Sigismund | anonymous / Unidentified painter | circa 1610 | Public domain | [Johann_Sigismund_Grunewald.jpg](https://commons.wikimedia.org/wiki/File:Johann_Sigismund_Grunewald.jpg) |
+| George William | Mathias Czwiczek | from 1635 until 1640 | Public domain | [GeorgWilhelm.1635.Ausschnitt.JPG](https://commons.wikimedia.org/wiki/File:GeorgWilhelm.1635.Ausschnitt.JPG) |
+| Dietrich von Bülow | Unknown author | before 1671 | Public domain | [BulowDB675.JPG](https://commons.wikimedia.org/wiki/File:BulowDB675.JPG) |
+| Lampert Distelmeyer | Distelmeyer, Lamprecht (1522-1588) (depicted) | ? | Public domain | [Lampertus_Distelmeier,_PA04114.jpg](https://commons.wikimedia.org/wiki/File:Lampertus_Distelmeier%2C_PA04114.jpg) |
+| Georg Sabinus | Unknown author | 16th century | Public domain | [Georg_Sabinus.JPG](https://commons.wikimedia.org/wiki/File:Georg_Sabinus.JPG) |
+| Adam von Schwarzenberg | unknown; ameliorated scan from Pomykaj, Gummersbacher Geschi | 2008-03-07 | Public domain | [1583-1641_Schwarzenberg,_Adam.jpg](https://commons.wikimedia.org/wiki/File:1583-1641_Schwarzenberg%2C_Adam.jpg) |
+| Johann Agricola | user:Torvindus | ? | Public domain | [Johannes-Agricola-Eisleben-.jpg](https://commons.wikimedia.org/wiki/File:Johannes-Agricola-Eisleben-.jpg) |

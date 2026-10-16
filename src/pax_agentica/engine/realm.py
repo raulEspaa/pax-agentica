@@ -636,31 +636,40 @@ RULERS: dict[str, list[tuple[str, str, str]]] = {
             "A Vasa elected king, Catholic heir to Sweden too, who moves the capital to Warsaw.",
         ),
     ],
-    "hungary": [
+    "brandenburg": [
         (
-            "King",
-            "Vladislaus II",
-            (
-                "'King Dobže', who says yes to everything: the barons rule "
-                "while he reigns in Buda and Prague."
-            ),
-        ),
-        ("King", "Louis II", "A boy-king who falls at Mohács in 1526, and Hungary with him."),
-        (
-            "King",
-            "John Zápolya",
-            "The great magnate crowned king against the Habsburgs, with the Sultan's leave.",
+            "Elector",
+            "Joachim I Nestor",
+            "A learned prince who founds the University of Frankfurt on the Oder and keeps "
+            "the old faith while his wife flees to Luther.",
         ),
         (
-            "King",
+            "Elector",
+            "Joachim II Hector",
+            "He turns Brandenburg Lutheran in 1539 and wins the right to inherit Prussia, "
+            "paid for with debts that outlive him.",
+        ),
+        (
+            "Elector",
+            "John George",
+            "A thrifty ruler who pays his father's debts and drives the Jews and the "
+            "court favourites out of Berlin.",
+        ),
+        (
+            "Elector",
+            "Joachim Frederick",
+            "He sets up the Privy Council that will govern Brandenburg for two centuries.",
+        ),
+        (
+            "Elector",
             "John Sigismund",
-            "Zápolya's son, the first Prince of Transylvania and its tolerant founder.",
+            "He turns Calvinist and, in 1618, inherits the Duchy of Prussia: "
+            "Brandenburg-Prussia is born.",
         ),
-        ("Prince", "Stephen Báthory", "Prince of Transylvania, soon to be elected King of Poland."),
         (
-            "Prince",
-            "Sigismund Báthory",
-            "A restless prince who changes sides in the Long Turkish War.",
+            "Elector",
+            "George William",
+            "A hesitant elector who watches the Thirty Years' War trample his lands.",
         ),
     ],
 }
@@ -688,8 +697,8 @@ HISTORICAL_TRAITS: dict[str, list[Trait]] = {
     "Boris Godunov": [CU, BU], "Michael I": [CA],
     "John I Albert": [SC, AM], "Alexander": [CA], "Sigismund I": [BU, CA], "Sigismund II": [CH, SC],
     "Stephen Báthory": [W, CU], "Sigismund III": [PI, AM],
-    "Vladislaus II": [ME, PI], "Louis II": [W], "John Zápolya": [AM, CU], "John Sigismund": [SC],
-    "Sigismund Báthory": [AM, ME],
+    "Joachim I Nestor": [SC, PI], "Joachim II Hector": [BU, AM], "John George": [TH, CA],
+    "Joachim Frederick": [CA], "John Sigismund": [AM, CU], "George William": [ME, CA],
 }  # fmt: skip
 
 # What a trait does to the numbers: (Modifiers field, amount, in words).
@@ -778,6 +787,10 @@ ADVISOR_NAMES: dict[str, list[str]] = {
         "Johannes Cuspinian",
         "Niklas Ziegler",
         "Paul von Liechtenstein",
+        "Tamás Bakócz",
+        "István Werbőczy",
+        "George Martinuzzi",
+        "Péter Perényi",
     ],
     "ottomans": [
         "Hersekzade Ahmed Pasha",
@@ -819,15 +832,15 @@ ADVISOR_NAMES: dict[str, list[str]] = {
         "Piotr Kmita",
         "Jan Dantyszek",
     ],
-    "hungary": [
-        "Tamás Bakócz",
-        "István Werbőczy",
-        "Pál Várdai",
-        "George Martinuzzi",
-        "Péter Perényi",
-        "Imre Perényi",
-        "Ferenc Batthyány",
-        "János Corvinus",
+    "brandenburg": [
+        "Eitelwolf vom Stein",
+        "Dietrich von Bülow",
+        "Lampert Distelmeyer",
+        "Georg Sabinus",
+        "Christian Distelmeyer",
+        "Adam von Schwarzenberg",
+        "Hieronymus Schulz",
+        "Johann Agricola",
     ],
 }
 

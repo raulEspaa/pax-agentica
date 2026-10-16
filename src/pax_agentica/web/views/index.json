@@ -178,5 +178,13 @@
  "bohemia": {
   "city": "Prague",
   "by": "Braun and Hogenberg"
+ },
+ "pomerania": {
+  "city": "Stettin",
+  "by": "Braun and Hogenberg"
+ },
+ "brandenburg": {
+  "city": "Berlin",
+  "by": "Matthäus Merian"
  }
 }

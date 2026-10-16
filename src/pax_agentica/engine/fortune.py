@@ -72,7 +72,7 @@ ARTISTS = {
     "sweden": "Urban Målare",
     "russia": "Aristotele Fioravanti",
     "poland": "Veit Stoss",
-    "hungary": "Benedetto da Maiano",
+    "brandenburg": "Lucas Cranach",
 }
 
 EVENTS: tuple[EventSpec, ...] = (

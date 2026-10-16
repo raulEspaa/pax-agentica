@@ -1,7 +1,7 @@
 # Province views
 
 City views from Georg Braun and Frans Hogenberg's *Civitates Orbis Terrarum* (1572–1617) and,
-for Uppsala, *Suecia antiqua et hodierna*: all in the **public domain**, from Wikimedia Commons,
+for Uppsala, *Suecia antiqua et hodierna*, for Berlin, Matthäus Merian's *Topographia* (1652): all in the **public domain**, from Wikimedia Commons,
 cropped to 570×225.
 
 | Province | View of | Artist | Date | Licence | Source |
@@ -51,3 +51,5 @@ cropped to 570×225.
 | constantinople | Constantinople | Braun & Hogenberg | 1572 | Public domain | [Constantinople Braun Hogenberg Marmara 01.jpg](https://commons.wikimedia.org/wiki/File:Constantinople_Braun_Hogenberg_Marmara_01.jpg) |
 | seville | Seville | Georg Braun; Frans Hogenberg | 1572 | Public domain | [Braun Sevilla UBHD.jpg](https://commons.wikimedia.org/wiki/File:Braun_Sevilla_UBHD.jpg) |
 | bohemia | Prague | Georg Braun; Frans Hogenberg | 1572 | Public domain | [Braun Praha UBHD.jpg](https://commons.wikimedia.org/wiki/File:Braun_Praha_UBHD.jpg) |
+| pomerania | Stettin | Frans Hogenberg | 1581 | Public domain | [Alten Stettin Hogenberg.jpg](https://commons.wikimedia.org/wiki/File:Alten_Stettin_Hogenberg.jpg) |
+| brandenburg | Berlin | Matthäus Merian | 1652 | Public domain | [Berlin-1652-Merian nordwest.jpg](https://commons.wikimedia.org/wiki/File:Berlin-1652-Merian_nordwest.jpg) |

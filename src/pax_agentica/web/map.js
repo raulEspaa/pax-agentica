@@ -39,9 +39,7 @@ const PaxMap = (() => {
     sweden: `<rect width="30" height="20" fill="#1d5aa6"/><rect x="8.5" width="4" height="20" fill="#f2c230"/><rect y="8" width="30" height="4" fill="#f2c230"/>`,
     russia: `<rect width="30" height="20" fill="#8e1b1b"/>${EAGLE(15, 9.5, 1.15, "#f2c230", 2)}`,
     poland: `<rect width="30" height="20" fill="#c22a3a"/>${EAGLE(15, 9.5, 1.15, "#f4f1e8", 1)}`,
-    hungary: `${[0, 1, 2, 3, 4, 5, 6, 7].map((k) => `<rect y="${k * 2.5}" width="15" height="2.5" fill="${k % 2 ? "#f4f1e8" : "#c22a24"}"/>`).join("")}
-      <rect x="15" width="15" height="20" fill="#c22a24"/><path fill="#4b8a3c" d="M15 20 C17 16 19 16 20 17 C21 15 24 15 25 17 C26 16 28 16 30 20Z"/>
-      <path fill="#f4f1e8" d="M21.8 16 V4 H23.2 V16Z M19.5 6.5 H25.5 V7.7 H19.5Z M20.2 9.8 H24.8 V11 H20.2Z"/>`,
+    brandenburg: `<rect width="30" height="20" fill="#f4f1e8"/>${EAGLE(15, 9.5, 1.15, "#c22a24", 1)}`,
   };
   // a nation's banner as inline SVG; independent lands fly a plain pennon of their colour
   const flag = (id, color = "#9a8f78", w = 30, cls = "flag") => `<svg class="${cls}" viewBox="0 0 30 20" width="${w}" height="${Math.round(w * 2 / 3)}" aria-hidden="true">${FLAGS[id] || `<rect width="30" height="20" fill="${color}"/>`}<rect x=".5" y=".5" width="29" height="19" fill="none" stroke="rgba(0,0,0,.55)"/></svg>`;
@@ -680,7 +678,7 @@ const PaxMap = (() => {
     return {
       slots,
       vista: vista(S, i, d),
-      header: `<header class="deedhead">${d.view ? `<figure class="view"><img src="${d.view.src}" alt="${esc(d.view.city)} in the 1570s" width="570" height="225">
+      header: `<header class="deedhead">${d.view ? `<figure class="view"><img src="${d.view.src}" alt="A period view of ${esc(d.view.city)}" width="570" height="225">
           <figcaption>${esc(d.view.city)}, as ${esc(d.view.by)} engraved it</figcaption></figure>` : vista(S, i, d)}
         <div class="ribbon">${d.owner >= 0 ? flag(N[d.owner].id, N[d.owner].color, 36) : `<span class="shield" style="background:var(--free)"></span>`}
           <div><h2 id="deedname">${esc(p.name)}</h2><div class="owner">${d.owner >= 0 ? `${kind} of ${owner}` : `Independent ${kind.toLowerCase()}`}</div></div></div>

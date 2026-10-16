@@ -6,13 +6,13 @@ from pax_agentica.engine import GameState, new_game
 from pax_agentica.engine.scenario import EXTRA_GARRISON
 
 
-def test_the_map_has_69_provinces_and_nine_great_powers(state: GameState) -> None:
-    assert len(state.provinces) == 69
+def test_the_map_has_70_provinces_and_nine_great_powers(state: GameState) -> None:
+    assert len(state.provinces) == 70
     assert sorted(state.nations) == [
         "austria",
+        "brandenburg",
         "england",
         "france",
-        "hungary",
         "ottomans",
         "poland",
         "russia",
@@ -76,4 +76,4 @@ def test_the_courts_of_1500_remember_their_grudges() -> None:
     game = new_game(seed=1)
     assert game.opinion("france", "england") < 0
     assert game.opinion("spain", "austria") > 0
-    assert game.opinion("hungary", "ottomans") == game.opinion("ottomans", "hungary") < 0
+    assert game.opinion("austria", "ottomans") == game.opinion("ottomans", "austria") < 0

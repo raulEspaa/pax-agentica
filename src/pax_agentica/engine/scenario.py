@@ -41,7 +41,7 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     ("galicia", "Galicia", H, GR, 2, "spain", -7.6, 42.6),
     ("madrid", "Madrid", P, GR, 5, "spain", -3.7, 40.4),
     # Seville: the Casa de Contratación (1503) will take in all the gold of the Indies
-    ("seville", "Seville", P, GO, 5, "spain", -6.0, 37.4),
+    ("seville", "Seville", P, GO, 4, "spain", -6.0, 37.4),
     ("andalusia", "Granada", H, CL, 3, "spain", -3.6, 37.2),  # the silk of the Nasrids
     ("valencia", "Valencia", P, GR, 3, "spain", -0.8, 39.3),
     ("aragon", "Aragon", X, IR, 3, "spain", 0.4, 41.7),
@@ -64,11 +64,12 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     ("holland", "Holland", M, CL, 4, None, 5.0, 52.3),
     ("rhineland", "Rhineland", H, IR, 4, None, 7.4, 50.4),
     ("hamburg", "Hamburg", P, GO, 4, None, 9.9, 53.5),
-    ("brandenburg", "Brandenburg", F, TI, 3, None, 13.4, 52.5),
+    ("brandenburg", "Brandenburg", F, TI, 5, "brandenburg", 13.4, 52.5),
+    ("pomerania", "Pomerania", P, GR, 4, "brandenburg", 14.2, 53.8),
     ("saxony", "Saxony", H, IR, 4, None, 12.6, 51.0),
     ("bavaria", "Bavaria", P, GR, 4, None, 11.2, 48.6),
     ("switzerland", "Switzerland", X, IR, 3, None, 8.2, 46.8),
-    ("prussia", "Prussia", P, GR, 3, None, 19.4, 54.3),
+    ("prussia", "Prussia", P, GR, 4, "brandenburg", 19.4, 54.3),
     # Austria
     ("vienna", "Vienna", P, GO, 6, "austria", 16.4, 48.2),
     ("tyrol", "Tyrol", X, IR, 3, "austria", 11.4, 47.2),
@@ -164,10 +165,13 @@ _LAND_BORDERS: list[tuple[str, str]] = [
     ("rhineland", "saxony"),
     ("rhineland", "bavaria"),
     ("hamburg", "brandenburg"),
+    ("hamburg", "pomerania"),
+    ("pomerania", "brandenburg"),
+    ("pomerania", "prussia"),
     ("hamburg", "saxony"),
     ("hamburg", "jutland"),
     ("brandenburg", "saxony"),
-    ("brandenburg", "prussia"),
+    ("pomerania", "masovia"),
     ("brandenburg", "masovia"),
     ("saxony", "bohemia"),
     ("saxony", "bavaria"),
@@ -281,23 +285,24 @@ _NATIONS: list[tuple[str, str, str, str]] = [
     ("sweden", "Sweden", "#4a9fd2", "stockholm"),
     ("russia", "Russia", "#7a4b9a", "moscow"),
     ("poland", "Poland-Lithuania", "#c0486b", "krakow"),
-    ("hungary", "Hungary", "#8f5a2e", "buda"),
+    ("brandenburg", "Brandenburg-Prussia", "#5f6670", "brandenburg"),
 ]
 
-# Who held what in 1500 where the table above is coarser: the Jagiellonian kingdoms (Vladislaus
-# II was king of Hungary and of Bohemia at once; Poland and Lithuania shared their king) and the
-# Habsburgs' Burgundian lands.
+# Who held what in 1500 where the table above is coarser. Poland and Lithuania share their king.
+# Two unions come early: the Danubian monarchy (Bohemia and Hungary passed to the Habsburgs in
+# 1526) and Brandenburg-Prussia (the Hohenzollerns inherited Prussia in 1618 and Pomerania in
+# 1648), so that the middle of Europe has great powers of its own from the first year. The Low
+# Countries are left to Philip the Handsome's own Burgundian court, outside the game's powers.
 OWNERS_1500: dict[str, str | None] = {
     "krakow": "poland",
     "masovia": "poland",
     "lithuania": "poland",
     "kiev": "poland",
-    "buda": "hungary",
-    "transylvania": "hungary",
-    "bohemia": "hungary",
-    # The Burgundian inheritance: Maximilian's son Philip the Handsome rules the Low Countries.
-    "flanders": "austria",
-    "holland": "austria",
+    "buda": "austria",
+    "transylvania": "austria",
+    "bohemia": "austria",
+    "flanders": None,
+    "holland": None,
 }
 
 # Commanders of the age, handed out in order as each nation appoints generals.
@@ -327,6 +332,9 @@ GENERAL_NAMES: dict[str, list[str]] = {
         "Georg von Frundsberg",
         "Niklas Salm",
         "Marx Sittich",
+        "Pál Tomori",
+        "Miklós Zrínyi",
+        "István Dobó",
         "Kaspar Winzerer",
         "Hans Katzianer",
     ],
@@ -352,12 +360,12 @@ GENERAL_NAMES: dict[str, list[str]] = {
         "Stanisław Żółkiewski",
         "Jan Karol Chodkiewicz",
     ],
-    "hungary": [
-        "Pál Kinizsi",
-        "Pál Tomori",
-        "István Dobó",
-        "Bálint Török",
-        "Miklós Zrínyi",
+    "brandenburg": [
+        "Joachim von Bredow",
+        "Hans von Küstrin",
+        "Kaspar von Klitzing",
+        "Otto von Sparr",
+        "Georg von Derfflinger",
     ],
 }
 
@@ -377,12 +385,12 @@ STARTING_OPINIONS: dict[tuple[str, str], int] = {
     ("spain", "austria"): 35,  # the double Habsburg marriage of 1496
     ("spain", "england"): 25,  # the Treaty of Medina del Campo; Catherine of Aragon's betrothal
     ("england", "austria"): 10,  # the enemy of my enemy
-    ("ottomans", "hungary"): -40,  # the frontier of Christendom
-    ("ottomans", "austria"): -20,
+    ("ottomans", "austria"): -40,  # the frontier of Christendom, from Belgrade to Vienna
     ("ottomans", "poland"): -15,
     ("poland", "russia"): -35,  # Muscovy wants the lands of Rus' that Lithuania holds
-    ("poland", "hungary"): 25,  # Jagiellonian brothers on both thrones
-    ("hungary", "austria"): -10,  # Habsburg claims to the crown of St Stephen
+    ("poland", "austria"): 10,  # the Congress of Vienna will marry the dynasties in 1515
+    ("poland", "brandenburg"): -15,  # rival claims to Pomerania and the Teutonic lands
+    ("brandenburg", "austria"): 15,  # an Elector loyal to the Emperor, for now
     ("sweden", "russia"): -15,  # the war of 1495 over Karelia
 }
 STARTING_PRESTIGE = {"france": 15, "spain": 15, "austria": 15, "ottomans": 20}  # the great crowns
@@ -394,7 +402,7 @@ PROVINCE_GARRISON = 2
 EXTRA_GARRISON = {
     # The Danube principalities raise real armies.
     **dict.fromkeys(("wallachia", "bosnia"), 3),
-    # The Jagiellonian marches against Tatar and Turk.
+    # The marches against Tatar and Turk.
     **dict.fromkeys(("kiev", "transylvania"), 1),
     # France has the longest border in Europe and garrisons to match.
     **dict.fromkeys(("normandy", "brittany", "champagne", "lyon", "gascony", "languedoc"), 1),
@@ -412,7 +420,7 @@ GOODS_1500: dict[str, Good] = {
     "paris": Good.GRAIN, "normandy": Good.GRAIN, "brittany": Good.SALT, "champagne": Good.WINE,
     "lyon": Good.CLOTH, "gascony": Good.WINE, "languedoc": Good.WINE, "provence": Good.SALT,
     "flanders": Good.CLOTH, "holland": Good.FISH, "rhineland": Good.WINE, "hamburg": Good.SALT,
-    "brandenburg": Good.GRAIN, "saxony": Good.SILVER, "bavaria": Good.SALT,
+    "brandenburg": Good.TIMBER, "pomerania": Good.SALT, "saxony": Good.SILVER, "bavaria": Good.SALT,
     "switzerland": Good.HORSES, "prussia": Good.GRAIN,
     "vienna": Good.WINE, "tyrol": Good.SILVER, "bohemia": Good.SILVER, "styria": Good.IRON,
     "milan": Good.CLOTH, "venice": Good.SPICES, "florence": Good.CLOTH, "rome": Good.WINE,
@@ -447,6 +455,7 @@ STARTING_UNITS: dict[str, dict[UnitKind, int]] = {
     "moscow": {UnitKind.CAVALRY: 3},
     "krakow": {UnitKind.CAVALRY: 3},  # the winged hussars' forebears
     "buda": {UnitKind.CAVALRY: 2, UnitKind.ARCHERS: 1},  # hussars and the Black Army's gunmen
+    "brandenburg": {UnitKind.CAVALRY: 1, UnitKind.ARCHERS: 1},
 }
 
 

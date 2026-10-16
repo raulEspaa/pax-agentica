@@ -73,7 +73,7 @@ def test_the_last_mission_of_a_chain_leaves_a_lasting_bonus(state: GameState) ->
 
 
 def test_a_building_goal_counts_where_it_stands(state: GameState) -> None:
-    goal = next(m for m in MISSIONS["austria"] if m.id == "bulwark_vienna").goals[1]
+    goal = next(m for m in MISSIONS["austria"] if m.id == "bulwark_vienna").goals[2]
     assert not done(state, "austria", goal)
     state.provinces["vienna"].buildings.append(BuildingKind.CITADEL)
     assert done(state, "austria", goal)
