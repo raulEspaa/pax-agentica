@@ -390,6 +390,18 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
         listed = sorted(lobby.summaries.values(), key=lambda s: -(s.get("created") or 0))
         return {"code_required": bool(lobby.invite_code), "powers": powers, "tables": listed}
 
+    class CodeCheck(BaseModel):
+        code: str = Field(default="", max_length=100)
+
+    @app.post("/api/code")
+    def check(req: CodeCheck) -> dict[str, bool]:
+        """Whether an invitation code is right, so the lobby can say so while it is typed."""
+        try:
+            lobby.check_code(req.code)
+        except HTTPException:
+            return {"ok": False}
+        return {"ok": True}
+
     @app.post("/api/tables")
     def open_table(req: NewTable) -> dict[str, Any]:
         table, token = lobby.open_table(req)

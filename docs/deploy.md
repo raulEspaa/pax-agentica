@@ -45,7 +45,10 @@ read again from its save whenever another revision has written it since, so no y
 # the public address
 gcloud run services describe pax-tables --project pax-agentica-261016 --region europe-west1 --format 'value(status.url)'
 
-# the invitation code to give your friends (case and spaces do not matter)
+# the invitation link to give your friends: it fills in the code by itself
+echo "https://pax-tables-clysgkcjqq-ew.a.run.app/?code=$(gcloud secrets versions access latest --secret pax-invite-code --project pax-agentica-261016)"
+
+# the bare invitation code (case and spaces do not matter)
 gcloud secrets versions access latest --secret pax-invite-code --project pax-agentica-261016; echo
 
 # a new invitation code (takes effect on the next deploy, or force one by re-running the job)

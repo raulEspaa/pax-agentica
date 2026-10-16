@@ -37,6 +37,7 @@
   .note { color: var(--ink-3); font-size: 13.5px; }
   a { color: var(--brass-hi); }
   [hidden] { display: none !important; }
+  #codeok.ok { color: #9fd08f; } #codeok.bad { color: #e88a74; }
   @media (max-width: 600px) { h1 { font-size: 26px; } }
 </style>
 </head>
@@ -48,7 +49,7 @@
   <h2>Your name</h2>
   <div class="panel"><form class="open" id="who" onsubmit="return false">
     <label>Name at court<input id="name" maxlength="24" placeholder="Isabella" autocomplete="nickname"></label>
-    <label id="codebox" hidden>Invitation code<input id="code" autocomplete="off"></label>
+    <label id="codebox" hidden>Invitation code <span id="codeok"></span><input id="code" autocomplete="off" spellcheck="false" placeholder="from whoever invited you"></label>
   </form></div>
 
   <h2>Open a table</h2>
@@ -75,6 +76,20 @@
   const seatOf = (t) => { try { return localStorage.getItem(`pax-seat-${t}`); } catch { return null; } };
   const keep = (t, token) => { try { localStorage.setItem(`pax-seat-${t}`, token); } catch {} };
   try { $("name").value = localStorage.getItem("pax-name") || ""; } catch {}
+  // an invitation link carries the code (/?code=...): fill it in, remember it, hide it from the address bar
+  const linked = new URLSearchParams(location.search).get("code");
+  if (linked) { try { localStorage.setItem("pax-code", linked); } catch {} history.replaceState(null, "", location.pathname + (new URLSearchParams(location.search).get("table") ? `?table=${new URLSearchParams(location.search).get("table")}` : "")); }
+  try { $("code").value = linked || localStorage.getItem("pax-code") || ""; } catch {}
+  async function checkCode() {
+    const code = $("code").value.trim();
+    if (!code) { $("codeok").textContent = ""; return false; }
+    const r = await fetch("/api/code", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({code})}).then((x) => x.json()).catch(() => ({ok: false}));
+    $("codeok").textContent = r.ok ? "✓" : "✗ not this one";
+    $("codeok").className = r.ok ? "ok" : "bad";
+    if (r.ok) { try { localStorage.setItem("pax-code", code); } catch {} }
+    return r.ok;
+  }
+  $("code").addEventListener("input", () => { clearTimeout(checkCode.t); checkCode.t = setTimeout(checkCode, 350); });
   const want = new URLSearchParams(location.search).get("table");
   let L = null;
 
@@ -82,6 +97,7 @@
   function who() {
     const name = $("name").value.trim();
     if (!name) { $("name").focus(); say("Write your name first."); return null; }
+    if (L && L.code_required && !$("code").value.trim()) { $("code").focus(); say("Write the invitation code first (ask whoever invited you), or open their invitation link."); return null; }
     try { localStorage.setItem("pax-name", name); } catch {}
     return {name, code: $("code").value.trim()};
   }
@@ -94,6 +110,7 @@
   async function refresh() {
     L = await (await fetch("/api/lobby")).json();
     $("codebox").hidden = !L.code_required;
+    if (L.code_required && $("code").value && !$("codeok").textContent) checkCode();
     if (!$("nation").options.length) $("nation").innerHTML = L.powers.map((n) => `<option value="${n.id}">${esc(n.name)}</option>`).join("");
     const ago = (ts) => { const m = Math.round((Date.now() / 1000 - ts) / 60);
       return m < 2 ? "just now" : m < 90 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };

@@ -211,3 +211,9 @@ def test_a_table_removed_by_hand_is_forgotten(tmp_path: Path) -> None:
         path.unlink()
     client.app.state.lobby.sweep(force=True)  # type: ignore[attr-defined]
     assert client.get("/api/lobby").json()["tables"] == []
+
+
+def test_the_lobby_can_check_a_code_as_it_is_typed(tmp_path: Path) -> None:
+    client = TestClient(create_lobby_app(tmp_path, invite_code="pikes42"))
+    assert client.post("/api/code", json={"code": "PIKES42"}).json() == {"ok": True}
+    assert client.post("/api/code", json={"code": "nope"}).json() == {"ok": False}
