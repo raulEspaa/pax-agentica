@@ -338,6 +338,10 @@ class Lobby:
             return
         self.swept = now
         for table_id, s in list(self.summaries.items()):
+            if not self._summary_path(table_id).exists():  # removed by hand: forget it
+                self.tables.pop(table_id, None)
+                self.summaries.pop(table_id, None)
+                continue
             if s.get("closed") and now - (s.get("closed_at") or now) > KEEP_CLOSED:
                 self._forget(table_id)
                 continue
