@@ -67,6 +67,8 @@
   .btn.eoption b { font: 600 14px var(--body); color: var(--sepia); }
   .btn.eoption small { display: block; font-size: 12.5px; color: #5a3f1f; font-style: italic; }
   .btn.eoption.on { box-shadow: 0 0 0 2px var(--brass-hi); }
+  .office .btn.eoption { height: auto; min-height: 40px; } /* the panel's buttons are one line high; a choice is two */
+  .btn.eoption.on::after { content: "✓ chosen"; position: absolute; right: 10px; top: 7px; font: 700 13px var(--body); color: #2f7a3e; }
   .sheet .eventcard.big { background: none; border: none; padding: 0; }
   .sheet .eventcard.big b { color: var(--sepia); } .sheet .eventcard.big .etext { color: var(--sepia-2); }
   table.market td.trade { white-space: nowrap; } table.market input { width: 46px; padding: 1px 3px; }
@@ -294,11 +296,29 @@
   .eventcard .etext { font-size: 15.5px; }
   .order.short span { color: #ef8f7a; } .order small { display: block; font-size: 12.5px; color: #ef8f7a; }
   .count.ok { background: #4f7a45; }
+  .warlog { margin: 8px 0 12px; } .warlog h3 { margin: 0 0 6px; }
+  .battlecard { margin: 0 0 8px; padding: 8px 10px; border: 1px solid #8a6a3a; border-left: 5px solid #2f6a3e; background: rgba(255, 250, 235, .5); }
+  .battlecard.lost { border-left-color: #8f2f22; }
+  .battlecard .bhead { display: flex; justify-content: space-between; align-items: baseline; font: 700 16px var(--display); color: var(--sepia); }
+  .battlecard.won .bhead b { color: #2f6a3e; } .battlecard.lost .bhead b { color: #8f2f22; }
+  .bsides { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; margin: 6px 0 4px; }
+  .bsides .vs { align-self: center; font: 700 14px var(--display); color: var(--sepia-2); }
+  .bside { padding: 5px 7px; border: 1px solid rgba(107, 86, 56, .35); background: rgba(255, 255, 255, .35); }
+  .bside.winner { box-shadow: inset 0 0 0 2px rgba(196, 154, 82, .7); }
+  .bwho { display: flex; align-items: center; gap: 6px; } .bwho b { font-size: 15px; color: var(--sepia); }
+  .bwho .crownmark { margin-left: auto; font-size: 12px; font-weight: 700; color: #2f6a3e; }
+  .bnums { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 14px; color: var(--sepia); margin-top: 3px; }
+  .bnums .neg { color: #8f2f22; }
+  .bside small { display: block; font-size: 12.5px; color: var(--sepia-2); }
+  .bthen { margin: 2px 0 0; font-size: 14.5px; color: var(--sepia); } .bthen small { display: block; color: var(--sepia-2); font-size: 12.5px; }
+  .siegeline small { display: block; color: var(--sepia-2); font-size: 12.5px; }
+  .siegeline { margin: 0 0 8px; font-size: 14.5px; color: var(--sepia); } .siegeline .sbar { margin: 3px 0 0; height: 14px; } .siegeline .sbar span { line-height: 14px; font-size: 11.5px; }
+  @media (max-width: 600px) { .bsides { grid-template-columns: 1fr; } .bsides .vs { display: none; } }
   .warconfirm { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
   .warconfirm ul { padding-left: 18px; } .warconfirm li.bad { color: #8f2f22; }
   .sheet h2 .ico { width: 24px; height: 24px; vertical-align: -3px; }
   /* ================================================================ the v2 shell: the map is the table */
-  .app.v2 { display: grid; grid-template-rows: 50px minmax(0, 1fr); height: 100vh; }
+  .app.v2 { display: grid; grid-template-rows: 50px minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); height: 100vh; }
   .topbar { display: flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--wood); position: relative; z-index: 8;
             box-shadow: 0 3px 10px rgba(0, 0, 0, .7); border-bottom: 2px solid #b48a4e; }
   .realmbtn { display: flex; align-items: center; gap: 8px; background: none; border: none; cursor: pointer; padding: 0 8px 0 0;
@@ -324,6 +344,8 @@
   .iconbtn:hover, .iconbtn.on { border-color: var(--brass-hi); color: #fff3cf; }
   .iconbtn .count, .rail .count { position: absolute; top: -6px; right: -6px; }
   .topbar #endturn { height: 38px; padding: 0 16px; font-size: 15px; white-space: nowrap; }
+  .topbar { min-width: 0; } .topbar > * { flex: none; } .topbar .treasury { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; } .topbar .stat { flex: none; }
+  @media (max-width: 1400px) and (min-width: 861px) { .stat .val i { display: none; } .stat { padding: 0 4px; gap: 3px; } .stat .ico { width: 22px; height: 22px; } }
   .orderswrap { position: relative; }
   .orderswrap .ordersbox { position: absolute; right: 0; top: 46px; width: 400px; max-height: 65vh; overflow-y: auto; margin: 0; display: none; z-index: 9;
                            box-shadow: 0 12px 30px rgba(0, 0, 0, .7); }

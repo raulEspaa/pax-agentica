@@ -185,7 +185,7 @@
   function troopsAfter(i) {
     let t = prov(i).troops || 0;
     for (const o of orders) {
-      if (o.type === "recruit" && pIndex[o.province] === i) t += o.regiments;
+      if ((o.type === "recruit" || o.type === "hire_mercenaries") && pIndex[o.province] === i) t += o.regiments;
       if (o.type === "disband" && pIndex[o.province] === i) t -= o.regiments;
       if ((o.type === "move" || o.type === "attack") && pIndex[o.origin] === i) t -= o.regiments;
       if (o.type === "move" && pIndex[o.target] === i) t += o.regiments;
@@ -208,7 +208,7 @@
     const a = {...(prov(i).army || {infantry: prov(i).troops || 0})};
     KINDS.forEach((k) => (a[k] = a[k] || 0));
     for (const o of orders) {
-      if (o.type === "recruit" && pIndex[o.province] === i) a[o.unit || "infantry"] += o.regiments;
+      if ((o.type === "recruit" || o.type === "hire_mercenaries") && pIndex[o.province] === i) a[o.unit || "infantry"] += o.regiments;
       const leaving = (o.type === "move" || o.type === "attack") && pIndex[o.origin] === i ? o
         : o.type === "disband" && pIndex[o.province] === i ? o : null;
       if (leaving) {
@@ -270,8 +270,9 @@
   function targetsFrom(i) {
     const out = [];
     for (const j of [...P[i].land, ...P[i].sea]) {
-      const o = holder(j);
-      if (o === G.human) out.push([j, "move"]);
+      const o = holder(j), sieged = prov(j).siege_by;
+      if (sieged && sieged !== G.human && o === G.human) { if (relation(sieged).war) out.push([j, "attack"]); } // break the siege
+      else if (o === G.human) out.push([j, "move"]);
       else if (o === null) out.push([j, "attack"]);
       else { const w = relation(o).war; if (w && w.attacks_allowed_from_turn <= V.turn) out.push([j, "attack"]); }
     }
@@ -286,9 +287,14 @@
   function odds(from, to, army = force(from)) {
     const p = prov(to), g = lead ? generalAt(from) : null;
     const n = KINDS.reduce((t, k) => t + army[k], 0);
+    const ground = P[to].terrain;
+    if (p.siege_by === G.human) return null; // reinforcements for your own lines: no battle
+    if (p.siege_by) { // a relief army against the siege lines
+      if (!p.besiegers || !n) return p.besiegers === 0 ? 1 : null;
+      return winChance(strength(army, ground, true) * myFactor(g), p.besiegers, R.defender * R.terrain[ground]);
+    }
     if (p.troops === null || !n) return null;
     if (!p.troops) return 1;
-    const ground = P[to].terrain;
     const mine = strength(army, ground, true) * myFactor(g);
     const theirs = p.army ? strength(p.army, ground, false) : p.troops;
     return winChance(mine, theirs, defence(from, to, siege(army)));
@@ -349,6 +355,36 @@
       <p class="note">${now} Every level adds ${esc(mon.effect)}, to whoever holds ${esc(P[i].name)}.</p>
       ${mine ? `<div class="act"><button class="btn" data-monument ${why ? "disabled" : ""}>${why ? cap(why) : level ? `Raise to level ${level + 1}` : "Lay the first stone"}</button>
         ${level < R.maxMonument ? `<span class="cost">${costText(cost)}</span>` : ""}</div>` : ""}</div></section>`;
+  }
+  // A siege, as the dice see it: progress, the modifiers on next year's roll, and what each score buys.
+  function siegeCard(i) {
+    const p = prov(i);
+    if (!p.siege_by) return "";
+    const ours = p.siege_by === G.human, theirs = holder(i) === G.human;
+    const mods = p.siege_modifiers || [], sum = mods.reduce((a, [, v]) => a + v, 0);
+    const chances = R.siegeResults.map(([least, gain, name], k) => {
+      const next = R.siegeResults[k + 1], hi = next ? next[0] - 1 : 99;
+      const n = [1, 2, 3, 4, 5, 6].filter((d) => d + sum >= least && d + sum <= hi).length;
+      return n ? `<li><span>${esc(cap(name))}</span><b>+${gain}%</b><small>${n} in 6</small></li>` : ""; }).join("");
+    const who = ours ? "Your army" : esc(nameOf(p.siege_by));
+    let relief = "";
+    if (theirs && relation(p.siege_by).war) {
+      const near = [...P[i].land, ...P[i].sea].filter((j) => owned(j) && !prov(j).siege_by && troopsAfter(j) > 0).sort((a, b) => troopsAfter(b) - troopsAfter(a));
+      if (near.length) {
+        const best = near[0], chance = odds(best, i, armyAfter(best));
+        relief = `<div class="act"><button class="btn" data-march="${i}" data-from="${best}">⚔ Break the siege with ${troopsAfter(best)} from ${esc(P[best].name)}</button>
+          ${chance !== null ? `<span class="sub">${Math.round(chance * 100)}% to win</span>` : ""}</div>`;
+      } else relief = `<p class="note">None of your provinces next door has regiments to send.</p>`;
+    }
+    return `<section class="siege"><h4>${I("castle")} The siege of ${esc(P[i].name)}</h4>
+      <div class="sbar"><i style="width:${p.siege_progress}%"></i><span>${p.siege_progress}%</span></div>
+      <p class="note">${who} has camped before the walls for ${p.siege_years} year${p.siege_years === 1 ? "" : "s"}${p.besiegers !== null ? ` with ${p.besiegers} regiments` : ""}. The town falls at 100%.</p>
+      <div class="cols2"><div><h5>Next year's roll: a die (1–6)</h5><ul class="mods">${mods.map(([label, v]) => `<li><span>${esc(cap(label))}</span><b class="${v > 0 ? "up" : "down"}">${v > 0 ? "+" : "−"}${Math.abs(v)}</b></li>`).join("") || "<li><span>No modifiers</span></li>"}</ul></div>
+        <div><h5>What it may bring</h5><ul class="mods">${chances}</ul></div></div>
+      <p class="note">${ours ? `Send more regiments by attacking ${esc(P[i].name)} again; bring guns to batter the walls. ${R.siegeDisease ? "The worst roll brings disease into the camp." : ""}`
+        : theirs ? "Attack the siege lines from a province next door to break the siege; you cannot march in or raise levies while it lasts."
+        : ""}</p>
+      ${relief}${ours ? `<div class="act"><button class="btn" data-act="liftsiege">Lift the siege</button><span class="sub">the army marches back next door</span></div>` : ""}</section>`;
   }
   function deed() {
     const box = $("deed");
@@ -414,26 +450,36 @@
           `<div class="act"><span class="ic">${BICON[b.id]}</span><b>${esc(b.name)}</b><span class="gain">${gainText(gain)}</span>
             <button class="btn" data-build="${b.id}" ${affordable(buildCost(b.id), t) ? "" : "disabled"}>Build</button><span class="cost">${costText(buildCost(b.id))}</span></div>`).join("")}</section>`;
       } else if (ownTab === "buildings") {
-        const tiles = B.map((b, k) => {
+        // one row per work, in four shelves: built, ordered this year, ready to build, not yet
+        const amounts = (c, sign) => RES.map(([, label, ic], k) => c[k] ? `<span class="amt" title="${label}">${sign}${c[k]}${ic}</span>` : "").join("");
+        const rows = {built: [], ordered: [], ready: [], later: []};
+        B.forEach((b, k) => {
           const built = p.buildings.includes(b.id), ordered = queued.includes(k), cost = buildCost(b.id);
           const needs = b.requires >= 0 && !p.buildings.includes(B[b.requires].id) && !queued.includes(b.requires);
           const tech = b.tech && V.me.technology[b.tech[0]] < b.tech[1];
-          const why = built || ordered ? "" : tech ? `🔒 ${cap(b.tech[0])} ${b.tech[1]}` : needs ? `needs a ${B[b.requires].name.toLowerCase()}` : free <= 0 ? "no free slot" : !affordable(cost, t) ? "too costly" : "";
-          // one clean ledger per work: what it yields a year in green, what it eats in red, any perk below
+          const why = built || ordered ? "" : tech ? `needs ${cap(b.tech[0])} ${b.tech[1]}` : needs ? `needs a ${B[b.requires].name.toLowerCase()} first` : free <= 0 ? "no free slot" : !affordable(cost, t) ? "too costly for now" : "";
           const gain = (built ? preview.built || {} : preview.buildings || {})[b.id] || {};
-          const plus = RES.filter(([key]) => gain[key] > 0).map(([key, , ic]) => `<span class="in">+${gain[key]}${ic}</span>`);
-          const minus = RES.map(([, , ic], k) => (b.consumes || [])[k] ? `<span class="out">−${b.consumes[k]}${ic}</span>` : "").filter(Boolean);
+          const plus = RES.map(([key]) => Math.max(0, gain[key] || 0));
+          const yields = plus.some((v) => v) ? `<span class="in">${amounts(plus, "+")}</span>` : "";
+          const eats = (b.consumes || []).some((v) => v) ? `<span class="out">${amounts(b.consumes, "−")}<small>a year</small></span>` : "";
           const isIdle = built && p.idle.includes(b.id);
-          const state = built ? "built" : ordered ? "ordered" : tech ? "locked" : why ? "blocked" : "ready";
-          const tip = `${b.name}: ${b.effect}.${minus.length ? ` Eats ${costText(b.consumes)} a year; idle without them.` : ""}${b.tech ? ` Needs ${b.tech[0]} technology ${b.tech[1]}.` : ""}`;
-          return [["built", "ordered", "ready", "blocked", "locked"].indexOf(state), `<div class="tile ${b.category} ${state}" title="${esc(tip)}">
-            <div class="thead"><span class="ic">${BICON[b.id]}</span><b>${esc(b.name)}</b>${b.unique ? `<small class="star" title="A great work: one per realm">★</small>` : ""}${isIdle ? `<span class="idle" title="Its inputs went unpaid last year">idle</span>` : built ? `<span class="tick">✓</span>` : ordered ? `<span class="tick">⏳</span>` : ""}</div>
-            <div class="ledger">${plus.join("")}${minus.length ? `<span class="per">${minus.join("")}<small>/yr</small></span>` : ""}${!plus.length && !minus.length && !PERK[b.id] ? `<span class="none">—</span>` : ""}</div>
-            ${PERK[b.id] ? `<div class="perk">${esc(PERK[b.id])}</div>` : ""}
-            ${built || ordered ? "" : `<button class="btn" data-build="${b.id}" ${why ? "disabled" : ""}>${why || `Build · ${icons(cost)}`}</button>`}</div>`];
-        }).sort((x, y) => x[0] - y[0]).map((x) => x[1]).join("");
-        body += `${S.views[p.id] ? `<section class="town"><h4>The town today</h4>${info.vista}</section>` : ""}<section>${info.slotsHtml}<div class="tiles">${tiles}</div>
-          <p class="note">A new slot opens every ${R.slotEvery} development. Hover a work to read what it does.</p></section>`;
+          const shelf = built ? "built" : ordered ? "ordered" : why && why !== "too costly for now" ? "later" : "ready";
+          const right = built ? (isIdle ? `<span class="badge bad" title="Its inputs went unpaid last year">idle</span>` : `<span class="badge ok">✓ built</span>`)
+            : ordered ? `<span class="badge">⏳ ready next year</span>`
+            : shelf === "later" ? `<span class="why">${esc(why)}</span>`
+            : `<span class="price">${amounts(cost, "")}</span><button class="btn" data-build="${b.id}" ${why ? `disabled title="${esc(why)}"` : ""}>${why ? "Too costly" : "Build"}</button>`;
+          rows[shelf].push(`<div class="brow ${b.category} ${shelf}" title="${esc(`${b.name}: ${b.effect}.`)}">
+            <span class="ic">${BICON[b.id]}</span>
+            <div class="bmain"><b>${esc(b.name)}${b.unique ? ` <small class="star" title="A great work: one per realm">★</small>` : ""}</b>
+              <div class="bfx">${yields}${eats}${PERK[b.id] ? `<span class="perk">${esc(PERK[b.id])}</span>` : ""}${!yields && !eats && !PERK[b.id] ? `<span class="perk">${esc(b.effect)}</span>` : ""}</div></div>
+            <div class="bside">${right}</div></div>`);
+        });
+        const shelf = (key, title) => rows[key].length ? `<h5 class="bshelf">${title} <small>${rows[key].length}</small></h5><div class="blist">${rows[key].join("")}</div>` : "";
+        body += `${S.views[p.id] ? `<section class="town"><h4>The town today</h4>${info.vista}</section>` : ""}<section>${info.slotsHtml}
+          ${shelf("built", "Built here")}${shelf("ordered", "Ordered this year")}
+          ${free > 0 ? shelf("ready", "You can build") : `<p class="note">Every slot is taken: develop ${esc(P[i].name)} to open another (one every ${R.slotEvery} levels).</p>`}
+          ${rows.later.length ? `<details class="blater"><summary>Not yet <small>${rows.later.length}</small></summary><div class="blist">${rows.later.join("")}</div></details>` : ""}
+          <p class="note">Green: what a work yields here each year. Red: what it eats; unfed, it stands idle. A new slot opens every ${R.slotEvery} development.</p></section>`;
       } else {
         const now = armyAfter(i), ground = P[i].terrain;
         const comp = U.map((u) => `<div class="unit ${now[u.id] ? "" : "none"}" title="${esc(u.name)}: ${esc(u.role)}">
@@ -468,7 +514,12 @@
             ${mercLeft > 0 ? stepper("mercs", mercN, mercLeft) : ""}
             <button class="btn" data-mercs ${mercWhy ? "disabled" : ""}>${mercWhy ? cap(mercWhy) : "Hire"}</button>
             <span class="cost">${costText(mercCost)}</span></div>`;
-        body += `<section><h4>The garrison</h4><div class="units">${comp}</div>
+        const standing = prov(i).troops || 0;
+        const raising = orders.filter((o) => (o.type === "recruit" || o.type === "hire_mercenaries") && pIndex[o.province] === i).reduce((a, o) => a + o.regiments, 0);
+        const leaving = standing + raising - here;
+        const tally = raising || leaving ? `<div class="tally"><span><b>${standing}</b> here now</span>${raising ? `<span class="up"><b>+${raising}</b> being raised</span>` : ""}${leaving > 0 ? `<span class="down"><b>−${leaving}</b> marching or disbanded</span>` : ""}<span>= <b>${here}</b> this year</span></div>
+          ${raising ? `<p class="note">New regiments are raised before armies move, so they can march or attack this same year. On the map they show as <b class="up">+${raising}</b> until the year ends.</p>` : ""}` : "";
+        body += `<section><h4>The garrison${raising || leaving ? " after your orders" : ""}</h4>${tally}<div class="units">${comp}</div>
           <p class="note">On ${esc(ground)} they defend with a strength of ${strength(now, ground, false).toFixed(1)}${mixed >= 3 ? `, and fight ${Math.round((R.combinedBonus[mixed] || R.combinedBonus[3]) * 100)}% harder for their combined arms` : ""}.</p></section>
           <section><h4>March</h4><div class="actions">
           <div class="row"><button class="btn" id="mixmode">${pickMix ? "Send a fair share instead" : "Choose regiments by kind"}</button></div>
@@ -503,9 +554,8 @@
     }
     const warNotes = [];
     if (p.controller) warNotes.push(`🏴 Occupied by ${esc(nameOf(p.controller))}: it yields nothing to ${p.owner === G.human ? "you" : esc(nameOf(p.owner))} until a peace says whose it is.`);
-    if (p.siege_by) warNotes.push(`⚔ Besieged by ${p.siege_by === G.human ? "you" : esc(nameOf(p.siege_by))}: ${p.siege_years} year${p.siege_years === 1 ? "" : "s"} of siege won. Each level of wall holds out a year; guns knock levels off.`);
     const scroll = box.scrollTop;
-    box.innerHTML = info.header + info.facts + (warNotes.length ? `<section class="warnotes">${warNotes.map((n) => `<p class="note war">${n}</p>`).join("")}</section>` : "") + body;
+    box.innerHTML = info.header + info.facts + (warNotes.length ? `<section class="warnotes">${warNotes.map((n) => `<p class="note war">${n}</p>`).join("")}</section>` : "") + siegeCard(i) + body;
     box.scrollTop = scroll;
     box.classList.add("open");
     box.querySelector("[data-close]").onclick = () => { picked = -1; render(); };
@@ -523,7 +573,7 @@
     box.querySelectorAll("[data-mercs]").forEach((b) => b.onclick = () =>
       queue({type: "hire_mercenaries", province: P[i].id, regiments: Math.max(1, +(box.dataset.mercs || 4))}));
     box.querySelectorAll("[data-monument]").forEach((b) => b.onclick = () => queue({type: "upgrade_monument", province: P[i].id}));
-    box.querySelectorAll("[data-march]").forEach((b) => b.onclick = () => march(i, +b.dataset.march, b.dataset.kind));
+    box.querySelectorAll("[data-march]").forEach((b) => b.onclick = () => (b.dataset.from ? march(+b.dataset.from, +b.dataset.march, "attack") : march(i, +b.dataset.march, b.dataset.kind)));
     box.querySelectorAll("[data-act]").forEach((b) => b.onclick = () => {
       const id = P[i].id, act = b.dataset.act;
       if (act === "develop") queue({type: "develop", province: id});
@@ -536,6 +586,7 @@
         if (order.regiments > 0) queue(order);
       }
       if (act === "hire") queue({type: "hire_general", province: id});
+      if (act === "liftsiege") queue({type: "lift_siege", province: id});
     });
     box.querySelectorAll("[data-build]").forEach((b) => b.onclick = () => queue({type: "build", province: P[i].id, building: b.dataset.build}));
   }
@@ -1469,7 +1520,9 @@
       case "hire_general": return `Appoint a general in ${pn(o.province)}`;
       case "assign_general": return `Send ${gname(o.general)} to ${pn(o.province)}`;
       case "move": return `➜ March ${o.regiments} from ${pn(o.origin)} to ${pn(o.target)}${o.general ? ` under ${gname(o.general)}` : ""}`;
-      case "attack": return `⚔ Attack ${pn(o.target)} with ${o.regiments} from ${pn(o.origin)}${o.general ? ` under ${gname(o.general)}` : ""}`;
+      case "attack": { const s = prov(pIndex[o.target]).siege_by, verb = s === G.human ? "Reinforce the siege of" : s ? "Break the siege of" : "Attack";
+        return `⚔ ${verb} ${pn(o.target)} with ${o.regiments} from ${pn(o.origin)}${o.general ? ` under ${gname(o.general)}` : ""}`; }
+      case "lift_siege": return `🏳 Lift the siege of ${pn(o.province)}`;
       case "declare_war": return `Declare war on ${nn(o.target)}`;
       case "propose_alliance": return `Propose an alliance to ${nn(o.target)}`;
       case "propose_non_aggression": return `Propose a pact to ${nn(o.target)}`;
@@ -1503,12 +1556,36 @@
   }
 
   // ------------------------------------------------------------------ the year's report
+  // A battle as two armies facing each other: who brought what, who lost what, and what came of it.
+  function battleCard(e) {
+    const d = e.data, mineAttacking = d.attacker === G.human, won = mineAttacking === d.attacker_won;
+    const side = (nid, name, regiments, army, lost, power, winner) => `<div class="bside ${winner ? "winner" : ""}">
+      <div class="bwho">${nid ? PaxMap.flag(nid, N[nIndex[nid]].color, 26) : "🛡"}<b>${esc(name)}</b>${winner ? `<span class="crownmark">won</span>` : ""}</div>
+      <div class="bnums"><span><b>${regiments}</b> regiments</span><span class="neg"><b>−${lost}</b> lost</span><span><b>${power}</b> power</span></div>
+      ${army ? `<small>${esc(army)}</small>` : ""}</div>`;
+    return `<div class="battlecard ${won ? "won" : "lost"}">
+      <div class="bhead"><span>⚔ Battle of ${esc(P[pIndex[e.province]].name)}</span><b>${won ? "Victory" : "Defeat"}</b></div>
+      <div class="bsides">${side(d.attacker, d.attacker_name, d.attacker_regiments, d.attacker_army, d.attacker_losses, d.attacker_power, d.attacker_won)}
+        <span class="vs">vs</span>${side(d.defender, d.defender_name, d.defender_regiments, d.defender_army, d.defender_losses, d.defender_power, !d.attacker_won)}</div>
+      <p class="bthen">${esc(cap(String(d.then || "")))}. <small>Power is regiments × their kind on this ground × technology, generals and walls × the dice.</small></p></div>`;
+  }
+  function siegeLine(e) {
+    const d = e.data, where = esc(P[pIndex[e.province]].name);
+    if (!("die" in d)) return `<div class="siegeline">🏰 ${esc(e.summary)}</div>`; // begun, reinforced or lifted
+    const mods = String(d.modifiers || "").split("; ").filter(Boolean).map((m) => esc(m.replace(/ ([+-])(\d+)$/, " $1$2"))).join(", ");
+    return `<div class="siegeline"><b>🏰 Siege of ${where}</b> by ${esc(nameOf(e.nations[0]))}: <b>${esc(cap(String(d.result)))}</b> (+${d.gain}%)${d.lost ? `, <span class="neg">${d.lost} regiments dead of disease</span>` : ""}
+      <small>die ${d.die}${mods ? `, ${mods}` : ""}: score ${d.score}</small>
+      <div class="sbar"><i style="width:${d.progress}%"></i><span>${d.progress}%${d.progress >= 100 ? ": the walls fall" : ""}</span></div></div>`;
+  }
   function report(before) {
     const lost = before ? before.me.provinces.filter((p) => !V.me.provinces.includes(p)) : [];
     const won = before ? V.me.provinces.filter((p) => !before.me.provinces.includes(p)) : [];
     const noise = ["moved", "recruited", "proposal_made", "market_trade", "prestige_changed", "taxes_set"];
     const line = (e) => `<li class="${BAD.has(e.kind) ? "bad" : ""}">${ICON[e.kind] || "•"} ${esc(told(e))}</li>`;
-    const items = V.last_turn_events.filter((e) => !noise.includes(e.kind) && e.nations.includes(G.human)).map(line).join("");
+    const fought = (e) => (e.kind === "battle" && "attacker" in e.data) || (e.kind === "siege" && ("progress" in e.data || "lifted" in e.data));
+    const items = V.last_turn_events.filter((e) => !noise.includes(e.kind) && e.nations.includes(G.human) && !fought(e)).map(line).join("");
+    const mineWar = V.last_turn_events.filter((e) => e.nations.includes(G.human) && fought(e));
+    const war = mineWar.filter((e) => e.kind === "battle").map(battleCard).join("") + mineWar.filter((e) => e.kind === "siege").map(siegeLine).join("");
     const europe = V.last_turn_events.filter((e) => !noise.includes(e.kind) && !e.nations.includes(G.human)
       && ["war_declared", "joined_war", "peace_signed", "nation_eliminated", "treaty_broken", "coalition_joined", "coalition_dissolved", "infamy",
           "mission_completed", "proclamation", "province_captured", "province_ceded", "succession", "capital_moved", "treaty_signed", "game_over"].includes(e.kind))
@@ -1533,6 +1610,7 @@
           `<tr class="${n.id === G.human ? "me" : ""}"><td>${k + 1}</td><td>${esc(n.name)}${n.alive ? "" : " †"}</td><td>${n.score}</td><td>${n.provinces}</td></tr>`).join("")}</tbody></table>
         <p><a href="${REPLAY}" target="_blank">Watch the whole game as a replay</a></p></div>` : "";
     $("sheet").innerHTML = `<h2 id="modaltitle">${G.finished ? "The end of an age" : `The year ${V.year - 1}`}</h2>${ending}${crowned}${discoveries}${works}${G.finished ? "" : danger}
+      ${war ? `<section class="warlog"><h3>⚔ Your battles and sieges</h3>${war}</section>` : ""}
       <div class="yearcols"><section><h3>${PaxMap.flag(G.human, N[me].color, 22, "flag inline")} Your realm</h3>
         ${won.length ? `<p class="gain-line">Gained ${won.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
         ${lost.length ? `<p class="loss-line">Lost ${lost.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
@@ -1619,6 +1697,8 @@
       owner: V.provinces.map((p) => (p.owner === null ? -1 : nIndex[p.owner])),
       controller: V.provinces.map((p) => (p.controller ? nIndex[p.controller] : -1)),
       troops: V.provinces.map((p) => p.troops), dev: V.provinces.map((p) => p.development),
+      planned: V.provinces.map((p, i) => (owned(i) && p.troops !== null ? troopsAfter(i) - p.troops : 0)),
+      sieges: V.provinces.map((p) => (p.siege_by ? {by: nIndex[p.siege_by], progress: p.siege_progress, besiegers: p.besiegers} : null)),
       buildings: V.provinces.map((p) => p.buildings.map((b) => bIndex[b])),
       events: V.last_turn_events.filter((e) => e.province).map((e) => [e.kind, pIndex[e.province], e.nations.map((x) => nIndex[x])]),
     };
@@ -1673,13 +1753,17 @@
     if (picked >= 0 && owned(picked) && i !== picked) {
       const t = targetsFrom(picked).find(([j]) => j === i), n = KINDS.reduce((sum, k) => sum + force(picked)[k], 0);
       if (t && t[1] === "move") extra = `Right-click to march ${n} regiments here`;
-      if (t && t[1] === "attack") { const c = odds(picked, i); extra = `Right-click to attack with ${n}${c !== null ? `: ${Math.round(c * 100)}% to win` : ""}`; }
+      if (t && t[1] === "attack") { const c = odds(picked, i), s = prov(i).siege_by;
+        const verb = s === G.human ? "send them to the siege lines" : s ? "break the siege" : "attack";
+        extra = `Right-click to ${verb} with ${n}${c !== null ? `: ${Math.round(c * 100)}% to win` : ""}`; }
     }
     $("tip").innerHTML = `<b class="t">${esc(P[i].name)}</b><div class="kv">
       <span>Owner</span><b>${p.owner ? esc(nameOf(p.owner)) : "Independent"}</b>
       <span>Development</span><b>${p.development}</b>${p.faith ? `<span>Faith</span><b>${PaxMap.FAITH_ICON[p.faith]} ${cap(p.faith)}</b>` : ""}<span>Regiments</span><b>${p.troops === null ? "hidden" : `${p.troops}${p.army && p.troops ? ` <small>${KINDS.filter((k) => p.army[k]).map((k) => `${UICON[k]}${p.army[k]}`).join(" ")}</small>` : ""}`}</b>
       ${M[p.id] && p.monument !== null ? `<span>Monument</span><b>${esc(M[p.id].name)} ${p.monument ? "★".repeat(p.monument) : "(a site)"}</b>` : ""}
       ${p.general ? `<span>General</span><b>${esc(p.general.name)} ${stars(p.general.skill)}</b>` : ""}
+      ${p.siege_by ? `<span>Siege</span><b>🏰 ${p.siege_by === G.human ? "yours" : esc(nameOf(p.siege_by))}: ${p.siege_progress}%${p.besiegers !== null ? `, ${p.besiegers} regiments` : ""}</b>` : ""}
+      ${owned(i) && troopsAfter(i) !== (p.troops || 0) ? `<span>After orders</span><b>${troopsAfter(i)} regiments</b>` : ""}
       <span>Per year</span><b class="num">${out}</b></div><div class="hint">${extra}</div>`;
     const tip = $("tip"), r = $("mapwrap").getBoundingClientRect();
     let x = evt.clientX - r.left + 16, y = evt.clientY - r.top + 16;

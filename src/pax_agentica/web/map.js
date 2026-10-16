@@ -61,7 +61,7 @@ const PaxMap = (() => {
                  military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭", workshop: "🔨",
                  arms_manufactory: "🗡", powder_mill: "🧨"};
   const UICON = {infantry: "⚔", archers: "🏹", cavalry: "🐎", artillery: "💣"};
-  const ICON = {proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
+  const ICON = {siege: "🏰", proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
     war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
     treaty_broken: "💔", treaty_cancelled: "✂", treaty_expired: "⌛", peace_signed: "🕊", trade_completed: "⚖",
     trade_failed: "✗", gift: "🎁", battle: "⚔", province_captured: "⚑", capital_moved: "♛", nation_eliminated: "☠",
@@ -261,13 +261,25 @@ const PaxMap = (() => {
           const r = world.diplo[o], marks = [r.war && "⚔", r.ally && "🤝", r.pact && "📜", r.rival && "✖", r.friend && "♥"].filter(Boolean);
           if (marks.length) el("text", {x: p.x, y: p.y - 26 * k, class: "diplomark", "font-size": 13 * k}, gMarks).textContent = marks.join("");
         }
-        const troops = world.troops[i], hidden = troops === null;
-        if ((troops > 0 || (hidden && close)) && (o >= 0 || close)) {
+        const troops = world.troops[i], hidden = troops === null, plan = (world.planned || [])[i] || 0;
+        if ((troops > 0 || plan > 0 || (hidden && close)) && (o >= 0 || close)) {
           const label = hidden ? "?" : String(troops), w = 9 + label.length * 6;
           const g = el("g", {class: "badge" + (hidden ? " fog" : ""), transform: `translate(${p.x} ${p.y + 2 * k}) scale(${1.15 * k})`}, gMarks);
           el("rect", {class: "box", x: -w / 2, y: -7, width: w, height: 14, rx: 2,
             stroke: o >= 0 ? N[o].color : "#8a7d60", opacity: o >= 0 && !hidden ? 1 : .75}, g);
           el("text", {}, g).textContent = label;
+          if (plan) { // this year's orders: raised here (+) or marching away (−), shown before the year ends
+            el("title", {}, g).textContent = `${troops} regiments now, ${troops + plan} once your orders are carried out`;
+            el("text", {x: w / 2 + 2, y: 0.5, class: "plan " + (plan > 0 ? "up" : "down")}, g).textContent = `${plan > 0 ? "+" : "−"}${Math.abs(plan)}`;
+          }
+        }
+        const sg = (world.sieges || [])[i];
+        if (sg) { // siege lines before the walls: who, how many, how far along
+          const g = el("g", {class: "siegemark", transform: `translate(${p.x} ${p.y - 16 * k}) scale(${1.15 * k})`}, gMarks);
+          el("title", {}, g).textContent = `Besieged by ${N[sg.by].name}${sg.besiegers === null ? "" : ` (${sg.besiegers} regiments)`}: ${sg.progress}% of the way to taking it`;
+          el("rect", {class: "sbg", x: -17, y: -6, width: 34, height: 12, rx: 2, stroke: N[sg.by].color}, g);
+          el("rect", {class: "sfill", x: -16, y: -5, width: 32 * sg.progress / 100, height: 10, fill: N[sg.by].color}, g);
+          el("text", {class: "stxt", y: 3}, g).textContent = `⚒ ${sg.progress}%`;
         }
         const general = world.generals && world.generals.get(i);
         if (general) { // a pennant in the general's colours, his skill on the flag

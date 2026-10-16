@@ -135,6 +135,11 @@ svg .pick { fill: none; stroke: #fff6dc; stroke-width: 2.4; stroke-dasharray: 6 
 .badge text { font-family: var(--body); font-weight: 700; font-size: 10px; fill: #f4e8cc; text-anchor: middle;
               dominant-baseline: central; }
 .badge.fog text { fill: #a99a7c; }
+.badge text.plan { text-anchor: start; font-size: 9.5px; stroke: #120a04; stroke-width: 2.6px; paint-order: stroke; }
+.badge text.plan.up { fill: #9fe08f; } .badge text.plan.down { fill: #f39a84; }
+.siegemark .sbg { fill: #17110b; stroke-width: 1.2; }
+.siegemark .sfill { opacity: .75; }
+.siegemark .stxt { font: 700 8px var(--body); fill: #fff6dc; text-anchor: middle; stroke: #120a04; stroke-width: 2px; paint-order: stroke; }
 .general .pole { stroke: #2a1c08; stroke-width: 1.4; }
 .general .pennant { stroke: #1b1209; stroke-width: .7; }
 .general .skill { font-family: var(--body); font-weight: 700; font-size: 6.5px; fill: #fff; text-anchor: middle;
@@ -295,6 +300,46 @@ table.prod { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .tile.built { background: rgba(196, 154, 82, .28); border-color: #8a6a3a; }
 .tile.ordered { border-style: dashed; background: rgba(230, 194, 126, .35); }
 .tile.locked { opacity: .5; filter: grayscale(.6); }
+.bshelf { margin: 12px 0 5px; font: 700 14px var(--display); color: var(--sepia); letter-spacing: .03em; }
+.bshelf small, .blater summary small { font: 600 12px var(--body); color: var(--sepia-2); }
+.blist { display: grid; gap: 4px; }
+.brow { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 8px;
+        background: rgba(255, 250, 235, .45); border: 1px solid rgba(107, 86, 56, .35); border-left: 4px solid var(--civil); border-radius: 3px; }
+.brow.military { border-left-color: var(--military); }
+.brow.built { background: rgba(196, 154, 82, .25); }
+.brow.ordered { border-style: dashed; border-left-style: solid; background: rgba(230, 194, 126, .3); }
+.brow.later { opacity: .62; }
+.brow .ic { font-size: 22px; text-align: center; line-height: 1; }
+.brow .bmain b { display: block; font: 600 15px var(--body); color: var(--sepia); }
+.brow .star { color: #8a6420; }
+.brow .bfx { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; font-size: 13.5px; }
+.brow .amt { display: inline-flex; align-items: center; gap: 1px; margin-right: 4px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.brow .amt .ico { width: 15px; height: 15px; }
+.brow .in { color: #2f6a3e; } .brow .out { color: #8f2f22; } .brow .out small { font-weight: 400; margin-left: 2px; }
+.brow .perk { color: var(--sepia-2); font-style: italic; }
+.brow .bside { display: flex; align-items: center; gap: 8px; justify-content: flex-end; text-align: right; }
+.brow .price { color: var(--sepia); font-size: 13.5px; }
+.brow .btn { height: 28px; padding: 0 12px; }
+.brow .why { font-size: 13px; color: var(--sepia-2); font-style: italic; max-width: 130px; }
+.brow .badge { font-size: 12.5px; font-weight: 700; padding: 1px 8px; border-radius: 9px; background: rgba(107, 86, 56, .15); color: var(--sepia); white-space: nowrap; }
+.brow .badge.ok { color: #2f6a3e; } .brow .badge.bad { color: #fff; background: #8f2f22; }
+.blater { margin-top: 10px; } .blater summary { cursor: pointer; font: 700 14px var(--display); color: var(--sepia); }
+.blater .blist { margin-top: 5px; }
+.deed .siege { background: rgba(143, 59, 46, .08); border-top: 2px solid #8f3b2e; }
+.deed .siege h4 { display: flex; align-items: center; gap: 6px; }
+.deed .siege h4 .ico { width: 18px; height: 18px; }
+.sbar { position: relative; height: 18px; margin: 6px 0; background: rgba(43, 29, 15, .15); border: 1px solid #7a5c2c; border-radius: 3px; overflow: hidden; }
+.sbar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #8f3b2e, #c0563f); }
+.sbar span { position: relative; display: block; text-align: center; font: 700 13px/18px var(--body); color: #fff6dc; text-shadow: 0 1px 2px #000; }
+.cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cols2 h5 { margin: 4px 0; font: 700 13px var(--display); color: var(--sepia); }
+.mods { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+.mods li { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: baseline; padding: 1px 0; border-bottom: 1px dotted rgba(107, 86, 56, .35); }
+.mods b { font-variant-numeric: tabular-nums; } .mods small { color: var(--sepia-2); }
+.deed .up, .tally .up { color: #2f6a3e; } .deed .down, .tally .down { color: #8f2f22; }
+.tally { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 2px 0 6px; font-size: 14.5px; color: var(--sepia); }
+.tally b { font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) { .cols2 { grid-template-columns: 1fr; } }
 .tile.blocked { opacity: .72; }
 .relation { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
 .deed .chip { display: inline-block; padding: 0 7px; border: 1px solid #7a5c2c; border-radius: 9px; font-size: 12.5px; background: rgba(255, 250, 235, .6); }
