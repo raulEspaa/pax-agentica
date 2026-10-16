@@ -473,7 +473,7 @@ def defense_multiplier(
         bonus += 0.2
     if owner is not None and state.nations[owner].capital == target:
         bonus += rules.capital_bonus
-    if state.map.is_sea_crossing(origin, target):
+    if state.map.is_sea_crossing(origin, target) and not attacker.navy:
         bonus += rules.sea_crossing_bonus
     return rules.defender_advantage * terrain * (1 + bonus)
 

@@ -23,6 +23,7 @@ from pax_agentica.engine.mechanics import (
     recruit_cost,
 )
 from pax_agentica.engine.model import BuildingKind, Good, Terrain, UnitKind
+from pax_agentica.engine.realm import modifiers
 
 type Play = Callable[..., GameState]
 
@@ -57,10 +58,10 @@ def test_a_province_in_unrest_yields_nothing(state: GameState) -> None:
 
 
 def test_stability_scales_ducat_income(state: GameState) -> None:
-    state.nations["england"].stability = 0
-    base = nation_income(state, "england").ducats
+    raw = sum(province_output(state, p).ducats for p in state.provinces_of("england"))
+    bonus = modifiers(state, "england").ducat_income
     state.nations["england"].stability = 3
-    assert nation_income(state, "england").ducats == int(base * 1.3)
+    assert nation_income(state, "england").ducats == int(raw * (1 + 0.3 + bonus))
 
 
 def test_the_end_of_turn_pays_income_feeds_and_pays_the_army(state: GameState, play: Play) -> None:

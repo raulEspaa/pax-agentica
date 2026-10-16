@@ -203,7 +203,7 @@
     const p = prov(target);
     const forts = Math.max(0, p.fort - breach - (V.me.modifiers.ignores_fort_levels || 0));
     let bonus = R.fort * forts + (p.is_capital ? R.capital : 0);
-    if (P[origin].sea.includes(target)) bonus += R.sea;
+    if (P[origin].sea.includes(target) && !V.me.modifiers.navy) bonus += R.sea;
     const owner = p.owner ? V.nations.find((n) => n.id === p.owner) : null;
     const tech = owner ? 1 + T[0].perLevel * owner.technology.military : 1;
     const guard = p.general && p.general.nation === p.owner ? 1 + R.generalBonus * p.general.skill : 1;

@@ -100,3 +100,18 @@ def test_thoughts_and_counsel_are_kept_but_never_shown(state: GameState) -> None
     assert record.orders["france"].thoughts == "Spain grows; befriend England."
     assert record.orders["france"].counsel[AdvisorRole.MARSHAL] == "Fortify Gascony."
     assert "befriend England" not in view_for(_new, "spain").model_dump_json()
+
+
+def test_some_powers_carry_a_tradition(state: GameState) -> None:
+    from pax_agentica.engine.mechanics import defense_multiplier
+
+    assert modifiers(state, "brandenburg").battle_power > modifiers(state, "poland").battle_power
+    assert modifiers(state, "england").navy
+    assert not modifiers(state, "france").navy
+    state.provinces["london"].owner = "england"
+    # the Channel favours Normandy's defenders against France's fleetless levies, not England's
+    state.provinces["brittany"].owner = "england"
+    assert state.map.is_sea_crossing("london", "normandy")
+    by_sea = defense_multiplier(state, "london", "normandy")
+    by_land = defense_multiplier(state, "brittany", "normandy")
+    assert by_sea == by_land

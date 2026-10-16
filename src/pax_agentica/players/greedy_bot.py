@@ -178,7 +178,7 @@ class _Planner:
         bonus = rules.fort_bonus_per_level * target.fort
         if target.is_capital:
             bonus += rules.capital_bonus
-        if target.id in self.provinces[origin].sea_neighbors:
+        if target.id in self.provinces[origin].sea_neighbors and not self.me.modifiers.navy:
             bonus += rules.sea_crossing_bonus
         return rules.defender_advantage * rules.terrain_defense[target.terrain] * (1 + bonus)
 

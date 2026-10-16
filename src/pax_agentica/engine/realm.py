@@ -54,7 +54,29 @@ class Modifiers(BaseModel):
     marketplace_share: float = 0.5
     mill_share: float = 0.5  # farm estates and lumber mills
     arms_manufactory: bool = False  # levies need half the iron and no goods
+    navy: bool = False  # attacks across a strait give the defender no sea-crossing bonus
     sources: tuple[str, ...] = ()  # one line per bonus, for humans and prompts
+
+
+# What made some powers formidable, or lets them out of their corner of the map: the small
+# electorate with the drilled army, and the two kingdoms whose fleets carry their armies across.
+TRADITIONS: dict[NationId, tuple[str, str, dict[str, float]]] = {
+    "brandenburg": (
+        "Prussian drill",
+        "+10% battle power, and the army eats 15% less grain",
+        {"battle_power": 0.10, "grain_upkeep": -0.15},
+    ),
+    "england": (
+        "The Navy Royal",
+        "attacks across a strait face no sea-crossing bonus, and +5% ducats from the wool trade",
+        {"navy": 1.0, "ducat_income": 0.05},
+    ),
+    "sweden": (
+        "Baltic fleets and peasant pikes",
+        "attacks across a strait face no sea-crossing bonus, and +5% battle power",
+        {"navy": 1.0, "battle_power": 0.05},
+    ),
+}
 
 
 def _has(state: GameState, nation: NationId, milestone: tuple[TechBranch, int]) -> bool:
@@ -148,10 +170,19 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
     trait_research = 0.0
     trait_forts = 0.0
     penalty = rules.treaty_break_stability_penalty
+    navy, grain_upkeep = False, 1.0
+    if nation in TRADITIONS:
+        title, words, effects = TRADITIONS[nation]
+        ducats += effects.get("ducat_income", 0.0)
+        power += effects.get("battle_power", 0.0)
+        grain_upkeep += effects.get("grain_upkeep", 0.0)
+        navy = bool(effects.get("navy"))
+        lines.append(f"{title}: {words}")
     if tech[TechBranch.ECONOMY]:
-        lines.append(f"economy technology: +{ducats:.0%} ducats and grain")
+        lines.append(f"economy technology: +{grain:.0%} ducats and grain")
     if tech[TechBranch.MILITARY]:
-        lines.append(f"military technology: +{power:.0%} battle power")
+        military = rules.military_tech_bonus * tech[TechBranch.MILITARY]
+        lines.append(f"military technology: +{military:.0%} battle power")
     building = min(0.8, rules.engineering_tech_discount * tech[TechBranch.ENGINEERING])
     if building:
         lines.append(f"engineering technology: buildings and development {building:.0%} cheaper")
@@ -296,7 +327,8 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         treaty_break_penalty=max(0, penalty),
         extra_building_slots=1 if milestones["cameralism"] else 0,
         max_development=rules.max_development + (3 if milestones["grand"] else 0),
-        grain_upkeep_factor=0.8 if milestones["canals"] else 1.0,
+        grain_upkeep_factor=(0.8 if milestones["canals"] else 1.0) * grain_upkeep,
+        navy=navy,
         fort_bonus_per_level=(0.35 if milestones["star"] else rules.fort_bonus_per_level)
         + fort_extra,
         ignores_fort_levels=(1 if milestones["artillery"] else 0) + (1 if powder else 0),

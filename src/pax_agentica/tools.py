@@ -98,7 +98,7 @@ def battle_odds(
         bonus += 0.2
     if there.is_capital:
         bonus += rules.capital_bonus
-    if target in here.sea_neighbors:
+    if target in here.sea_neighbors and not view.me.modifiers.navy:
         bonus += rules.sea_crossing_bonus
     theirs *= rules.defender_advantage * rules.terrain_defense[ground] * (1 + bonus)
     return round(win_chance(mine, theirs, rules.roll_min, rules.roll_max), 3)
