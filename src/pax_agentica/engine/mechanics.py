@@ -500,7 +500,13 @@ def peace_cost(
     rules = state.rules
     owned = [p for p, s in state.provinces.items() if s.owner == payer]
     total = sum(state.provinces[p].development for p in owned) or 1
-    cost = sum(max(5, round(100 * state.provinces[p].development / total)) for p in provinces)
+    # a province costs its share of the payer's land, at least 5, unless it is already
+    # occupied: then exactly its share, which is what holding it adds to the war score
+    cost = sum(
+        share if state.provinces[p].controller else max(5, share)
+        for p in provinces
+        for share in [round(100 * state.provinces[p].development / total)]
+    )
     income = max(10, nation_income(state, payer).ducats)
     if lump is not None:
         worth = lump.ducats + 2 * (lump.iron + lump.timber) + 3 * lump.manpower + lump.grain

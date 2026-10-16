@@ -270,7 +270,18 @@ class _Planner:
             case ProposalKind.TRADE:
                 return "The terms do not suit us. Offer more, or ask for less."
             case ProposalKind.PEACE:
-                return "Not on these terms. The war has more to decide."
+                asked = self._war_score_cost(p)
+                earned = max(0, -self.score_of.get(p.sender, 0))
+                if asked > 0:
+                    return (
+                        f"You ask for terms worth {asked} war score, and you have won only "
+                        f"{earned}. Win more, or ask for less."
+                    )
+                ahead = self.score_of.get(p.sender, 0)
+                return (
+                    f"The war stands {ahead:+d} in our favour and is not yet three years old. "
+                    "Offer something for peace, or ask again next year."
+                )
             case ProposalKind.COALITION:
                 return "We do not fear that court enough to bind ourselves against it."
         return "We decline, for now."
@@ -311,6 +322,10 @@ class _Planner:
                 return Terms(give=fair, receive=p.give, note="A fairer price.")
         return None
 
+    def _war_years(self, enemy: str) -> int:
+        war = next((w for w in self.me.wars if w.enemy == enemy), None)
+        return self.v.turn - war.since_turn if war else 0
+
     def _cost_of_peace(self, p: ProposalView) -> int:
         """What a peace's terms take from us, in ducats, minus what they bring."""
         dev = {pid: self.provinces[pid].development for pid in p.cede + p.demand}
@@ -333,7 +348,11 @@ class _Planner:
     def _war_score_cost(self, p: ProposalView) -> int:
         """What a peace demands of us, in war score, as the engine prices it."""
         mine = max(1, self.me.score)
-        provinces = sum(max(5, round(100 * self.provinces[x].development / mine)) for x in p.demand)
+        provinces = sum(
+            share if self.provinces[x].controller else max(5, share)
+            for x in p.demand
+            for share in [round(100 * self.provinces[x].development / mine)]
+        )
         income = max(10, self.me.income_per_turn.ducats)
         lump = round(10 * value(p.receive) / income) if not p.receive.is_empty() else 0
         tribute = round(5 * p.ask_tribute * self.v.rules.tribute_years / income)
@@ -427,7 +446,10 @@ class _Planner:
                 won = self.score_of.get(p.sender, 0)
                 if won >= 10:  # we are winning: a peace must pay for what we hold
                     return self._offered_worth(p) >= 0.6 * won or self.me.war_exhaustion >= 12
-                return losing or weary or self._cost_of_peace(p) < 0 or self.rng.random() < 0.4
+                # no dice: a court even or behind takes peace; a little ahead, once the war
+                # has stood three years without deciding anything
+                stalemate = won <= 0 or self._war_years(p.sender) >= 3
+                return losing or weary or self._cost_of_peace(p) < 0 or stalemate
             case ProposalKind.ALLIANCE | ProposalKind.MARRIAGE if self._infidel(p.sender):
                 return (
                     self.me.opinions.get(p.sender, 0) >= 40
@@ -911,7 +933,8 @@ class _Planner:
         )
         demand, spent = [], 0
         for p in held:
-            cost = max(5, round(100 * p.development / max(1, their.score)))
+            share = round(100 * p.development / max(1, their.score))
+            cost = share if p.controller else max(5, share)
             if p.is_capital or spent + cost > score:
                 continue
             demand.append(p)

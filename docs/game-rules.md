@@ -369,12 +369,17 @@ the same for them. A peace **may only demand what your war score covers**:
 
 | Demand | Costs in war score |
 |---|---|
-| a province | its share of the loser's development (at least 5) |
+| a province | its share of the loser's development (at least 5, unless you occupy it: then exactly its share, what holding it earns) |
 | a lump sum | 10 per year of the loser's ducat income it is worth |
 | a tribute | half that, for all its years |
 | an army limit | 15 |
 
-Offering is never limited. **War exhaustion** (0 to 20) grows by 1 for each war each year, 0.5 for
+Offering is never limited. A proposal is answered the year after it is sent. The greedy bot
+answers by the state of the war, never by chance: it grants demands its war score has lost,
+plus a little; even or behind, it takes a white peace; a little ahead, only once the war is
+three years old; well ahead, it names its own price. A refusal says why, in numbers.
+
+**War exhaustion** (0 to 20) grows by 1 for each war each year, 0.5 for
 each battle lost and 0.5 a year for each of your provinces occupied; it falls by 2 a year at
 peace. Each point costs 1% of ducat income, and from 10 it costs 1 stability every year.
 

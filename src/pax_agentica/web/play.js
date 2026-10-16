@@ -1228,15 +1228,19 @@
     return xs.length ? xs.join(", ") : "no one"; };
   // What demands on `payer` cost in war score, as the engine prices them (their income is
   // estimated from what their provinces yield, which every court can see).
+  // Python rounds halves to the even number; the page must too, or a demand the engine allows
+  // (an occupied province worth exactly the war score it gave) would look too dear.
+  const pyRound = (x) => { const f = Math.floor(x), d = x - f; return Math.abs(d - 0.5) < 1e-9 ? (f % 2 === 0 ? f : f + 1) : Math.round(x); };
   function warCost(payer, terms) {
     const owned = V.provinces.filter((p) => p.owner === payer);
     const total = Math.max(1, owned.reduce((t, p) => t + p.development, 0));
     const income = Math.max(10, payer === G.human ? V.me.income_per_turn.ducats : owned.reduce((t, p) => t + p.output_per_turn.ducats, 0));
-    let cost = (terms.demand || []).reduce((t, id) => t + Math.max(5, Math.round(100 * prov(pIndex[id]).development / total)), 0);
+    let cost = (terms.demand || []).reduce((t, id) => { const p = prov(pIndex[id]), share = pyRound(100 * p.development / total);
+      return t + (p.controller ? share : Math.max(5, share)); }, 0);
     const r = terms.receive || {};
     const worth = (r.ducats || 0) + 2 * ((r.iron || 0) + (r.timber || 0)) + 3 * (r.manpower || 0) + (r.grain || 0);
-    if (worth) cost += Math.round(10 * worth / income);
-    if (terms.ask_tribute) cost += Math.round(10 * terms.ask_tribute * R.tributeYears / income / 2);
+    if (worth) cost += pyRound(10 * worth / income);
+    if (terms.ask_tribute) cost += pyRound(10 * terms.ask_tribute * R.tributeYears / income / 2);
     if (terms.limit_army !== undefined && terms.limit_army !== null) cost += R.peaceCostArmyLimit;
     return cost;
   }
@@ -1248,24 +1252,33 @@
     // A counter-offer starts from their terms, seen from your side.
     const c = counter ? {give: counter.receive, receive: counter.give, cede: counter.demand, demand: counter.cede,
       pay_tribute: counter.ask_tribute, ask_tribute: counter.pay_tribute} : {};
-    const pick = (list, chosen, id, payer) => list.length ? list.map((p) => `<label class="pick"><input type="checkbox" data-${id}="${p.id}" ${(chosen || []).includes(p.id) ? "checked" : ""}>
-      ${esc(p.name)} <small>${p.development} dev.${p.controller && p.controller !== p.owner ? ", occupied" : ""}${p.is_capital ? ", capital" : ""}${id === "demand" ? `, ~${warCost(payer, {demand: [p.id]})} war score` : ""}</small></label>`).join("") : `<span class="muted">none you could take</span>`;
+    const score = warOf(nid)?.war_score ?? 0, them = esc(nameOf(nid));
+    const sent = V.proposals_sent.find((p) => p.recipient === nid && p.kind === "peace");
+    const queued = orders.some((o) => o.type === "propose_peace" && o.target === nid);
+    const row = (p, chosen, id, payer) => `<label class="tpick"><input type="checkbox" data-${id}="${p.id}" ${(chosen || []).includes(p.id) ? "checked" : ""}>
+      <span class="nm">${esc(p.name)}</span><small>${p.development} dev.${p.controller && p.controller !== p.owner ? ", occupied" : ""}${p.is_capital ? ", capital" : ""}</small>
+      ${id === "demand" ? `<b class="wc" title="War score this costs">${warCost(payer, {demand: [p.id]})}</b>` : ""}</label>`;
+    const list = (ps, chosen, id, payer, none) => ps.length ? ps.map((p) => row(p, chosen, id, payer)).join("") : `<p class="muted">${none}</p>`;
+    const money = RES.map(([key, label, ic]) => `<tr><td>${ic} ${label}</td>
+      <td><input type="number" class="field" min="0" data-side="receive" data-r="${key}" value="${(c.receive || {})[key] || 0}" aria-label="${label} they pay"></td>
+      <td><input type="number" class="field" min="0" data-side="give" data-r="${key}" value="${(c.give || {})[key] || 0}" aria-label="${label} you pay"></td></tr>`).join("");
+    const status = sent ? `<p class="pstatus">📜 Your offer is with ${them}'s envoys: they answer when the coming year ends. You will read their answer in the year's report and the Correspondence.</p>`
+      : queued ? `<p class="pstatus">📜 Your offer leaves when you end the year; ${them} answers the year after.</p>` : "";
     return `<details open class="peace"><summary>${counter ? "Your counter-offer" : "Terms of peace"}</summary>
-      ${counter ? `<p class="sub">Their offer, turned to face you. Change what you will and send it back.</p>` : `<p class="sub">Leave everything empty for a white peace. They may accept, refuse or haggle.</p>`}
-      <div class="terms">
-        <div><div class="sub">Provinces you demand</div><div class="picks">${pick(transferable(nid, G.human), c.demand, "demand", nid)}</div></div>
-        <div><div class="sub">Provinces you cede</div><div class="picks">${pick(transferable(G.human, nid), c.cede, "cede", G.human)}</div></div>
-      </div>
-      <div class="sub">A sum you demand</div>${bundleInputs("peace-receive", c.receive)}
-      <div class="sub">A sum you pay</div>${bundleInputs("peace-give", c.give)}
-      <div class="row tribute"><label>Tribute they pay <input type="number" class="field" min="0" max="500" id="ask-tribute" value="${c.ask_tribute || 0}"></label>
-        <label>Tribute you pay <input type="number" class="field" min="0" max="500" id="pay-tribute" value="${c.pay_tribute || 0}"></label>
-        <span class="sub">ducats a year, for ${R.tributeYears} years</span></div>
-      <div class="row"><label>Limit their army to <input type="number" class="field" min="0" id="limit-army" placeholder="no limit"></label><span class="sub">regiments during the truce</span></div>
+      ${status}
+      <div class="pscore"><div><span class="sub">Your war score</span><b class="${score > 0 ? "pos" : score < 0 ? "neg" : ""}">${sign(score)}</b></div>
+        <i class="meter"><b id="peace-meter" style="width:0%"></b></i><span class="sub" id="peace-cost"></span></div>
+      <p class="sub">${counter ? "Their offer, turned to face you. Change what you will and send it back." : "Leave everything empty for a white peace. What you demand must fit in your war score; what you offer is never limited."}</p>
+      <h5 class="tsec">Provinces they give you</h5><div class="tlist">${list(transferable(nid, G.human), c.demand, "demand", nid, "None you could take: occupy their land first.")}</div>
+      <h5 class="tsec">Provinces you give them</h5><div class="tlist">${list(transferable(G.human, nid), c.cede, "cede", G.human, "None of yours borders them or is in their hands.")}</div>
+      <h5 class="tsec">Gold and goods</h5>
+      <table class="tmoney"><thead><tr><th></th><th>They pay you</th><th>You pay them</th></tr></thead><tbody>${money}
+        <tr><td>Tribute <small>a year, ${R.tributeYears} years</small></td><td><input type="number" class="field" min="0" max="500" id="ask-tribute" value="${c.ask_tribute || 0}"></td>
+          <td><input type="number" class="field" min="0" max="500" id="pay-tribute" value="${c.pay_tribute || 0}"></td></tr></tbody></table>
+      <label class="tlimit"><input type="checkbox" id="limit-on"> Limit their army during the truce to <input type="number" class="field" min="0" id="limit-army" value="10"> regiments</label>
       <textarea id="peace-note" maxlength="300" placeholder="Your words to their envoy (optional)"></textarea>
-      <p class="sub" id="peace-cost"></p>
       <div class="row">${counter ? `<button class="btn" data-dip="counter_peace">Send the counter-offer</button><button class="btn" data-dip="drop_counter">Never mind</button>`
-        : `<button class="btn" data-dip="propose_peace" ${V.proposals_sent.some((p) => p.recipient === nid && p.kind === "peace") || orders.some((o) => o.type === "propose_peace" && o.target === nid) ? 'disabled data-locked="1"' : ""}>Propose peace</button>`}</div></details>`;
+        : `<button class="btn primary" data-dip="propose_peace" ${sent || queued ? 'disabled data-locked="1"' : ""}>Propose peace</button>`}</div></details>`;
   }
   function bundleInputs(id, values = null) {
     return `<div class="bundle" id="${id}">${RES.map(([key, label, ic]) => `<label>${ic}<input type="number" min="0" value="${(values && values[key]) || 0}" data-r="${key}" aria-label="${label}"></label>`).join("")}</div>`;
@@ -1274,9 +1287,10 @@
   const emptyBundle = (b) => Object.values(b).every((v) => !v);
   function readPeace() {
     const ids = (attr) => [...document.querySelectorAll(`[data-${attr}]:checked`)].map((x) => x.dataset[attr]);
-    const terms = {give: readBundle("peace-give"), receive: readBundle("peace-receive"), cede: ids("cede"), demand: ids("demand"),
+    const side = (s) => { const b = {}; document.querySelectorAll(`details.peace [data-side="${s}"]`).forEach((i) => (b[i.dataset.r] = Math.max(0, +i.value || 0))); return b; };
+    const terms = {give: side("give"), receive: side("receive"), cede: ids("cede"), demand: ids("demand"),
       pay_tribute: Math.max(0, +$("pay-tribute").value || 0), ask_tribute: Math.max(0, +$("ask-tribute").value || 0)};
-    const limit = $("limit-army").value.trim(); if (limit !== "") terms.limit_army = Math.max(0, +limit || 0);
+    if ($("limit-on").checked) terms.limit_army = Math.max(0, +$("limit-army").value || 0);
     const note = $("peace-note").value.trim(); if (note) terms.note = note;
     return terms;
   }
@@ -1362,6 +1376,7 @@
   }
   const failedOrder = (e) => { try { return describe(JSON.parse(e.data.action)).replace(/<[^>]+>/g, ""); } catch { return "An order"; } };
   const told = (e) => e.kind === "order_rejected" ? `✗ ${failedOrder(e)}: ${e.data.reason}`
+    : ["proposal_rejected", "proposal_countered"].includes(e.kind) && e.data.note ? `${e.summary}: “${e.data.note}”`
     : e.kind === "proclamation" ? `${e.summary}: “${e.data.text}”` : e.summary;
   let chronCourt = "", chronKind = "all";
   const CHRON_KINDS = {war: ["battle", "war_declared", "joined_war", "peace_signed", "province_captured", "province_occupied", "province_ceded", "province_liberated", "siege", "nation_eliminated", "capital_moved", "general_fell", "call_to_arms_ignored"],
@@ -1504,10 +1519,13 @@
       const update = () => {
         const terms = readPeace(), score = warOf(nid)?.war_score ?? 0, cost = warCost(nid, terms);
         const send = panel.querySelector('[data-dip="propose_peace"], [data-dip="counter_peace"]');
-        if (send && !send.dataset.locked) send.disabled = cost > Math.max(0, score);
-        costLine.className = "sub" + (cost > Math.max(0, score) ? " warn" : "");
-        costLine.textContent = cost ? `Your demands cost about ${cost} war score; you have ${sign(score)}.${cost > Math.max(0, score) ? " Too much: the envoys will refuse to carry it." : ""}`
-          : "You demand nothing: whatever you offer is allowed.";
+        const room = Math.max(0, score), over = cost > room;
+        if (send && !send.dataset.locked) send.disabled = over;
+        const meter = panel.querySelector("#peace-meter");
+        if (meter) { meter.style.width = `${room ? Math.min(100, Math.round(100 * cost / room)) : cost ? 100 : 0}%`; meter.className = over ? "over" : ""; }
+        costLine.className = "sub" + (over ? " warn" : "");
+        costLine.textContent = !cost ? "You demand nothing: a white peace, or what you offer."
+          : over ? `Your demands cost ${cost}, more than your ${room}: ask for less, or win more first.` : `Your demands cost ${cost} of your ${room}.`;
       };
       panel.querySelectorAll("details.peace input, details.peace textarea").forEach((x) => (x.oninput = update));
       update();

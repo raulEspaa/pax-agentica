@@ -219,3 +219,18 @@ def test_war_wears_a_realm_down_and_peace_heals_it(state: GameState, play: Play)
     calm = play(offer, france=[Respond(proposal_id=proposal_to(offer, "france"), accept=True)])
     rested = play(calm)
     assert rested.nations["france"].war_exhaustion < tired.nations["france"].war_exhaustion
+
+
+def test_an_occupied_province_costs_exactly_what_holding_it_earns(
+    state: GameState, play: Play
+) -> None:
+    from pax_agentica.engine.mechanics import peace_cost
+
+    state.provinces["burgundy"].development = 1  # a share of France's land under 5
+    assert peace_cost(state, "france", provinces=["burgundy"]) == 5
+    war = at_war(state, play, holding=("burgundy",))
+    held = peace_cost(war, "france", provinces=["burgundy"])
+    assert held < 5
+    assert war_score(war, "spain", "france") >= held
+    offer = play(war, spain=[ProposePeace(target="france", demand=["burgundy"])])
+    assert reasons(offer) == []
