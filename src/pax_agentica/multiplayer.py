@@ -111,12 +111,18 @@ class Lobby:
         self.saves = saves
         self.invite_code = invite_code
         self.tables: dict[str, Table] = {}
+        self.seen: dict[str, float] = {}  # the save each table in memory was built from
         saves.mkdir(parents=True, exist_ok=True)
         for path in sorted(saves.glob("*.json")):
-            try:
-                self._load(TableFile.model_validate_json(path.read_text(encoding="utf-8")))
-            except ValueError:
-                continue  # a file we cannot read is left alone
+            self._read(path)
+
+    def _read(self, path: Path) -> None:
+        try:
+            stamp = path.stat().st_mtime
+            self._load(TableFile.model_validate_json(path.read_text(encoding="utf-8")))
+            self.seen[path.stem] = stamp
+        except (OSError, ValueError):
+            pass  # a file we cannot read is left alone
 
     def _path(self, table_id: str) -> Path:
         return self.saves / f"{table_id}.json"
@@ -146,6 +152,7 @@ class Lobby:
             tmp = path.with_suffix(".tmp")
             tmp.write_text(data.model_dump_json(), encoding="utf-8")
             tmp.replace(path)
+            self.seen[table.meta.id] = path.stat().st_mtime
 
         session.save = save  # type: ignore[method-assign]
 
@@ -194,6 +201,15 @@ class Lobby:
         return token
 
     def table(self, table_id: str) -> Table:
+        """A table, read again from its save if another server (during a deploy, the old and
+        the new revision overlap) has written it since."""
+        path = self._path(table_id)
+        try:
+            newer = path.stat().st_mtime > self.seen.get(table_id, 0.0)
+        except OSError:
+            newer = False
+        if newer:
+            self._read(path)
         table = self.tables.get(table_id)
         if table is None:
             raise HTTPException(404, "no such table")

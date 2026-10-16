@@ -44,5 +44,5 @@ image: ## Build the multiplayer tables image (pax-tables:dev) and run it on :808
 	docker build -t pax-tables:dev .
 	docker run --rm -p 8080:8080 -v pax-tables:/data pax-tables:dev
 
-deploy-tables: ## Deploy the tables to Cloud Run (needs GCP_PROJECT and PAX_INVITE_CODE)
+deploy-tables: ## Deploy the tables by hand (pushes to main deploy by themselves)
 	scripts/deploy_tables.sh

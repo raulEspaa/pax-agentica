@@ -62,7 +62,8 @@ reparations.
 **With friends, too.** `pax host` serves tables where several people each take a throne in
 their browsers and bots hold the rest; a year passes when everyone has ended it, or when the
 table's clock runs out. It runs on a laptop for the local network or on Cloud Run with an
-invitation code ([`docs/multiplayer.md`](docs/multiplayer.md)). The AI rulers get the same
+invitation code ([`docs/multiplayer.md`](docs/multiplayer.md)); every push to `main` that passes CI
+deploys itself ([`docs/deploy.md`](docs/deploy.md)). The AI rulers get the same
 view plus a briefing, calculators and a tournament runner ([`docs/agent-tools.md`](docs/agent-tools.md)).
 
 <p align="center"><img src="docs/assets/play.jpg" alt="The play page: France in 1501, its treasury across the top, its neighbours under the fog of war, and the Realm office with the yearly balance" width="760"></p>

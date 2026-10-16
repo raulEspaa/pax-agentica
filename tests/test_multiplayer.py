@@ -87,3 +87,12 @@ def test_the_replay_waits_for_the_end(lobby: TestClient) -> None:
     table, anne = open_table(lobby)
     lobby.post(f"/api/t/{table}/turn", json=RECRUIT, headers={"X-Seat": anne})
     assert lobby.get(f"/t/{table}/replay").status_code == 403
+
+
+def test_a_table_written_by_another_server_is_read_again(tmp_path: Path) -> None:
+    old = TestClient(create_lobby_app(tmp_path, invite_code=""))
+    new = TestClient(create_lobby_app(tmp_path, invite_code=""))  # a deploy: both run at once
+    table, anne = open_table(old)
+    old.post(f"/api/t/{table}/turn", json=RECRUIT, headers={"X-Seat": anne})
+    game = new.get(f"/api/t/{table}/game", headers={"X-Seat": anne}).json()
+    assert game["view"]["turn"] == 2

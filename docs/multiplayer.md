@@ -29,21 +29,11 @@ make host        # pax host --host 0.0.0.0 --port 8000
 Friends on the same network open `http://<your machine's address>:8000`. Tables are saved in
 `saves/tables/` after every year and come back when the server restarts.
 
-## On the internet (Cloud Run)
+## On the internet
 
-```bash
-GCP_PROJECT=<project> PAX_INVITE_CODE=<a code for your friends> make deploy-tables
-```
-
-[`scripts/deploy_tables.sh`](../scripts/deploy_tables.sh) builds the [`Dockerfile`](../Dockerfile)
-with Cloud Build and runs it on Cloud Run with:
-
-- **one instance at most**: games live in its memory between saves, so two would disagree;
-- **scale to zero**: no cost when nobody plays; the first visit after a pause waits a few
-  seconds while the tables are loaded again;
-- the tables in a **Cloud Storage bucket** (`<project>-pax-tables`) mounted at `/data`;
-- **`PAX_INVITE_CODE`**: without it nobody can open a table or take a seat. Share it only
-  with your testers.
+The tables run on Cloud Run, and every push to `main` that passes CI is deployed by itself:
+see [`deploy.md`](deploy.md) for the address, the invitation code and how it works. Without the
+invitation code nobody can open a table or take a seat; share it only with your testers.
 
 There is no login and no rate limit beyond the invitation code and at most 30 open tables:
 it is meant for a closed test with friends, not for strangers.

@@ -55,3 +55,62 @@ jobs:
       - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # no license needed for personal accounts
+
+  # Every push to main that passes the checks above goes live: the image is built here,
+  # pushed to Artifact Registry and rolled out to Cloud Run. No key is stored anywhere:
+  # GitHub's OIDC token is exchanged for a short-lived Google credential (Workload Identity
+  # Federation), and only main of this repository may do it (see docs/deploy.md).
+  deploy:
+    name: deploy to Cloud Run
+    needs: [python, secrets]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # to ask GitHub for the OIDC token Google trusts
+    concurrency:
+      group: deploy
+      cancel-in-progress: false # never stop a roll-out halfway
+    env:
+      PROJECT: ${{ vars.GCP_PROJECT }}
+      REGION: ${{ vars.GCP_REGION }}
+      SERVICE: pax-tables
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT }}/pax/pax-tables:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER }}
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Build and push the image
+        run: |
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build --tag "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Roll out to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" --project "$PROJECT" --region "$REGION" --image "$IMAGE" \
+            --service-account "pax-runtime@$PROJECT.iam.gserviceaccount.com" \
+            --execution-environment gen2 \
+            --add-volume "name=tables,type=cloud-storage,bucket=$PROJECT-tables" \
+            --add-volume-mount "volume=tables,mount-path=/data" \
+            --set-secrets "PAX_INVITE_CODE=pax-invite-code:latest" \
+            --max-instances 1 --min-instances 0 --concurrency 80 --cpu 1 --memory 512Mi \
+            --allow-unauthenticated \
+            --labels "app=pax-agentica,commit=${GITHUB_SHA::7}" \
+            --quiet
+
+      - name: Smoke test
+        run: |
+          url="$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format 'value(status.url)')"
+          for i in 1 2 3 4 5; do curl -fsS "$url/healthz" && break; sleep 5; done
+          curl -fsS "$url/api/lobby" > /dev/null
+          echo "Live at $url" >> "$GITHUB_STEP_SUMMARY"
