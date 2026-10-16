@@ -315,6 +315,26 @@ class Proclaim(_Action):
     text: str = Field(min_length=1, max_length=MAX_PROCLAMATION_CHARS)
 
 
+Traded = Literal["grain", "iron", "timber", "goods"]
+
+
+class Buy(_Action):
+    """Buy from the European market at today's price plus the merchants' cut (see
+    `market`). What all Europe buys and sells this year moves next year's prices."""
+
+    type: Literal["buy"] = "buy"
+    resource: Traded
+    amount: int = Field(gt=0, le=200)
+
+
+class Sell(_Action):
+    """Sell to the European market at today's price minus the merchants' cut."""
+
+    type: Literal["sell"] = "sell"
+    resource: Traded
+    amount: int = Field(gt=0, le=200)
+
+
 class ChooseOption(_Action):
     """Answer one of your pending events (see `me.pending_events`) with one of its options, by
     index. Unanswered by the end of the next year, an event takes its first option."""
@@ -367,7 +387,9 @@ type Action = Annotated[
     | SendMessage
     | SetStance
     | Proclaim
-    | ChooseOption,
+    | ChooseOption
+    | Buy
+    | Sell,
     Field(discriminator="type"),
 ]
 

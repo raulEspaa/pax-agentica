@@ -68,3 +68,17 @@ def test_the_greedy_bot_beats_random_rulers() -> None:
         record = asyncio.run(run_game(state, players))
         wins += record.winner == "england"
     assert wins >= 3
+
+
+def test_the_greedy_bot_survives_losing_every_province_to_occupation() -> None:
+    import asyncio
+
+    from pax_agentica.engine import Orders, new_game, resolve_turn, view_for
+    from pax_agentica.engine.actions import DeclareWar
+    from pax_agentica.players.greedy_bot import GreedyBot
+
+    state = resolve_turn(new_game(1), {"spain": Orders(actions=[DeclareWar(target="england")])})
+    for pid in state.provinces_of("england"):
+        state.provinces[pid].controller = "spain"
+    orders = asyncio.run(GreedyBot(1).decide(view_for(state, "england")))
+    assert orders is not None

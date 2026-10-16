@@ -21,7 +21,9 @@ from pax_agentica.engine.mechanics import (
     building_output,
     building_slots,
     develop_cost,
+    inputs_upkeep,
     manpower_cap,
+    market_price,
     nation_income,
     nation_upkeep,
     province_output,
@@ -30,6 +32,7 @@ from pax_agentica.engine.mechanics import (
     war_score,
 )
 from pax_agentica.engine.model import (
+    TRADED,
     Advisor,
     AdvisorRole,
     BuildingKind,
@@ -78,6 +81,9 @@ class ProvinceView(_View):
     development: int
     fort: int  # fortification level: 1 with a fort, 2 with a citadel too
     buildings: tuple[BuildingKind, ...]
+    idle: tuple[
+        BuildingKind, ...
+    ]  # buildings whose inputs went unpaid last year: they yield nothing
     building_slots: int  # 1 + development // 4
     output_per_turn: Resources  # what it yields its owner each turn (nothing during unrest)
     building_output_per_turn: Resources  # the part of that output its buildings add
@@ -121,6 +127,12 @@ class CandidateView(_View):
     salary: int  # ducats, every year
 
 
+class PriceView(_View):
+    price: float  # ducats a unit, before the merchants' cut
+    buy: float  # what a unit costs you, the cut included
+    sell: float  # what a unit brings you
+
+
 class OptionView(_View):
     label: str
     effects: str  # what it does, in words
@@ -144,6 +156,7 @@ class MyNation(_View):
     stability: int
     income_per_turn: Resources  # production, already including the stability modifier
     army_upkeep_per_turn: Resources  # what the army eats and is paid, plus advisors' salaries
+    inputs_per_turn: Resources  # what your buildings consume a year, if all of them work
     manpower_cap: int  # the pool never grows beyond this; barracks raise it
     regiments: int
     army: dict[UnitKind, int]  # every regiment you have, by kind
@@ -221,6 +234,7 @@ class NationView(_View):
     proposals_to_answer: tuple[ProposalView, ...]  # answer them this turn or they expire
     proposals_sent: tuple[ProposalView, ...]
     last_turn_events: tuple[Event, ...]
+    market: dict[str, PriceView]  # the European market today: trade with `buy` and `sell`
     rules: Rules
 
 
@@ -253,6 +267,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             development=ps.development,
             fort=ps.fort,
             buildings=tuple(ps.buildings),
+            idle=tuple(ps.idle),
             building_slots=building_slots(
                 state.rules, ps.development, _mods(state, ps.owner).extra_building_slots
             ),
@@ -306,6 +321,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         stability=me.stability,
         income_per_turn=nation_income(state, nation),
         army_upkeep_per_turn=nation_upkeep(state, nation),
+        inputs_per_turn=inputs_upkeep(state, nation),
         manpower_cap=manpower_cap(state, nation),
         regiments=state.troops_of(nation),
         army=army_of(state, nation),
@@ -403,6 +419,15 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             if p.sender == nation
         ),
         last_turn_events=tuple(e for e in state.last_events if e.visible_to(nation)),
+        market={
+            res: PriceView(
+                price=round(price, 2),
+                buy=round(price * (1 + state.rules.market_spread), 2),
+                sell=round(price * (1 - state.rules.market_spread), 2),
+            )
+            for res in TRADED
+            for price in [market_price(state, res)]
+        },
         rules=state.rules,
     )
 

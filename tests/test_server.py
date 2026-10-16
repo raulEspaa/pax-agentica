@@ -92,10 +92,10 @@ def test_a_saved_game_resumes_exactly_where_it_stopped(tmp_path: Path) -> None:
     session = default_session("france", seed=1, max_turns=5)
     session.save_to = save
     client = TestClient(create_app(session))
-    orders = {"actions": [{"type": "develop", "province": "paris"}]}
+    orders = {"actions": [{"type": "develop", "province": "lyon"}]}
     client.post("/api/turn", json=orders)
     client.post("/api/turn", json={"actions": []})
     record = GameRecord.model_validate_json(save.read_text(encoding="utf-8"))
     resumed = Session.resume(record, "france", session.rulers)
     assert resumed.state == session.state
-    assert resumed.state.provinces["paris"].development == 7
+    assert resumed.state.provinces["lyon"].development == 5

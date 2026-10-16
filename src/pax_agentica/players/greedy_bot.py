@@ -23,6 +23,7 @@ from pax_agentica.engine.actions import (
     Attack,
     BoostStability,
     Build,
+    Buy,
     ChooseOption,
     DeclareWar,
     Develop,
@@ -37,6 +38,7 @@ from pax_agentica.engine.actions import (
     Recruit,
     Research,
     Respond,
+    Sell,
     SetStance,
     Terms,
     UpgradeMonument,
@@ -114,6 +116,7 @@ class _Planner:
     def run(self) -> Orders:
         self._answer_proposals()
         self._decide_events()
+        self._trade_market()
         self._maybe_declare_war()
         self._recruit()
         self._command()
@@ -260,6 +263,40 @@ class _Planner:
         limit = self.v.rules.peace_cost_army_limit if p.limit_army is not None else 0
         return provinces + lump + tribute + limit
 
+    def _trade_market(self) -> None:
+        """Sell what piles up, buy what the realm lacks for its buildings and its levies."""
+        me, market = self.me, self.v.market
+        income, upkeep, inputs = me.income_per_turn, me.army_upkeep_per_turn, me.inputs_per_turn
+        keep = {
+            "grain": upkeep.grain * 3 + 20,
+            "iron": 40,
+            "timber": 40 + inputs.timber * 3,
+            "goods": 10 + inputs.goods * 3,
+        }
+        for res, floor in keep.items():
+            surplus = getattr(self.budget, res) - floor
+            if surplus >= 10:
+                amount = min(surplus, 200)
+                self.actions.append(Sell(resource=res, amount=amount))  # type: ignore[arg-type]
+                self.budget = (
+                    self.budget
+                    - Resources(**{res: amount})
+                    + Resources(ducats=int(amount * market[res].sell))
+                )
+        wants = {
+            "goods": inputs.goods - income.goods - self.budget.goods + 2,
+            "iron": self.v.rules.recruit_cost.iron * 4 - self.budget.iron,
+            "grain": upkeep.grain + inputs.grain - income.grain - self.budget.grain // 2,
+        }
+        for res, need in wants.items():
+            if need <= 0:
+                continue
+            amount = min(need, 200)
+            cost = int(amount * market[res].buy) + 1
+            if self.budget.ducats >= cost + 40:
+                self.actions.append(Buy(resource=res, amount=amount))  # type: ignore[arg-type]
+                self.budget = self.budget - Resources(ducats=cost) + Resources(**{res: amount})
+
     def _decide_events(self) -> None:
         """Weigh each answer to the crown's pending events by what it gives and takes."""
         for pending in self.me.pending_events:
@@ -368,6 +405,8 @@ class _Planner:
         return enemy - self.troops[pid]
 
     def _staging_province(self) -> ProvinceId:
+        if not self.mine:  # every province occupied: nowhere to stand but the old capital
+            return self.me.capital
         if self.enemies:
             threatened = max(sorted(self.mine), key=self._threat)
             if self._threat(threatened) > 0:
@@ -526,18 +565,22 @@ class _Planner:
             wishes.append((BuildingKind.LUMBER_MILL, best("timber")))
         richest = best("ducats")
         staging = self._levy_province() or me.capital
+        goods_short = me.inputs_per_turn.goods + 1 > me.income_per_turn.goods
+        if goods_short:
+            by_development = sorted(self.owned, key=lambda p: (-self.provinces[p].development, p))
+            wishes.append((BuildingKind.WORKSHOP, by_development))
         if self.enemies:
             wishes.append((BuildingKind.ARMORY, [staging]))
         if self.enemies:
             wishes.append((BuildingKind.CANNON_FOUNDRY, [staging]))
         wishes += [
-            (BuildingKind.MARKETPLACE, richest[:2]),
+            *([] if goods_short else [(BuildingKind.MARKETPLACE, richest[:2])]),
             (BuildingKind.ROYAL_EXCHANGE, richest[:1]),
             (BuildingKind.BANK, richest[:2]),
             (BuildingKind.STABLES, [staging]),
             (BuildingKind.OBSERVATORY, richest[1:2]),
             (BuildingKind.UNIVERSITY, richest[:1]),
-            (BuildingKind.MARKETPLACE, richest),
+            *([] if goods_short else [(BuildingKind.MARKETPLACE, richest)]),
             (BuildingKind.MILITARY_ACADEMY, [me.capital]),
             (BuildingKind.TRAINING_GROUNDS, [staging]),
             (BuildingKind.CATHEDRAL, richest[:1]),

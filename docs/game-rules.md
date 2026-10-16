@@ -47,13 +47,15 @@ breaks the rules is skipped, and the engine tells its author why next turn.
 | **Manpower** | regiments (2 each); the pool has a cap |
 | **Iron** | regiments (2 each) and military buildings |
 | **Grain** | feeding the army: 1 per regiment per turn |
-| **Timber** | development and most buildings |
+| **Timber** | development and most buildings; ironworks burn it as charcoal |
+| **Goods** | cloth, glass and arms: marketplaces, universities and the royal exchange consume them, arquebusiers (1) and guns (2) need them, and developing past level 5 takes them |
 
 **Each province produces, per turn:**
 - ducats equal to its development,
 - manpower equal to half its development (at least 1),
 - 1 iron, 3 grain and 1 timber,
-- plus its good: development × 1 extra grain, iron, timber or ducats (gold).
+- plus its good: development × 1 extra grain, iron, timber, ducats (gold) or goods (cloth:
+  York, Lyon, Flanders, Holland, Florence).
 
 **The land matters.** Terrain adds to (or takes from) what a province yields, changes what
 developing it costs, and how well it is defended:
@@ -82,9 +84,25 @@ lost. Barracks raise both. Disbanding a regiment sends its 2 manpower back to th
 |---|---|---|
 | `recruit` | 6 ducats, 2 manpower and 2 iron per regiment | regiments appear in one of your provinces |
 | `disband` | nothing | regiments go home: no more upkeep, +2 manpower each |
-| `develop` | 25 + 5 × development ducats, 2 + development ÷ 2 timber | +1 development (max 12, or 15 with Grand Architecture): more output, more score, more building slots |
+| `develop` | 25 + 5 × development ducats, 2 + development ÷ 2 timber (times the terrain), and from development 6 development ÷ 3 goods | +1 development (max 12, or 15 with Grand Architecture): more output, more score, more building slots |
 | `build` | see below | a building in one of your provinces |
 | `boost_stability` | 50 ducats, less with a diplomatic ruler | +1 stability (max +3) |
+
+### Inputs and idle buildings
+
+Some buildings **consume** every year: marketplaces a bale of goods (they sell it), universities a
+bale (books), the royal exchange two, ironworks 2 timber (charcoal), cannon foundries 2 iron,
+barracks 2 grain. **Workshops** turn 1 iron and 1 timber into 2 + development ÷ 3 goods. Inputs
+are paid at the end of the year from the treasury and the year's yield; a building whose inputs
+cannot be paid **stands idle** that year and yields nothing.
+
+### The European market
+
+`buy` and `sell` trade grain, iron, timber and goods at the market's price, plus or minus the
+merchants' 15% cut, at once and before anything else that year. Prices start at 1 ducat for grain,
+2 for iron, 1.5 for timber and 3 for goods; what all Europe buys and sells in a year moves them
+(by a quarter for every 60 units of net demand), and they drift back a tenth of the way to their
+usual level every year, never below 40% or above three times it.
 
 ### Buildings
 
@@ -96,27 +114,28 @@ provinces.
 
 | Building | Kind | Cost | Effect |
 |---|---|---|---|
-| Marketplace | civil | 50 ducats, 6 timber | doubles the province's ducats |
+| Marketplace | civil | 50 ducats, 6 timber | doubles the province's ducats; consumes 1 goods |
+| Workshops | civil | 55 ducats, 6 timber | 2 + development ÷ 3 goods; consumes 1 iron and 1 timber |
 | Farm estates | civil | 40 ducats, 5 timber | doubles the province's grain |
-| Ironworks | civil | 60 ducats, 8 timber | doubles the province's iron; needs engineering 1 |
+| Ironworks | civil | 60 ducats, 8 timber | doubles the province's iron; consumes 2 timber; needs engineering 1 |
 | Lumber mill | civil | 45 ducats, 4 iron | doubles the province's timber |
-| University | civil | 90 ducats, 12 timber | developing this province costs 30% fewer ducats; needs economy 2 |
+| University | civil | 90 ducats, 12 timber | developing this province costs 30% fewer ducats; consumes 1 goods; needs economy 2 |
 | Bank | civil | 80 ducats, 4 iron, 6 timber | +3 ducats and +50% of the province's ducats; needs economy 1 |
 | Cathedral | civil | 110 ducats, 2 manpower, 20 timber | +1 manpower and +25% of the province's ducats; unrest ends twice as fast; needs economy 4 |
-| Barracks | military | 50 ducats, 3 iron, 6 timber | doubles the province's manpower, and a higher cap |
+| Barracks | military | 50 ducats, 3 iron, 6 timber | doubles the province's manpower, and a higher cap; consumes 2 grain |
 | Armory | military | 60 ducats, 8 iron, 4 timber | regiments recruited here need half the iron; needs military 1 |
 | Training grounds | military | 70 ducats, 2 manpower, 8 timber | the garrison here fights 20% harder; needs military 3 |
 | Fort | military | 60 ducats, 6 iron, 10 timber | defenders here fight 25% harder |
 | Citadel | military | 100 ducats, 2 manpower, 12 iron, 15 timber | another +25% defence; needs a fort and military 2 |
 | Stables | military | 45 ducats, 8 timber | lets this province raise cavalry |
-| Cannon foundry | military | 90 ducats, 10 iron, 6 timber | lets this province cast artillery; needs military 2 |
+| Cannon foundry | military | 90 ducats, 10 iron, 6 timber | lets this province cast artillery; consumes 2 iron; needs military 2 |
 
 **Great works** stand once in a realm and are felt across all of it:
 
 | Great work | Cost | Effect |
 |---|---|---|
 | Military academy | 140 ducats, 6 iron, 12 timber | one more general; generals appointed here start a star higher; needs military 3 |
-| Royal exchange | 160 ducats, 4 iron, 14 timber | +10% ducat income; needs economy 3 |
+| Royal exchange | 160 ducats, 4 iron, 14 timber | +10% ducat income; consumes 2 goods; needs economy 3 |
 | Observatory | 120 ducats, 4 iron, 10 timber | research 15% cheaper; needs economy 2 |
 
 ### Monuments
@@ -229,9 +248,9 @@ technology, milestones, ruler and council.
   | Kind | Cost | Upkeep a year | Attack | Defence | Ground | Raised where |
   |---|---|---|---|---|---|---|
   | Pikemen (infantry) | 6 ducats, 2 manpower, 2 iron | ½ ducat, 1 grain | 1.0 | 1.0 | any | anywhere |
-  | Archers and arquebusiers | 7 ducats, 2 manpower, 1 iron, 2 timber | ½ ducat, 1 grain | 0.8 | 1.3 | ×1.2 in forest and hills | anywhere |
+  | Archers and arquebusiers | 7 ducats, 2 manpower, 1 iron, 2 timber, 1 goods | ½ ducat, 1 grain | 0.8 | 1.3 | ×1.2 in forest and hills | anywhere |
   | Cavalry | 14 ducats, 2 manpower, 3 iron | 1 ducat, 2 grain | 1.5 | 0.9 | ×1.25 on plains, ×0.75 forest, ×0.6 marsh and mountains | with stables |
-  | Artillery | 20 ducats, 1 manpower, 6 iron, 2 timber | 1 ducat, 1 grain | 1.1 | 1.2 | any | with a cannon foundry |
+  | Artillery | 20 ducats, 1 manpower, 6 iron, 2 timber, 2 goods | 1 ducat, 1 grain | 1.1 | 1.2 | any | with a cannon foundry |
 
   **Combined arms**: an army with three kinds (each at least a tenth of it) fights 10% harder,
   with all four 15%. **Guns breach walls**: every tenth of an attacking army in artillery knocks

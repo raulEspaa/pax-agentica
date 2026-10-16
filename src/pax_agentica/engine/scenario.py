@@ -26,13 +26,13 @@ from pax_agentica.engine.model import (
 from pax_agentica.engine.realm import make_ruler
 
 P, F, H, M, X = Terrain.PLAINS, Terrain.FOREST, Terrain.HILLS, Terrain.MARSH, Terrain.MOUNTAINS
-GR, IR, TI, GO = Good.GRAIN, Good.IRON, Good.TIMBER, Good.GOLD
+GR, IR, TI, GO, CL = Good.GRAIN, Good.IRON, Good.TIMBER, Good.GOLD, Good.CLOTH
 
 # id, name, terrain, good, development, owner (None: independent), lon, lat
 _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] = [
     # British Isles
     ("london", "London", P, GO, 7, "england", -0.1, 51.5),
-    ("york", "York", P, GR, 4, "england", -1.1, 53.9),
+    ("york", "York", P, CL, 4, "england", -1.1, 53.9),  # the wool trade
     ("wales", "Wales", H, IR, 3, "england", -3.6, 52.3),
     ("scotland", "Scotland", H, GR, 3, None, -3.8, 56.5),
     ("ireland", "Ireland", P, GR, 2, None, -7.8, 53.2),
@@ -53,13 +53,13 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     ("normandy", "Normandy", P, GR, 3, "france", 0.2, 49.3),
     ("brittany", "Brittany", F, GO, 3, "france", -2.9, 48.1),
     ("champagne", "Champagne", P, GR, 3, "france", 4.4, 49.0),
-    ("lyon", "Lyon", H, GO, 4, "france", 4.8, 45.8),
+    ("lyon", "Lyon", H, CL, 4, "france", 4.8, 45.8),  # the silk looms
     ("gascony", "Gascony", P, GO, 3, "france", -0.4, 44.6),
     ("languedoc", "Languedoc", P, GR, 3, "france", 2.2, 43.6),
     ("provence", "Provence", H, GR, 3, None, 6.0, 43.7),
     # Low Countries and the Empire
-    ("flanders", "Flanders", P, GO, 5, None, 3.6, 50.8),
-    ("holland", "Holland", M, GO, 4, None, 5.0, 52.3),
+    ("flanders", "Flanders", P, CL, 5, None, 3.6, 50.8),  # the cloth towns
+    ("holland", "Holland", M, CL, 4, None, 5.0, 52.3),
     ("rhineland", "Rhineland", H, IR, 4, None, 7.4, 50.4),
     ("hamburg", "Hamburg", P, GO, 4, None, 9.9, 53.5),
     ("brandenburg", "Brandenburg", F, TI, 3, None, 13.4, 52.5),
@@ -75,7 +75,7 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     # Italy
     ("milan", "Milan", P, GO, 5, None, 9.2, 45.4),
     ("venice", "Venice", M, GO, 5, None, 12.3, 45.6),
-    ("florence", "Florence", H, GO, 4, None, 11.2, 43.8),
+    ("florence", "Florence", H, CL, 4, None, 11.2, 43.8),  # the Arte della Lana
     ("rome", "Rome", H, GR, 4, None, 12.8, 42.2),
     ("naples", "Naples", H, GR, 4, None, 15.2, 40.9),
     ("sicily", "Sicily", H, GR, 3, None, 14.2, 37.5),

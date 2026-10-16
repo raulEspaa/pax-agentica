@@ -26,6 +26,7 @@ from pax_agentica.engine.actions import (
     Attack,
     BoostStability,
     Build,
+    Buy,
     CancelTreaty,
     ChooseOption,
     DeclareWar,
@@ -46,6 +47,7 @@ from pax_agentica.engine.actions import (
     RequestCallToArms,
     Research,
     Respond,
+    Sell,
     SendMessage,
     SetStance,
     Terms,
@@ -58,11 +60,14 @@ from pax_agentica.engine.mechanics import (
     army_upkeep,
     battle_factor,
     building_cost,
+    building_inputs,
     building_slots,
     defense_multiplier,
     develop_cost,
     fight,
     manpower_cap,
+    market_price,
+    market_total,
     nation_income,
     peace_cost,
     recruit_cost,
@@ -73,6 +78,7 @@ from pax_agentica.engine.mechanics import (
 )
 from pax_agentica.engine.model import (
     RESOURCE_NAMES,
+    TRADED,
     BuildingKind,
     GameState,
     General,
@@ -132,6 +138,7 @@ class _Resolver:
         self.rng.shuffle(self.order)
         self.researched: set[NationId] = set()
         self.besieged: set[ProvinceId] = set()  # sieges pressed this year
+        self.flow: dict[str, int] = dict.fromkeys(TRADED, 0)  # net market purchases this year
         self.fallen: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)
 
     def run(self) -> GameState:
@@ -888,7 +895,7 @@ class _Resolver:
         target.resources = target.resources + a.resources
         rules = self.s.rules
         worth = sum(
-            n * w for n, w in zip(a.resources.amounts().values(), (1, 3, 2, 1, 2), strict=True)
+            n * w for n, w in zip(a.resources.amounts().values(), (1, 3, 2, 1, 2, 3), strict=True)
         )
         self._opine(
             a.target, nation, min(rules.opinion_gift_max, worth // rules.opinion_gift_per_ducats)
@@ -943,6 +950,10 @@ class _Resolver:
 
     def _economy(self) -> None:
         rules = self.s.rules
+        for nation in self.order:  # the market opens first: what is bought can be spent
+            for action in self.orders[nation]:
+                if isinstance(action, Buy | Sell):
+                    self._market(nation, action)
         for nation in self.order:
             for action in self.orders[nation]:
                 match action:
@@ -978,6 +989,46 @@ class _Resolver:
                             self._change_stability(nation, 1, "investment")
                     case _:
                         pass
+
+    def _market(self, nation: NationId, a: Buy | Sell) -> None:
+        me = self.s.nations[nation]
+        buying = isinstance(a, Buy)
+        total = market_total(self.s, a.resource, a.amount, buying=buying)
+        goods = Resources(**{a.resource: a.amount})
+        if buying:
+            if error := self._pay(nation, Resources(ducats=total)):
+                self._reject(nation, a, error)
+                return
+            me.resources = me.resources + goods
+            self.flow[a.resource] += a.amount
+        else:
+            if not me.resources.covers(goods):
+                held = getattr(me.resources, a.resource)
+                self._reject(nation, a, f"you have only {held} {a.resource}")
+                return
+            me.resources = me.resources - goods + Resources(ducats=total)
+            self.flow[a.resource] -= a.amount
+        self._emit(
+            EventKind.MARKET_TRADE,
+            f"{me.name} {'buys' if buying else 'sells'} {a.amount} {a.resource} for {total} ducats",
+            nations=(nation,),
+            audience=(nation,),
+            resource=a.resource,
+            amount=a.amount,
+            ducats=total,
+        )
+
+    def _move_prices(self) -> None:
+        """What all Europe bought and sold this year moves the prices; they drift back
+        towards their usual level."""
+        rules = self.s.rules
+        for res in TRADED:
+            base = rules.market_prices[res]
+            price = market_price(self.s, res)
+            price *= 1 + rules.market_elasticity * self.flow[res] / rules.market_depth
+            price += (base - price) * rules.market_reversion
+            price = max(base * rules.market_floor, min(base * rules.market_ceiling, price))
+            self.s.market[res] = round(price, 3)
 
     def _recruit(self, nation: NationId, a: Recruit) -> None:
         rules = self.s.rules
@@ -1680,6 +1731,7 @@ class _Resolver:
         self._drift_opinions()
         self._weary()
         self._fortune()
+        self._move_prices()
         for pid, p in self.s.provinces.items():  # a siege not pressed this year is lifted
             if p.siege_by and pid not in self.besieged:
                 p.siege_by, p.siege_years = None, 0
@@ -1770,6 +1822,36 @@ class _Resolver:
             if self.s.nations[nation].war_exhaustion >= rules.exhaustion_unrest_threshold:
                 self._change_stability(nation, -1, "war exhaustion")
 
+    def _work(self, nation: NationId) -> tuple[Resources, Resources]:
+        """This year's income and the buildings' inputs it pays for. A building whose inputs the
+        treasury and the year's yield cannot cover stands idle and yields nothing."""
+        for pid in self.s.provinces_of(nation):
+            self.s.provinces[pid].idle = []
+        income = nation_income(self.s, nation)
+        available = self.s.nations[nation].resources + income
+        paid, idle = Resources(), []
+        for pid, kind in building_inputs(self.s, nation):
+            need = self.s.rules.buildings[kind].consumes
+            if available.covers(need):
+                available = available - need
+                paid = paid + need
+            else:
+                idle.append((pid, kind))
+                self.s.provinces[pid].idle.append(kind)
+        if idle:
+            income = nation_income(self.s, nation)
+            names = ", ".join(
+                f"{self.s.rules.buildings[k].name.lower()} in {self._pname(pid)}" for pid, k in idle
+            )
+            self._emit(
+                EventKind.BUILDINGS_IDLE,
+                f"{self._name(nation)}'s {names} stand idle for want of their inputs",
+                nations=(nation,),
+                audience=(nation,),
+                count=len(idle),
+            )
+        return income, paid
+
     def _pay_tributes(self) -> None:
         for t in self.s.treaties:
             if t.kind != TreatyKind.TRIBUTE or t.payer is None:
@@ -1825,7 +1907,8 @@ class _Resolver:
         regiment that cannot be fed or paid deserts."""
         rules = self.s.rules
         state = self.s.nations[nation]
-        state.resources = state.resources + nation_income(self.s, nation)
+        income, inputs = self._work(nation)
+        state.resources = state.resources + income - inputs  # inputs never exceed what is there
         cap = manpower_cap(self.s, nation)
         if state.resources.manpower > cap:
             state.resources = state.resources.model_copy(update={"manpower": cap})

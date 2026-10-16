@@ -102,6 +102,7 @@ def test_a_marketplace_doubles_the_province_ducats(state: GameState, play: Play)
         - spent
         + nation_income(new, "england")
         - army_upkeep(state.rules, state.troops_of("england"))
+        - state.rules.buildings[BuildingKind.MARKETPLACE].consumes  # a bale of York's cloth sold
     )
     assert new.nations["england"].resources == expected
 

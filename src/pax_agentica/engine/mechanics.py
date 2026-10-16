@@ -48,6 +48,7 @@ def land_yield(
         "iron": rules.base_iron_per_province + (extra if good is Good.IRON else 0),
         "grain": rules.base_grain_per_province + (extra if good is Good.GRAIN else 0),
         "timber": rules.base_timber_per_province + (extra if good is Good.TIMBER else 0),
+        "goods": extra if good is Good.CLOTH else 0,
     }
     return Resources(**{k: max(0, v + ground.get(k, 0)) for k, v in base.items()})
 
@@ -58,6 +59,7 @@ def buildings_yield(
     buildings: Collection[BuildingKind],
     marketplace_share: float | None = None,
     mill_share: float | None = None,
+    development: int = 0,
 ) -> Resources:
     """The extra yield of the buildings: mostly a share of the base yield, so the same building
     pays off more in a more developed province. Technology can raise some shares."""
@@ -77,6 +79,10 @@ def buildings_yield(
         elif building == BuildingKind.CATHEDRAL:
             extra["manpower"] += 1
             extra["ducats"] += math.floor(amounts["ducats"] * 0.25)
+        elif building == BuildingKind.WORKSHOP:
+            extra["goods"] += rules.workshop_base_goods + (
+                development // rules.workshop_goods_per_development
+            )
     return Resources(**extra)
 
 
@@ -90,13 +96,15 @@ def base_output(state: GameState, province: ProvinceId) -> Resources:
 
 def building_output(state: GameState, province: ProvinceId) -> Resources:
     """The extra yield of the province's buildings, with its owner's technology."""
-    mods = modifiers(state, state.provinces[province].owner)
+    p = state.provinces[province]
+    mods = modifiers(state, p.owner)
     return buildings_yield(
         state.rules,
         base_output(state, province),
-        state.provinces[province].buildings,
+        [b for b in p.buildings if b not in p.idle],  # an idle building yields nothing
         mods.marketplace_share,
         mods.mill_share,
+        p.development,
     )
 
 
@@ -118,7 +126,12 @@ def output_with(
     mods = modifiers(state, p.owner)
     standing = [b for b in p.buildings if b not in without]
     return base + buildings_yield(
-        state.rules, base, [*standing, *extra], mods.marketplace_share, mods.mill_share
+        state.rules,
+        base,
+        [*standing, *extra],
+        mods.marketplace_share,
+        mods.mill_share,
+        development or p.development,
     )
 
 
@@ -259,6 +272,43 @@ def manpower_cap(state: GameState, nation: NationId) -> int:
     return rules.manpower_cap_base + rules.manpower_cap_years * yearly
 
 
+# ---------------------------------------------------------------- inputs and the market
+
+
+def building_inputs(state: GameState, nation: NationId) -> list[tuple[ProvinceId, BuildingKind]]:
+    """Every building of a nation that consumes something, in the order inputs are paid."""
+    rules = state.rules
+    return [
+        (pid, b)
+        for pid in state.provinces_of(nation)
+        if not state.provinces[pid].controller
+        for b in state.provinces[pid].buildings
+        if not rules.buildings[b].consumes.is_empty()
+    ]
+
+
+def inputs_upkeep(state: GameState, nation: NationId) -> Resources:
+    """What a nation's buildings consume in a year, if all of them work."""
+    total = Resources()
+    for _pid, b in building_inputs(state, nation):
+        total = total + state.rules.buildings[b].consumes
+    return total
+
+
+def market_price(state: GameState, resource: str) -> float:
+    """A unit's price on the European market today, before the merchants' cut."""
+    return state.market.get(resource, state.rules.market_prices[resource])
+
+
+def market_total(state: GameState, resource: str, amount: int, *, buying: bool) -> int:
+    """What buying (or selling) `amount` units costs (or brings), the merchants' cut included."""
+    price = market_price(state, resource)
+    spread = state.rules.market_spread
+    if buying:
+        return math.ceil(amount * price * (1 + spread))
+    return math.floor(amount * price * (1 - spread))
+
+
 # ---------------------------------------------------------------- war score
 
 
@@ -333,7 +383,8 @@ def develop_cost(
         (rules.develop_timber_base + rules.develop_timber_per_two_levels * (development // 2))
         * ground
     )
-    return discounted(Resources(ducats=ducats, timber=timber), discount)
+    goods = development // 3 if development >= rules.develop_goods_from else 0
+    return discounted(Resources(ducats=ducats, timber=timber), discount) + Resources(goods=goods)
 
 
 def recruit_cost(

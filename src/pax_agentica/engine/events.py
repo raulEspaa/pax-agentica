@@ -34,6 +34,8 @@ class EventKind(StrEnum):
     TRADE_COMPLETED = "trade_completed"
     TRADE_FAILED = "trade_failed"
     GIFT = "gift"
+    MARKET_TRADE = "market_trade"
+    BUILDINGS_IDLE = "buildings_idle"
     # economy
     RECRUITED = "recruited"
     DISBANDED = "disbanded"

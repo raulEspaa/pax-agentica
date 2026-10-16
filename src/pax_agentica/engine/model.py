@@ -41,13 +41,15 @@ class Good(StrEnum):
     IRON = "iron"
     TIMBER = "timber"
     GOLD = "gold"  # extra ducats: trade cities, mines of precious metal
+    CLOTH = "cloth"  # goods: the looms of Flanders, the silk of Lyon, the wool of York
 
 
-RESOURCE_NAMES = ("ducats", "manpower", "iron", "grain", "timber")
+RESOURCE_NAMES = ("ducats", "manpower", "iron", "grain", "timber", "goods")
+TRADED = ("grain", "iron", "timber", "goods")  # what the European market buys and sells
 
 
 class Resources(BaseModel):
-    """A bundle of the five national resources. Never negative."""
+    """A bundle of the six national resources. Never negative."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -56,6 +58,7 @@ class Resources(BaseModel):
     iron: NonNegativeInt = 0
     grain: NonNegativeInt = 0
     timber: NonNegativeInt = 0
+    goods: NonNegativeInt = 0  # cloth, glass, arms: made by workshops, wanted by markets
 
     def amounts(self) -> dict[str, int]:
         return {name: getattr(self, name) for name in RESOURCE_NAMES}
@@ -103,6 +106,7 @@ class BuildingKind(StrEnum):
     TRAINING_GROUNDS = "training_grounds"
     FORT = "fort"
     CITADEL = "citadel"
+    WORKSHOP = "workshop"
     STABLES = "stables"
     CANNON_FOUNDRY = "cannon_foundry"
     # great works: one per realm, felt across all of it
@@ -324,6 +328,7 @@ class BuildingSpec(BaseModel):
     requires: BuildingKind | None = None
     requires_tech: tuple[TechBranch, int] | None = None  # a technology level to unlock it
     unique: bool = False  # a great work: one per realm, its effect felt across all of it
+    consumes: Resources = Resources()  # a year; a building whose inputs cannot be paid stands idle
 
 
 def default_buildings() -> dict[BuildingKind, BuildingSpec]:
@@ -333,7 +338,8 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="Marketplace",
             category=civil,
             cost=Resources(ducats=50, timber=6),
-            effect="doubles the province's ducats (at least +1)",
+            effect="doubles the province's ducats (at least +1), selling a bale of goods a year",
+            consumes=Resources(goods=1),
         ),
         BuildingKind.FARM_ESTATES: BuildingSpec(
             name="Farm estates",
@@ -345,8 +351,9 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="Ironworks",
             category=civil,
             cost=Resources(ducats=60, timber=8),
-            effect="doubles the province's iron (at least +1)",
+            effect="doubles the province's iron (at least +1), burning 2 timber a year as charcoal",
             requires_tech=(TechBranch.ENGINEERING, 1),
+            consumes=Resources(timber=2),
         ),
         BuildingKind.LUMBER_MILL: BuildingSpec(
             name="Lumber mill",
@@ -358,8 +365,10 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="University",
             category=civil,
             cost=Resources(ducats=90, timber=12),
-            effect="developing this province costs 30% fewer ducats",
+            effect="developing this province costs 30% fewer ducats; it buys a bale of goods "
+            "(books) a year",
             requires_tech=(TechBranch.ECONOMY, 2),
+            consumes=Resources(goods=1),
         ),
         BuildingKind.BANK: BuildingSpec(
             name="Bank",
@@ -380,7 +389,9 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="Barracks",
             category=military,
             cost=Resources(ducats=50, iron=3, timber=6),
-            effect="doubles the province's manpower (at least +1), which also raises the cap",
+            effect="doubles the province's manpower (at least +1), which also raises the cap; "
+            "the garrison eats 2 grain a year",
+            consumes=Resources(grain=2),
         ),
         BuildingKind.ARMORY: BuildingSpec(
             name="Armory",
@@ -410,6 +421,13 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             requires=BuildingKind.FORT,
             requires_tech=(TechBranch.MILITARY, 2),
         ),
+        BuildingKind.WORKSHOP: BuildingSpec(
+            name="Workshops",
+            category=civil,
+            cost=Resources(ducats=55, timber=6),
+            effect="turn iron and timber into goods: 2 + development / 3 bales a year",
+            consumes=Resources(iron=1, timber=1),
+        ),
         BuildingKind.STABLES: BuildingSpec(
             name="Stables",
             category=military,
@@ -420,8 +438,9 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="Cannon foundry",
             category=military,
             cost=Resources(ducats=90, iron=10, timber=6),
-            effect="lets this province cast artillery",
+            effect="lets this province cast artillery; it melts 2 iron a year",
             requires_tech=(TechBranch.MILITARY, 2),
+            consumes=Resources(iron=2),
         ),
         BuildingKind.MILITARY_ACADEMY: BuildingSpec(
             name="Military academy",
@@ -435,8 +454,9 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="Royal exchange",
             category=civil,
             cost=Resources(ducats=160, iron=4, timber=14),
-            effect="+10% ducat income across the realm",
+            effect="+10% ducat income across the realm; it trades 2 bales of goods a year",
             requires_tech=(TechBranch.ECONOMY, 3),
+            consumes=Resources(goods=2),
             unique=True,
         ),
         BuildingKind.OBSERVATORY: BuildingSpec(
@@ -487,7 +507,7 @@ def default_units() -> dict[UnitKind, UnitSpec]:
         ),
         UnitKind.ARCHERS: UnitSpec(
             name="Archers and arquebusiers",
-            cost=Resources(ducats=7, manpower=2, iron=1, timber=2),
+            cost=Resources(ducats=7, manpower=2, iron=1, timber=2, goods=1),
             attack=0.8,
             defence=1.3,
             terrain={Terrain.FOREST: 1.2, Terrain.HILLS: 1.2},
@@ -512,7 +532,7 @@ def default_units() -> dict[UnitKind, UnitSpec]:
         ),
         UnitKind.ARTILLERY: UnitSpec(
             name="Artillery",
-            cost=Resources(ducats=20, manpower=1, iron=6, timber=2),
+            cost=Resources(ducats=20, manpower=1, iron=6, timber=2, goods=2),
             pay=2.0,
             attack=1.1,
             defence=1.2,
@@ -770,6 +790,21 @@ class Rules(BaseModel):
     develop_timber_base: int = 2  # timber for new roads, mills and houses
     develop_timber_per_two_levels: int = 1
     max_development: int = 12
+    develop_goods_from: int = 6  # from this development, developing also takes goods
+    workshop_base_goods: int = 2
+    workshop_goods_per_development: int = 3  # +1 bale for every this many levels
+    # the European market: what a unit of each traded resource costs in ducats, before the
+    # merchants' cut; prices move with what all Europe buys and sells
+    market_prices: dict[str, float] = Field(
+        default_factory=lambda: {"grain": 1.0, "iron": 2.0, "timber": 1.5, "goods": 3.0}
+    )
+    market_spread: float = 0.15  # the merchants' cut, on buying and selling
+    market_depth: int = 60  # units of net demand that move a price by the elasticity
+    market_elasticity: float = 0.25
+    market_reversion: float = 0.1  # a year, back towards the base price
+    market_floor: float = 0.4  # times the base price
+    market_ceiling: float = 3.0
+    max_trade_per_order: int = 200
     buildings: dict[BuildingKind, BuildingSpec] = Field(default_factory=default_buildings)
     development_per_building_slot: int = 4  # slots = 1 + development // this
     building_output_bonus: float = 1.0  # marketplace, farm estates, ironworks, mill, barracks
@@ -928,6 +963,7 @@ class ProvinceState(BaseModel):
     units: dict[UnitKind, NonNegativeInt] = Field(default_factory=dict)
     monument: NonNegativeInt = 0  # level of the province's monument, if it has one (0: a site)
     controller: NationId | None = None  # an enemy occupying it in a war; None: its owner holds it
+    idle: list[BuildingKind] = Field(default_factory=list)  # buildings whose inputs went unpaid
     siege_by: NationId | None = None  # who besieges its walls
     siege_years: NonNegativeInt = 0  # years of siege won so far
 
@@ -1094,6 +1130,7 @@ class GameState(BaseModel):
     generals: list[General] = Field(default_factory=list)
     next_general_id: int = 1
     next_event_id: int = 1
+    market: dict[str, float] = Field(default_factory=dict)  # current prices; empty: the base
     opinions: dict[NationId, dict[NationId, int]] = Field(default_factory=dict)  # a's of b
     last_events: list[Event] = Field(default_factory=list)  # what happened last turn
     finished: bool = False
