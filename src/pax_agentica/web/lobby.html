@@ -3,69 +3,103 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <title>Pax Agentica tables</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/map.css">
 <style>
-  body { margin: 0; min-height: 100vh; background: var(--wood); color: var(--ink); font: 16px/1.45 var(--body); }
-  main { max-width: 980px; margin: 0 auto; padding: 28px 16px 60px; }
-  h1 { font: 700 34px var(--display); color: var(--brass-hi); letter-spacing: .06em; margin: 0; }
-  h2 { font: 700 18px var(--display); color: var(--brass-hi); margin: 26px 0 10px; }
-  .lead { color: var(--ink-2); margin: 6px 0 0; max-width: 660px; }
-  .panel { background: var(--leather); border: 1px solid var(--brass-lo); padding: 14px 16px; }
-  form.open { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px 14px; align-items: end; }
-  label { display: grid; gap: 3px; font-size: 13.5px; color: var(--ink-3); }
-  input, select { font: 15px var(--body); background: var(--walnut-lo); color: var(--ink); border: 1px solid var(--brass-lo); padding: 6px 8px; min-width: 0; }
-  .btn { font: 600 14px var(--body); color: var(--engraved); background: var(--brass-face); border: 1px solid #4a3312; padding: 7px 14px; cursor: pointer; }
-  .btn[disabled] { opacity: .5; cursor: default; }
+  body { margin: 0; min-height: 100vh; background: var(--wood); color: var(--ink); font: 17px/1.45 var(--body); }
+  main { max-width: 1080px; margin: 0 auto; padding: 26px 16px 60px; }
+  .hero { display: flex; gap: 18px; align-items: center; margin-bottom: 20px; }
+  .hero img { width: 68px; height: 68px; flex: none; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .6)); }
+  h1 { font: 700 36px var(--display); color: var(--brass-hi); letter-spacing: .06em; margin: 0; }
+  .lead { color: var(--ink-2); margin: 2px 0 0; max-width: 700px; }
+  h2 { display: flex; align-items: center; gap: 10px; font: 700 20px var(--display); color: var(--brass-hi); margin: 0 0 12px; }
+  h2 .num { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--brass-face); color: var(--engraved); font-size: 17px; flex: none; }
+  h2 .ok { margin-left: auto; font: 600 15px var(--body); color: #9fd08f; }
+  .panel { background: var(--leather); border: 1px solid var(--brass-lo); padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+  .panel.done { border-color: #4f7a45; }
+  .who { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  label { display: grid; gap: 4px; font-size: 14.5px; color: var(--ink-3); }
+  label b { color: var(--ink-2); font-weight: 600; font-size: 15.5px; }
+  input, select { font: 17px var(--body); background: var(--walnut-lo); color: var(--ink); border: 1px solid var(--brass-lo); padding: 8px 10px; min-width: 0; border-radius: 3px; }
+  input:focus, select:focus { outline: 2px solid var(--brass); outline-offset: 1px; }
+  .codewrap { position: relative; display: block; } .codewrap input { width: 100%; box-sizing: border-box; padding-right: 130px; }
+  #codeok { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-weight: 700; font-size: 15px; }
+  #codeok.ok { color: #9fd08f; } #codeok.bad { color: #e88a74; }
+  .hint { font-size: 15px; color: var(--ink-2); margin: 10px 0 0; }
+  .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .choice .panel { margin-bottom: 0; }
+  .locked { opacity: .45; pointer-events: none; filter: grayscale(.5); }
+  .powers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 4px 0 14px; }
+  .power { display: flex; align-items: center; gap: 8px; padding: 7px 8px; cursor: pointer; background: var(--walnut-lo); border: 1px solid var(--brass-lo); border-radius: 4px; color: var(--ink); font: 15px var(--body); text-align: left; }
+  .power:hover { border-color: var(--brass); }
+  .power.on { border-color: var(--brass-hi); box-shadow: 0 0 0 1px var(--brass-hi), 0 0 12px rgba(236, 208, 140, .25); background: var(--leather-hi); }
+  .opts { display: grid; grid-template-columns: 1.5fr .8fr 1.1fr; gap: 10px; margin-bottom: 14px; }
+  .opts details { grid-column: 1 / -1; color: var(--ink-3); font-size: 14px; }
+  .opts details label { margin-top: 6px; max-width: 260px; }
+  .bigbtn { width: 100%; height: 50px; font: 700 18px var(--display); letter-spacing: .04em; color: var(--engraved); background: var(--brass-face); border: 1px solid #4a3312; border-radius: 4px; cursor: pointer; box-shadow: 0 3px 8px rgba(0, 0, 0, .5); }
+  .bigbtn[disabled] { opacity: .5; cursor: default; }
+  .btn { font: 600 14px var(--body); color: var(--engraved); background: var(--brass-face); border: 1px solid #4a3312; padding: 5px 12px; cursor: pointer; border-radius: 3px; text-decoration: none; display: inline-block; }
   .tables { display: grid; gap: 10px; }
-  .table { background: var(--leather); border: 1px solid var(--brass-lo); padding: 12px 14px; }
-  .table.closedt { opacity: .7; padding: 8px 14px; }
+  .table { background: var(--walnut-lo); border: 1px solid var(--brass-lo); padding: 10px 12px; }
   .table.mine { border-color: var(--brass); box-shadow: inset 3px 0 0 var(--brass); }
-  .thead { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+  .table.closedt { opacity: .7; padding: 8px 12px; margin-bottom: 6px; }
+  .thead { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
   .thead b { font: 700 17px var(--display); color: var(--brass-hi); }
   .thead span { color: var(--ink-3); font-size: 14px; }
-  .seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; margin-top: 10px; }
-  .seatbox { display: flex; gap: 8px; align-items: center; padding: 5px 8px; background: var(--walnut-lo); border: 1px solid var(--brass-lo); font-size: 14.5px; }
+  .seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 5px; margin-top: 8px; }
+  .seatbox { display: flex; gap: 6px; align-items: center; padding: 4px 6px; background: var(--leather); border: 1px solid var(--brass-lo); font-size: 14px; }
+  .seatbox > div { flex: 1; min-width: 0; } .seatbox small { display: block; color: var(--ink-3); font-size: 12px; }
   .seatbox.taken small { color: var(--brass-hi); } .seatbox.fallen { opacity: .45; }
-  .seatbox small { display: block; color: var(--ink-3); font-size: 12.5px; }
-  .seatbox > div { flex: 1; min-width: 0; }
-  .seatbox .btn { padding: 3px 10px; font-size: 13px; }
-  .msg { margin: 10px 0 0; color: #e88a74; min-height: 1.2em; }
-  .note { color: var(--ink-3); font-size: 13.5px; }
+  .seatbox .btn { padding: 2px 8px; font-size: 13px; }
+  .msg { margin: 10px 0 0; color: #e88a74; min-height: 1.2em; font-size: 15px; }
+  .note { color: var(--ink-3); font-size: 14px; }
   a { color: var(--brass-hi); }
   [hidden] { display: none !important; }
-  #codeok.ok { color: #9fd08f; } #codeok.bad { color: #e88a74; }
-  @media (max-width: 600px) { h1 { font-size: 26px; } }
+  @media (max-width: 800px) { .who, .choice, .opts { grid-template-columns: 1fr; } .powers { grid-template-columns: 1fr 1fr; } h1 { font-size: 28px; } }
 </style>
 </head>
 <body>
 <main>
-  <h1>Pax Agentica</h1>
-  <p class="lead">Europe, 1500. Open a table, send its link to your friends, and each of you takes a throne. Every throne nobody takes is ruled by a bot. A year passes once every player has ended it, or when the table's clock runs out; whoever has answered can stop waiting for an absent friend after ten minutes. A table closes when everyone leaves it, or after three days without anyone playing.</p>
+  <header class="hero"><img src="/static/favicon.svg" alt=""><div>
+    <h1>Pax Agentica</h1>
+    <p class="lead">Europe, 1500. Take a throne and rule it: your friends take others, bots rule the rest. A year passes once every player has ended it, or when the table's clock runs out. A table closes when everyone leaves it, or after three days without play.</p></div></header>
 
-  <h2>Your name</h2>
-  <div class="panel"><form class="open" id="who" onsubmit="return false">
-    <label>Name at court<input id="name" maxlength="24" placeholder="Isabella" autocomplete="nickname"></label>
-    <label id="codebox" hidden>Invitation code <span id="codeok"></span><input id="code" autocomplete="off" spellcheck="false" placeholder="from whoever invited you"></label>
-  </form></div>
+  <section class="panel" id="step1">
+    <h2><span class="num">1</span> Who you are <span class="ok" id="step1ok" hidden>✓ ready</span></h2>
+    <div class="who">
+      <label><b>Your name at court</b><input id="name" maxlength="24" placeholder="Isabella" autocomplete="nickname"></label>
+      <label id="codebox"><b>Invitation code</b>
+        <span class="codewrap"><input id="code" autocomplete="off" spellcheck="false" placeholder="ask whoever invited you"><span id="codeok"></span></span></label>
+    </div>
+    <p class="hint" id="step1hint"></p>
+  </section>
 
-  <h2>Open a table</h2>
-  <div class="panel"><form class="open" id="open" onsubmit="return false">
-    <label>Title<input id="title" maxlength="40" placeholder="The Italian Wars"></label>
-    <label>Your throne<select id="nation"></select></label>
-    <label>Years<input id="years" type="number" min="5" max="100" value="50"></label>
-    <label>Clock per year<select id="clock"><option value="">none: wait for everyone</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="60">1 hour</option><option value="1440">1 day</option></select></label>
-    <label>Seed (optional)<input id="seed" type="number" min="0" placeholder="random"></label>
-    <button class="btn" id="openbtn">Open the table</button>
-  </form><p class="msg" id="msg"></p></div>
-
-  <h2>Tables</h2>
-  <div class="tables" id="tables"><p class="note">Loading…</p></div>
-  <div id="closed"></div>
-  <p class="note">Your seats are remembered by this browser. To play from another device, open the seat link the page gives you there.</p>
+  <div class="choice" id="step2">
+    <section class="panel">
+      <h2><span class="num">2</span> Open a new table</h2>
+      <div class="note">Choose your throne:</div>
+      <div class="powers" id="powers"></div>
+      <div class="opts">
+        <label>Title<input id="title" maxlength="40" placeholder="The Italian Wars"></label>
+        <label>Years<input id="years" type="number" min="5" max="100" value="50"></label>
+        <label>Clock per year<select id="clock"><option value="">wait for everyone</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="60">1 hour</option><option value="1440">1 day</option></select></label>
+        <details><summary>More options</summary><label>Seed (the same seed deals the same Europe)<input id="seed" type="number" min="0" placeholder="random"></label></details>
+      </div>
+      <button class="bigbtn" id="openbtn">Open the table as France</button>
+      <p class="msg" id="msg"></p>
+      <p class="note">Then send the page's address to your friends: they take the thrones left.</p>
+    </section>
+    <section class="panel">
+      <h2><span class="num">2</span> …or join a table</h2>
+      <div class="tables" id="tables"><p class="note">Loading…</p></div>
+    </section>
+  </div>
+  <div id="closed" style="margin-top:16px"></div>
+  <p class="note">Your seats are remembered by this browser. To play from another device, open the seat link a table gives you there.</p>
 </main>
 <script src="/static/map.js"></script>
 <script>
@@ -73,83 +107,102 @@
 (async () => {
   const $ = (id) => document.getElementById(id);
   const esc = PaxMap.esc;
-  const seatOf = (t) => { try { return localStorage.getItem(`pax-seat-${t}`); } catch { return null; } };
-  const keep = (t, token) => { try { localStorage.setItem(`pax-seat-${t}`, token); } catch {} };
-  try { $("name").value = localStorage.getItem("pax-name") || ""; } catch {}
+  const store = {
+    get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+    set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+  };
+  const seatOf = (t) => store.get(`pax-seat-${t}`);
+  const params = new URLSearchParams(location.search), want = params.get("table"), linked = params.get("code");
   // an invitation link carries the code (/?code=...): fill it in, remember it, hide it from the address bar
-  const linked = new URLSearchParams(location.search).get("code");
-  if (linked) { try { localStorage.setItem("pax-code", linked); } catch {} history.replaceState(null, "", location.pathname + (new URLSearchParams(location.search).get("table") ? `?table=${new URLSearchParams(location.search).get("table")}` : "")); }
-  try { $("code").value = linked || localStorage.getItem("pax-code") || ""; } catch {}
+  if (linked) { store.set("pax-code", linked); history.replaceState(null, "", location.pathname + (want ? `?table=${want}` : "")); }
+  $("name").value = store.get("pax-name") || "";
+  $("code").value = linked || store.get("pax-code") || "";
+  let L = null, codeOk = false, nation = store.get("pax-throne") || "france";
+
+  const say = (text) => { $("msg").textContent = text; };
   async function checkCode() {
     const code = $("code").value.trim();
-    if (!code) { $("codeok").textContent = ""; return false; }
+    if (L && !L.code_required) { codeOk = true; return gate(); }
+    if (!code) { codeOk = false; $("codeok").textContent = ""; return gate(); }
     const r = await fetch("/api/code", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({code})}).then((x) => x.json()).catch(() => ({ok: false}));
-    $("codeok").textContent = r.ok ? "✓" : "✗ not this one";
-    $("codeok").className = r.ok ? "ok" : "bad";
-    if (r.ok) { try { localStorage.setItem("pax-code", code); } catch {} }
-    return r.ok;
+    if (code !== $("code").value.trim()) return; // typed on meanwhile
+    codeOk = !!r.ok;
+    $("codeok").textContent = codeOk ? "✓ right code" : "✗ not this one";
+    $("codeok").className = codeOk ? "ok" : "bad";
+    if (codeOk) store.set("pax-code", code);
+    gate();
   }
-  $("code").addEventListener("input", () => { clearTimeout(checkCode.t); checkCode.t = setTimeout(checkCode, 350); });
-  const want = new URLSearchParams(location.search).get("table");
-  let L = null;
-
-  function say(text) { $("msg").textContent = text; }
-  function who() {
-    const name = $("name").value.trim();
-    if (!name) { $("name").focus(); say("Write your name first."); return null; }
-    if (L && L.code_required && !$("code").value.trim()) { $("code").focus(); say("Write the invitation code first (ask whoever invited you), or open their invitation link."); return null; }
-    try { localStorage.setItem("pax-name", name); } catch {}
-    return {name, code: $("code").value.trim()};
+  // the second step opens once the first is done
+  function gate() {
+    const name = $("name").value.trim(), ready = !!name && codeOk;
+    if (name) store.set("pax-name", name);
+    $("step1").classList.toggle("done", ready);
+    $("step1ok").hidden = !ready;
+    $("step2").classList.toggle("locked", !ready);
+    $("openbtn").disabled = !ready;
+    $("step1hint").textContent = ready ? `Welcome, ${name}. Now open a new table, or take a free throne at one below.`
+      : !name ? "Write the name the other players will see."
+      : !$("code").value.trim() ? "Now the invitation code: ask whoever invited you, or open their invitation link. Capitals and spaces don't matter."
+      : "That code is not right: check it with whoever invited you.";
   }
+  $("name").addEventListener("input", gate);
+  $("code").addEventListener("input", () => { codeOk = false; gate(); clearTimeout(checkCode.t); checkCode.t = setTimeout(checkCode, 300); });
+  const me = () => ({name: $("name").value.trim(), code: $("code").value.trim()});
   async function post(url, body) {
     const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : r.statusText);
     return data;
   }
+  function powers() {
+    if (!L.powers.some((n) => n.id === nation)) nation = L.powers[0].id;
+    $("powers").innerHTML = L.powers.map((n) => `<button type="button" class="power ${n.id === nation ? "on" : ""}" data-power="${n.id}">${PaxMap.flag(n.id, n.color, 28)}<span>${esc(n.name)}</span></button>`).join("");
+    document.querySelectorAll("[data-power]").forEach((b) => b.onclick = () => { nation = b.dataset.power; store.set("pax-throne", nation); powers(); });
+    $("openbtn").textContent = `Open the table as ${L.powers.find((n) => n.id === nation).name}`;
+  }
+  const ago = (ts) => { const m = Math.round((Date.now() / 1000 - ts) / 60);
+    return m < 2 ? "just now" : m < 90 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+  const winner = (t) => t.winner ? `: ${esc(t.nations.find((n) => n.id === t.winner)?.name || t.winner)} won` : "";
   async function refresh() {
     L = await (await fetch("/api/lobby")).json();
     $("codebox").hidden = !L.code_required;
-    if (L.code_required && $("code").value && !$("codeok").textContent) checkCode();
-    if (!$("nation").options.length) $("nation").innerHTML = L.powers.map((n) => `<option value="${n.id}">${esc(n.name)}</option>`).join("");
-    const ago = (ts) => { const m = Math.round((Date.now() / 1000 - ts) / 60);
-      return m < 2 ? "just now" : m < 90 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+    if (!$("powers").children.length) powers();
     const open = L.tables.filter((t) => !t.closed), closed = L.tables.filter((t) => t.closed);
-    $("closed").innerHTML = closed.length ? `<h2>Closed lately</h2>` + closed.map((t) => `<div class="table closedt"><div class="thead"><b>${esc(t.title)}</b>
-      <span>${esc(t.closed)}${t.winner ? `: ${esc(t.nations.find((n) => n.id === t.winner)?.name || t.winner)} won` : ""}, in ${t.year}</span>
-      ${t.turn > 1 ? `<a href="/t/${t.id}/replay">replay</a>` : ""}</div></div>`).join("") + `<p class="note">A closed table keeps its replay for a week.</p>` : "";
-    L.tables = open;
-    $("tables").innerHTML = L.tables.length ? L.tables.map((t) => {
+    $("tables").innerHTML = open.length ? open.map((t) => {
       const mine = seatOf(t.id);
-      const seats = t.nations.map((n) => `<div class="seatbox ${n.player ? "taken" : ""} ${n.alive ? "" : "fallen"}">${PaxMap.flag(n.id, n.color, 26)}
+      const seats = t.nations.map((n) => `<div class="seatbox ${n.player ? "taken" : ""} ${n.alive ? "" : "fallen"}">${PaxMap.flag(n.id, n.color, 22)}
         <div>${esc(n.name)}<small>${n.player ? `👤 ${esc(n.player)}` : n.alive ? "a bot, for now" : "fallen"}</small></div>
         ${!n.player && n.alive && !t.finished && !mine ? `<button class="btn" data-join="${t.id}" data-nation="${n.id}">Take</button>` : ""}</div>`).join("");
       return `<div class="table ${mine ? "mine" : ""}" id="t-${t.id}"><div class="thead"><b>${esc(t.title)}</b>
-        <span>${t.finished ? `ended${t.winner ? `: ${esc(t.nations.find((n) => n.id === t.winner)?.name || t.winner)} won` : ""}` : `${t.year}, year ${t.turn} of ${t.max_turns}`}</span>
+        <span>${t.finished ? `ended${winner(t)}` : `${t.year}, year ${t.turn} of ${t.max_turns}`}</span>
         <span>${t.turn_minutes ? `${t.turn_minutes} min a year` : "waits for everyone"}</span>
         <span>played ${ago(Math.max(t.last_active || 0, t.created || 0))}</span>
         ${mine ? `<a class="btn" href="/t/${t.id}">Play</a> <a href="/t/${t.id}?seat=${encodeURIComponent(mine)}" data-copy>seat link</a>` : ""}
         ${t.finished ? `<a href="/t/${t.id}/replay">replay</a>` : ""}</div>
-        <div class="seats">${seats}</div></div>`; }).join("") : `<p class="note">No table yet. Open the first one above.</p>`;
+        <div class="seats">${seats}</div></div>`; }).join("") : `<p class="note">No table is open yet. Open the first one!</p>`;
+    $("closed").innerHTML = closed.length ? `<section class="panel"><h2>Closed lately</h2>` + closed.map((t) => `<div class="table closedt"><div class="thead"><b>${esc(t.title)}</b>
+      <span>${esc(t.closed)}${winner(t)}, in ${t.year}</span>${t.turn > 1 ? `<a href="/t/${t.id}/replay">replay</a>` : ""}</div></div>`).join("")
+      + `<p class="note">A closed table keeps its replay for a week.</p></section>` : "";
     document.querySelectorAll("[data-join]").forEach((b) => b.onclick = () => join(b.dataset.join, b.dataset.nation));
     document.querySelectorAll("[data-copy]").forEach((a) => a.onclick = (e) => { e.preventDefault();
       navigator.clipboard?.writeText(new URL(a.getAttribute("href"), location.href).href); a.textContent = "copied: keep it secret"; });
     if (want && $(`t-${want}`)) $(`t-${want}`).scrollIntoView({block: "center"});
   }
-  async function join(table, nation) {
-    const me = who(); if (!me) return;
-    try { const r = await post(`/api/t/${table}/join`, {...me, nation}); keep(r.table, r.token); location.href = `/t/${r.table}`; }
-    catch (err) { say(err.message); refresh(); }
+  async function join(table, n) {
+    try { const r = await post(`/api/t/${table}/join`, {...me(), nation: n}); store.set(`pax-seat-${r.table}`, r.token); location.href = `/t/${r.table}`; }
+    catch (err) { alert(err.message); refresh(); }
   }
   $("openbtn").onclick = async () => {
-    const me = who(); if (!me) return;
-    const body = {...me, title: $("title").value.trim() || "A new age", nation: $("nation").value, years: +$("years").value || 50};
+    const body = {...me(), title: $("title").value.trim() || "A new age", nation, years: +$("years").value || 50};
     if ($("clock").value) body.turn_minutes = +$("clock").value;
     if ($("seed").value !== "") body.seed = +$("seed").value;
-    try { const r = await post("/api/tables", body); keep(r.table, r.token); location.href = `/t/${r.table}`; }
-    catch (err) { say(err.message); }
+    $("openbtn").disabled = true;
+    try { const r = await post("/api/tables", body); store.set(`pax-seat-${r.table}`, r.token); location.href = `/t/${r.table}`; }
+    catch (err) { say(err.message); $("openbtn").disabled = false; }
   };
+  gate();
   await refresh();
+  await checkCode();
   setInterval(refresh, 15000);
 })();
 </script>

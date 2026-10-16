@@ -304,6 +304,7 @@ def add_assets(app: FastAPI, static: dict[str, Any]) -> None:
             "map.css": "text/css",
             "play.js": "text/javascript",
             "icons.js": "text/javascript",
+            "favicon.svg": "image/svg+xml",
         }
         if name not in types:
             raise HTTPException(404)

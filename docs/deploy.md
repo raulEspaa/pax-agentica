@@ -51,7 +51,13 @@ echo "https://pax-tables-clysgkcjqq-ew.a.run.app/?code=$(gcloud secrets versions
 # the bare invitation code (case and spaces do not matter)
 gcloud secrets versions access latest --secret pax-invite-code --project pax-agentica-261016; echo
 
-# a new invitation code (takes effect on the next deploy, or force one by re-running the job)
+# an invitation code of your choice (takes effect on the next deploy, or force one by
+# re-running the job); then disable the old version so only the new one works
+read -s 'code?code: ' && printf %s "$code" | gcloud secrets versions add pax-invite-code --project pax-agentica-261016 --data-file=-
+gcloud secrets versions list pax-invite-code --project pax-agentica-261016
+gcloud secrets versions disable <old version> --secret pax-invite-code --project pax-agentica-261016
+
+# or a random one
 python3 -c "import secrets; print(''.join(secrets.choice('abcdefghjkmnpqrstuvwxyz23456789') for _ in range(10)))" | gcloud secrets versions add pax-invite-code --project pax-agentica-261016 --data-file=-
 
 # the server's logs
