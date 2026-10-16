@@ -29,6 +29,7 @@ from pax_agentica.engine.actions import (
     Buy,
     CancelTreaty,
     ChooseOption,
+    Convert,
     DeclareWar,
     Develop,
     Disband,
@@ -68,6 +69,7 @@ from pax_agentica.engine.mechanics import (
     building_cost,
     building_inputs,
     building_slots,
+    convert_cost,
     defense_multiplier,
     develop_cost,
     fight,
@@ -86,6 +88,7 @@ from pax_agentica.engine.model import (
     RESOURCE_NAMES,
     TRADED,
     BuildingKind,
+    Faith,
     GameState,
     General,
     Loan,
@@ -174,6 +177,7 @@ class _Resolver:
         self.fallen: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)
         self.mercenaries: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)  # hired this year
         self.patrons: set[NationId] = set()  # nations that patronised the arts this year
+        self.preached: set[NationId] = set()  # nations that converted a province this year
 
     def run(self) -> GameState:
         self._answers()
@@ -214,9 +218,22 @@ class _Resolver:
             del self.s.diplomacy[: -self.s.rules.diplomacy_log]
 
     def _reject(self, nation: NationId, action: Action, reason: str) -> None:
+        what = action.type.replace("_", " ")
+        for field in ("province", "target", "branch", "building", "resource"):
+            value = getattr(action, field, None)
+            if isinstance(value, str):
+                name = (
+                    self._pname(value)
+                    if field == "province"
+                    else self._name(value)
+                    if field == "target" and value in self.s.nations
+                    else value.replace("_", " ")
+                )
+                what += f" ({name})"
+                break
         self._emit(
             EventKind.ORDER_REJECTED,
-            f"{action.type} rejected: {reason}",
+            f"{what} rejected: {reason}",
             nations=(nation,),
             audience=(nation,),
             action=action.model_dump_json(),
@@ -473,7 +490,13 @@ class _Resolver:
             for other in self.s.alive_nations():
                 self._opine(other, nation, o.opinion)
         if o.faith:
-            me.faith = o.faith
+            old, me.faith = me.faith, o.faith
+            for pid in self.s.provinces_of(nation):  # the capital and part of the realm follow
+                p = self.s.provinces[pid]
+                if p.faith == old and (
+                    pid == me.capital or self.rng.random() < self.s.rules.faith_follow_crown
+                ):
+                    self._turn_faith(pid, o.faith, "it follows the crown")
         if o.loan:
             yearly, years = o.loan
             me.loans.append(Loan(yearly=yearly, until=self.turn + years))
@@ -843,6 +866,8 @@ class _Resolver:
         state.controller = None
         self._expand(to, province)
         state.unrest = self.s.rules.ceded_unrest_turns
+        if state.faith is not None and state.faith != self.s.nations[to].faith:
+            state.unrest += self.s.rules.faith_conquest_unrest
         self._opine(frm, to, self.s.rules.opinion_province_taken // 2)
         self._emit(
             EventKind.PROVINCE_CEDED,
@@ -1191,6 +1216,8 @@ class _Resolver:
                         self._upgrade_monument(nation, action)
                     case Improve():
                         self._improve(nation, action)
+                    case Convert():
+                        self._convert(nation, action)
                     case Research():
                         self._research(nation, action)
                     case HireGeneral():
@@ -1392,6 +1419,47 @@ class _Resolver:
                     self._prestige(nation, m.prestige, m.title)
                 if m.stability:
                     self._change_stability(nation, m.stability, m.title)
+
+    def _convert(self, nation: NationId, a: Convert) -> None:
+        if error := self._own_error(nation, a.province):
+            self._reject(nation, a, error)
+            return
+        p = self.s.provinces[a.province]
+        faith = self.s.nations[nation].faith
+        if p.faith == faith:
+            self._reject(nation, a, f"{self._pname(a.province)} already shares your faith")
+            return
+        if nation in self.preached:
+            self._reject(nation, a, "your preachers can convert one province a year")
+            return
+        if error := self._pay(nation, convert_cost(self.s.rules, p.development)):
+            self._reject(nation, a, error)
+            return
+        self.preached.add(nation)
+        self._turn_faith(a.province, faith, "preachers")
+
+    def _turn_faith(self, province: ProvinceId, faith: Faith, why: str) -> None:
+        p = self.s.provinces[province]
+        p.faith = faith
+        self._emit(
+            EventKind.PROVINCE_CONVERTED,
+            f"{self._pname(province)} turns {faith.value} ({why})",
+            nations=(p.owner,) if p.owner else (),
+            province=province,
+            audience=(p.owner,) if p.owner else None,
+            faith=faith.value,
+        )
+
+    def _faiths(self) -> None:
+        """Year by year, the people of a province may come round to their ruler's faith."""
+        chance = self.s.rules.faith_conversion_chance
+        for pid in sorted(self.s.provinces):
+            p = self.s.provinces[pid]
+            if p.owner is None or p.controller or p.faith is None:
+                continue
+            faith = self.s.nations[p.owner].faith
+            if p.faith != faith and self.rng.random() < chance:
+                self._turn_faith(pid, faith, "the people come round")
 
     def _improve(self, nation: NationId, a: Improve) -> None:
         rules = self.s.rules
@@ -1970,6 +2038,8 @@ class _Resolver:
         state.owner = nation
         state.set_army(troops)
         state.unrest = self.s.rules.unrest_turns
+        if state.faith is not None and state.faith != self.s.nations[nation].faith:
+            state.unrest += self.s.rules.faith_conquest_unrest
         self._expand(nation, province)
         loser = self._name(previous) if previous else "independence"
         if previous is not None:
@@ -2083,6 +2153,7 @@ class _Resolver:
             self._produce_and_feed(nation)
         self._pay_tributes()
         self._taxes()
+        self._faiths()
         self._infamy_fades()
         self._missions()
         self._drift_opinions()
@@ -2244,8 +2315,15 @@ class _Resolver:
                     self._opine(a, b, rules.opinion_shared_enemy)
             for b in alive:
                 if a != b:
-                    same = self.s.nations[a].faith == self.s.nations[b].faith
-                    drift = rules.opinion_same_faith if same else rules.opinion_other_faith
+                    fa, fb = self.s.nations[a].faith, self.s.nations[b].faith
+                    infidel = (fa == Faith.SUNNI) != (fb == Faith.SUNNI)
+                    drift = (
+                        rules.opinion_same_faith
+                        if fa == fb
+                        else rules.opinion_infidel
+                        if infidel
+                        else rules.opinion_other_faith
+                    )
                     self._opine(a, b, drift)
             feared = self.s.nations[a].infamy
             if feared >= rules.coalition_infamy / 2:  # a conqueror cools every court

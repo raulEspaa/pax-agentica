@@ -55,6 +55,7 @@ class Modifiers(BaseModel):
     mill_share: float = 0.5  # farm estates and lumber mills
     arms_manufactory: bool = False  # levies need half the iron and no goods
     navy: bool = False  # attacks across a strait give the defender no sea-crossing bonus
+    faith_tolerance: float = 0.0  # share of the penalty for provinces of another faith forgiven
     sources: tuple[str, ...] = ()  # one line per bonus, for humans and prompts
 
 
@@ -70,6 +71,11 @@ TRADITIONS: dict[NationId, tuple[str, str, dict[str, float]]] = {
         "The Navy Royal",
         "attacks across a strait face no sea-crossing bonus, and +5% ducats from the wool trade",
         {"navy": 1.0, "ducat_income": 0.05},
+    ),
+    "ottomans": (
+        "The millet system",
+        "provinces of another faith lose only half as much: each community keeps its own law",
+        {"tolerance": 0.5},
     ),
     "sweden": (
         "Baltic fleets and peasant pikes",
@@ -170,13 +176,14 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
     trait_research = 0.0
     trait_forts = 0.0
     penalty = rules.treaty_break_stability_penalty
-    navy, grain_upkeep = False, 1.0
+    navy, grain_upkeep, tolerance = False, 1.0, 0.0
     if nation in TRADITIONS:
         title, words, effects = TRADITIONS[nation]
         ducats += effects.get("ducat_income", 0.0)
         power += effects.get("battle_power", 0.0)
         grain_upkeep += effects.get("grain_upkeep", 0.0)
         navy = bool(effects.get("navy"))
+        tolerance = effects.get("tolerance", 0.0)
         lines.append(f"{title}: {words}")
     if tech[TechBranch.ECONOMY]:
         lines.append(f"economy technology: +{grain:.0%} ducats and grain")
@@ -329,6 +336,7 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         max_development=rules.max_development + (3 if milestones["grand"] else 0),
         grain_upkeep_factor=(0.8 if milestones["canals"] else 1.0) * grain_upkeep,
         navy=navy,
+        faith_tolerance=tolerance,
         fort_bonus_per_level=(0.35 if milestones["star"] else rules.fort_bonus_per_level)
         + fort_extra,
         ignores_fort_levels=(1 if milestones["artillery"] else 0) + (1 if powder else 0),

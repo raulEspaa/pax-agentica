@@ -45,6 +45,7 @@ class EventKind(StrEnum):
     MISSION_COMPLETED = "mission_completed"
     TAXES_SET = "taxes_set"
     INFAMY = "infamy"
+    PROVINCE_CONVERTED = "province_converted"
     COALITION_JOINED = "coalition_joined"
     COALITION_DISSOLVED = "coalition_dissolved"
     PATRONAGE = "patronage"

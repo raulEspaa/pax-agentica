@@ -344,6 +344,15 @@ class CancelTreaty(_Action):
     kind: Literal["alliance", "non_aggression", "marriage", "coalition"]
 
 
+class Convert(_Action):
+    """Send preachers to one of your provinces whose people keep another faith: it takes yours at
+    once, ending its discontent (a province of another faith yields rules.faith_mismatch_output
+    less). Costs rules.convert_cost plus convert_cost_per_development ducats a level; one a year."""
+
+    type: Literal["convert"] = "convert"
+    province: ProvinceId
+
+
 class Improve(_Action):
     """Improve the workings of one of your provinces by a level (up to 3): its mine,
     vineyard, fishery or looms, by what it is known for. Each level adds half of what its good
@@ -435,6 +444,7 @@ type Action = Annotated[
     | Build
     | UpgradeMonument
     | Improve
+    | Convert
     | BoostStability
     | Research
     | HireGeneral

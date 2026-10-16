@@ -376,6 +376,24 @@ def general_name(nation: str, taken: int) -> str:
 
 
 FAITHS = {"ottomans": Faith.SUNNI, "russia": Faith.ORTHODOX}
+# What the people believed in 1500 where it is not their ruler's faith, or where no great power
+# rules: the Maghreb and Anatolia are Muslim; the Balkans under the Sultan and the Ruthenian
+# lands under Poland-Lithuania stay Orthodox.
+PEOPLE_FAITH: dict[str, Faith] = {
+    **dict.fromkeys(("morocco", "algiers", "tunis", "anatolia", "constantinople"), Faith.SUNNI),
+    **dict.fromkeys(
+        ("greece", "bulgaria", "serbia", "wallachia", "kiev", "smolensk", "novgorod"),
+        Faith.ORTHODOX,
+    ),
+}
+
+
+def province_faith(pid: str, owner: str | None) -> Faith:
+    if pid in PEOPLE_FAITH:
+        return PEOPLE_FAITH[pid]
+    return FAITHS.get(owner, Faith.CATHOLIC) if owner else Faith.CATHOLIC
+
+
 # What the courts of 1500 think of each other, both ways. Grudges and friendships fade over the
 # years like any other opinion, so these set the opening and not the whole game.
 STARTING_OPINIONS: dict[tuple[str, str], int] = {
@@ -501,6 +519,7 @@ def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> Game
             buildings=list(STARTING_BUILDINGS.get(pid, [])),
             units=dict(STARTING_UNITS.get(pid, {})),
             monument=rules_.monuments[pid].level_1500 if pid in rules_.monuments else 0,
+            faith=province_faith(pid, OWNERS_1500.get(pid, owner)),
         )
         for pid, _name, _terrain, _good, dev, owner, _lon, _lat in _PROVINCES
     }

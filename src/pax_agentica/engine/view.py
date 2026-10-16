@@ -24,7 +24,9 @@ from pax_agentica.engine.mechanics import (
     building_cost,
     building_output,
     building_slots,
+    convert_cost,
     develop_cost,
+    faith_penalty,
     inputs_upkeep,
     manpower_cap,
     market_price,
@@ -102,6 +104,10 @@ class ProvinceView(_View):
     recruit_cost: Resources  # per pikeman, for its owner, after an armory
     recruit_costs: dict[UnitKind, Resources]  # yours only: per regiment of each kind raisable here
     workings: int  # level of its mine, vineyard, fishery... (0 to rules.max_workings)
+    faith: Faith | None  # what its people believe; another faith than its ruler's yields less
+    convert_cost: (
+        Resources | None
+    )  # yours only, if its people keep another faith: what `convert` costs
     improve_cost: Resources | None  # yours only: what the next level of workings costs
     monument: int | None  # level of its monument (see rules.monuments); None if it has none
     neighbors: tuple[ProvinceId, ...]
@@ -337,6 +343,10 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             else {},
             monument=ps.monument if pid in state.rules.monuments else None,
             workings=ps.workings,
+            faith=ps.faith,
+            convert_cost=convert_cost(state.rules, ps.development)
+            if ps.owner == nation and ps.faith is not None and ps.faith != me.faith
+            else None,
             improve_cost=state.rules.improve_cost.times(ps.workings + 1)
             if ps.owner == nation and ps.workings < state.rules.max_workings
             else None,
@@ -556,6 +566,7 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
     """This year's income and expenses by source. The income lines add up to
     `income_per_turn`, and the expenses to the army, council, inputs, loans and tribute."""
     land = buildings = workings = Resources()
+    discontent = dict.fromkeys(Resources().amounts(), 0)
     for pid in state.provinces_of(nation):
         p = state.provinces[pid]
         if p.unrest or p.controller:
@@ -564,9 +575,14 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
         works = workings_yield(state, pid)
         workings = workings + works
         buildings = buildings + building_output(state, pid) - works
+        if faith_penalty(state, pid):
+            full = base_output(state, pid) + building_output(state, pid)
+            kept = province_output(state, pid)
+            for k, v in full.amounts().items():
+                discontent[k] -= v - kept.amounts()[k]
     income = nation_income(state, nation).amounts()
     crown = {  # stability, technology, ruler, prestige, taxes, exhaustion...
-        k: v - land.amounts()[k] - buildings.amounts()[k] - workings.amounts()[k]
+        k: v - land.amounts()[k] - buildings.amounts()[k] - workings.amounts()[k] - discontent[k]
         for k, v in income.items()
     }
     factor = modifiers(state, nation).grain_upkeep_factor
@@ -577,6 +593,7 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
         LedgerLine(kind="income", source="land", amount=land.amounts()),
         LedgerLine(kind="income", source="buildings", amount=buildings.amounts()),
         LedgerLine(kind="income", source="workings", amount=workings.amounts()),
+        LedgerLine(kind="income", source="provinces of another faith", amount=discontent),
         LedgerLine(kind="income", source="the crown's modifiers", amount=crown),
         LedgerLine(kind="expense", source="the army", amount=army.amounts()),
         LedgerLine(kind="expense", source="the council", amount=council.amounts()),

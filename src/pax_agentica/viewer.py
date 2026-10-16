@@ -288,6 +288,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "taxManpowerStep": rules.tax_manpower_step,
             "taxStabilityStep": rules.tax_stability_cost_step,
             "taxChance": {str(k): v for k, v in rules.tax_stability_chance.items()},
+            "faithPenalty": rules.faith_mismatch_output,
             "coalitionInfamy": rules.coalition_infamy,
             "infamyDecay": rules.infamy_decay,
             "marriageYearly": rules.opinion_marriage_yearly,

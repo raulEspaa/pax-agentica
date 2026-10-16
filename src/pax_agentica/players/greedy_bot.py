@@ -25,6 +25,7 @@ from pax_agentica.engine.actions import (
     Build,
     Buy,
     ChooseOption,
+    Convert,
     DeclareWar,
     Develop,
     HireAdvisor,
@@ -237,11 +238,17 @@ class _Planner:
                 Respond(proposal_id=p.id, accept=accept, counter=counter, note=note)
             )
 
+    def _infidel(self, nation: str) -> bool:
+        them = next((n for n in self.v.nations if n.id == nation), None)
+        return them is not None and them.faith != self.me.faith
+
     def _why_not(self, p: ProposalView) -> str:
         """A refusal in a sentence, so a human (or an agent) across the table knows why."""
         them = self._nation_name(p.sender)
         opinion = self.me.opinions.get(p.sender, 0)
         match p.kind:
+            case ProposalKind.ALLIANCE | ProposalKind.MARRIAGE if self._infidel(p.sender):
+                return "Our faiths are not the same, and our court will not bind itself to yours."
             case ProposalKind.ALLIANCE if len(self.allies) >= 2:
                 return "Our court is bound to enough allies already."
             case ProposalKind.ALLIANCE | ProposalKind.MARRIAGE if opinion < 0:
@@ -407,6 +414,10 @@ class _Planner:
                 if won >= 10:  # we are winning: a peace must pay for what we hold
                     return self._offered_worth(p) >= 0.6 * won or self.me.war_exhaustion >= 12
                 return losing or weary or self._cost_of_peace(p) < 0 or self.rng.random() < 0.4
+            case ProposalKind.ALLIANCE | ProposalKind.MARRIAGE if self._infidel(p.sender):
+                return (
+                    self.me.opinions.get(p.sender, 0) >= 40
+                )  # only a true friend of another faith
             case ProposalKind.ALLIANCE:
                 if len(self.allies) >= 2:
                     return False
@@ -616,6 +627,7 @@ class _Planner:
         self._council(reserve)
         self._build(reserve)
         self._improve(reserve)
+        self._convert(reserve)
         self._monument(reserve)
         self._patronize(reserve)
         starving = self.me.income_per_turn.grain < self.me.army_upkeep_per_turn.grain
@@ -741,6 +753,19 @@ class _Planner:
                 self.actions.append(Improve(province=pid))
                 self.budget = self.budget - cost
                 return
+
+    def _convert(self, reserve: int) -> None:
+        """Preach to the richest province of another faith, when the treasury allows."""
+        heretics = [
+            p
+            for p in self.owned
+            if self.provinces[p].convert_cost is not None and not self.provinces[p].unrest
+        ]
+        for pid in sorted(heretics, key=lambda x: (-self.provinces[x].development, x))[:1]:
+            cost = self.provinces[pid].convert_cost
+            if cost is not None and self.budget.covers(cost + Resources(ducats=reserve + 40)):
+                self.actions.append(Convert(province=pid))
+                self.budget = self.budget - cost
 
     def _taxes(self) -> None:
         """Squeeze the land in war while the realm is steady; ease off when it wobbles."""

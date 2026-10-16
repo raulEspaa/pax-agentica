@@ -84,6 +84,8 @@ Size: small.
 ### D. Polish
 
 - Balance passes with block A in place (target: no power above a third of the wins).
+  After faith landed (32 games, seeds 200 to 231) France wins 20, Spain 9, the Ottomans 3:
+  France is now the one to check.
 - The replay's mind panel shows missions and war score; a short first-year tutorial on the
   play page.
 - Performance once games run with language models.

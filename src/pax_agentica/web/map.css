@@ -109,7 +109,7 @@ svg.paxmap { display: block; width: 100%; height: 100%; user-select: none; }
 .pborder.nation { stroke: rgba(16, 9, 3, .92); stroke-width: 1.7; }
 .pborder.mine { stroke: var(--brass-hi); stroke-width: 2.6; }
 .bglow { fill: none; stroke: rgba(10, 5, 0, .22); stroke-width: 7; stroke-linejoin: round; }
-.pick { fill: none; stroke: #fff6dc; stroke-width: 2.4; stroke-dasharray: 6 4; pointer-events: none; }
+svg .pick { fill: none; stroke: #fff6dc; stroke-width: 2.4; stroke-dasharray: 6 4; pointer-events: none; }
 .target { fill: none; stroke-width: 3.2; pointer-events: none; stroke-dasharray: 4 3; }
 .target.move { stroke: #8fe0a4; } .target.attack { stroke: #ff7a66; }
 .arrow { fill: none; stroke-linecap: round; opacity: .92; }

@@ -34,5 +34,6 @@ open over it from a rail of icons and get out of its way, numbers say where they
 
 - Wars: bugs reported in play (to reproduce).
 - Technology and recruiting: bugs reported in play (to reproduce).
-- Peace terms: the checkbox to demand a province cannot be ticked.
+- Peace terms: the checkbox to demand a province could not be ticked (fixed: a CSS class
+  shared with the map's picking layer; occupied interior provinces and capitals are offered too).
 - Buildings: upgrades (levels) for buildings.

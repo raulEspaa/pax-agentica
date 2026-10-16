@@ -168,7 +168,7 @@ def test_breaking_a_treaty_shocks_every_court(state: GameState, play: Play) -> N
     assert pact.opinion("france", "england") > 0
     broken = play(pact, england=[DeclareWar(target="france")])
     assert broken.opinion("spain", "england") < 0
-    assert broken.opinion("france", "england") < -40
+    assert broken.opinion("france", "england") <= -40
 
 
 def test_grudges_fade(state: GameState, play: Play) -> None:

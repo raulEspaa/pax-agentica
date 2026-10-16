@@ -1041,8 +1041,16 @@ class Rules(BaseModel):
     opinion_call_ignored: int = -30
     opinion_shared_enemy: int = 3  # a year, fighting the same enemy
     opinion_decay: float = 0.1  # a year, towards zero
-    opinion_same_faith: int = 1  # a year
+    opinion_same_faith: int = 2  # a year
     opinion_other_faith: int = -1  # a year
+    opinion_infidel: int = -3  # a year, between Christian and Muslim courts
+    # a province whose people keep another faith than its ruler's yields this much less
+    faith_mismatch_output: float = 0.25
+    faith_conquest_unrest: int = 2  # more years of unrest when taking land of another faith
+    convert_cost: Resources = Resources(ducats=40)  # plus convert_cost_per_development ducats
+    convert_cost_per_development: int = 10
+    faith_conversion_chance: float = 0.05  # a year, for a province to take its ruler's faith
+    faith_follow_crown: float = 0.5  # share of provinces that follow when the crown changes faith
 
     # prestige: 0 to 100
     prestige_max: int = 100
@@ -1104,6 +1112,7 @@ class ProvinceState(BaseModel):
     workings: NonNegativeInt = 0  # level of its mine, vineyard, fishery... (0 to 3)
     siege_by: NationId | None = None  # who besieges its walls
     siege_years: NonNegativeInt = 0  # years of siege won so far
+    faith: Faith | None = None  # what its people believe; set for every province by the scenario
 
     @property
     def holder(self) -> NationId | None:

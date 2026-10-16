@@ -157,7 +157,7 @@ def output_with(
     )
     mods = modifiers(state, p.owner)
     standing = [b for b in p.buildings if b not in without]
-    return (
+    return _keep(
         base
         + buildings_yield(
             state.rules,
@@ -168,17 +168,38 @@ def output_with(
             development or p.development,
             definition.good,
         )
-        + workings_yield(state, province, workings, development)
+        + workings_yield(state, province, workings, development),
+        faith_penalty(state, province),
     )
 
 
+def faith_penalty(state: GameState, province: ProvinceId) -> float:
+    """The share of its yield a province loses because its people keep another faith than their
+    ruler's (less for a tolerant realm)."""
+    p = state.provinces[province]
+    if p.owner is None or p.faith is None or p.faith == state.nations[p.owner].faith:
+        return 0.0
+    return state.rules.faith_mismatch_output * (1 - modifiers(state, p.owner).faith_tolerance)
+
+
+def _keep(out: Resources, penalty: float) -> Resources:
+    if not penalty:
+        return out
+    return Resources(**{k: math.floor(v * (1 - penalty)) for k, v in out.amounts().items()})
+
+
+def convert_cost(rules: Rules, development: int) -> Resources:
+    return rules.convert_cost + Resources(ducats=rules.convert_cost_per_development * development)
+
+
 def province_output(state: GameState, province: ProvinceId) -> Resources:
-    """What one province yields per turn, before the stability modifier. Nothing in unrest, and
-    nothing while an enemy occupies it."""
+    """What one province yields per turn, before the stability modifier. Nothing in unrest,
+    nothing while an enemy occupies it, and less while its people keep another faith."""
     p = state.provinces[province]
     if p.unrest or p.controller:
         return Resources()
-    return base_output(state, province) + building_output(state, province)
+    out = base_output(state, province) + building_output(state, province)
+    return _keep(out, faith_penalty(state, province))
 
 
 def nation_income(state: GameState, nation: NationId) -> Resources:

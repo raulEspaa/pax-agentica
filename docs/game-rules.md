@@ -373,8 +373,21 @@ all its goals hold, in front of every court: it pays ducats, prestige or stabili
 of each chain leaves a lasting bonus (+5% ducats, +5% battle power, forts +10%...).
 
 **Faith.** England, France, Spain, Austria, Sweden, Poland-Lithuania and Brandenburg-Prussia
-start Catholic, Russia Orthodox, the Ottomans Sunni. Courts of the same faith warm to each other by 1 a year, of different faiths cool
-by 1. The Reformation can turn a Catholic realm Protestant.
+start Catholic, Russia Orthodox, the Ottomans Sunni. Every province has a faith of its own too:
+the Balkans, Greece and the Ruthenian lands are Orthodox, Anatolia and the Barbary coast Sunni,
+whoever rules them.
+
+- A province of **another faith than its ruler's yields 25% less** (the Ottomans' millet
+  system halves that), shown in the ledger as its own line.
+- Land of another faith taken in war or by treaty starts **2 years more of unrest**.
+- Once a year, `convert` sends preachers to one of your provinces: 40 ducats plus 10 a level of
+  development, and it takes your faith. Each year an unconverted province also has a 5% chance
+  of turning by itself.
+- A crown that changes faith (the Reformation) takes its capital and half its old-faith
+  provinces with it.
+- Courts of the same faith warm to each other by 2 a year, of different faiths cool by 1, and
+  Christian and Muslim courts by 3. The greedy bot will not ally with or marry into another
+  faith unless it thinks well of that court (opinion 40 or more).
 
 **Fortune.** Every year each nation has a 30% chance of an event of the age, a decision for the
 crown, which waits in `me.pending_events` until answered with `choose_option`; unanswered by the

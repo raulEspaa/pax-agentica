@@ -45,6 +45,8 @@ const PaxMap = (() => {
   };
   // a nation's banner as inline SVG; independent lands fly a plain pennon of their colour
   const flag = (id, color = "#9a8f78", w = 30, cls = "flag") => `<svg class="${cls}" viewBox="0 0 30 20" width="${w}" height="${Math.round(w * 2 / 3)}" aria-hidden="true">${FLAGS[id] || `<rect width="30" height="20" fill="${color}"/>`}<rect x=".5" y=".5" width="29" height="19" fill="none" stroke="rgba(0,0,0,.55)"/></svg>`;
+  const FAITH_ICON = {catholic: "✝", protestant: "✠", orthodox: "☦", sunni: "☪"};
+  const FAITH_COLOR = {catholic: "#d9c27a", protestant: "#7f9fc8", orthodox: "#b77ab8", sunni: "#5aa06a"};
   // trade goods: names, icons and yields come with the game (S.goods); this is the fallback
   const GOOD = {grain: "Grain", iron: "Iron", gold: "Gold", timber: "Timber"};
   const GOOD_COLOR = {grain: "#dcd59e", fish: "#7aa7c2", horses: "#a7794a", wine: "#7d3f68", salt: "#e7e1d2",
@@ -63,7 +65,7 @@ const PaxMap = (() => {
     war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
     treaty_broken: "💔", treaty_cancelled: "✂", treaty_expired: "⌛", peace_signed: "🕊", trade_completed: "⚖",
     trade_failed: "✗", gift: "🎁", battle: "⚔", province_captured: "⚑", capital_moved: "♛", nation_eliminated: "☠",
-    developed: "⌂", improved: "⛏", mission_completed: "🏆", coalition_joined: "⚔", coalition_dissolved: "🕊", infamy: "⚠", taxes_set: "⚖", patronage: "🎨", mercenaries_hired: "💰", built: "🏗", game_over: "👑", researched: "⚙", general_appointed: "⚑", general_fell: "✝", message: "✉", proposal_made: "📜", proposal_rejected: "✗",
+    developed: "⌂", improved: "⛏", province_converted: "✝", mission_completed: "🏆", coalition_joined: "⚔", coalition_dissolved: "🕊", infamy: "⚠", taxes_set: "⚖", patronage: "🎨", mercenaries_hired: "💰", built: "🏗", game_over: "👑", researched: "⚙", general_appointed: "⚑", general_fell: "✝", message: "✉", proposal_made: "📜", proposal_rejected: "✗",
     proposal_expired: "⌛", order_rejected: "⚠", recruited: "⚔", disbanded: "⚐", moved: "➜", desertion: "⚠",
     stability_changed: "⚖"};
   const MAJOR = new Set(["mission_completed", "coalition_joined", "infamy", "war_declared", "joined_war", "call_to_arms_ignored", "treaty_broken", "peace_signed",
@@ -169,6 +171,7 @@ const PaxMap = (() => {
       if (w.mode === "terrain") return TERRAIN[P[i].terrain];
       if (w.mode === "development") return devColor(w.dev[i]);
       if (w.mode === "goods") return GOOD_COLOR[P[i].good] || "#b9b09a";
+      if (w.mode === "faith") return FAITH_COLOR[(w.faiths || [])[i]] || "#b9b09a";
       if (w.mode === "diplomacy" && w.diplo) { // you look at the courts: their feelings, your wars and treaties
         if (o < 0) return "#cfc6ae";
         if (o === w.focus) return "#e3bd5c";
@@ -309,7 +312,7 @@ const PaxMap = (() => {
         e.setAttribute("class", "pborder" + (nation ? " nation" : "") + (nation && f >= 0 && (oa === f || ob === f) ? " mine" : ""));
         g.style.display = nation && world.mode !== "terrain" ? "" : "none";
       });
-      gNames.style.display = ["terrain", "development", "goods"].includes(world.mode) ? "none" : "";
+      gNames.style.display = ["terrain", "development", "goods", "faith"].includes(world.mode) ? "none" : "";
       nationLabels(); markers(); eventMarks();
       pick(picked);
     }
@@ -691,6 +694,7 @@ const PaxMap = (() => {
         <div title="How much harder defenders fight here: terrain, forts, capital"><span>🛡</span><b>×${defence.toFixed(2)}</b><small>defence</small></div>
         <div title="${esc(cap(p.terrain))}: ${esc((S.terrainEffects || {})[p.terrain] || "")}"><span>${{plains: "🌾", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"}[p.terrain]}</span><b>${cap(p.terrain)}</b><small>terrain</small></div>
         <div title="${esc(goodOf(S, p.good).name)}: ${esc(yieldWords(goodOf(S, p.good).yield))} per development"><span>${goodOf(S, p.good).icon}</span><b>${esc(goodOf(S, p.good).name)}</b><small>trade good</small></div>
+        ${d.faith ? `<div class="${d.heretic ? "heretic" : ""}" title="${d.heretic ? `Its people keep another faith than their ruler's: it yields less until they convert` : `Its people share their ruler's faith`}"><span>${FAITH_ICON[d.faith] || "✝"}</span><b>${cap(d.faith)}</b><small>${d.heretic ? "another faith" : "faith"}</small></div>` : ""}
       </section>
       ${d.unrest ? `<p class="note unrest">🔥 In unrest for ${d.unrest} more ${d.unrest === 1 ? "year" : "years"}: it produces nothing until then.</p>` : ""}
       ${d.general ? `<p class="note" style="font-style:normal">⚑ ${esc(d.general.name)} <span class="stars">${"★".repeat(d.general.skill)}${"☆".repeat(3 - d.general.skill)}</span> commands here.</p>` : ""}`,
@@ -701,5 +705,5 @@ const PaxMap = (() => {
   }
 
   const yieldWords = (y) => Object.entries(y).map(([k, v]) => `+${v} ${k}`).join(", ") || "nothing";
-  return {flag, create, deedInfo, goodOf, yieldWords, GOOD_COLOR, OPINION, vista, portrait, usePortraits, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
+  return {FAITH_ICON, FAITH_COLOR, flag, create, deedInfo, goodOf, yieldWords, GOOD_COLOR, OPINION, vista, portrait, usePortraits, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
 })();
