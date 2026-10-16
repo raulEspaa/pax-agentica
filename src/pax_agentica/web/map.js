@@ -61,10 +61,10 @@ const PaxMap = (() => {
     war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
     treaty_broken: "💔", treaty_cancelled: "✂", treaty_expired: "⌛", peace_signed: "🕊", trade_completed: "⚖",
     trade_failed: "✗", gift: "🎁", battle: "⚔", province_captured: "⚑", capital_moved: "♛", nation_eliminated: "☠",
-    developed: "⌂", improved: "⛏", mission_completed: "🏆", patronage: "🎨", mercenaries_hired: "💰", built: "🏗", game_over: "👑", researched: "⚙", general_appointed: "⚑", general_fell: "✝", message: "✉", proposal_made: "📜", proposal_rejected: "✗",
+    developed: "⌂", improved: "⛏", mission_completed: "🏆", coalition_joined: "⚔", coalition_dissolved: "🕊", infamy: "⚠", taxes_set: "⚖", patronage: "🎨", mercenaries_hired: "💰", built: "🏗", game_over: "👑", researched: "⚙", general_appointed: "⚑", general_fell: "✝", message: "✉", proposal_made: "📜", proposal_rejected: "✗",
     proposal_expired: "⌛", order_rejected: "⚠", recruited: "⚔", disbanded: "⚐", moved: "➜", desertion: "⚠",
     stability_changed: "⚖"};
-  const MAJOR = new Set(["mission_completed", "war_declared", "joined_war", "call_to_arms_ignored", "treaty_broken", "peace_signed",
+  const MAJOR = new Set(["mission_completed", "coalition_joined", "infamy", "war_declared", "joined_war", "call_to_arms_ignored", "treaty_broken", "peace_signed",
     "nation_eliminated", "game_over", "capital_moved", "general_fell"]);
   const MINOR = new Set(["developed", "built", "battle", "treaty_expired", "recruited", "moved", "disbanded", "researched"]);
   const BAD = new Set(["order_rejected", "desertion", "trade_failed"]);

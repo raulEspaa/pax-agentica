@@ -44,6 +44,7 @@ from pax_agentica.engine.actions import (
     Research,
     Respond,
     Sell,
+    SendMessage,
     SetStance,
     SetTaxes,
     Terms,
@@ -231,7 +232,46 @@ class _Planner:
                 self.enemies.discard(p.sender)
                 self.old_enemies.discard(p.sender)
             counter = None if accept else self._counter(p)
-            self.actions.append(Respond(proposal_id=p.id, accept=accept, counter=counter))
+            note = "" if accept or counter else self._why_not(p)
+            self.actions.append(
+                Respond(proposal_id=p.id, accept=accept, counter=counter, note=note)
+            )
+
+    def _why_not(self, p: ProposalView) -> str:
+        """A refusal in a sentence, so a human (or an agent) across the table knows why."""
+        them = self._nation_name(p.sender)
+        opinion = self.me.opinions.get(p.sender, 0)
+        match p.kind:
+            case ProposalKind.ALLIANCE if len(self.allies) >= 2:
+                return "Our court is bound to enough allies already."
+            case ProposalKind.ALLIANCE | ProposalKind.MARRIAGE if opinion < 0:
+                return f"{them} has given us little reason to trust it. Show us goodwill first."
+            case ProposalKind.TRADE:
+                return "The terms do not suit us. Offer more, or ask for less."
+            case ProposalKind.PEACE:
+                return "Not on these terms. The war has more to decide."
+            case ProposalKind.COALITION:
+                return "We do not fear that court enough to bind ourselves against it."
+        return "We decline, for now."
+
+    def _reply_to_letters(self) -> None:
+        """Answer the letters of last year in a sentence that reflects what the court feels."""
+        for e in self.v.last_turn_events:
+            sender = e.data.get("sender")
+            if e.kind.value != "message" or not isinstance(sender, str) or sender == self.me.id:
+                continue
+            if "proposal_id" in e.data or self.rng.random() > 0.8:
+                continue
+            opinion = self.me.opinions.get(sender, 0)
+            if sender in self.enemies:
+                text = "Words will not end this war. Send terms, or send armies."
+            elif opinion >= 30:
+                text = "Our court holds yours in high regard. Write to us of anything you need."
+            elif opinion >= 0:
+                text = "Your letter has been read in council. We shall weigh it."
+            else:
+                text = "Your words are noted. Our memory is long."
+            self.actions.append(SendMessage(target=sender, text=text))
 
     def _counter(self, p: ProposalView) -> Terms | None:
         """Haggle: a winner names its price, a beaten court offers gold for land, a trader asks
@@ -1012,6 +1052,7 @@ class _Planner:
             give, receive = offer
             self.actions.append(ProposeTrade(target=partner, give=give, receive=receive))
 
+        self._reply_to_letters()
         self._league(pending, others)
         liked = [n for n in others if self.me.opinions.get(n, 0) >= 10]
         marriages = sum(t.kind == TreatyKind.MARRIAGE for t in self.me.treaties)

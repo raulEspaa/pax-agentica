@@ -417,6 +417,16 @@ class _Resolver:
                     )
                     continue
                 self.s.proposals.remove(proposal)
+                if action.note:  # the answer in words travels as a letter
+                    self._emit(
+                        EventKind.MESSAGE,
+                        f"Message from {self._name(nation)} to {self._name(proposal.sender)}",
+                        nations=(nation, proposal.sender),
+                        audience=(nation, proposal.sender),
+                        sender=nation,
+                        text=action.note,
+                        proposal_id=proposal.id,
+                    )
                 if action.accept:
                     self._accept(proposal)
                 elif action.counter is not None:

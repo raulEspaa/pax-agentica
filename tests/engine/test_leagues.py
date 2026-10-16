@@ -113,3 +113,14 @@ def test_each_court_keeps_its_correspondence(state: GameState, play: Play) -> No
     assert france.correspondence[1].data["note"] == "Or friends, if you prefer."
     spain = next(n for n in view_for(refused, "spain").nations if n.id == "france")
     assert not [e for e in spain.correspondence if e.kind == EventKind.MESSAGE]
+
+
+def test_an_answer_can_carry_words(state: GameState, play: Play) -> None:
+    offer = play(state, england=[ProposeAlliance(target="france")])
+    pid = next(p.id for p in offer.proposals if p.recipient == "france")
+    no = play(
+        offer, france=[Respond(proposal_id=pid, accept=False, note="Not while you hold Calais.")]
+    )
+    england = next(n for n in view_for(no, "france").nations if n.id == "england")
+    letters = [e for e in england.correspondence if e.kind == EventKind.MESSAGE]
+    assert letters[-1].data["text"] == "Not while you hold Calais."

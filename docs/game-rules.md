@@ -441,6 +441,29 @@ friends, −3 between rivals), and your regiments fight **5% harder against a de
 year, and `counsel`, what each advisor said. No other court ever sees them; they are kept in the
 game record, and the replay shows them, year by year, as each court's mind.
 
+### Marriages, infamy and coalitions
+
+**Royal marriages** (`propose_marriage`) join two houses until war breaks them: +15 opinion when
+signed and +2 both ways every year. A realm has heirs for three at most.
+
+**Infamy.** Every province taken from a minor or gained by treaty adds infamy equal to its
+development, and every court bordering that land thinks 2 less of the taker per point. Infamy
+fades by 1 a year. From 6, every court cools a little toward the conqueror each year; from
+**12**, Europe may **league** against it.
+
+**Coalitions** (`propose_coalition`, against a court of infamy 12 or more) are public defensive
+leagues. If the conqueror declares war on any member, every other member is at war with it at
+once, without being asked. If a member strikes first, the others are called to arms (refusing
+costs nothing). A league dissolves when the conqueror's infamy falls below 5. Every court sees
+everyone's infamy and leagues.
+
+### Words
+
+Letters (`send_message`) change no rule. Every proposal, and every answer (`respond` with a
+`note`), can carry a few words; an answer's words arrive as a letter. The view keeps, for each
+court, the last exchanges between it and you (letters, proposals and their fate, treaties,
+wars, gifts) in `nations[].correspondence`, so a ruler remembers what was said and promised.
+
 ### Opinion
 
 Every court has an opinion of every other, from −100 to 100, and sees what each court thinks of

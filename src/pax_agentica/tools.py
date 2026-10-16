@@ -257,21 +257,52 @@ def briefing(view: NationView) -> str:
             lines.append(
                 f"- #{offer.id} {offer.kind.value} from {name[offer.sender]}: {what}{note}"
             )
-    lines.append("\n## Courts")
+    rules = view.rules
+    lines.append(
+        f"\n## Courts (your infamy {me.infamy:.0f}; leagues can form against a court from "
+        f"{rules.coalition_infamy:.0f})"
+    )
     for court in sorted(view.nations, key=lambda c: -c.standing):
         if not court.alive:
             continue
-        treaties = [t.kind.value for t in me.treaties if t.partner == court.id]
+        treaties = [
+            f"league against {name.get(t.against, t.against)}" if t.against else t.kind.value
+            for t in me.treaties
+            if t.partner == court.id
+        ]
         wars = ", at war with you" if court.id in me.at_war_with else ""
         pacts = ", " + ", ".join(treaties) if treaties else ""
+        feared = (
+            f", infamy {court.infamy:.0f}" if court.infamy >= rules.coalition_infamy / 2 else ""
+        )
+        leagues = (
+            ", leagued against " + ", ".join(name.get(x, x) for x in court.leagued_against)
+            if court.leagued_against
+            else ""
+        )
         lines.append(
             f"- {court.name}: standing {court.standing}, {court.provinces} provinces, thinks "
-            f"{court.opinion_of_you:+d} of you{wars}{pacts}"
+            f"{court.opinion_of_you:+d} of you{wars}{pacts}{feared}{leagues}"
         )
-    heard = [e for e in view.last_turn_events if e.kind.value in ("message", "proclamation")]
+    recent = [
+        (court.name, e)
+        for court in view.nations
+        for e in court.correspondence
+        if e.turn >= view.turn - 2
+    ]
+    if recent:
+        lines.append("\n## Lately between you and the courts")
+        for court_name, said in sorted(recent, key=lambda x: x[1].turn)[-12:]:
+            if said.kind.value == "message":
+                who = "you" if said.data.get("sender") == me.id else court_name
+                year = view.rules.start_year + said.turn - 1
+                lines.append(f'- {year}, {who} wrote: "{said.data.get("text")}"')
+            else:
+                lines.append(f"- {view.rules.start_year + said.turn - 1}: {said.summary}")
+    heard = [e for e in view.last_turn_events if said.kind.value == "proclamation"]
     if heard:
-        lines.append("\n## Letters and proclamations last year")
-        lines += [f"- {e.summary}" for e in heard[:10]]
+        lines.append("\n## Proclamations last year")
+        lines += [f"- {said.summary}" for e in heard[:10]]
     prices = ", ".join(f"{k} {p.buy:.2f}/{p.sell:.2f}" for k, p in view.market.items())
     lines.append(f"\nMarket (buy/sell a unit): {prices}.")
     return "\n".join(line for line in lines if line != "")

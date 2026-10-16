@@ -332,6 +332,7 @@ class Respond(_Action):
     proposal_id: int
     accept: bool
     counter: Terms | None = None
+    note: str = Field(default="", max_length=300)  # your answer in words, delivered as a letter
 
 
 class CancelTreaty(_Action):

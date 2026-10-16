@@ -104,7 +104,8 @@
   const relation = (nid) => {
     const war = V.me.wars.find((w) => w.enemy === nid);
     const t = (kind) => V.me.treaties.find((x) => x.partner === nid && x.kind === kind);
-    return {war, alliance: t("alliance"), pact: t("non_aggression"), truce: t("truce")};
+    const leagues = V.me.treaties.filter((x) => x.partner === nid && x.kind === "coalition").map((x) => x.against);
+    return {war, alliance: t("alliance"), pact: t("non_aggression"), truce: t("truce"), marriage: t("marriage"), leagues};
   };
   const buildCost = (id) => unbundle(V.me.building_costs[id]);
   const researching = () => orders.find((o) => o.type === "research");
@@ -624,6 +625,33 @@
   function armyTab() {
     const mine = V.me.provinces.map((id) => pIndex[id]);
     const options = (sel) => mine.map((i) => `<option value="${P[i].id}" ${i === sel ? "selected" : ""}>${esc(P[i].name)}</option>`).join("");
+    const up = V.me.army_upkeep_per_turn, men = V.me.resources.manpower, capMen = V.me.manpower_cap;
+    const hired = orders.filter((o) => o.type === "hire_mercenaries").reduce((a, o) => a + o.regiments, 0);
+    const kinds = U.map((u) => `<div class="unit ${V.me.army[u.id] ? "" : "none"}" title="${esc(u.name)}: ${esc(u.role)}"><span class="ic">${UICON[u.id]}</span><b>${V.me.army[u.id]}</b><small>${esc(u.id)}</small></div>`).join("");
+    const power = V.me.modifiers.battle_power;
+    const summary = `<div class="stocks">
+        <div class="stock"><span class="ic">⚔</span><div><b class="num">${V.me.regiments}</b><span class="label">regiments</span></div><div class="flow"><b class="num neg">−${up.ducats}</b><small>ducats a year</small></div></div>
+        <div class="stock"><span class="ic">👥</span><div><b class="num">${men}</b><span class="label">manpower of ${capMen}</span></div><div class="flow"><b class="num">${sign(V.me.income_per_turn.manpower)}</b><small>a year</small></div>
+          <i class="bar"><b style="width:${Math.min(100, Math.round(100 * men / Math.max(1, capMen)))}%"></b></i></div>
+        <div class="stock"><span class="ic">🌾</span><div><b class="num">${up.grain}</b><span class="label">grain eaten a year</span></div><div class="flow"><b class="num">${sign(V.me.income_per_turn.grain - up.grain)}</b><small>net</small></div></div>
+        <div class="stock"><span class="ic">💪</span><div><b class="num">${sign(Math.round(power * 100))}%</b><span class="label">battle power</span></div><div class="flow"><small>${V.me.modifiers.navy ? "a navy: straits favour no one" : "technology, ruler, council"}</small></div></div>
+        <div class="stock"><span class="ic">💰</span><div><b class="num">${R.mercenaryLimit - hired}</b><span class="label">mercenaries for hire</span></div><div class="flow"><small>${R.mercenaryCost} ducats each</small></div></div>
+      </div><div class="units office-units">${kinds}</div>`;
+    // the fronts: each war, and every border where a court masses more than you
+    const fronts = V.me.wars.map((w) => {
+      const held = V.provinces.filter((p) => p.owner === w.enemy && p.controller === G.human).length;
+      const lost = V.provinces.filter((p) => p.owner === G.human && p.controller === w.enemy).length;
+      return `<div class="front war"><div class="row"><b>⚔ ${esc(nameOf(w.enemy))}</b>${scoreBar(w.war_score)}<span class="num">${sign(w.war_score)}</span></div>
+        <small>${w.attacks_allowed_from_turn > V.turn ? `mobilising until ${yearOf(w.attacks_allowed_from_turn)}; ` : ""}you hold ${held} of theirs, they hold ${lost} of yours; battles ${w.battles_won} won, ${w.battles_lost} lost.</small></div>`; }).join("")
+      + threats().filter((t) => !t.war).map((t) => `<div class="front"><b>⚠ ${esc(nameOf(t.nation))}</b><small>${t.theirs} regiments on your border against your ${t.ours}${t.pact ? "; a pact holds them" : ""}.</small></div>`).join("");
+    // every army: what it is made of, who leads it, and the best blow it could strike
+    const rows = mine.filter((i) => troopsAfter(i) > 0).sort((a, b) => troopsAfter(b) - troopsAfter(a)).map((i) => {
+      const g = generalAt(i), a = armyAfter(i);
+      const blows = targetsFrom(i).filter(([, k]) => k === "attack").map(([j]) => [j, odds(i, j)]).filter(([, c]) => c !== null).sort((x, y) => y[1] - x[1]);
+      const best = blows[0];
+      return `<tr class="click" data-p="${i}"><td>${esc(P[i].name)}${prov(i).is_capital ? " ★" : ""}</td><td>${troopsAfter(i)}</td>
+        <td class="mix">${KINDS.filter((k) => a[k]).map((k) => `${UICON[k]}${a[k]}`).join(" ")}</td><td>${g ? `⚑ ${stars(g.skill)}` : ""}</td>
+        <td>${best ? `<span class="${best[1] >= .6 ? "pos" : best[1] < .4 ? "neg" : ""}">${esc(P[best[0]].name)} ${Math.round(best[1] * 100)}%</span>` : ""}</td></tr>`; }).join("");
     const generals = V.me.generals.map((g) => {
       const goes = generalPositions().get(g.id), from = pIndex[g.province];
       const plan = goes === from ? "" : goes === -1 ? ", leading an attack" : `, going to ${esc(P[goes].name)}`;
@@ -631,47 +659,59 @@
         <div><b>${esc(g.name)}</b> <span class="sub">in ${esc(P[from].name)}${plan}</span>
         <div class="row"><select class="field" data-gsel="${g.id}" aria-label="Send ${esc(g.name)} to">${options(pIndex[g.province])}</select>
         <button class="btn" data-assign="${g.id}">Send</button><button class="btn" data-goto="${pIndex[g.province]}">Show</button></div></div></div>`; }).join("");
-    const armies = mine.filter((i) => troopsAfter(i) > 0).sort((a, b) => troopsAfter(b) - troopsAfter(a)).map((i) => {
-      const g = generalAt(i);
-      return `<tr class="click" data-p="${i}"><td>${esc(P[i].name)}</td><td>${troopsAfter(i)}</td><td>${g ? esc(g.name) : ""}</td></tr>`; }).join("");
-    const wars = V.me.wars.map((w) => `<span class="chip war">${esc(nameOf(w.enemy))}${w.attacks_allowed_from_turn > V.turn ? ", mobilising" : ""}</span>`).join("");
-    return `<div class="pad"><h4>The army</h4>
-      <div class="units office-units">${U.map((u) => `<div class="unit ${V.me.army[u.id] ? "" : "none"}" title="${esc(u.name)}: ${esc(u.role)}"><span class="ic">${UICON[u.id]}</span><b>${V.me.army[u.id]}</b><small>${esc(u.id)}</small></div>`).join("")}</div>
-      <p class="sub">${V.me.regiments} regiments, costing ${costText(unbundle(V.me.army_upkeep_per_turn))} a year. Manpower ${V.me.resources.manpower} of ${V.me.manpower_cap}.
-        Military technology ${V.me.technology.military}: +${Math.round(T[0].perLevel * 100 * V.me.technology.military)}% battle power.</p>
-      <div class="chips">${wars || `<span class="muted">At peace.</span>`}</div>
+    // what each kind of regiment costs and where it can be raised
+    const where = (u) => u.requires < 0 ? "anywhere" : mine.filter((i) => prov(i).buildings.includes(B[u.requires].id)).map((i) => esc(P[i].name)).join(", ") || `nowhere yet: build ${B[u.requires].name.toLowerCase()}`;
+    const book = U.map((u) => `<tr><td>${UICON[u.id]} ${esc(u.name)}</td><td>${u.attack}/${u.defence}</td><td>${costText(u.cost)}</td><td>${u.pay} 💰 ${u.rations} 🌾</td><td class="left">${where(u)}</td></tr>`).join("");
+    return `<div class="pad"><h4>The army</h4>${summary}
+      <h4>Fronts</h4>${fronts || `<p class="muted">No war, and no court masses troops against you.</p>`}
+      <h4>Armies</h4><table class="grid num"><thead><tr><th>Province</th><th>Regiments</th><th>Kinds</th><th>General</th><th>Best attack</th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="sub">Click an army to select it, then right-click on the map where it should go. The odds count what you can see.</p>
       <h4>Generals, ${V.me.generals.length} of ${V.me.modifiers.max_generals}</h4>${generals || `<p class="muted">No general serves you.</p>`}
       ${V.me.generals.length < V.me.modifiers.max_generals ? `<div class="row"><select class="field" id="hireat" aria-label="Appoint a general in">${options(pIndex[V.me.capital])}</select>
         <button class="btn" id="hire" ${affordable(R.generalCost) ? "" : "disabled"}>Appoint a general</button><span class="sub">${costText(R.generalCost)}</span></div>` : ""}
       <p class="sub">A general adds ${Math.round(R.generalBonus * 100)}% battle power per star to the regiments he leads or defends with. He falls if his province is taken.</p>
-      <h4>Armies</h4><table class="grid num"><thead><tr><th>Province</th><th>Regiments</th><th>General</th></tr></thead><tbody>${armies}</tbody></table>
-      <p class="sub">Click an army to select it, then right-click on the map where it should go.</p></div>`;
+      <h4>The regiments of the age</h4><table class="grid num units-book"><thead><tr><th>Kind</th><th>Att/Def</th><th>Cost</th><th>A year</th><th class="left">Raised in</th></tr></thead><tbody>${book}</tbody></table>
+      <p class="sub">Two or more kinds, each a fifth of an army, fight harder together. Every tenth of an attacking army in guns knocks a fort level off.</p></div>`;
   }
   const BRANCH_IC = {military: "⚔", economy: "💰", engineering: "⚒"};
   function techTab() {
     const doing = researching();
+    const net = V.me.income_per_turn.ducats - V.me.army_upkeep_per_turn.ducats - V.me.inputs_per_turn.ducats;
+    const yearsFor = (cost) => { const short = Math.max(0, cost.ducats - V.me.resources.ducats);
+      return !short ? "affordable now" : net > 0 ? `in about ${Math.ceil(short / net)} year${Math.ceil(short / net) === 1 ? "" : "s"}` : "not on this income"; };
+    const cards = T.map((b) => {
+      const level = V.me.technology[b.id], cost = V.me.research_costs[b.id], next = b.levels[level];
+      const word = b.id === "engineering" ? "cheaper buildings and development" : b.id === "economy" ? "ducats and grain" : "battle power";
+      const unlocked = next ? B.filter((x) => x.tech && x.tech[0] === b.id && x.tech[1] === level + 1) : [];
+      const busy = doing && doing.branch === b.id;
+      return `<div class="studycard ${busy ? "doing" : ""}"><div class="shead"><span class="ic">${BRANCH_IC[b.id]}</span><b>${b.name}</b><span class="num">${level} / ${R.maxTech}</span></div>
+        <i class="bar"><b style="width:${Math.round(100 * level / R.maxTech)}%"></b></i>
+        <p class="sub">Now: +${Math.round(b.perLevel * 100 * level)}% ${word}.${next ? ` Next: +${Math.round(b.perLevel * 100 * (level + 1))}%.` : ""}</p>
+        ${next ? `<p><b>${esc(next.name)}</b>: ${esc(next.unlocks)}${unlocked.length ? ` <span class="chips">${unlocked.map((x) => `<span class="chipb">${BICON[x.id]} ${esc(x.name)}</span>`).join("")}</span>` : ""}</p>
+          ${next.lore ? `<p class="lore">${esc(next.lore)}</p>` : ""}
+          <div class="act">${busy ? `<span class="ok">Researching this year</span>` : `<button class="btn" data-research="${b.id}" ${doing || !cost || !affordable(unbundle(cost)) ? "disabled" : ""}>Research</button>`}
+            ${cost ? `<span class="cost">${costText(unbundle(cost))}, ${yearsFor(cost)}</span>` : ""}</div>` : `<p class="ok">Mastered.</p>`}</div>`;
+    }).join("");
     const columns = T.map((b) => {
-      const level = V.me.technology[b.id], cost = V.me.research_costs[b.id];
+      const level = V.me.technology[b.id];
       const nodes = b.levels.map((step, k) => {
-        const n = k + 1, done = n <= level, next = n === level + 1;
-        const unlocked = B.filter((x) => x.tech && x.tech[0] === b.id && x.tech[1] === n);
-        const state = done ? "done" : next ? (doing && doing.branch === b.id ? "doing" : "next") : "locked";
-        const button = next && cost ? (doing && doing.branch === b.id ? `<div class="sub">Researching this year</div>`
-          : `<button class="btn" data-research="${b.id}" ${doing || !affordable(unbundle(cost)) ? "disabled" : ""}>Research</button><div class="sub">${costText(unbundle(cost))}</div>`) : "";
-        return `<div class="node ${state}" title="${esc(step.name)}: ${esc(step.unlocks)}. ${esc(step.lore || "")}">
-          <div class="lvl">${done ? "✓" : n}</div><b>${esc(step.name)}</b>
-          <div class="unl">${unlocked.map((x) => `<span class="chipb">${BICON[x.id]} ${esc(x.name)}</span>`).join("") || esc(cap(step.unlocks))}</div>
-          <div class="sub">+${Math.round(b.perLevel * 100)}% ${b.id === "engineering" ? "cheaper works" : b.id === "economy" ? "income" : "battle power"}</div>
-          ${next && step.lore ? `<div class="lore">${esc(step.lore)}</div>` : ""}${button}</div>`;
+        const n = k + 1, done = n <= level, nxt = n === level + 1;
+        const state = done ? "done" : nxt ? (doing && doing.branch === b.id ? "doing" : "next") : "locked";
+        return `<div class="node ${state}" title="${esc(step.name)}: ${esc(step.unlocks)}. ${esc(step.lore || "")}"><div class="lvl">${done ? "✓" : n}</div><b>${esc(step.name)}</b>
+          <div class="unl">${esc(cap(step.unlocks))}</div></div>`;
       }).join(`<div class="link"></div>`);
       return `<div class="branch"><h5>${BRANCH_IC[b.id]} ${b.name}<small>${level} of ${R.maxTech}</small></h5>${nodes}</div>`;
     }).join("");
-    const rivals = V.nations.filter((n) => n.alive).map((n) => `<tr><td>${esc(n.name)}</td>${T.map((b) => `<td>${n.technology[b.id]}</td>`).join("")}</tr>`).join("");
-    return `<div class="pad"><h4>The tree of learning</h4>
-      <p class="sub">One research a year. Each level gives its branch's bonus and a milestone: new buildings, new powers.
-        ${V.me.modifiers.research_discount ? `Your chancellor makes research ${Math.round(V.me.modifiers.research_discount * 100)}% cheaper.` : "A chancellor would make it cheaper."}</p>
-      <div class="tree">${columns}</div>
-      <h4>Other courts</h4><table class="grid num"><thead><tr><th>Nation</th>${T.map((b) => `<th>${b.name}</th>`).join("")}</tr></thead><tbody>${rivals}</tbody></table></div>`;
+    // where you stand against every other court, branch by branch
+    const courts = [{id: G.human, name: V.me.name, technology: V.me.technology}, ...V.nations.filter((n) => n.alive)];
+    const race = T.map((b) => `<div class="race"><h5>${BRANCH_IC[b.id]} ${b.name}</h5>${courts.sort((x, y) => y.technology[b.id] - x.technology[b.id]).map((n) =>
+      `<div class="raceline ${n.id === G.human ? "me" : ""}"><span>${esc(n.name)}</span><i><b style="width:${Math.round(100 * n.technology[b.id] / R.maxTech)}%;background:${N[nIndex[n.id]].color}"></b></i><span class="num">${n.technology[b.id]}</span></div>`).join("")}</div>`).join("");
+    const helpers = [V.me.modifiers.research_discount ? `research ${Math.round(V.me.modifiers.research_discount * 100)}% cheaper (council, observatory, scholars)` : "a chancellor, an observatory or a scholar on the throne would make research cheaper"];
+    return `<div class="pad"><h4>Learning</h4>
+      <p class="sub">One research a year: ${doing ? `this year, ${esc(T.find((b) => b.id === doing.branch).name)}.` : "nothing chosen yet."} ${cap(helpers.join(""))}.</p>
+      <div class="studies">${cards}</div>
+      <h4>The race of learning</h4><div class="races">${race}</div>
+      <h4>The tree</h4><div class="tree">${columns}</div></div>`;
   }
   const portrait = (person, color, size) => PaxMap.portrait(person, color, size);
   const traitChips = (traits) => (traits || []).length ? `<div class="chips">${traits.map((t) =>
@@ -792,6 +832,8 @@
     if (r.alliance) out.push(`<span class="chip ally">allied</span>`);
     if (r.pact) out.push(`<span class="chip pact">pact until ${year(r.pact.until_turn)}</span>`);
     if (r.truce) out.push(`<span class="chip truce">truce until ${year(r.truce.until_turn)}</span>`);
+    if (r.marriage) out.push(`<span class="chip ally" title="A royal marriage: both courts warm every year">💍 married</span>`);
+    r.leagues.forEach((x) => out.push(`<span class="chip league" title="A defensive league: attack one, fight both">⚔ leagued against ${esc(nameOf(x))}</span>`));
     return out.join("");
   }
   // ------------------------------------------------------------------ diplomacy: the courts of Europe
@@ -822,25 +864,130 @@
       : p.kind === "non_aggression" ? `${from} proposes a non-aggression pact for ten years.`
       : p.kind === "peace" ? `${from} offers peace${p.reply_to ? " (a counter-offer)" : ""}: ${termsText(p, p.sender) || "a white peace"}.`
       : p.kind === "trade" ? `${from} offers ${costText(unbundle(p.give))} for ${costText(unbundle(p.receive))}${p.reply_to ? " (a counter-offer)" : ""}.`
+      : p.kind === "marriage" ? `${from} proposes a royal marriage between your houses.`
+      : p.kind === "coalition" ? `${from} invites you into a league against ${esc(nameOf(p.enemy))}: if it attacks either of you, both go to war.`
       : `${from} calls you to arms against ${esc(nameOf(p.enemy))}. Ignoring it ends the alliance.`;
     const state = answered ? (answered.accept ? `<span class="ok">You accept.</span>` : answered.counter ? `<span class="ok">You counter.</span>` : `<span class="warn">You refuse.</span>`) : "";
     const canCounter = p.kind === "peace" || p.kind === "trade";
     return `<div class="proposal"><div>${what} ${state}</div>${p.note ? `<blockquote>“${esc(p.note)}”</blockquote>` : ""}
+      <input class="field answer-note" data-note="${p.id}" maxlength="300" placeholder="A word with your answer (optional)" value="${esc(answered?.note || "")}">
       <div class="row"><button class="btn" data-answer="${p.id}" data-accept="1">Accept</button><button class="btn" data-answer="${p.id}" data-accept="0">Refuse</button>
       ${canCounter ? `<button class="btn" data-counter="${p.id}">Counter-offer…</button>` : ""}</div></div>`;
+  }
+  let deskTab = "letters";
+  const yearOf = (turn) => R.startYear + turn - 1;
+  const KIND_WORD = {alliance: "an alliance", non_aggression: "a non-aggression pact", marriage: "a royal marriage", coalition: "a league",
+    trade: "a trade", peace: "peace", call_to_arms: "a call to arms"};
+  // what each court said and did to you lately, as one letter book (the engine keeps it)
+  function thread(nid) {
+    const n = V.nations.find((x) => x.id === nid);
+    const status = (id) => {
+      const later = n.correspondence.find((e) => e.data.proposal_id === id && e.kind !== "proposal_made");
+      if (later) return {proposal_rejected: "refused", proposal_expired: "expired", proposal_countered: "answered with a counter-offer"}[later.kind] || "";
+      if (V.proposals_to_answer.some((p) => p.id === id)) return "awaiting your answer";
+      if (V.proposals_sent.some((p) => p.id === id)) return "awaiting their answer";
+      return "accepted, or overtaken by events";
+    };
+    const items = n.correspondence.map((e) => {
+      const fromMe = (e.data.sender || e.nations[0]) === G.human;
+      if (e.kind === "message") return `<div class="bubble ${fromMe ? "mine" : "theirs"}"><small>${yearOf(e.turn)}, ${fromMe ? "you wrote" : `${esc(n.name)} wrote`}</small>${esc(e.data.text)}</div>`;
+      if (e.kind === "proposal_made") {
+        const kind = e.data.proposal_kind, st = status(e.data.proposal_id);
+        return `<div class="bubble ${fromMe ? "mine" : "theirs"} offer"><small>${yearOf(e.turn)}, ${fromMe ? "you proposed" : `${esc(n.name)} proposed`}</small>
+          📜 ${esc(KIND_WORD[kind] || kind)}${e.data.note ? `<q>${esc(e.data.note)}</q>` : ""}<span class="st ${st.startsWith("refused") || st === "expired" ? "neg" : ""}">${esc(st)}</span></div>`;
+      }
+      if (["proposal_rejected", "proposal_expired", "proposal_countered"].includes(e.kind)) return "";
+      return `<div class="sysline">${ICON[e.kind] || "•"} ${yearOf(e.turn)}: ${esc(e.summary)}</div>`;
+    }).join("");
+    const drafts = orders.filter((o) => o.target === nid && ["send_message", "propose_alliance", "propose_non_aggression", "propose_marriage", "propose_coalition", "propose_trade", "gift"].includes(o.type))
+      .map((o) => `<div class="bubble mine draft"><small>this year, to be sent</small>${o.type === "send_message" ? esc(o.text) : `📜 ${esc(describe(o))}${o.note ? `<q>${esc(o.note)}</q>` : ""}`}</div>`).join("");
+    return `<div class="thread">${items || `<p class="muted">No word has passed between your courts yet.</p>`}${drafts}</div>`;
+  }
+  function composer(nid) {
+    const r = relation(nid);
+    const feared = V.nations.filter((x) => x.alive && x.id !== nid && x.infamy >= R.coalitionInfamy && !r.leagues.includes(x.id));
+    const allies = V.me.treaties.filter((t) => t.kind === "alliance" && t.partner === nid).length;
+    const options = [["", "Just the letter"],
+      ...(!r.war && !r.alliance ? [["propose_alliance", "Propose an alliance"]] : []),
+      ...(!r.war && !r.pact && !r.alliance ? [["propose_non_aggression", "Propose a non-aggression pact"]] : []),
+      ...(!r.war && !r.marriage ? [["propose_marriage", "Propose a royal marriage"]] : []),
+      ...(!r.war ? feared.map((x) => [`coalition:${x.id}`, `Invite them into a league against ${x.name} (infamy ${Math.round(x.infamy)})`]) : []),
+      ...(allies ? V.me.wars.map((w) => [`call:${w.enemy}`, `Call them to arms against ${nameOf(w.enemy)}`]) : [])];
+    return `<div class="composer"><textarea id="letter" maxlength="500" placeholder="Write to ${esc(nameOf(nid))}. With a proposal attached, your words go with it as its note."></textarea>
+      <div class="row"><select class="field" id="attach" aria-label="Attach a proposal">${options.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("")}</select>
+      <button class="btn" data-dip="compose">Seal and send</button></div>
+      <p class="sub">Words do not change the rules; rulers read them. A proposal must be answered next year or it lapses.</p></div>`;
+  }
+  function dossier(nid) {
+    const n = V.nations.find((x) => x.id === nid), name = esc(n.name);
+    const tech = (t) => T.reduce((sum, b) => sum + t[b.id], 0);
+    const bound = V.me.treaties.filter((t) => t.partner === nid && (t.kind === "tribute" || t.kind === "army_limit")).map((t) =>
+      t.kind === "tribute" ? `${t.payer === G.human ? "You pay" : `${name} pays`} ${t.amount} ducats a year until ${yearOf(t.until_turn)}`
+        : `${t.payer === G.human ? "Your" : `${name}'s`} army is limited to ${t.amount} regiments until ${yearOf(t.until_turn)}`);
+    const history = G.chronicle.flatMap((y) => y.events.filter((e) => e.nations.includes(nid) && e.nations.includes(G.human) && !["moved", "recruited", "message"].includes(e.kind))
+      .map((e) => `<li><span class="yr">${y.year}</span> ${ICON[e.kind] || "•"} ${esc(e.summary)}</li>`)).slice(0, 10).join("");
+    return `<table class="grid num versus"><thead><tr><th></th><th>You</th><th>${name}</th></tr></thead><tbody>
+        <tr><td>Provinces</td><td>${V.me.provinces.length}</td><td>${n.provinces}</td></tr>
+        <tr><td>Standing</td><td>${V.me.standing}</td><td>${n.standing}</td></tr>
+        <tr><td>Generals</td><td>${V.me.generals.length}</td><td>${n.generals}</td></tr>
+        <tr><td>Technology</td><td>${tech(V.me.technology)}</td><td>${tech(n.technology)}</td></tr>
+        <tr><td>Prestige</td><td>${V.me.prestige}</td><td>${n.prestige}</td></tr>
+        <tr><td>Infamy</td><td>${V.me.infamy}</td><td class="${n.infamy >= R.coalitionInfamy ? "neg" : ""}">${n.infamy}</td></tr>
+        <tr><td>War exhaustion</td><td>${V.me.war_exhaustion.toFixed(1)}</td><td>${n.war_exhaustion.toFixed(1)}</td></tr>
+        <tr><td>Faith</td><td>${esc(V.me.faith)}</td><td>${esc(n.faith)}</td></tr></tbody></table>
+      <p class="sub">${name} is at war with ${n.at_war_with.map((x) => esc(nameOf(x))).join(", ") || "no one"}; allied with ${n.allies.map((x) => esc(nameOf(x))).join(", ") || "no one"}${n.leagued_against.length ? `; leagued against ${n.leagued_against.map((x) => esc(nameOf(x))).join(", ")}` : ""}.
+        It counts as friends ${listOf(n.stances, "friend")}, as rivals ${listOf(n.stances, "rival")}.</p>
+      ${bound.map((b) => `<p class="sub">⚖ ${b}.</p>`).join("")}
+      ${history ? `<h4>Between your courts</h4><ul class="history">${history}</ul>` : ""}`;
+  }
+  function treatiesDesk(nid) {
+    const r = relation(nid), name = esc(nameOf(nid)), n = V.nations.find((x) => x.id === nid);
+    const pending = (...kinds) => V.proposals_sent.some((p) => p.recipient === nid && kinds.includes(p.kind)) || orders.some((o) => o.target === nid && kinds.includes(o.type));
+    const treaties = [r.alliance && "your alliance", r.pact && "your non-aggression pact", r.truce && "the truce", r.marriage && "the marriage"].filter(Boolean);
+    const counter = countering && countering.sender === nid ? countering : null;
+    const tradeCounter = counter && counter.kind === "trade" ? counter : null;
+    const row = (have, cancel, propose, label, text) => `<div class="pact-row"><div><b>${label}</b><small>${text}</small></div>${have
+      ? `<button class="btn" data-cancel="${cancel}">End it</button>` : r.war ? "" : `<button class="btn" data-dip="${propose}" ${pending(propose, cancel) ? "disabled" : ""}>Propose</button>`}</div>`;
+    return `<div class="pacts">
+        ${row(r.alliance, "alliance", "propose_alliance", "Alliance", "Each is called to arms when the other is attacked; ignoring a call ends it. +20 opinion.")}
+        ${row(r.pact, "non_aggression", "propose_non_aggression", "Non-aggression pact", "Ten years without war between you; breaking it is betrayal. +10 opinion.")}
+        ${row(r.marriage, "marriage", "propose_marriage", "Royal marriage", `Both courts warm by ${R.marriageYearly} a year while it lasts; at most ${R.maxMarriages} for a realm. +15 opinion.`)}
+        ${r.leagues.length ? `<div class="pact-row"><div><b>Leagues</b><small>Against ${r.leagues.map((x) => esc(nameOf(x))).join(", ")}: if it attacks either of you, both fight.</small></div><button class="btn" data-cancel="coalition">Leave</button></div>` : ""}</div>
+      <p class="sub">Your infamy is ${V.me.infamy}, theirs ${n.infamy}. A league can stand only against a court of infamy ${R.coalitionInfamy} or more: write a letter and attach the invitation.</p>
+      <details ${tradeCounter ? "open" : ""}><summary>${tradeCounter ? "Your counter-offer" : "Trade, gifts and tribute"}</summary>
+        <div class="sub">You give</div>${bundleInputs("trade-give", tradeCounter ? tradeCounter.receive : null)}
+        <div class="sub">You ask for</div>${bundleInputs("trade-receive", tradeCounter ? tradeCounter.give : null)}
+        <textarea id="trade-note" maxlength="300" placeholder="A word to go with it (optional)"></textarea>
+        <div class="row">${tradeCounter ? `<button class="btn" data-dip="counter_trade">Send the counter-offer</button><button class="btn" data-dip="drop_counter">Never mind</button>`
+          : `<button class="btn" data-dip="propose_trade" ${r.war ? "disabled" : ""}>Offer the trade</button><button class="btn" data-dip="gift">Send what you give as a gift</button>`}</div>
+        <p class="sub">A gift warms them: +1 opinion for every 4 ducats' worth, up to +25.</p></details>
+      ${r.war ? "" : `<details><summary>War</summary>${treaties.length ? `<p class="warn">War breaks ${treaties.join(" and ")}: −${R.breakPenalty} stability, and every court in Europe will think less of you.</p>` : ""}
+        ${n.leagued_against.length ? `<p class="warn">${name} is in a league against ${n.leagued_against.map((x) => esc(nameOf(x))).join(", ")}${n.leagued_against.includes(G.human) ? ": attack it and the whole league marches on you" : ""}.</p>` : ""}
+        <p class="sub">Armies mobilise for ${R.mobilization} year before they can attack. ${name}'s allies will be called to arms.</p>
+        <div class="row"><button class="btn danger" data-dip="declare_war" ${pending("declare_war") ? "disabled" : ""}>Declare war on ${name}</button></div></details>`}`;
   }
   function diplomacyTab() {
     const list = V.nations.filter((n) => n.alive).map((n) => {
       const color = N[nIndex[n.id]].color, waiting = V.proposals_to_answer.filter((p) => p.sender === n.id).length;
+      const fresh = n.correspondence.filter((e) => e.turn === V.turn - 1 && e.kind === "message" && e.data.sender === n.id).length;
       return `<div class="nrow court ${nIndex[n.id] === focus ? "sel" : ""}" data-n="${n.id}" tabindex="0">
         ${n.ruler ? portrait(n.ruler, color, 38) : `<span class="shield" style="background:${color}"></span>`}
-        <div><b>${PaxMap.flag(n.id, color, 20, "flag inline")} ${esc(n.name)}</b>${G.humans && G.humans[n.id] ? ` <span class="chip player" title="A player at this table">👤 ${esc(G.humans[n.id])}</span>` : ""}${waiting ? ` <span class="count">${waiting}</span>` : ""}<small>${n.ruler ? `${esc(n.ruler.title)} ${esc(n.ruler.name)}` : ""}</small>
-          <div class="chips">${opinionBadge(n.opinion_of_you, "Their opinion of you: ")}${stanceChip(n.stances[G.human], "toward you")}${stanceChip(V.me.stances[n.id], "yours")}${chipsFor(n.id)}</div></div></div>`;
+        <div><b>${PaxMap.flag(n.id, color, 20, "flag inline")} ${esc(n.name)}</b>${G.humans && G.humans[n.id] ? ` <span class="chip player" title="A player at this table">👤 ${esc(G.humans[n.id])}</span>` : ""}${waiting ? ` <span class="count" title="Proposals awaiting your answer">${waiting}</span>` : ""}${fresh ? ` <span class="count letters" title="Letters last year">✉ ${fresh}</span>` : ""}<small>${n.ruler ? `${esc(n.ruler.title)} ${esc(n.ruler.name)}` : ""}</small>
+          <div class="chips">${opinionBadge(n.opinion_of_you, "Their opinion of you: ")}${stanceChip(n.stances[G.human], "toward you")}${stanceChip(V.me.stances[n.id], "yours")}${n.infamy >= R.coalitionInfamy ? `<span class="chip war" title="Infamy ${n.infamy}: Europe may league against it">feared</span>` : ""}${chipsFor(n.id)}</div></div></div>`;
     }).join("");
+    const against = V.nations.filter((n) => n.alive && n.leagued_against.includes(G.human)).map((n) => esc(n.name));
+    const feared = V.nations.filter((n) => n.alive && n.infamy >= R.coalitionInfamy / 2).sort((a, b) => b.infamy - a.infamy)
+      .map((n) => `${esc(n.name)} ${Math.round(n.infamy)}`);
+    const pct = Math.min(100, Math.round(100 * V.me.infamy / (R.coalitionInfamy * 2)));
+    const europe = `<div class="pad europe"><h4>Europe watches</h4>
+      <div class="infamy"><span>Your infamy <b class="${V.me.infamy >= R.coalitionInfamy ? "neg" : ""}">${V.me.infamy}</b></span>
+        <i class="bar"><b style="width:${pct}%"></b><em style="left:50%" title="From ${R.coalitionInfamy}, courts may league against you"></em></i></div>
+      <p class="sub">${against.length ? `<span class="warn">Leagued against you: ${against.join(", ")}.</span> ` : ""}${feared.length ? `Feared conquerors: ${feared.join(", ")}.` : "No conqueror frightens Europe yet."}
+        Every province taken adds infamy; it fades by ${R.infamyDecay} a year.</p></div>`;
     const alive = focus >= 0 && focus !== me && V.nations.find((n) => n.id === N[focus].id)?.alive;
-    const voices = G.chronicle.flatMap((y) => y.events.filter((e) => e.kind === "proclamation").map((e) => [y.year, e])).slice(0, 5)
+    const voices = G.chronicle.flatMap((y) => y.events.filter((e) => e.kind === "proclamation").map((e) => [y.year, e])).slice(0, 4)
       .map(([year, e]) => `<li><span class="yr">${year}</span> <b>${esc(nameOf(e.data.sender))}</b>: <q>${esc(e.data.text)}</q></li>`).join("");
-    return `${voices ? `<div class="pad voices"><h4>Voices of Europe</h4><ul class="history">${voices}</ul></div>` : ""}
+    return `${europe}${voices ? `<div class="pad voices"><h4>Voices of Europe</h4><ul class="history">${voices}</ul></div>` : ""}
       <div class="courts">${list}</div>${alive ? desk(N[focus].id) : `<p class="muted pad">Pick a court to treat with it.</p>`}`;
   }
   const stanceChip = (stance, whose) => stance && stance !== "neutral"
@@ -849,66 +996,33 @@
     && [...p.neighbors, ...p.sea_neighbors].some((x) => prov(pIndex[x]).owner === other));
   function desk(nid) {
     const n = V.nations.find((x) => x.id === nid), r = relation(nid), name = esc(n.name), color = N[nIndex[nid]].color;
-    const pending = (...kinds) => V.proposals_sent.some((p) => p.recipient === nid && kinds.includes(p.kind)) || orders.some((o) => o.target === nid && kinds.includes(o.type));
-    const treaties = [r.alliance && "your alliance", r.pact && "your non-aggression pact", r.truce && "the truce"].filter(Boolean);
-    const allies = V.me.treaties.filter((t) => t.kind === "alliance").map((t) => t.partner).filter((a) => !V.nations.find((x) => x.id === a).at_war_with.includes(nid));
     const ruler = n.ruler, mine = V.me.opinions[nid] || 0;
-    const tech = (t) => T.reduce((sum, b) => sum + t[b.id], 0);
-    const bound = V.me.treaties.filter((t) => t.partner === nid && (t.kind === "tribute" || t.kind === "army_limit")).map((t) =>
-      t.kind === "tribute" ? `${t.payer === G.human ? "You pay" : `${name} pays`} ${t.amount} ducats a year until ${R.startYear + t.until_turn - 1}`
-        : `${t.payer === G.human ? "Your" : `${name}'s`} army is limited to ${t.amount} regiments until ${R.startYear + t.until_turn - 1}`);
     const theirs = V.proposals_to_answer.filter((p) => p.sender === nid).map(proposalCard).join("");
-    const sent = V.proposals_sent.filter((p) => p.recipient === nid).map((p) => `<div class="sub">You await their answer to your ${p.kind.replace("_", " ")} proposal.</div>`).join("");
-    const history = G.chronicle.flatMap((y) => y.events.filter((e) => e.nations.includes(nid) && e.nations.includes(G.human) && !["moved", "recruited"].includes(e.kind))
-      .map((e) => `<li><span class="yr">${y.year}</span> ${ICON[e.kind] || "•"} ${esc(e.kind === "message" ? `${e.data.sender === G.human ? "You wrote" : "They wrote"}: “${e.data.text}”` : e.summary)}</li>`)).slice(0, 8).join("");
-    let html = `<div class="pad desk">
+    const counter = countering && countering.sender === nid ? countering : null;
+    if (r.war && deskTab === "treaties") deskTab = "war";
+    if (!r.war && deskTab === "war") deskTab = "letters";
+    const tabs = [["letters", "✉ Letters"], ["dossier", "📋 Dossier"], ["treaties", "🤝 Treaties"], ...(r.war || (counter && counter.kind === "peace") ? [["war", "⚔ War and peace"]] : [])];
+    let body = "";
+    if (deskTab === "letters") body = `${theirs ? `<h4>They propose</h4>${theirs}` : ""}${thread(nid)}${composer(nid)}`;
+    else if (deskTab === "dossier") body = dossier(nid);
+    else if (deskTab === "treaties") body = treatiesDesk(nid);
+    else {
+      const allies = V.me.treaties.filter((t) => t.kind === "alliance").map((t) => t.partner).filter((a) => !V.nations.find((x) => x.id === a).at_war_with.includes(nid));
+      body = (r.war ? warBlock(nid) : "") + peaceBuilder(nid, counter && counter.kind === "peace" ? counter : null)
+        + (r.war && allies.length ? `<h4>Call your allies</h4><div class="row">${allies.map((a) => `<button class="btn" data-call="${a}">Call ${esc(nameOf(a))}</button>`).join("")}</div>` : "");
+    }
+    return `<div class="pad desk">
       <div class="audience">${ruler ? portrait(ruler, color, 84) : ""}
-        <div><b>${ruler ? `${esc(ruler.title)} ${esc(ruler.name)}` : name}</b><div class="sub">of ${name}${ruler ? `, aged ${ruler.age}` : ""}</div>
+        <div><b>${ruler ? `${esc(ruler.title)} ${esc(ruler.name)}` : name}</b><div class="sub">of ${name}${ruler ? `, aged ${ruler.age}` : ""}${G.humans && G.humans[nid] ? `, played by ${esc(G.humans[nid])}` : ""}</div>
           ${ruler && ruler.bio ? `<p class="lore">${esc(ruler.bio)}</p>` : ""}${ruler ? traitChips(ruler.traits) : ""}</div></div>
       <div class="moods"><div><span class="sub">They think of you</span>${opinionBadge(n.opinion_of_you)}<i class="bar"><b style="left:${50 + n.opinion_of_you / 2}%"></b></i></div>
         <div><span class="sub">You think of them</span>${opinionBadge(mine)}<i class="bar"><b style="left:${50 + mine / 2}%"></b></i></div></div>
-      <table class="grid num versus"><thead><tr><th></th><th>You</th><th>${name}</th></tr></thead><tbody>
-        <tr><td>Provinces</td><td>${V.me.provinces.length}</td><td>${n.provinces}</td></tr>
-        <tr><td>Score</td><td>${V.me.score}</td><td>${n.score}</td></tr>
-        <tr><td>Generals</td><td>${V.me.generals.length}</td><td>${n.generals}</td></tr>
-        <tr><td>Technology</td><td>${tech(V.me.technology)}</td><td>${tech(n.technology)}</td></tr>
-        <tr><td>Prestige</td><td>${V.me.prestige}</td><td>${n.prestige}</td></tr>
-        <tr><td>Standing</td><td>${V.me.standing}</td><td>${n.standing}</td></tr>
-        <tr><td>Faith</td><td>${esc(V.me.faith)}</td><td>${esc(n.faith)}</td></tr></tbody></table>
-      <div class="chips" style="margin-top:6px">${chipsFor(nid) || `<span class="muted">No treaty.</span>`}</div>
-      <div class="stances"><span class="sub">${name} counts as friends ${listOf(n.stances, "friend")}, as rivals ${listOf(n.stances, "rival")}.</span>
-        <div class="row"><span class="sub">You count them</span>${["friend", "neutral", "rival"].map((st) => {
+      <div class="chips">${chipsFor(nid) || `<span class="muted">No treaty.</span>`}</div>
+      <div class="row stance-row"><span class="sub">You count them</span>${["friend", "neutral", "rival"].map((st) => {
           const now = (V.me.stances[nid] || "neutral") === st, queued = orders.some((o) => o.type === "set_stance" && o.target === nid && o.stance === st);
           return `<button class="btn ${now ? "on" : ""}" data-stance="${st}" ${now || queued ? "disabled" : ""}>${cap(st)}</button>`; }).join("")}</div>
-        <p class="sub">Stances are public. A friend warms to you every year, a rival cools, and your regiments fight 5% harder against a declared rival.</p></div>
-      ${bound.map((b) => `<p class="sub">⚖ ${b}.</p>`).join("")}
-      <p class="sub">At war with ${n.at_war_with.map((x) => esc(nameOf(x))).join(", ") || "no one"}; allied with ${n.allies.map((x) => esc(nameOf(x))).join(", ") || "no one"}.</p>
-      ${r.war ? warBlock(nid) : ""}
-      ${theirs ? `<h4>They propose</h4>${theirs}` : ""}${sent}`;
-    const counter = countering && countering.sender === nid ? countering : null;
-    if (r.war || (counter && counter.kind === "peace")) html += peaceBuilder(nid, counter && counter.kind === "peace" ? counter : null);
-    if (r.war) {
-      if (allies.length) html += `<h4>Call your allies</h4><div class="row">${allies.map((a) => `<button class="btn" data-call="${a}">Call ${esc(nameOf(a))}</button>`).join("")}</div>`;
-    } else {
-      const tradeCounter = counter && counter.kind === "trade" ? counter : null;
-      html += `<details ${tradeCounter ? "open" : ""}><summary>${tradeCounter ? "Your counter-offer" : "Trade, gifts and tribute"}</summary>
-        <div class="sub">You give</div>${bundleInputs("trade-give", tradeCounter ? tradeCounter.receive : null)}
-        <div class="sub">You ask for</div>${bundleInputs("trade-receive", tradeCounter ? tradeCounter.give : null)}
-        <textarea id="trade-note" maxlength="300" placeholder="A word to go with it (optional)"></textarea>
-        <div class="row">${tradeCounter ? `<button class="btn" data-dip="counter_trade">Send the counter-offer</button><button class="btn" data-dip="drop_counter">Never mind</button>`
-          : `<button class="btn" data-dip="propose_trade">Offer the trade</button><button class="btn" data-dip="gift">Send what you give as a gift</button>`}</div>
-        <p class="sub">A gift warms them: +1 opinion for every 4 ducats' worth, up to +25.</p></details>
-        <details><summary>Treaties</summary><div class="row">
-        ${r.alliance ? `<button class="btn" data-cancel="alliance">End the alliance</button>` : `<button class="btn" data-dip="propose_alliance" ${pending("propose_alliance", "alliance") ? "disabled" : ""}>Propose an alliance</button>`}
-        ${r.pact ? `<button class="btn" data-cancel="non_aggression">End the pact</button>` : `<button class="btn" data-dip="propose_non_aggression" ${pending("propose_non_aggression", "non_aggression") ? "disabled" : ""}>Propose a pact</button>`}</div>
-        <p class="sub">An alliance pleases them (+20), a pact too (+10). Their answer weighs how they see you.</p></details>
-        <details><summary>War</summary>${treaties.length ? `<p class="warn">War breaks ${treaties.join(" and ")}: −${R.breakPenalty} stability, and every court in Europe will think less of you.</p>` : ""}
-        <p class="sub">Armies mobilise for ${R.mobilization} year before they can attack. ${name}'s allies will be called to arms.</p>
-        <div class="row"><button class="btn danger" data-dip="declare_war" ${pending("declare_war") ? "disabled" : ""}>Declare war on ${name}</button></div></details>`;
-    }
-    return html + `<details><summary>A letter</summary><textarea id="letter" maxlength="500" placeholder="Words do not change the rules, but rulers read them."></textarea>
-      <div class="row"><button class="btn" data-dip="send_message">Seal and send</button></div></details>
-      ${history ? `<h4>Between your courts</h4><ul class="history">${history}</ul>` : ""}</div>`;
+      <nav class="desktabs">${tabs.map(([id, label]) => `<button class="${deskTab === id ? "on" : ""}" data-desk="${id}">${label}</button>`).join("")}</nav>
+      ${body}</div>`;
   }
   function warBlock(nid) {
     const w = warOf(nid);
@@ -1060,6 +1174,14 @@
       if (kind === "send_message") { const text = $("letter").value.trim();
         if (!text) return flash("Write something first.");
         return queue({type: kind, target: nid, text}); }
+      if (kind === "compose") {
+        const text = $("letter").value.trim(), attach = $("attach").value;
+        if (!attach) { if (!text) return flash("Write something first."); return queue({type: "send_message", target: nid, text}); }
+        const note = text ? {note: text.slice(0, 300)} : {};
+        if (attach.startsWith("coalition:")) return queue({type: "propose_coalition", target: nid, against: attach.slice(10), ...note});
+        if (attach.startsWith("call:")) return queue({type: "call_to_arms", target: nid, enemy: attach.slice(5), ...note});
+        return queue({type: attach, target: nid, ...note});
+      }
       if (kind === "declare_war" && !confirm(`Declare war on ${nameOf(nid)}?`)) return;
       queue({type: kind, target: nid});
     });
@@ -1074,6 +1196,7 @@
       panel.querySelectorAll("details.peace input, details.peace textarea").forEach((x) => (x.oninput = update));
       update();
     }
+    panel.querySelectorAll("[data-desk]").forEach((b) => b.onclick = () => { deskTab = b.dataset.desk; render(); });
     panel.querySelectorAll("[data-stance]").forEach((b) => b.onclick = () => {
       orders = orders.filter((o) => !(o.type === "set_stance" && o.target === nid));
       queue({type: "set_stance", target: nid, stance: b.dataset.stance});
@@ -1082,12 +1205,12 @@
     panel.querySelectorAll("[data-call]").forEach((b) => b.onclick = () => queue({type: "call_to_arms", target: b.dataset.call, enemy: nid}));
     panel.querySelectorAll("[data-counter]").forEach((b) => b.onclick = () => {
       countering = V.proposals_to_answer.find((p) => p.id === +b.dataset.counter);
-      focus = nIndex[countering.sender]; tab = "diplomacy"; render();
+      focus = nIndex[countering.sender]; tab = "diplomacy"; deskTab = countering.kind === "peace" ? "war" : "treaties"; render();
     });
     panel.querySelectorAll("[data-answer]").forEach((b) => b.onclick = () => {
-      const id = +b.dataset.answer;
+      const id = +b.dataset.answer, note = (panel.querySelector(`[data-note="${id}"]`)?.value || "").trim();
       orders = orders.filter((o) => !(o.type === "respond" && o.proposal_id === id));
-      queue({type: "respond", proposal_id: id, accept: b.dataset.accept === "1"});
+      queue({type: "respond", proposal_id: id, accept: b.dataset.accept === "1", ...(note ? {note} : {})});
     });
   }
   document.querySelectorAll(".offices button").forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
@@ -1117,6 +1240,8 @@
       case "declare_war": return `Declare war on ${nn(o.target)}`;
       case "propose_alliance": return `Propose an alliance to ${nn(o.target)}`;
       case "propose_non_aggression": return `Propose a pact to ${nn(o.target)}`;
+      case "propose_marriage": return `💍 Propose a royal marriage to ${nn(o.target)}`;
+      case "propose_coalition": return `⚔ Invite ${nn(o.target)} into a league against ${nn(o.against)}`;
       case "propose_peace": { const t = termsText(o, G.human); return `🕊 Offer peace to ${nn(o.target)}${t ? `: ${t}` : ", white peace"}`; }
       case "propose_trade": return `Offer ${nn(o.target)} ${costText(unbundle(o.give))} for ${costText(unbundle(o.receive))}`;
       case "gift": return `Give ${nn(o.target)} ${costText(unbundle(o.resources))}`;
