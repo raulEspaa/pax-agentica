@@ -499,6 +499,27 @@ const PaxMap = (() => {
   }
 
   // ------------------------------------------------------------------ the deed's common sections
+  // ---------------------------------------------------------------- the land, in words
+  const TERRAIN_ICON = {plains: "🌾", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"};
+  const TERRAIN_LORE = {plains: "Open fields: bread for armies, easy to grow, hard to hold.",
+    forest: "Woods and clearings: timber in plenty, little bread, a cavalryman's trap.",
+    hills: "Mines and hardy folk: iron and soldiers, and good ground to defend.",
+    marsh: "Fens and reeds: slow to drain, slow to take.", mountains: "Passes and peaks: iron and men, little bread, a fortress made by God."};
+  function terrainLines(S, t) {
+    const e = (S.terrains || {})[t];
+    if (!e) return [];
+    const icon = Object.fromEntries(RES.map(([key, , ic]) => [key, ic]));
+    const yields = Object.entries(e.yield).map(([k, v]) => `${v > 0 ? "+" : "−"}${Math.abs(v)} ${icon[k] || k}`).join(" ");
+    const pct = (x) => `${x < 1 ? "−" : "+"}${Math.round(Math.abs(x - 1) * 100)}%`;
+    const out = [];
+    if (yields) out.push(`<b class="${Object.values(e.yield).some((v) => v < 0) ? "mixed" : "good"}">${yields}</b> a year`);
+    out.push(e.develop === 1 ? "developing at the usual price" : `developing ${pct(e.develop)}`);
+    out.push(`defenders ×${e.defence}`);
+    if (e.cavalry !== 1) out.push(`cavalry ×${e.cavalry}`);
+    if (e.archers !== 1) out.push(`archers ×${e.archers}`);
+    return out;
+  }
+
   // ---------------------------------------------------------------- portraits
   // A face for anyone at court: drawn from their name, so the same person always looks the same,
   // greying with age, and crowned, turbaned or capped as their title demands.
@@ -608,5 +629,5 @@ const PaxMap = (() => {
     };
   }
 
-  return {create, deedInfo, vista, portrait, usePortraits, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
+  return {create, deedInfo, vista, portrait, usePortraits, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
 })();

@@ -13,7 +13,14 @@ from typing import Any
 
 from pax_agentica.engine import Event, EventKind, GameState, Resources, Rules
 from pax_agentica.engine.mechanics import buildings_yield, land_yield
-from pax_agentica.engine.model import RESOURCE_NAMES, BuildingKind, MapDef, TechBranch, Terrain
+from pax_agentica.engine.model import (
+    RESOURCE_NAMES,
+    BuildingKind,
+    MapDef,
+    TechBranch,
+    Terrain,
+    UnitKind,
+)
 from pax_agentica.runner import GameRecord, Snapshot
 
 KINDS = list(BuildingKind)
@@ -213,6 +220,16 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
         "views": province_views(),
         "traits": TRAIT_WORDS,
         "terrainEffects": {t.value: _terrain_words(rules, t) for t in rules.terrain_defense},
+        "terrains": {
+            t.value: {
+                "yield": rules.terrain_yield.get(t, {}),
+                "develop": rules.terrain_develop_cost.get(t, 1.0),
+                "defence": rules.terrain_defense[t],
+                "cavalry": rules.units[UnitKind.CAVALRY].terrain.get(t, 1.0),
+                "archers": rules.units[UnitKind.ARCHERS].terrain.get(t, 1.0),
+            }
+            for t in rules.terrain_defense
+        },
         "personalities": PERSONALITY_WORDS,
         "advisors": [
             {

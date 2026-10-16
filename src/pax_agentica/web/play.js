@@ -273,7 +273,10 @@
         const devQueued = orders.some((x) => x.type === "develop" && pIndex[x.province] === i);
         const next = p.development + 1, slotOpens = next % R.slotEvery === 0;
         const devWhy = p.development >= maxDev ? `development is at its ceiling (${maxDev})` : devQueued ? "already ordered this year" : !affordable(dev, t) ? "too costly for now" : "";
-        body += info.production + `<section><div class="card ${devWhy ? "blocked" : "ready"}">
+        const ground = P[i].terrain;
+        body += info.production + `<section><div class="land"><span class="ic">${PaxMap.TERRAIN_ICON[ground]}</span><div><b>${cap(ground)}</b>
+            <p class="lore">${esc(PaxMap.TERRAIN_LORE[ground])}</p><div class="effects">${PaxMap.terrainLines(S, ground).map((x) => `<span>${x}</span>`).join("")}</div></div></div></section>
+          <section><div class="card ${devWhy ? "blocked" : "ready"}">
             <div class="cardhead"><span class="ic">🏛</span><div><b>Develop to ${Math.min(next, maxDev)}</b>
               <div class="gain">${p.development < maxDev ? gainText(preview.develop) || "<span>more score</span>" : ""}<span>+1 score</span></div></div></div>
             <p class="note">${slotOpens ? "<b>Opens a new building slot.</b> " : `Next building slot at development ${Math.ceil(next / R.slotEvery) * R.slotEvery}. `}Score is what wins the game.</p>
@@ -961,7 +964,9 @@
     document.querySelector(".modes").appendChild(b); });
   function legend() {
     const L = $("legend");
-    if (mode === "terrain") L.innerHTML = Object.entries(TERRAIN).map(([t, c]) => `<div class="row"><i style="background:${c}"></i>${cap(t)}</div>`).join("");
+    L.classList.toggle("wide", mode === "terrain");
+    if (mode === "terrain") L.innerHTML = `<b class="lh">What the land does</b>` + Object.entries(TERRAIN).map(([t, c]) => `<div class="trow"><i style="background:${c}"></i>
+      <div><b>${PaxMap.TERRAIN_ICON[t]} ${cap(t)}</b><small>${PaxMap.terrainLines(S, t).join(" · ")}</small></div></div>`).join("");
     else if (mode === "development") L.innerHTML = `Development<div class="ramp" style="background:linear-gradient(90deg,${[1, 4, 6, 8, 10].map(devColor).join(",")})"></div>`;
     else if (mode === "diplomacy") L.innerHTML = `<div class="row"><i style="background:#e3bd5c"></i>${esc(N[focus >= 0 ? focus : me].name)}</div>
       <div class="row"><i style="background:#5aa56f"></i>Allies</div><div class="row"><i style="background:#c9a54a"></i>Pacts and truces</div><div class="row"><i style="background:#c4473b"></i>At war</div>`;
@@ -971,7 +976,7 @@
   }
   function tooltip(i, evt) {
     const p = prov(i), out = unbundle(p.output_per_turn).map((v, k) => `${RES[k][2]} ${v}`).join("&ensp;");
-    let extra = "Click to select";
+    let extra = mode === "terrain" ? `${PaxMap.TERRAIN_ICON[P[i].terrain]} ${cap(P[i].terrain)}: ${PaxMap.terrainLines(S, P[i].terrain).join(" · ")}` : "Click to select";
     if (picked >= 0 && owned(picked) && i !== picked) {
       const t = targetsFrom(picked).find(([j]) => j === i), n = KINDS.reduce((sum, k) => sum + force(picked)[k], 0);
       if (t && t[1] === "move") extra = `Right-click to march ${n} regiments here`;
