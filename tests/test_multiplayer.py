@@ -194,3 +194,11 @@ def test_testers_can_leave_a_note(lobby: TestClient, tmp_path: Path) -> None:
     assert len(notes) == 1
     assert "lovely" in notes[0].read_text()
     assert lobby.post("/api/feedback", json={"text": ""}).status_code == 422
+
+
+def test_an_invitation_code_forgives_case_spaces_and_a_stray_percent(tmp_path: Path) -> None:
+    client = TestClient(create_lobby_app(tmp_path, invite_code="pikes42\n"))
+    body = {"name": "Anne", "nation": "france"}
+    for typed in ("pikes42", " PIKES42 ", "pikes 42", "pikes42%"):
+        assert client.post("/api/tables", json=body | {"code": typed}).status_code == 200, typed
+    assert client.post("/api/tables", json=body | {"code": "pikes43"}).status_code == 403

@@ -45,11 +45,11 @@ read again from its save whenever another revision has written it since, so no y
 # the public address
 gcloud run services describe pax-tables --project pax-agentica-261016 --region europe-west1 --format 'value(status.url)'
 
-# the invitation code to give your friends
-gcloud secrets versions access latest --secret pax-invite-code --project pax-agentica-261016
+# the invitation code to give your friends (case and spaces do not matter)
+gcloud secrets versions access latest --secret pax-invite-code --project pax-agentica-261016; echo
 
 # a new invitation code (takes effect on the next deploy, or force one by re-running the job)
-python3 -c "import secrets; print(secrets.token_urlsafe(9), end='')" | gcloud secrets versions add pax-invite-code --project pax-agentica-261016 --data-file=-
+python3 -c "import secrets; print(''.join(secrets.choice('abcdefghjkmnpqrstuvwxyz23456789') for _ in range(10)))" | gcloud secrets versions add pax-invite-code --project pax-agentica-261016 --data-file=-
 
 # the server's logs
 gcloud run services logs read pax-tables --project pax-agentica-261016 --region europe-west1 --limit 50

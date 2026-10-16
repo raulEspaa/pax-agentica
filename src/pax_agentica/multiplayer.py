@@ -123,6 +123,11 @@ class Table:
         }
 
 
+def _plain(code: str) -> str:
+    """An invitation code as people type it: case, spaces and a stray shell '%' do not count."""
+    return "".join(code.split()).rstrip("%").lower()
+
+
 def _bots(seed: int, nations: list[NationId], humans: list[NationId]) -> dict[NationId, Player]:
     return {n: GreedyBot(seed) for n in nations if n not in humans}
 
@@ -225,8 +230,12 @@ class Lobby:
     # ------------------------------------------------------------ the life of a table
 
     def check_code(self, code: str) -> None:
-        if self.invite_code and not secrets.compare_digest(code, self.invite_code):
-            raise HTTPException(403, "wrong invitation code")
+        if self.invite_code and not secrets.compare_digest(
+            _plain(code).encode(), _plain(self.invite_code).encode()
+        ):
+            raise HTTPException(
+                403, "wrong invitation code: check it letter by letter (no spaces needed)"
+            )
 
     def open_count(self) -> int:
         return sum(not s.get("closed") for s in self.summaries.values())
