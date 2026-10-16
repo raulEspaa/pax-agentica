@@ -8,7 +8,8 @@ they decide in parallel while the engine waits for you to end the turn.
 """
 
 import asyncio
-from collections.abc import Mapping
+import time
+from collections.abc import Mapping, Sequence
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -48,35 +49,54 @@ class HumanOrders:
 
 
 class Session:
-    """One game in progress, with a human on one throne."""
+    """One game in progress, with one or more humans on their thrones. A year is resolved once
+    every human has sent their orders (or, with a turn timer, once time runs out: whoever has not
+    answered by then does nothing that year)."""
 
     def __init__(
         self,
         state: GameState,
-        human: NationId,
+        humans: NationId | Sequence[NationId],
         rulers: Mapping[NationId, Player],
         save_to: Path | None = None,
+        turn_seconds: float | None = None,
+        names: Mapping[NationId, str] | None = None,
     ) -> None:
-        if human not in state.nations:
-            raise ValueError(f"unknown nation {human!r}")
+        self.humans = [humans] if isinstance(humans, str) else list(humans)
+        for human in self.humans:
+            if human not in state.nations:
+                raise ValueError(f"unknown nation {human!r}")
         self.state = state
-        self.human = human
-        self.rulers = dict(rulers)
+        self.rulers = {n: p for n, p in rulers.items() if n not in self.humans}
         self.save_to = save_to
+        self.turn_seconds = turn_seconds
+        self.names = dict(names or {})
         self.record = GameRecord(
-            players={n: p.name for n, p in self.rulers.items()} | {human: "you"},
+            players={n: p.name for n, p in self.rulers.items()}
+            | {h: self.names.get(h, "you") for h in self.humans},
             initial=state,
             start=snapshot(state),
         )
+        self.pending: dict[NationId, Orders] = {}
+        self.deadline = time.monotonic() + turn_seconds if turn_seconds else None
         self.lock = asyncio.Lock()
+
+    @property
+    def human(self) -> NationId:
+        """The first human: the only one in a game for one."""
+        return self.humans[0]
 
     @classmethod
     def resume(
-        cls, record: GameRecord, human: NationId, rulers: Mapping[NationId, Player], **kw: Any
+        cls,
+        record: GameRecord,
+        humans: NationId | Sequence[NationId],
+        rulers: Mapping[NationId, Player],
+        **kw: Any,
     ) -> "Session":
         """Pick a saved game up where it stopped. The engine is deterministic, so replaying
         the recorded orders rebuilds the exact state."""
-        session = cls(record.initial, human, rulers, **kw)
+        session = cls(record.initial, humans, rulers, **kw)
         state = record.initial
         for turn in record.turns:
             state = resolve_turn(state, turn.orders)
@@ -88,31 +108,73 @@ class Session:
             self.save_to.parent.mkdir(parents=True, exist_ok=True)
             self.save_to.write_text(self.record.model_dump_json(), encoding="utf-8")
 
-    async def end_turn(self, orders: Orders) -> None:
+    def seat(self, nation: NationId, name: str) -> None:
+        """A human takes over a throne a bot was holding; it decides from the next answer on."""
+        self.rulers.pop(nation, None)
+        if nation not in self.humans:
+            self.humans.append(nation)
+        self.names[nation] = name
+        self.record.players[nation] = name
+
+    def waiting_for(self) -> list[NationId]:
+        alive = set(self.state.alive_nations())
+        return [h for h in self.humans if h not in self.pending and h in alive]
+
+    async def submit(self, nation: NationId, orders: Orders) -> bool:
+        """Hand in a human's orders; the year is resolved once nobody is left to wait for.
+        True if this answer resolved it."""
         async with self.lock:
             if self.state.finished:
                 raise HTTPException(409, "the game is over")
-            players: dict[NationId, Player] = dict(self.rulers)
-            players[self.human] = HumanOrders(orders)
-            self.state, turn = await play_turn(self.state, players)
-            self.record.turns.append(turn)
-            self.record.winner = self.state.winner
-            self.save()
+            if nation not in self.humans:
+                raise HTTPException(403, "that throne is not yours")
+            self.pending[nation] = orders
+            if self.waiting_for():
+                return False
+            await self._resolve()
+            return True
 
-    def chronicle(self) -> list[dict[str, Any]]:
-        """Every past event the human could witness, newest year first."""
+    async def end_turn(self, orders: Orders) -> None:
+        """The single player's orders: in a game for one, the year ends at once."""
+        await self.submit(self.human, orders)
+
+    async def tick(self) -> bool:
+        """Resolve the year if its time is up. Called whenever someone looks at the game."""
+        if self.deadline is None or time.monotonic() < self.deadline or self.state.finished:
+            return False
+        async with self.lock:
+            if self.deadline is not None and time.monotonic() >= self.deadline:
+                await self._resolve()
+                return True
+        return False
+
+    async def _resolve(self) -> None:
+        players: dict[NationId, Player] = dict(self.rulers)
+        for human in self.humans:
+            players[human] = HumanOrders(self.pending.get(human, Orders()))
+        self.state, turn = await play_turn(self.state, players)
+        self.record.turns.append(turn)
+        self.record.winner = self.state.winner
+        self.pending = {}
+        if self.turn_seconds:
+            self.deadline = time.monotonic() + self.turn_seconds
+        self.save()
+
+    def chronicle(self, nation: NationId | None = None) -> list[dict[str, Any]]:
+        """Every past event this human could witness, newest year first."""
+        nation = nation or self.human
         years = []
         for turn in reversed(self.record.turns):
-            seen = [e for e in turn.events if e.visible_to(self.human)]
+            seen = [e for e in turn.events if e.visible_to(nation)]
             years.append({"turn": turn.turn, "year": turn.year, "events": _events(seen)})
         return years
 
-    def previews(self) -> dict[str, dict[str, Any]]:
+    def previews(self, nation: NationId | None = None) -> dict[str, dict[str, Any]]:
         """For each of the human's provinces, what one more development or each building not
         yet standing would add to its yearly output, and what each standing one adds. Only for
         the page: an AI ruler's view stays lean."""
         state, out = self.state, {}
-        for pid in state.provinces_of(self.human):
+        for pid in state.provinces_of(nation or self.human):
             p = state.provinces[pid]
             now = output_with(state, pid)
             gains = {
@@ -134,17 +196,25 @@ class Session:
             }
         return out
 
-    def payload(self) -> dict[str, Any]:
+    def payload(self, nation: NationId | None = None) -> dict[str, Any]:
+        nation = nation or self.human
         state = self.state
+        left = (
+            max(0, round(self.deadline - time.monotonic())) if self.deadline is not None else None
+        )
         return {
-            "human": self.human,
-            "view": view_for(state, self.human).model_dump(mode="json"),
+            "human": nation,
+            "view": view_for(state, nation).model_dump(mode="json"),
             "finished": state.finished,
             "winner": state.winner,
-            "chronicle": self.chronicle(),
+            "chronicle": self.chronicle(nation),
             "rulers": self.record.players,
-            "previews": self.previews(),
+            "previews": self.previews(nation),
             "saved_to": str(self.save_to) if self.save_to else None,
+            "humans": {h: self.names.get(h, "you") for h in self.humans},
+            "submitted": nation in self.pending,
+            "waiting_for": self.waiting_for(),
+            "seconds_left": left,
         }
 
 
@@ -152,14 +222,9 @@ def _events(events: list[Event]) -> list[dict[str, Any]]:
     return [e.model_dump(mode="json", exclude={"audience"}) for e in events]
 
 
-def create_app(session: Session) -> FastAPI:
-    app = FastAPI(title="Pax Agentica", docs_url="/api/docs", redoc_url=None)
+def add_assets(app: FastAPI, static: dict[str, Any]) -> None:
+    """The page's scripts, styles, engravings and portraits: only the files we ship."""
     web = files("pax_agentica").joinpath("web")
-    static = static_payload(session.state, europe_map())
-
-    @app.get("/", response_class=HTMLResponse)
-    def page() -> str:
-        return web.joinpath("play.html").read_text(encoding="utf-8")
 
     @app.get("/static/{name}")
     def asset(name: str) -> Response:
@@ -184,6 +249,17 @@ def create_app(session: Session) -> FastAPI:
             raise HTTPException(404)
         image = web.joinpath("portraits", name).read_bytes()
         return Response(image, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
+
+
+def create_app(session: Session) -> FastAPI:
+    app = FastAPI(title="Pax Agentica", docs_url="/api/docs", redoc_url=None)
+    web = files("pax_agentica").joinpath("web")
+    static = static_payload(session.state, europe_map())
+    add_assets(app, static)
+
+    @app.get("/", response_class=HTMLResponse)
+    def page() -> str:
+        return web.joinpath("play.html").read_text(encoding="utf-8")
 
     @app.get("/api/static")
     def static_data() -> dict[str, Any]:

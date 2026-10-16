@@ -5,7 +5,19 @@
 (async () => {
   const {esc, mix, devColor, cap, costText, RES, BICON, UICON, ICON, BAD, TERRAIN} = PaxMap;
   const $ = (id) => document.getElementById(id);
-  const S = await (await fetch("/api/static")).json();
+  // At a table of several players (pax host) the page lives at /t/<table> and every call carries
+  // this browser's seat token; alone (pax serve) it talks to /api directly.
+  const TABLE = window.PAX_TABLE || null, BASE = TABLE ? `/api/t/${TABLE}` : "/api";
+  const seatKey = `pax-seat-${TABLE}`;
+  if (TABLE) {
+    const fromLink = new URLSearchParams(location.search).get("seat");
+    if (fromLink) { try { localStorage.setItem(seatKey, fromLink); } catch {} history.replaceState(null, "", location.pathname); }
+  }
+  const SEAT = TABLE ? (() => { try { return localStorage.getItem(seatKey); } catch { return null; } })() : null;
+  if (TABLE && !SEAT) { location.href = `/?table=${TABLE}`; return; }
+  const api = (path, opts = {}) => fetch(`${BASE}${path}`, {...opts, headers: {...(opts.headers || {}), ...(SEAT ? {"X-Seat": SEAT} : {})}});
+  const REPLAY = TABLE ? `/t/${TABLE}/replay` : "/replay";
+  const S = await (await api("/static")).json();
   const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, T = S.tech, U = S.units, M = S.monuments;
   const KINDS = U.map((u) => u.id);
   PaxMap.usePortraits(S.portraits, "/portraits/");
@@ -29,16 +41,47 @@
   });
 
   // ------------------------------------------------------------------ server
-  async function load() { G = await (await fetch("/api/game")).json(); afterLoad(); }
+  async function load() {
+    const r = await api("/game");
+    if (r.status === 403 && TABLE) { location.href = `/?table=${TABLE}`; return; }
+    G = await r.json(); afterLoad(); watch();
+  }
   async function endTurn() {
     const button = $("endturn"); button.disabled = true; button.textContent = "The year passes…";
     try {
-      const r = await fetch("/api/turn", {method: "POST", headers: {"Content-Type": "application/json"},
+      const r = await api("/turn", {method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({actions: orders})});
       if (!r.ok) { const body = await r.json().catch(() => ({})); throw new Error(body.detail ? JSON.stringify(body.detail) : r.statusText); }
-      const before = V;
-      G = await r.json(); orders = []; picked = -1; afterLoad(); report(before);
+      const before = V, next = await r.json();
+      if (next.view.turn === V.turn && !next.finished) { G = next; afterLoad(); watch(); return; } // the others are still deciding
+      G = next; orders = []; picked = -1; afterLoad(); report(before); watch();
     } catch (err) { flash(`The orders could not be sent: ${err.message}`); render(); }
+  }
+  // At a table: while others decide (or a turn timer runs), ask now and then whether the year has passed.
+  function watch() {
+    clearTimeout(watch.t);
+    if (!TABLE || G.finished) return;
+    watch.t = setTimeout(async () => {
+      try {
+        const st = await (await api("/status")).json();
+        if (st.turn !== V.turn || st.finished) {
+          const before = V; G = await (await api("/game")).json();
+          orders = []; picked = -1; afterLoad(); report(before);
+        } else { G.waiting_for = st.waiting_for; G.submitted = st.submitted; G.seconds_left = st.seconds_left; banner(); }
+      } catch {}
+      watch();
+    }, G.submitted ? 2500 : 6000);
+  }
+  const who = (nid) => `${nameOf(nid)}${G.humans && G.humans[nid] ? ` (${G.humans[nid]})` : ""}`;
+  function banner() {
+    const fallen = !V.me.provinces.length;
+    const clock = G.seconds_left != null && !G.finished ? ` ⏳ ${Math.floor(G.seconds_left / 60)}:${String(G.seconds_left % 60).padStart(2, "0")} left this year.` : "";
+    const others = (G.waiting_for || []).filter((n) => n !== G.human);
+    const table = TABLE && !G.finished ? (G.submitted
+      ? `<div class="banner">📜 Your orders are sent; you may still change them and send again. Waiting for ${others.map(who).join(", ") || "the clerks"}.${clock}</div>`
+      : others.length || clock ? `<div class="banner">${others.length ? `Still deciding: ${others.map(who).join(", ")}.` : ""}${clock}</div>` : "") : "";
+    $("banner").innerHTML = G.finished ? `<div class="over">👑 ${esc(G.winner ? nameOf(G.winner) + " wins." : "The game is over.")} <a href="${REPLAY}" target="_blank">Watch the replay</a></div>`
+      : fallen ? `<div class="banner">Your realm has fallen. You can watch the rest of the game year by year.</div>` : table;
   }
   function afterLoad() {
     V = G.view; me = nIndex[G.human];
@@ -791,7 +834,7 @@
       const color = N[nIndex[n.id]].color, waiting = V.proposals_to_answer.filter((p) => p.sender === n.id).length;
       return `<div class="nrow court ${nIndex[n.id] === focus ? "sel" : ""}" data-n="${n.id}" tabindex="0">
         ${n.ruler ? portrait(n.ruler, color, 38) : `<span class="shield" style="background:${color}"></span>`}
-        <div><b>${PaxMap.flag(n.id, color, 20, "flag inline")} ${esc(n.name)}</b>${waiting ? ` <span class="count">${waiting}</span>` : ""}<small>${n.ruler ? `${esc(n.ruler.title)} ${esc(n.ruler.name)}` : ""}</small>
+        <div><b>${PaxMap.flag(n.id, color, 20, "flag inline")} ${esc(n.name)}</b>${G.humans && G.humans[n.id] ? ` <span class="chip player" title="A player at this table">👤 ${esc(G.humans[n.id])}</span>` : ""}${waiting ? ` <span class="count">${waiting}</span>` : ""}<small>${n.ruler ? `${esc(n.ruler.title)} ${esc(n.ruler.name)}` : ""}</small>
           <div class="chips">${opinionBadge(n.opinion_of_you, "Their opinion of you: ")}${stanceChip(n.stances[G.human], "toward you")}${stanceChip(V.me.stances[n.id], "yours")}${chipsFor(n.id)}</div></div></div>`;
     }).join("");
     const alive = focus >= 0 && focus !== me && V.nations.find((n) => n.id === N[focus].id)?.alive;
@@ -1123,7 +1166,7 @@
         <p>${esc(V.last_turn_events.find((e) => e.kind === "game_over")?.summary || (fallen ? "Your last province has fallen" : "The game is over")).replace(/\.?$/, ".")}${place && !fallen ? ` You finish ${["first", "second", "third", "fourth", "fifth", "sixth", "seventh"][place - 1]}.` : ""}</p>
         <table class="grid num"><thead><tr><th></th><th>Nation</th><th>Score</th><th>Provinces</th></tr></thead><tbody>${ranking.map((n, k) =>
           `<tr class="${n.id === G.human ? "me" : ""}"><td>${k + 1}</td><td>${esc(n.name)}${n.alive ? "" : " †"}</td><td>${n.score}</td><td>${n.provinces}</td></tr>`).join("")}</tbody></table>
-        <p><a href="/replay" target="_blank">Watch the whole game as a replay</a></p></div>` : "";
+        <p><a href="${REPLAY}" target="_blank">Watch the whole game as a replay</a></p></div>` : "";
     $("sheet").innerHTML = `<h2 id="modaltitle">${G.finished ? "The end of an age" : `The year ${V.year - 1}`}</h2>${ending}${crowned}${discoveries}${works}${G.finished ? "" : danger}
       ${won.length ? `<p>Your realm gained ${won.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
       ${lost.length ? `<p style="color:#8f2f22">You lost ${lost.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
@@ -1253,9 +1296,8 @@
     $("turnlabel").textContent = `Turn ${V.turn} of ${V.max_turns}`;
     document.querySelectorAll(".modes .btn").forEach((b) => b.setAttribute("aria-pressed", b.dataset.mode === mode));
     const fallen = !V.me.provinces.length;
-    $("banner").innerHTML = G.finished ? `<div class="over">👑 ${esc(G.winner ? nameOf(G.winner) + " wins." : "The game is over.")} <a href="/replay" target="_blank">Watch the replay</a></div>`
-      : fallen ? `<div class="banner">Your realm has fallen. You can watch the rest of the game year by year.</div>` : "";
-    $("endturn").textContent = G.finished ? "Game over" : fallen ? "Next year" : "End the year";
+    banner();
+    $("endturn").textContent = G.finished ? "Game over" : fallen ? "Next year" : G.submitted ? "Send again" : "End the year";
     $("endturn").disabled = G.finished;
     treasury(); map.paint(world()); map.pick(picked);
     map.setArrows(orders.filter((o) => o.type === "move" || o.type === "attack").map((o) => [pIndex[o.origin], pIndex[o.target], o.type, o.regiments]));

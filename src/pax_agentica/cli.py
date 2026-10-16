@@ -43,6 +43,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "map": _map,
         "bench": _bench,
         "serve": _serve,
+        "host": _host,
     }[args.command]
     return handler(args)
 
@@ -92,6 +93,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     serve.add_argument(
         "--saves", type=Path, default=Path("saves"), help="where games are saved (default saves/)"
+    )
+
+    host = sub.add_parser("host", help="host tables where several people play, each a nation")
+    host.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to let your network in")
+    host.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
+    host.add_argument(
+        "--saves", type=Path, default=Path("saves/tables"), help="where tables are kept"
     )
 
     bench = sub.add_parser("bench", help="play many seeded games and count the winners")
@@ -275,6 +283,17 @@ def _serve(args: argparse.Namespace) -> int:
     if not args.no_browser:
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return 0
+
+
+def _host(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from pax_agentica.multiplayer import create_lobby_app
+
+    app = create_lobby_app(args.saves)
+    print(f"Tables at http://{args.host}:{args.port}  (saved in {args.saves}; Ctrl+C to stop)")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning", proxy_headers=True)
     return 0
 
 

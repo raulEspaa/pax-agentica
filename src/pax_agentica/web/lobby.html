@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pax Agentica tables</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/map.css">
+<style>
+  body { margin: 0; min-height: 100vh; background: var(--wood); color: var(--ink); font: 16px/1.45 var(--body); }
+  main { max-width: 980px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font: 700 34px var(--display); color: var(--brass-hi); letter-spacing: .06em; margin: 0; }
+  h2 { font: 700 18px var(--display); color: var(--brass-hi); margin: 26px 0 10px; }
+  .lead { color: var(--ink-2); margin: 6px 0 0; max-width: 660px; }
+  .panel { background: var(--leather); border: 1px solid var(--brass-lo); padding: 14px 16px; }
+  form.open { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px 14px; align-items: end; }
+  label { display: grid; gap: 3px; font-size: 13.5px; color: var(--ink-3); }
+  input, select { font: 15px var(--body); background: var(--walnut-lo); color: var(--ink); border: 1px solid var(--brass-lo); padding: 6px 8px; min-width: 0; }
+  .btn { font: 600 14px var(--body); color: var(--engraved); background: var(--brass-face); border: 1px solid #4a3312; padding: 7px 14px; cursor: pointer; }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  .tables { display: grid; gap: 10px; }
+  .table { background: var(--leather); border: 1px solid var(--brass-lo); padding: 12px 14px; }
+  .table.mine { border-color: var(--brass); box-shadow: inset 3px 0 0 var(--brass); }
+  .thead { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+  .thead b { font: 700 17px var(--display); color: var(--brass-hi); }
+  .thead span { color: var(--ink-3); font-size: 14px; }
+  .seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; margin-top: 10px; }
+  .seatbox { display: flex; gap: 8px; align-items: center; padding: 5px 8px; background: var(--walnut-lo); border: 1px solid var(--brass-lo); font-size: 14.5px; }
+  .seatbox.taken small { color: var(--brass-hi); } .seatbox.fallen { opacity: .45; }
+  .seatbox small { display: block; color: var(--ink-3); font-size: 12.5px; }
+  .seatbox > div { flex: 1; min-width: 0; }
+  .seatbox .btn { padding: 3px 10px; font-size: 13px; }
+  .msg { margin: 10px 0 0; color: #e88a74; min-height: 1.2em; }
+  .note { color: var(--ink-3); font-size: 13.5px; }
+  a { color: var(--brass-hi); }
+  [hidden] { display: none !important; }
+  @media (max-width: 600px) { h1 { font-size: 26px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pax Agentica</h1>
+  <p class="lead">Europe, 1500. Open a table, send its link to your friends, and each of you takes a throne. Every throne nobody takes is ruled by a bot. A year passes once every player has ended it, or when the table's clock runs out.</p>
+
+  <h2>Your name</h2>
+  <div class="panel"><form class="open" id="who" onsubmit="return false">
+    <label>Name at court<input id="name" maxlength="24" placeholder="Isabella" autocomplete="nickname"></label>
+    <label id="codebox" hidden>Invitation code<input id="code" autocomplete="off"></label>
+  </form></div>
+
+  <h2>Open a table</h2>
+  <div class="panel"><form class="open" id="open" onsubmit="return false">
+    <label>Title<input id="title" maxlength="40" placeholder="The Italian Wars"></label>
+    <label>Your throne<select id="nation"></select></label>
+    <label>Years<input id="years" type="number" min="5" max="100" value="50"></label>
+    <label>Clock per year<select id="clock"><option value="">none: wait for everyone</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="60">1 hour</option><option value="1440">1 day</option></select></label>
+    <label>Seed (optional)<input id="seed" type="number" min="0" placeholder="random"></label>
+    <button class="btn" id="openbtn">Open the table</button>
+  </form><p class="msg" id="msg"></p></div>
+
+  <h2>Tables</h2>
+  <div class="tables" id="tables"><p class="note">Loading…</p></div>
+  <p class="note">Your seats are remembered by this browser. To play from another device, open the seat link the page gives you there.</p>
+</main>
+<script src="/static/map.js"></script>
+<script>
+"use strict";
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const esc = PaxMap.esc;
+  const seatOf = (t) => { try { return localStorage.getItem(`pax-seat-${t}`); } catch { return null; } };
+  const keep = (t, token) => { try { localStorage.setItem(`pax-seat-${t}`, token); } catch {} };
+  try { $("name").value = localStorage.getItem("pax-name") || ""; } catch {}
+  const want = new URLSearchParams(location.search).get("table");
+  let L = null;
+
+  function say(text) { $("msg").textContent = text; }
+  function who() {
+    const name = $("name").value.trim();
+    if (!name) { $("name").focus(); say("Write your name first."); return null; }
+    try { localStorage.setItem("pax-name", name); } catch {}
+    return {name, code: $("code").value.trim()};
+  }
+  async function post(url, body) {
+    const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : r.statusText);
+    return data;
+  }
+  async function refresh() {
+    L = await (await fetch("/api/lobby")).json();
+    $("codebox").hidden = !L.code_required;
+    if (!$("nation").options.length) $("nation").innerHTML = L.powers.map((n) => `<option value="${n.id}">${esc(n.name)}</option>`).join("");
+    $("tables").innerHTML = L.tables.length ? L.tables.map((t) => {
+      const mine = seatOf(t.id);
+      const seats = t.nations.map((n) => `<div class="seatbox ${n.player ? "taken" : ""} ${n.alive ? "" : "fallen"}">${PaxMap.flag(n.id, n.color, 26)}
+        <div>${esc(n.name)}<small>${n.player ? `👤 ${esc(n.player)}` : n.alive ? "a bot, for now" : "fallen"}</small></div>
+        ${!n.player && n.alive && !t.finished && !mine ? `<button class="btn" data-join="${t.id}" data-nation="${n.id}">Take</button>` : ""}</div>`).join("");
+      return `<div class="table ${mine ? "mine" : ""}" id="t-${t.id}"><div class="thead"><b>${esc(t.title)}</b>
+        <span>${t.finished ? `ended${t.winner ? `: ${esc(t.nations.find((n) => n.id === t.winner)?.name || t.winner)} won` : ""}` : `${t.year}, year ${t.turn} of ${t.max_turns}`}</span>
+        <span>${t.turn_minutes ? `${t.turn_minutes} min a year` : "waits for everyone"}</span>
+        ${mine ? `<a class="btn" href="/t/${t.id}">Play</a> <a href="/t/${t.id}?seat=${encodeURIComponent(mine)}" data-copy>seat link</a>` : ""}
+        ${t.finished ? `<a href="/t/${t.id}/replay">replay</a>` : ""}</div>
+        <div class="seats">${seats}</div></div>`; }).join("") : `<p class="note">No table yet. Open the first one above.</p>`;
+    document.querySelectorAll("[data-join]").forEach((b) => b.onclick = () => join(b.dataset.join, b.dataset.nation));
+    document.querySelectorAll("[data-copy]").forEach((a) => a.onclick = (e) => { e.preventDefault();
+      navigator.clipboard?.writeText(new URL(a.getAttribute("href"), location.href).href); a.textContent = "copied: keep it secret"; });
+    if (want && $(`t-${want}`)) $(`t-${want}`).scrollIntoView({block: "center"});
+  }
+  async function join(table, nation) {
+    const me = who(); if (!me) return;
+    try { const r = await post(`/api/t/${table}/join`, {...me, nation}); keep(r.table, r.token); location.href = `/t/${r.table}`; }
+    catch (err) { say(err.message); refresh(); }
+  }
+  $("openbtn").onclick = async () => {
+    const me = who(); if (!me) return;
+    const body = {...me, title: $("title").value.trim() || "A new age", nation: $("nation").value, years: +$("years").value || 50};
+    if ($("clock").value) body.turn_minutes = +$("clock").value;
+    if ($("seed").value !== "") body.seed = +$("seed").value;
+    try { const r = await post("/api/tables", body); keep(r.table, r.token); location.href = `/t/${r.table}`; }
+    catch (err) { say(err.message); }
+  };
+  await refresh();
+  setInterval(refresh, 15000);
+})();
+</script>
+</body>
+</html>
