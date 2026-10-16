@@ -19,7 +19,7 @@ import math
 import random
 from collections.abc import Iterator, Mapping
 
-from pax_agentica.engine import fortune
+from pax_agentica.engine import fortune, missions
 from pax_agentica.engine.actions import (
     Action,
     AssignGeneral,
@@ -36,9 +36,11 @@ from pax_agentica.engine.actions import (
     Gift,
     HireAdvisor,
     HireGeneral,
+    HireMercenaries,
     Improve,
     Move,
     Orders,
+    Patronize,
     Proclaim,
     ProposeAlliance,
     ProposeNonAggression,
@@ -141,6 +143,8 @@ class _Resolver:
         self.besieged: set[ProvinceId] = set()  # sieges pressed this year
         self.flow: dict[str, int] = dict.fromkeys(TRADED, 0)  # net market purchases this year
         self.fallen: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)
+        self.mercenaries: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)  # hired this year
+        self.patrons: set[NationId] = set()  # nations that patronised the arts this year
 
     def run(self) -> GameState:
         self._answers()
@@ -960,6 +964,10 @@ class _Resolver:
                 match action:
                     case Recruit():
                         self._recruit(nation, action)
+                    case HireMercenaries():
+                        self._hire_mercenaries(nation, action)
+                    case Patronize():
+                        self._patronize(nation, action)
                     case Develop():
                         self._develop(nation, action)
                     case Disband():
@@ -1033,6 +1041,17 @@ class _Resolver:
             price = max(base * rules.market_floor, min(base * rules.market_ceiling, price))
             self.s.market[res] = round(price, 3)
 
+    def _army_limit_error(self, nation: NationId, regiments: int) -> str | None:
+        for limit in self.s.treaties:
+            bound = limit.kind == TreatyKind.ARMY_LIMIT and limit.payer == nation
+            if bound and self.s.troops_of(nation) + regiments > limit.amount:
+                other = limit.parties[1] if limit.parties[0] == nation else limit.parties[0]
+                return (
+                    f"the peace with {self._name(other)} limits your army to "
+                    f"{limit.amount} regiments"
+                )
+        return None
+
     def _recruit(self, nation: NationId, a: Recruit) -> None:
         rules = self.s.rules
         if error := self._own_error(nation, a.province):
@@ -1044,17 +1063,9 @@ class _Resolver:
             needed = rules.buildings[spec.requires].name.lower()
             self._reject(nation, a, f"{spec.name.lower()} need {_article(needed)} in the province")
             return
-        for limit in self.s.treaties:
-            bound = limit.kind == TreatyKind.ARMY_LIMIT and limit.payer == nation
-            if bound and self.s.troops_of(nation) + a.regiments > limit.amount:
-                other = limit.parties[1] if limit.parties[0] == nation else limit.parties[0]
-                self._reject(
-                    nation,
-                    a,
-                    f"the peace with {self._name(other)} limits your army to "
-                    f"{limit.amount} regiments",
-                )
-                return
+        if error := self._army_limit_error(nation, a.regiments):
+            self._reject(nation, a, error)
+            return
         arms = modifiers(self.s, nation).arms_manufactory
         cost = recruit_cost(rules, a.regiments, province.buildings, a.unit, arms)
         if error := self._pay(nation, cost):
@@ -1071,6 +1082,77 @@ class _Resolver:
             regiments=a.regiments,
             unit=a.unit.value,
         )
+
+    def _hire_mercenaries(self, nation: NationId, a: HireMercenaries) -> None:
+        rules = self.s.rules
+        if error := self._own_error(nation, a.province):
+            self._reject(nation, a, error)
+            return
+        left = rules.mercenary_limit - self.mercenaries[nation]
+        if a.regiments > left:
+            self._reject(nation, a, f"only {left} more mercenary regiments are for hire this year")
+            return
+        if error := self._army_limit_error(nation, a.regiments):
+            self._reject(nation, a, error)
+            return
+        if error := self._pay(nation, Resources(ducats=rules.mercenary_cost * a.regiments)):
+            self._reject(nation, a, error)
+            return
+        self.mercenaries[nation] += a.regiments
+        self.s.provinces[a.province].add({UnitKind.INFANTRY: a.regiments})
+        self._emit(
+            EventKind.MERCENARIES_HIRED,
+            f"{self._name(nation)} hires {a.regiments} regiments of mercenaries in "
+            f"{self._pname(a.province)}",
+            nations=(nation,),
+            province=a.province,
+            audience=(nation,),
+            regiments=a.regiments,
+        )
+
+    def _patronize(self, nation: NationId, a: Patronize) -> None:
+        rules = self.s.rules
+        me = self.s.nations[nation]
+        if nation in self.patrons:
+            self._reject(nation, a, "the court has already patronised the arts this year")
+            return
+        if me.prestige >= rules.prestige_max:
+            self._reject(nation, a, "prestige is already at its height")
+            return
+        cost = rules.patronage_base + rules.patronage_per_prestige * me.prestige
+        if error := self._pay(nation, Resources(ducats=cost)):
+            self._reject(nation, a, error)
+            return
+        self.patrons.add(nation)
+        self._emit(
+            EventKind.PATRONAGE,
+            f"{me.name} spends {cost} ducats on painters, chapels and feasts",
+            nations=(nation,),
+            audience=(nation,),
+            ducats=cost,
+        )
+        self._prestige(nation, rules.patronage_prestige, "patronage of the arts")
+
+    def _missions(self) -> None:
+        """A mission completes at the end of the year in which all its goals hold."""
+        for nation in self.s.alive_nations():
+            me = self.s.nations[nation]
+            for m in missions.open_missions(self.s, nation):
+                if not all(missions.done(self.s, nation, g) for g in m.goals):
+                    continue
+                me.missions_done.append(m.id)
+                me.resources = me.resources + Resources(ducats=m.ducats)
+                self._emit(
+                    EventKind.MISSION_COMPLETED,
+                    f"{me.name} fulfils an ambition: {m.title}",
+                    nations=(nation,),
+                    mission=m.id,
+                    reward=missions.reward_text(m),
+                )
+                if m.prestige:
+                    self._prestige(nation, m.prestige, m.title)
+                if m.stability:
+                    self._change_stability(nation, m.stability, m.title)
 
     def _improve(self, nation: NationId, a: Improve) -> None:
         rules = self.s.rules
@@ -1760,6 +1842,7 @@ class _Resolver:
         for nation in self.s.alive_nations():
             self._produce_and_feed(nation)
         self._pay_tributes()
+        self._missions()
         self._drift_opinions()
         self._weary()
         self._fortune()

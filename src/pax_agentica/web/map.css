@@ -401,3 +401,19 @@ ol.chron { list-style: none; margin: 0; padding: 4px 0; max-height: 44vh; overfl
 .help { color: var(--ink-3); font-size: 13px; padding: 0 14px 12px 8px; margin: 0; }
 kbd { font: 12px var(--body); border: 1px solid var(--brass-lo); padding: 0 4px; background: var(--walnut-lo); }
 @media (max-width: 960px) { .deed { left: 0; right: 0; bottom: 0; width: auto; max-height: 70%; } .legend { display: none; } }
+
+/* ambitions */
+.missions { display: grid; gap: 6px; }
+.mission { padding: 6px 9px; border: 1px solid rgba(107, 86, 56, .45); background: rgba(255, 250, 235, .45); }
+.mission.open { border-color: #8a6a3a; box-shadow: inset 3px 0 0 var(--brass); }
+.mission.locked { opacity: .62; }
+.mission.done { background: rgba(120, 170, 110, .16); border-color: rgba(60, 110, 60, .45); }
+.mission .mhead { display: flex; gap: 7px; align-items: center; }
+.mission .mhead b { font: 700 14.5px var(--display); }
+.mission .lore { margin: 3px 0 4px; font-size: 13px; }
+.mission .goals { list-style: none; margin: 0 0 3px; padding: 0; font-size: 13px; }
+.mission .goals li { display: grid; grid-template-columns: 1fr 70px auto; gap: 6px; align-items: center; }
+.mission .goals li.met { color: #2f6a3e; }
+.mission .goals .bar { height: 6px; background: rgba(0, 0, 0, .12); position: relative; display: block; }
+.mission .goals .bar b { position: absolute; left: 0; top: 0; bottom: 0; background: #8a6a3a; }
+.levy.merc { border-top: 1px dashed rgba(107, 86, 56, .45); padding-top: 6px; }

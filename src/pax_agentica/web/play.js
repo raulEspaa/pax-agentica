@@ -76,6 +76,8 @@
       if (o.type === "sell") { const k = RES.findIndex(([key]) => key === o.resource); t[k] -= o.amount; t[0] += Math.floor(o.amount * V.market[o.resource].sell); }
       if (o.type === "develop") sub(unbundle(prov(pIndex[o.province]).develop_cost));
       if (o.type === "improve") sub(unbundle(prov(pIndex[o.province]).improve_cost));
+      if (o.type === "hire_mercenaries") t[0] -= o.regiments * R.mercenaryCost;
+      if (o.type === "patronize") t[0] -= V.me.patronage_cost;
       if (o.type === "build") sub(buildCost(o.building));
       if (o.type === "boost_stability") sub([stabilityCost(), 0, 0, 0, 0]);
       if (o.type === "research") sub(unbundle(V.me.research_costs[o.branch]));
@@ -355,6 +357,15 @@
             <button class="btn" data-recruit="${u.id}" ${why ? "disabled" : ""}>${why ? cap(why) : "Recruit"}</button>
             ${price ? `<span class="cost">${costText(cost)}</span>` : ""}</div>`;
         }).join("");
+        const hired = orders.filter((o) => o.type === "hire_mercenaries").reduce((a, o) => a + o.regiments, 0);
+        const mercLeft = R.mercenaryLimit - hired, mercN = Math.max(1, Math.min(mercLeft, +(box.dataset.mercs || 4)));
+        const mercCost = [mercN * R.mercenaryCost, 0, 0, 0, 0, 0];
+        const mercWhy = mercLeft <= 0 ? "no more for hire this year" : !affordable(mercCost, t) ? "too costly" : "";
+        const mercs = `<div class="levy merc"><span class="ic">💰</span>
+            <div><b>Mercenaries</b><small>Landsknechte and Swiss pikes: ducats only, no manpower or iron; ${mercLeft} of ${R.mercenaryLimit} left this year</small></div>
+            ${mercLeft > 0 ? stepper("mercs", mercN, mercLeft) : ""}
+            <button class="btn" data-mercs ${mercWhy ? "disabled" : ""}>${mercWhy ? cap(mercWhy) : "Hire"}</button>
+            <span class="cost">${costText(mercCost)}</span></div>`;
         body += `<section><h4>The garrison</h4><div class="units">${comp}</div>
           <p class="note">On ${esc(ground)} they defend with a strength of ${strength(now, ground, false).toFixed(1)}${mixed >= 3 ? `, and fight ${Math.round((R.combinedBonus[mixed] || R.combinedBonus[3]) * 100)}% harder for their combined arms` : ""}.</p></section>
           <section><h4>March</h4><div class="actions">
@@ -363,7 +374,7 @@
           ${leader}
           ${here > 0 && marches ? `<div class="row">${marches}</div>` : `<p class="note">${here > 0 ? "No province to march to." : "No regiments here."}</p>`}
           <p class="note">Cavalry charges best on plains; every tenth of an attacking army in guns knocks a fort level off.</p></div></section>
-          ${works ? `<section><h4>Levy</h4><div class="levies">${levy}</div>` : `<section><p class="note">Occupied land: no levies here, only the regiments that hold it.</p>`}
+          ${works ? `<section><h4>Levy</h4><div class="levies">${levy}${mercs}</div>` : `<section><p class="note">Occupied land: no levies here, only the regiments that hold it.</p>`}
           <div class="act">${stepper("disband", Math.max(1, +(box.dataset.disband || 1)), Math.max(here, 1))}
             <select class="field" id="disbandkind" aria-label="Which regiments to disband"><option value="">a fair share</option>${U.filter((u) => now[u.id]).map((u) => `<option value="${u.id}" ${box.dataset.disbandkind === u.id ? "selected" : ""}>${esc(u.id)}</option>`).join("")}</select>
             <button class="btn" data-act="disband" ${here > 0 ? "" : "disabled"}>Disband</button><span class="cost">returns ${costText(R.disband)} each</span></div>
@@ -407,6 +418,8 @@
       const unit = b.dataset.recruit, n = Math.max(1, +(box.dataset[`recruit_${unit}`] || 1));
       queue({type: "recruit", province: P[i].id, regiments: n, unit});
     });
+    box.querySelectorAll("[data-mercs]").forEach((b) => b.onclick = () =>
+      queue({type: "hire_mercenaries", province: P[i].id, regiments: Math.max(1, +(box.dataset.mercs || 4))}));
     box.querySelectorAll("[data-monument]").forEach((b) => b.onclick = () => queue({type: "upgrade_monument", province: P[i].id}));
     box.querySelectorAll("[data-march]").forEach((b) => b.onclick = () => march(i, +b.dataset.march, b.dataset.kind));
     box.querySelectorAll("[data-act]").forEach((b) => b.onclick = () => {
@@ -433,7 +446,7 @@
     const set = (v) => { v = Math.max(min, Math.min(max, Number.isFinite(v) ? v : min)); input.value = v;
       if (name === "send") { send = v; deed(); }
       else if (name.startsWith("mix_")) { pickMix[name.slice(4)] = v; deed(); }
-      else { box.dataset[name] = v; if (name.startsWith("recruit")) deed(); } };
+      else { box.dataset[name] = v; if (name.startsWith("recruit") || name === "mercs") deed(); } };
     st.querySelectorAll("button").forEach((b) => b.onclick = () => set(+input.value + +b.dataset.d));
     input.onchange = () => set(+input.value);
   }
@@ -629,6 +642,20 @@
     return out;
   }
   function pips(n, max = 6) { return `<span class="statpips">${Array.from({length: max}, (_, k) => `<i class="${k < n ? "on" : ""}"></i>`).join("")}</span>`; }
+  function missionsHtml() {
+    const ms = V.me.missions || [];
+    if (!ms.length) return `<p class="muted">This crown has no ambitions of its own.</p>`;
+    const order = {open: 0, locked: 1, done: 2};
+    return `<div class="missions">${[...ms].sort((a, b) => order[a.status] - order[b.status]).map((m) => {
+      const after = m.after ? ms.find((x) => x.id === m.after) : null;
+      const goals = m.goals.map((g) => `<li class="${g.have >= g.need ? "met" : ""}"><span>${g.have >= g.need ? "✓" : "○"} ${esc(g.text)}</span>
+        ${g.need > 1 ? `<i class="bar"><b style="width:${Math.round(100 * g.have / g.need)}%"></b></i><small class="num">${g.have}/${g.need}</small>` : ""}</li>`).join("");
+      return `<div class="mission ${m.status}"><div class="mhead"><span class="ic">${m.status === "done" ? "🏆" : m.status === "locked" ? "🔒" : "🎯"}</span>
+        <b>${esc(m.title)}</b></div>
+        ${m.status === "done" ? "" : `<p class="lore">${esc(m.lore)}</p><ul class="goals">${goals}</ul>`}
+        <div class="sub">${m.status === "locked" && after ? `After “${esc(after.title)}”. ` : ""}${m.status === "done" ? "Fulfilled: " : "Reward: "}${esc(m.reward)}</div></div>`;
+    }).join("")}</div><p class="sub">A mission is fulfilled by itself at the end of a year in which all its goals hold.</p>`;
+  }
   function crownTab() {
     const ruler = V.me.ruler, color = N[me].color;
     const reign = ruler ? R.startYear + ruler.since - 1 : 0;
@@ -659,7 +686,15 @@
     const enjoys = V.me.modifiers.sources.map((line) => `<li>${esc(line)}</li>`).join("");
     const counsel = councilAdvice();
     const proclaimed = orders.find((o) => o.type === "proclaim");
-    return `<div class="pad"><h4>The crown</h4>${rulerHtml}
+    const patron = orders.some((o) => o.type === "patronize");
+    const patronWhy = patron ? "ordered this year" : V.me.prestige >= 100 ? "prestige is at its height" : !affordable([V.me.patronage_cost, 0, 0, 0, 0, 0]) ? "too costly for now" : "";
+    const patronage = `<div class="card ${patronWhy ? "blocked" : "ready"}"><div class="cardhead"><span class="ic">🎨</span><div><b>Patronage</b>
+        <div class="gain"><span>+${R.patronagePrestige} prestige</span></div></div></div>
+      <p class="note">Painters, chapels, feasts and alms. Prestige ${V.me.prestige}: +${(V.me.prestige * 0.1).toFixed(1)}% ducats, and half of it counts in the final standing. Dearer the more you have; once a year.</p>
+      <div class="act"><button class="btn" id="patronize" ${patronWhy ? "disabled" : ""}>${patronWhy ? cap(patronWhy) : "Patronise the arts"}</button><span class="cost">${V.me.patronage_cost} ducats</span></div></div>`;
+    return `<div class="pad"><h4>Ambitions</h4>${missionsHtml()}
+      <h4>Glory</h4>${patronage}
+      <h4>The crown</h4>${rulerHtml}
       <h4>The council speaks</h4>${counsel.length ? counsel.map(([who, role, text]) => `<div class="counsel">${portrait(who, mix(color, "#efe2c2", .5), 34)}
         <div><b>${esc(who.name)}</b>, your ${role}: <q>${esc(text)}</q></div></div>`).join("") : `<p class="muted">An empty council gives no counsel. Hire advisors below.</p>`}
       <h4>The council</h4><div class="council">${seats}</div>
@@ -905,6 +940,7 @@
     panel.querySelectorAll("[data-buy]").forEach((b) => b.onclick = () => queue({type: "buy", resource: b.dataset.buy, amount: marketQty[b.dataset.buy] || 10}));
     panel.querySelectorAll("[data-sell]").forEach((b) => b.onclick = () => queue({type: "sell", resource: b.dataset.sell, amount: marketQty[b.dataset.sell] || 10}));
     panel.querySelectorAll("[data-option]").forEach((b) => b.onclick = () => choose(+b.dataset.event, +b.dataset.option));
+    const patronize = panel.querySelector("#patronize"); if (patronize) patronize.onclick = () => queue({type: "patronize"});
     const proclaim = panel.querySelector("#proclaim");
     if (proclaim) proclaim.onclick = () => { const text = $("proclamation").value.trim();
       if (!text) return flash("Write the proclamation first."); queue({type: "proclaim", text}); };
@@ -982,6 +1018,8 @@
       case "improve": return `${PaxMap.goodOf(S, P[pIndex[o.province]].good).icon} Raise the ${PaxMap.goodOf(S, P[pIndex[o.province]].good).workings.toLowerCase()} of ${pn(o.province)}`;
       case "build": return `Build ${B[bIndex[o.building]].name.toLowerCase()} in ${pn(o.province)}`;
       case "boost_stability": return "Raise stability";
+      case "patronize": return `🎨 Patronise the arts (+${R.patronagePrestige} prestige)`;
+      case "hire_mercenaries": return `💰 Hire ${o.regiments} mercenary regiments in ${pn(o.province)}`;
       case "research": { const b = T.find((x) => x.id === o.branch); return `Research ${b.levels[V.me.technology[o.branch]]?.name || o.branch}`; }
       case "hire_advisor": { const c = V.me.advisor_candidates.find((x) => x.id === o.candidate); return c ? `Hire ${esc(c.name)} as ${c.role}` : "Hire an advisor"; }
       case "dismiss_advisor": return `Dismiss the ${o.role}`;

@@ -86,6 +86,13 @@
   table.market td.trade { white-space: nowrap; } table.market input { width: 46px; padding: 1px 3px; }
   table.market .btn { height: 22px; padding: 0 6px; font-size: 12px; }
   .trend.up { color: #f08a7a; } .trend.down { color: #8fd19e; }
+  .office .mission, .office .card { background: var(--walnut-lo); border-color: var(--brass-lo); color: var(--ink); }
+  .office .mission.open { border-color: var(--brass); box-shadow: inset 3px 0 0 var(--brass); }
+  .office .mission.done { background: rgba(70, 120, 60, .22); border-color: #4f7a45; }
+  .office .mission .mhead b, .office .card .cardhead b { color: var(--brass-hi); }
+  .office .mission .goals li { color: var(--ink-2); } .office .mission .goals li.met { color: #9fd08f; }
+  .office .mission .goals .bar { background: rgba(255, 255, 255, .12); } .office .mission .goals .bar b { background: var(--brass); }
+  .office .card .note { color: var(--ink-2); } .office .card .gain { color: #9fd08f; } .office .card .cost { color: var(--ink-3); }
   .office .lore { font-style: italic; color: var(--ink-3); font-size: 13px; line-height: 1.35; margin: 4px 0; }
   .nrow.court { grid-template-columns: 38px 1fr; }
   .nrow.court small { display: block; }

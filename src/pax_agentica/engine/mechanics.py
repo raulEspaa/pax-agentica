@@ -67,10 +67,15 @@ def buildings_yield(
     marketplace_share: float | None = None,
     mill_share: float | None = None,
     development: int = 0,
+    good: Good | None = None,
 ) -> Resources:
     """The extra yield of the buildings: mostly a share of the base yield, so the same building
-    pays off more in a more developed province. Technology can raise some shares."""
+    pays off more in a more developed province. Technology can raise some shares. Marketplaces,
+    banks and cathedrals tax the town, not the mines: the ducats of the province's trade good
+    are left out of their share (workings deepen those instead)."""
     amounts = base.amounts()
+    if good is not None:
+        amounts["ducats"] -= good_yield(rules, good, development).ducats
     extra = dict.fromkeys(amounts, 0)
     shares = {
         BuildingKind.MARKETPLACE: marketplace_share,
@@ -112,6 +117,7 @@ def building_output(state: GameState, province: ProvinceId) -> Resources:
         mods.marketplace_share,
         mods.mill_share,
         p.development,
+        state.map.provinces[province].good,
     )
     return built + workings_yield(state, province)
 
@@ -160,6 +166,7 @@ def output_with(
             mods.marketplace_share,
             mods.mill_share,
             development or p.development,
+            definition.good,
         )
         + workings_yield(state, province, workings, development)
     )

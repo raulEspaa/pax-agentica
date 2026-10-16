@@ -8,6 +8,7 @@ import random
 
 from pydantic import BaseModel, ConfigDict
 
+from pax_agentica.engine.missions import lasting_bonuses
 from pax_agentica.engine.model import (
     Advisor,
     AdvisorRole,
@@ -112,6 +113,7 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             holdings(state, nation),  # type: ignore[arg-type]
             round(me.war_exhaustion, 1),
             me.prestige,
+            tuple(me.missions_done),
         )
     cached = _CACHE.get(key)
     if cached is not None and cached[0] is state.rules:
@@ -232,10 +234,16 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
     if powder:
         power += 0.05
         lines.append("powder mill: +5% battle power, assaults knock one more fort level off")
-    for pid, level in monuments:
-        spec = rules.monuments[pid]
-        amount = spec.per_level * level
-        match spec.bonus:
+    bonuses = [
+        (spec.bonus, spec.per_level * level, f"{spec.name} (level {level}): {spec.effect} a level")
+        for pid, level in monuments
+        for spec in [rules.monuments[pid]]
+    ] + [
+        (m.bonus or "", m.bonus_amount, f"{m.title}: {m.bonus_text}")
+        for m in lasting_bonuses(tuple(me.missions_done), nation)
+    ]
+    for kind, amount, line in bonuses:
+        match kind:
             case "ducat_income":
                 ducats += amount
             case "grain_income":
@@ -250,7 +258,7 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
                 stability = min(0.8, stability + amount)
             case "fort_bonus_per_level":
                 fort_extra += amount
-        lines.append(f"{spec.name} (level {level}): {spec.effect} a level")
+        lines.append(line)
 
     milestones = {
         name: _has(state, nation, milestone)

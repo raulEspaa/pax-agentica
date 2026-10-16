@@ -1045,6 +1045,13 @@ class Rules(BaseModel):
     prestige_income_bonus: float = 0.001  # ducat income per point
     prestige_stability_discount: float = 0.002  # per point
     prestige_in_score: float = 0.5  # what a point of prestige is worth in the final score
+    # patronage: painters, chapels, feasts and alms buy prestige, dearer the more you have
+    patronage_base: int = 40  # ducats, plus patronage_per_prestige times your prestige
+    patronage_per_prestige: int = 2
+    patronage_prestige: int = 4
+    # mercenaries: Landsknechte and Swiss pikes for ducats alone, no manpower and no iron
+    mercenary_cost: int = 15  # ducats a regiment
+    mercenary_limit: int = 10  # regiments a year: the captains for hire are few
 
     # fortune: a chance each year of an event for each nation
     event_chance: float = 0.3
@@ -1151,6 +1158,7 @@ class NationState(BaseModel):
     pending_events: list[PendingEvent] = Field(default_factory=list)  # decisions awaiting the crown
     events_seen: list[str] = Field(default_factory=list)  # once-only events already met
     loans: list[Loan] = Field(default_factory=list)
+    missions_done: list[str] = Field(default_factory=list)  # see engine/missions.py
 
 
 class PendingEvent(BaseModel):

@@ -105,11 +105,11 @@ def test_more_development_means_more_building_slots(state: GameState) -> None:
     assert building_slots(state.rules, 12) == 4
 
 
-def test_a_marketplace_doubles_the_province_ducats(state: GameState, play: Play) -> None:
-    before = province_output(state, "london")  # development 7: 7 ducats
+def test_a_marketplace_doubles_the_town_s_ducats(state: GameState, play: Play) -> None:
+    before = province_output(state, "london")  # development 7, and 3 ducats from its cloth
     new = play(state, england=[Build(province="london", building=BuildingKind.MARKETPLACE)])
     assert new.provinces["london"].buildings == [BuildingKind.MARKETPLACE]
-    assert province_output(new, "london").ducats == 2 * before.ducats
+    assert province_output(new, "london").ducats == before.ducats + 7  # the cloth is not taxed
     spent = state.rules.buildings[BuildingKind.MARKETPLACE].cost
     expected = (
         state.nations["england"].resources

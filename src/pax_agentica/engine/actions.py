@@ -58,6 +58,16 @@ class Recruit(_Action):
     unit: UnitKind = UnitKind.INFANTRY
 
 
+class HireMercenaries(_Action):
+    """Hire mercenary pikemen (Landsknechte, Swiss) in one of your provinces for ducats alone:
+    no manpower and no iron, at the rules' mercenary_cost a regiment, up to mercenary_limit
+    regiments a year. Once hired they serve, eat and are paid like any infantry."""
+
+    type: Literal["hire_mercenaries"] = "hire_mercenaries"
+    province: ProvinceId
+    regiments: Regiments
+
+
 class Develop(_Action):
     """Invest ducats to raise a province's development by 1 (more output, more score)."""
 
@@ -129,6 +139,14 @@ class BoostStability(_Action):
     """Spend ducats to raise your stability by 1 (stability boosts ducat income)."""
 
     type: Literal["boost_stability"] = "boost_stability"
+
+
+class Patronize(_Action):
+    """Patronise painters, churches and feasts: once a year, spend patronage_base ducats plus
+    patronage_per_prestige for every point of prestige you hold, for patronage_prestige more
+    prestige. Prestige raises income and counts in the final score."""
+
+    type: Literal["patronize"] = "patronize"
 
 
 # ---------------------------------------------------------------- military
@@ -372,6 +390,8 @@ class SendMessage(_Action):
 
 type Action = Annotated[
     Recruit
+    | HireMercenaries
+    | Patronize
     | Develop
     | Disband
     | Build

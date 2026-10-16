@@ -11,9 +11,11 @@ A player never receives the `GameState`; it receives a `NationView` built here. 
   including messages, proposals and the reasons your own orders were rejected.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
-from pax_agentica.engine import fortune
+from pax_agentica.engine import fortune, missions
 from pax_agentica.engine.events import Event
 from pax_agentica.engine.mechanics import (
     army_of,
@@ -31,6 +33,7 @@ from pax_agentica.engine.mechanics import (
     research_cost,
     war_score,
 )
+from pax_agentica.engine.missions import Goal
 from pax_agentica.engine.model import (
     TRADED,
     Advisor,
@@ -150,6 +153,23 @@ class EventView(_View):
     deadline_turn: int  # unanswered by the end of this turn, the first option is taken
 
 
+class GoalView(_View):
+    text: str  # what is asked, in words
+    have: int
+    need: int
+    goal: Goal  # the same goal as data
+
+
+class MissionView(_View):
+    id: str
+    title: str
+    lore: str
+    goals: tuple[GoalView, ...]
+    reward: str  # what it pays, in words
+    status: Literal["done", "open", "locked"]  # locked: its earlier mission is not done
+    after: str | None
+
+
 class MyNation(_View):
     id: NationId
     name: str
@@ -172,6 +192,8 @@ class MyNation(_View):
     faith: Faith
     pending_events: tuple[EventView, ...]  # decisions awaiting the crown
     loans: tuple[Loan, ...]
+    missions: tuple[MissionView, ...]  # your ambitions: done at the end of a year all goals hold
+    patronage_cost: int  # ducats for patronize (+rules.patronage_prestige prestige), once a year
     score: int
     at_war_with: tuple[NationId, ...]
     wars: tuple[WarView, ...]
@@ -341,6 +363,9 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         faith=me.faith,
         pending_events=tuple(_event_view(state, nation, e) for e in me.pending_events),
         loans=tuple(me.loans),
+        missions=_missions(state, nation),
+        patronage_cost=state.rules.patronage_base
+        + state.rules.patronage_per_prestige * me.prestige,
         score=state.score(nation),
         at_war_with=tuple(state.enemies_of(nation)),
         wars=tuple(
@@ -462,3 +487,35 @@ def _general(state: GameState, province: ProvinceId) -> GeneralView | None:
 
 def _mods(state: GameState, owner: NationId | None) -> Modifiers:
     return modifiers(state, owner)
+
+
+def _missions(state: GameState, nation: NationId) -> tuple[MissionView, ...]:
+    me = state.nations[nation]
+    opened = {m.id for m in missions.open_missions(state, nation)}
+    views = []
+    for m in missions.missions_of(nation):
+        status: Literal["done", "open", "locked"] = (
+            "done" if m.id in me.missions_done else "open" if m.id in opened else "locked"
+        )
+        goals = tuple(
+            GoalView(
+                text=missions.goal_text(state, g),
+                have=min(have, need),
+                need=need,
+                goal=g,
+            )
+            for g in m.goals
+            for have, need in [missions.progress(state, nation, g)]
+        )
+        views.append(
+            MissionView(
+                id=m.id,
+                title=m.title,
+                lore=m.lore,
+                goals=goals,
+                reward=missions.reward_text(m),
+                status=status,
+                after=m.after,
+            )
+        )
+    return tuple(views)

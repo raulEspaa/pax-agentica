@@ -29,8 +29,10 @@ from pax_agentica.engine.actions import (
     Develop,
     HireAdvisor,
     HireGeneral,
+    HireMercenaries,
     Improve,
     Move,
+    Patronize,
     Proclaim,
     ProposeAlliance,
     ProposeNonAggression,
@@ -103,6 +105,14 @@ class _Planner:
         self.enemies = set(view.me.at_war_with)
         self.old_enemies = set(self.enemies)
         self.friends = {t.partner for t in view.me.treaties}  # never attacked: we keep our word
+        self.ambitions = {  # provinces our open missions ask us to hold
+            pid
+            for m in view.me.missions
+            if m.status == "open"
+            for g in m.goals
+            if g.goal.kind == "own"
+            for pid in g.goal.provinces
+        }
         self.allies = {t.partner for t in view.me.treaties if t.kind == TreatyKind.ALLIANCE}
         self.mobilising = {w.enemy for w in view.me.wars if w.attacks_allowed_from_turn > view.turn}
         self.suing_for_peace = {
@@ -192,6 +202,8 @@ class _Planner:
                 ):
                     need = self._needed(origin, target)
                     worth = target.development * (2 if ours else 1)
+                    if t in self.ambitions:  # a province our missions ask for
+                        worth *= 2
                     found.append((worth / need, origin, t, need))
         found.sort(key=lambda c: (-c[0], c[1], c[2]))
         return found
@@ -457,6 +469,8 @@ class _Planner:
                 limits.append(have // need)
         regiments = min(limits)
         where = self._levy_province()
+        if where is not None and self.enemies and regiments < 4:
+            self._mercenaries(where, room)
         if regiments <= 0 or where is None:
             return
         offered = self.provinces[where].recruit_costs
@@ -480,6 +494,16 @@ class _Planner:
                 self.budget = self.budget - price.times(n)
                 self.troops[where] += n
                 left -= n
+
+    def _mercenaries(self, where: ProvinceId, room: int) -> None:
+        """At war and short of men or iron, a full treasury hires Landsknechte."""
+        rules = self.v.rules
+        spare = self.budget.ducats - 120
+        n = min(rules.mercenary_limit, spare // rules.mercenary_cost, max(0, room))
+        if n > 0:
+            self.actions.append(HireMercenaries(province=where, regiments=n))
+            self.budget = self.budget - Resources(ducats=n * rules.mercenary_cost)
+            self.troops[where] += n
 
     # ------------------------------------------------------------ 4. attack
 
@@ -535,6 +559,7 @@ class _Planner:
         self._build(reserve)
         self._improve(reserve)
         self._monument(reserve)
+        self._patronize(reserve)
         starving = self.me.income_per_turn.grain < self.me.army_upkeep_per_turn.grain
         candidates = sorted(
             (
@@ -658,6 +683,13 @@ class _Planner:
                 self.actions.append(Improve(province=pid))
                 self.budget = self.budget - cost
                 return
+
+    def _patronize(self, reserve: int) -> None:
+        """A treasury with nothing better to buy pays for painters and feasts."""
+        cost = self.me.patronage_cost
+        if self.budget.ducats >= cost + reserve + 150 + 2 * self.me.income_per_turn.ducats:
+            self.actions.append(Patronize())
+            self.budget = self.budget - Resources(ducats=cost)
 
     def _monument(self, reserve: int) -> None:
         """Raise a monument when the treasury is comfortably full."""

@@ -59,6 +59,7 @@ CHRONICLE = {
     EventKind.NATION_ELIMINATED,
     EventKind.DEVELOPED,
     EventKind.IMPROVED,
+    EventKind.MISSION_COMPLETED,
     EventKind.BUILT,
     EventKind.RESEARCHED,
     EventKind.GENERAL_APPOINTED,
@@ -283,6 +284,9 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
         "rules": {
             "maxTech": rules.max_tech_level,
             "workingsBonus": rules.workings_bonus,
+            "mercenaryCost": rules.mercenary_cost,
+            "mercenaryLimit": rules.mercenary_limit,
+            "patronagePrestige": rules.patronage_prestige,
             "maxWorkings": rules.max_workings,
             "rulerIncome": rules.ruler_income_bonus,
             "rulerBattle": rules.ruler_battle_bonus,
@@ -345,7 +349,12 @@ def _frame(
         "b": [[KINDS.index(k) for k in ks] for ks in kinds],
         "base": [amounts(b) for b in base],
         "bonus": [
-            amounts(buildings_yield(rules, b, ks)) for b, ks in zip(base, kinds, strict=True)
+            amounts(
+                buildings_yield(
+                    rules, b, ks, development=p.development, good=game_map.provinces[pid].good
+                )
+            )
+            for b, ks, pid, p in zip(base, kinds, order, provinces, strict=True)
         ],
         "o": [nations.index(p.owner) if p.owner else -1 for p in provinces],
         "c": [nations.index(p.controller) if p.controller else -1 for p in provinces],
