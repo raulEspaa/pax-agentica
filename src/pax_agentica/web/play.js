@@ -4,6 +4,11 @@
 
 (async () => {
   const {esc, mix, devColor, cap, costText, RES, BICON, UICON, ICON, BAD, TERRAIN} = PaxMap;
+  const I = PaxIcons.icon;
+  const RICON = {ducats: "ducats", manpower: "manpower", iron: "iron", grain: "grain", timber: "timber", goods: "goods"};
+  // a tooltip attribute: any HTML, shown by the rich tooltip below
+  const tip = (html) => ` data-tip="${esc(html)}"`;
+  const tline = (label, v, suffix = "") => `<div class="tl"><span>${label}</span><b class="${v > 0 ? "pos" : v < 0 ? "neg" : ""}">${v > 0 ? "+" : ""}${v}${suffix}</b></div>`;
   const $ = (id) => document.getElementById(id);
   // At a table of several players (pax host) the page lives at /t/<table> and every call carries
   // this browser's seat token; alone (pax serve) it talks to /api directly.
@@ -471,7 +476,7 @@
     box.classList.add("open");
     box.querySelector("[data-close]").onclick = () => { picked = -1; render(); };
     box.querySelectorAll("[data-dtab]").forEach((b) => b.onclick = () => { ownTab = b.dataset.dtab; deed(); });
-    box.querySelectorAll("[data-envoy]").forEach((b) => b.onclick = () => { focus = nIndex[b.dataset.envoy]; tab = "diplomacy"; render(); });
+    box.querySelectorAll("[data-envoy]").forEach((b) => b.onclick = () => { focus = nIndex[b.dataset.envoy]; openOffice("diplomacy"); });
     box.querySelectorAll(".stepper").forEach(wireStepper);
     const leadBox = box.querySelector("#lead"); if (leadBox) leadBox.onchange = () => { lead = leadBox.checked; deed(); };
     const mixButton = box.querySelector("#mixmode");
@@ -516,17 +521,35 @@
 
   // ------------------------------------------------------------------ top bar
   function treasury() {
-    const t = projected(), now = unbundle(V.me.resources), inc = unbundle(V.me.income_per_turn), up = unbundle(V.me.army_upkeep_per_turn);
-    $("treasury").innerHTML = RES.map(([key, label, ic], k) => {
-      const net = inc[k] - up[k];
-      return `<div title="${label}: ${now[k]} in the treasury${t[k] !== now[k] ? `, ${t[k]} after this year's orders` : ""}; ${sign(net)} a year">
-        <b>${ic} ${t[k]}</b><i class="${net < 0 ? "neg" : ""}">${sign(net)}</i>${key === "manpower" ? `<small>of ${V.me.manpower_cap}</small>` : ""}</div>`; }).join("") +
-      `<div title="Stability multiplies ducat income (+${Math.round(R.stabilityBonus * 100)}% a point). Raising it costs ${stabilityCost()} ducats.">
-        <b>⚖ ${sign(V.me.stability)}</b><button class="btn" id="stab" ${V.me.stability >= R.maxStability || !affordable([stabilityCost(), 0, 0, 0, 0]) || orders.some((o) => o.type === "boost_stability") ? "disabled" : ""}>raise</button></div>`;
-    const FAITH_ICON = {catholic: "✝", protestant: "✠", orthodox: "☦", sunni: "☪"};
-    $("treasury").insertAdjacentHTML("beforeend", `<div title="Prestige ${V.me.prestige} of 100: +${(V.me.prestige * 0.1).toFixed(1)}% ducats, cheaper stability. Your standing (development plus half your prestige) is ${V.me.standing}: it decides the winner when time runs out."><b>🏅 ${V.me.prestige}</b><i>prestige</i></div>
-      <div title="Your realm is ${V.me.faith}. Courts of the same faith warm to you each year; of other faiths, they cool."><b>${FAITH_ICON[V.me.faith] || "✝"}</b><i>${V.me.faith}</i></div>`);
-    if (V.me.war_exhaustion > 0) $("treasury").insertAdjacentHTML("beforeend", `<div title="War exhaustion: ${V.me.war_exhaustion.toFixed(1)} of 20. Each point costs 1% of ducat income; from 10, a point of stability every year. Peace heals it."><b class="${V.me.war_exhaustion >= 10 ? "neg" : ""}">🥀 ${V.me.war_exhaustion.toFixed(1)}</b><i>exhaustion</i></div>`);
+    const t = projected(), now = unbundle(V.me.resources), inc = unbundle(V.me.income_per_turn);
+    const net = RES.map(() => 0), lines = RES.map(() => []);
+    for (const l of V.me.ledger) RES.forEach(([key], k) => { const v = l.amount[key] || 0; if (!v) return;
+      const signed = l.kind === "income" ? v : -v; net[k] += signed; lines[k].push(tline(esc(cap(l.source)), signed)); });
+    const stats = RES.map(([key, label], k) => {
+      const head = `<h5>${I(RICON[key])} ${label}: ${now[k]}${t[k] !== now[k] ? ` → ${t[k]} after your orders` : ""}</h5>`;
+      const extra = key === "manpower" ? `<div class="dim">The pool fills up to ${V.me.manpower_cap}.</div>` : "";
+      return `<div class="stat ${net[k] < 0 && now[k] + net[k] < 0 ? "alarm" : ""}"${tip(head + (lines[k].join("") || `<div class="dim">Nothing comes or goes.</div>`) + tline("A year", net[k]).replace('class="tl"', 'class="tl sum"') + extra)}>
+        ${I(RICON[key])}<span class="val"><b>${t[k]}</b><i class="${net[k] > 0 ? "pos" : net[k] < 0 ? "neg" : ""}">${sign(net[k])}</i></span></div>`; }).join("");
+    const src = (words) => V.me.modifiers.sources.filter((l) => words.some((w) => l.includes(w)))
+      .map((l) => `<div class="tl"><span>${esc(l)}</span></div>`).join("") || `<div class="dim">Nothing yet.</div>`;
+    const power = Math.round(V.me.modifiers.battle_power * 100), ducatBonus = Math.round((V.me.modifiers.ducat_income + R.stabilityBonus * V.me.stability) * 100);
+    const raise = V.me.stability >= R.maxStability || !affordable([stabilityCost(), 0, 0, 0, 0]) || orders.some((o) => o.type === "boost_stability");
+    const FAITH = {catholic: "✝", protestant: "✠", orthodox: "☦", sunni: "☪"};
+    $("treasury").innerHTML = stats + `
+      <div class="stat"${tip(`<h5>${I("scale")} Stability ${sign(V.me.stability)}</h5>${tline("Ducat income", Math.round(R.stabilityBonus * 100 * V.me.stability), "%")}<div class="dim">From −3 to +3. Raising it costs ${stabilityCost()} ducats${V.me.tax > 0 ? ", dearer with high taxes" : ""}.</div>`)}>
+        ${I("scale")}<span class="val"><b>${sign(V.me.stability)}</b><i>stability</i></span><button class="btn mini" id="stab" ${raise ? "disabled" : ""}>+</button></div>
+      <div class="stat"${tip(`<h5>${I("coins")} Ducat income ${sign(ducatBonus)}%</h5>${tline("Stability", Math.round(R.stabilityBonus * 100 * V.me.stability), "%")}${src(["ducats"])}`)}>
+        ${I("landmark")}<span class="val"><b class="${ducatBonus >= 0 ? "" : "neg"}">${sign(ducatBonus)}%</b><i>income</i></span></div>
+      <div class="stat"${tip(`<h5>${I("swords")} Battle power ${sign(power)}%</h5>${src(["battle power"])}`)}>
+        ${I("swords")}<span class="val"><b>${sign(power)}%</b><i>power</i></span></div>
+      <div class="stat"${tip(`<h5>${I("award")} Prestige ${V.me.prestige} of 100</h5>${tline("Ducat income", +(V.me.prestige * 0.1).toFixed(1), "%")}<div class="dim">Half of it counts in your standing (${V.me.standing}), which wins when time runs out. It fades by ${R.prestigeDecay || 1} a year.</div>`)}>
+        ${I("award")}<span class="val"><b>${V.me.prestige}</b><i>prestige</i></span></div>
+      <div class="stat ${V.me.infamy >= R.coalitionInfamy ? "alarm" : ""}"${tip(`<h5>${I("flame")} Infamy ${V.me.infamy}</h5><div class="dim">Every province taken adds its development. From ${R.coalitionInfamy}, courts may league against you. Fades by ${R.infamyDecay} a year.</div>`)}>
+        ${I("flame")}<span class="val"><b>${Math.round(V.me.infamy)}</b><i>infamy</i></span></div>
+      ${V.me.war_exhaustion > 0 ? `<div class="stat ${V.me.war_exhaustion >= 10 ? "alarm" : ""}"${tip(`<h5>${I("hourglass")} War exhaustion ${V.me.war_exhaustion.toFixed(1)} of 20</h5>${tline("Ducat income", -Math.round(V.me.war_exhaustion), "%")}<div class="dim">From 10, a point of stability a year. Peace heals it.</div>`)}>
+        ${I("hourglass")}<span class="val"><b>${V.me.war_exhaustion.toFixed(1)}</b><i>weariness</i></span></div>` : ""}
+      <div class="stat"${tip(`<h5>${FAITH[V.me.faith] || "✝"} ${cap(V.me.faith)}</h5><div class="dim">Courts of the same faith warm to you each year; of other faiths, they cool.</div>`)}>
+        <span class="faith">${FAITH[V.me.faith] || "✝"}</span></div>`;
     const b = $("stab"); if (b) b.onclick = () => queue({type: "boost_stability"});
   }
 
@@ -641,6 +664,27 @@
       <table class="grid num"><thead><tr><th>Province</th><th>Dev.</th><th>Bldg.</th><th title="Workings">⛏</th>${RES.map(([, label, ic]) => `<th title="${label}">${ic}</th>`).join("")}</tr></thead><tbody>${table}</tbody></table>
       <p class="sub">★ capital. 🔥 in unrest: a conquered province yields nothing for a few years.</p></div>`;
   }
+  let recruitAt = null, recruitN = {};
+  function recruitBox() {
+    const where = V.me.provinces.map((id) => pIndex[id]).filter((i) => ruled(i));
+    if (!where.length) return "";
+    if (!recruitAt || !where.includes(pIndex[recruitAt])) recruitAt = V.me.capital && where.includes(pIndex[V.me.capital]) ? V.me.capital : P[where[0]].id;
+    const i = pIndex[recruitAt], costs = prov(i).recruit_costs || {};
+    let total = RES.map(() => 0);
+    const rows = U.map((u) => { const price = costs[u.id], n = recruitN[u.id] || 0;
+      if (price && n) total = total.map((v, k) => v + unbundle(price)[k] * n);
+      const why = price ? "" : u.requires >= 0 ? `needs ${B[u.requires].name.toLowerCase()}` : "not here";
+      return `<div class="rrow ${price ? "" : "off"}"${tip(`<h5>${UICON[u.id]} ${esc(u.name)}</h5><div class="dim">${esc(u.role)}</div>${tline("Attack", u.attack)}${tline("Defence", u.defence)}<div class="dim">A year: ${u.pay} ducats, ${u.rations} grain</div>`)}>
+        <span class="uic">${UICON[u.id]}</span><b>${esc(u.name)}</b><small>${price ? costText(unbundle(price)) : why}</small>
+        ${price ? `<span class="stepper"><button type="button" data-recruitkind="${u.id}" data-d="-1">−</button><b class="num">${n}</b><button type="button" data-recruitkind="${u.id}" data-d="1">+</button></span>` : ""}</div>`; }).join("");
+    const hired = orders.filter((o) => o.type === "hire_mercenaries").reduce((a, o) => a + o.regiments, 0), left = R.mercenaryLimit - hired, m = Math.min(recruitN.mercs || 0, left);
+    const ok = affordable(total) && total.some((v) => v);
+    return `<div class="recruit"><div class="row"><span class="sub">Raise in</span><select class="field" id="recruitat">${where.map((j) => `<option value="${P[j].id}" ${P[j].id === recruitAt ? "selected" : ""}>${esc(P[j].name)}</option>`).join("")}</select></div>
+      ${rows}<div class="row"><button class="btn" id="recruitgo" ${ok ? "" : "disabled"}>Recruit</button><span class="cost">${total.some((v) => v) ? costText(total) : "choose the regiments"}</span></div>
+      <div class="rrow merc"${tip(`<h5>Mercenaries</h5><div class="dim">Landsknechte and Swiss pikes for ducats alone: no manpower, no iron. ${left} of ${R.mercenaryLimit} left this year.</div>`)}><span class="uic">💰</span><b>Mercenaries</b><small>${R.mercenaryCost} ducats each, ${left} left</small>
+        <span class="stepper"><button type="button" data-recruitkind="mercs" data-d="-1">−</button><b class="num">${m}</b><button type="button" data-recruitkind="mercs" data-d="1">+</button></span></div>
+      <div class="row"><button class="btn" id="mercgo" ${m > 0 && affordable([m * R.mercenaryCost, 0, 0, 0, 0, 0]) ? "" : "disabled"}>Hire</button><span class="cost">${m ? `${m * R.mercenaryCost} ducats` : ""}</span></div></div>`;
+  }
   function armyTab() {
     const mine = V.me.provinces.map((id) => pIndex[id]);
     const options = (sel) => mine.map((i) => `<option value="${P[i].id}" ${i === sel ? "selected" : ""}>${esc(P[i].name)}</option>`).join("");
@@ -682,6 +726,7 @@
     const where = (u) => u.requires < 0 ? "anywhere" : mine.filter((i) => prov(i).buildings.includes(B[u.requires].id)).map((i) => esc(P[i].name)).join(", ") || `nowhere yet: build ${B[u.requires].name.toLowerCase()}`;
     const book = U.map((u) => `<tr><td>${UICON[u.id]} ${esc(u.name)}</td><td>${u.attack}/${u.defence}</td><td>${costText(u.cost)}</td><td>${u.pay} 💰 ${u.rations} 🌾</td><td class="left">${where(u)}</td></tr>`).join("");
     return `<div class="pad"><h4>The army</h4>${summary}
+      <h4>${I("swords")} Raise regiments</h4>${recruitBox()}
       <h4>Fronts</h4>${fronts || `<p class="muted">No war, and no court masses troops against you.</p>`}
       <h4>Armies</h4><table class="grid num"><thead><tr><th>Province</th><th>Regiments</th><th>Kinds</th><th>General</th><th>Best attack</th></tr></thead><tbody>${rows}</tbody></table>
       <p class="sub">Click an army to select it, then right-click on the map where it should go. The odds count what you can see.</p>
@@ -706,7 +751,7 @@
       return `<div class="studycard ${busy ? "doing" : ""}"><div class="shead"><span class="ic">${BRANCH_IC[b.id]}</span><b>${b.name}</b><span class="num">${level} / ${R.maxTech}</span></div>
         <i class="bar"><b style="width:${Math.round(100 * level / R.maxTech)}%"></b></i>
         <p class="sub">Now: +${Math.round(b.perLevel * 100 * level)}% ${word}.${next ? ` Next: +${Math.round(b.perLevel * 100 * (level + 1))}%.` : ""}</p>
-        ${next ? `<p><b>${esc(next.name)}</b>: ${esc(next.unlocks)}${unlocked.length ? ` <span class="chips">${unlocked.map((x) => `<span class="chipb">${BICON[x.id]} ${esc(x.name)}</span>`).join("")}</span>` : ""}</p>
+        ${next ? `<p><b>${esc(next.name)}</b>: ${esc(next.unlocks)}</p>${unlocked.length ? `<div class="unlocks"><span class="sub">Unlocks</span>${unlocked.map((x) => `<span class="chipb"${tip(`<h5>${BICON[x.id]} ${esc(x.name)}</h5><div>${esc(x.effect)}</div><div class="dim">Costs ${costText(x.cost)}${(x.consumes || []).some((v) => v) ? `; eats ${costText(x.consumes)} a year` : ""}</div>`)}>${BICON[x.id]} ${esc(x.name)}</span>`).join("")}</div>` : ""}
           ${next.lore ? `<p class="lore">${esc(next.lore)}</p>` : ""}
           <div class="act">${busy ? `<span class="ok">Researching this year</span>` : `<button class="btn" data-research="${b.id}" ${doing || !cost || !affordable(unbundle(cost)) ? "disabled" : ""}>Research</button>`}
             ${cost ? `<span class="cost">${costText(unbundle(cost))}, ${yearsFor(cost)}</span>` : ""}</div>` : `<p class="ok">Mastered.</p>`}</div>`;
@@ -833,8 +878,7 @@
         <div class="gain"><span>+${R.patronagePrestige} prestige</span></div></div></div>
       <p class="note">Painters, chapels, feasts and alms. Prestige ${V.me.prestige}: +${(V.me.prestige * 0.1).toFixed(1)}% ducats, and half of it counts in the final standing. Dearer the more you have; once a year.</p>
       <div class="act"><button class="btn" id="patronize" ${patronWhy ? "disabled" : ""}>${patronWhy ? cap(patronWhy) : "Patronise the arts"}</button><span class="cost">${V.me.patronage_cost} ducats</span></div></div>`;
-    return `<div class="pad"><h4>Ambitions</h4>${missionsHtml()}
-      <h4>Glory</h4>${patronage}
+    return `<div class="pad"><h4>Glory</h4>${patronage}
       <h4>The crown</h4>${rulerHtml}
       <h4>The council speaks</h4>${counsel.length ? counsel.map(([who, role, text]) => `<div class="counsel">${portrait(who, mix(color, "#efe2c2", .5), 34)}
         <div><b>${esc(who.name)}</b>, your ${role}: <q>${esc(text)}</q></div></div>`).join("") : `<p class="muted">An empty council gives no counsel. Hire advisors below.</p>`}
@@ -1109,38 +1153,147 @@
     const note = $("peace-note").value.trim(); if (note) terms.note = note;
     return terms;
   }
+  // ------------------------------------------------------------------ missions: a vertical tree, one column per chain
+  function missionsTab() {
+    const ms = V.me.missions || [];
+    if (!ms.length) return `<p class="muted pad">This crown has no ambitions of its own.</p>`;
+    const roots = ms.filter((m) => !m.after || !ms.some((x) => x.id === m.after));
+    const chain = (m) => [m, ...ms.filter((x) => x.after === m.id).flatMap(chain)];
+    const ICON_OF = {done: "award", open: "target", locked: "castle"};
+    const node = (m) => {
+      const goals = m.goals.map((g) => `<div class="tl"><span>${g.have >= g.need ? "✓" : "○"} ${esc(g.text)}</span><b class="${g.have >= g.need ? "pos" : ""}">${g.have}/${g.need}</b></div>`).join("");
+      const share = m.goals.reduce((a, g) => a + Math.min(1, g.have / Math.max(1, g.need)), 0) / Math.max(1, m.goals.length);
+      const after = m.after ? ms.find((x) => x.id === m.after) : null;
+      const tipHtml = `<h5>${esc(m.title)}</h5><div class="dim">${esc(m.lore)}</div>${goals}<div class="tl sum"><span>Reward</span><b class="pos">${esc(m.reward)}</b></div>${m.status === "locked" && after ? `<div class="dim">Opens after “${esc(after.title)}”.</div>` : ""}`;
+      return `<div class="mnode ${m.status}"${tip(tipHtml)}><span class="mic">${I(ICON_OF[m.status])}</span>
+        <b>${esc(m.title)}</b>${m.status === "open" ? `<i class="bar"><b style="width:${Math.round(share * 100)}%"></b></i>` : `<small>${m.status === "done" ? "fulfilled" : "locked"}</small>`}</div>`;
+    };
+    const cols = roots.map((r) => `<div class="mcol">${chain(r).map(node).join(`<div class="mlink"></div>`)}</div>`).join("");
+    const open = ms.filter((m) => m.status === "open").map((m) => `<div class="mission open"><div class="mhead">${I("target")}<b>${esc(m.title)}</b></div>
+      <ul class="goals">${m.goals.map((g) => `<li class="${g.have >= g.need ? "met" : ""}"><span>${g.have >= g.need ? "✓" : "○"} ${esc(g.text)}</span>
+        <i class="bar"><b style="width:${Math.round(100 * Math.min(1, g.have / Math.max(1, g.need)))}%"></b></i><small class="num">${g.have}/${g.need}</small></li>`).join("")}</ul>
+      <div class="sub">Reward: <span class="pos">${esc(m.reward)}</span></div></div>`).join("");
+    return `<div class="pad"><div class="mtree">${cols}</div>
+      <p class="sub">Hover a mission for its goals and reward. A mission is fulfilled by itself at the end of a year in which all its goals hold.</p>
+      ${open ? `<h4>${I("target")} Open now</h4><div class="missions">${open}</div>` : ""}</div>`;
+  }
+  // ------------------------------------------------------------------ the ledger: every court side by side
+  let ledgerSort = "standing", ledgerDesc = true, ledgerFilter = "all";
+  function ledgerTab() {
+    const rows = [{id: G.human, name: V.me.name, me: true, standing: V.me.standing, provinces: V.me.provinces.length, technology: V.me.technology,
+        prestige: V.me.prestige, infamy: V.me.infamy, opinion: null, generals: V.me.generals.length, alive: true},
+      ...V.nations.filter((n) => n.alive).map((n) => ({...n, opinion: n.opinion_of_you}))].map((n) => {
+      const land = V.provinces.filter((p) => p.owner === n.id);
+      const seen = land.filter((p) => p.troops !== null);
+      return {...n, development: land.reduce((a, p) => a + p.development, 0), seen: seen.reduce((a, p) => a + (p.troops || 0), 0), hidden: seen.length < land.length,
+        mil: n.technology.military, eco: n.technology.economy, eng: n.technology.engineering};
+    });
+    const near = new Set(V.provinces.filter((p) => p.owner && p.owner !== G.human && [...p.neighbors, ...p.sea_neighbors].some((x) => prov(pIndex[x]).owner === G.human)).map((p) => p.owner));
+    const keep = {all: () => true, neighbours: (n) => n.me || near.has(n.id), war: (n) => n.me || V.me.at_war_with.includes(n.id),
+      friends: (n) => n.me || V.me.treaties.some((t) => t.partner === n.id && ["alliance", "marriage", "non_aggression", "coalition"].includes(t.kind)),
+      players: (n) => n.me || (G.humans && G.humans[n.id])}[ledgerFilter];
+    const COLS = [["standing", "award", "Standing: development plus half the prestige"], ["provinces", "map", "Provinces"], ["development", "building-2", "Development"],
+      ["seen", "swords", "Regiments seen (a + means some are hidden by the fog of war)"], ["generals", "flag", "Generals"],
+      ["mil", "shield", "Military technology"], ["eco", "coins", "Economy technology"], ["eng", "hammer", "Engineering technology"],
+      ["prestige", "sparkles", "Prestige"], ["infamy", "flame", "Infamy"], ["opinion", "heart", "What they think of you"]];
+    const list = rows.filter(keep).sort((a, b) => ((a[ledgerSort] ?? -999) - (b[ledgerSort] ?? -999)) * (ledgerDesc ? -1 : 1));
+    const best = Object.fromEntries(COLS.map(([k]) => [k, Math.max(...list.map((n) => n[k] ?? -999))]));
+    const cell = (n, k) => { const v = n[k]; if (v === null || v === undefined) return "<td>·</td>";
+      const shown = k === "opinion" ? sign(v) : k === "infamy" ? Math.round(v) : k === "seen" && n.hidden ? `${v}+` : v;
+      const cls = k === "opinion" ? (v > 0 ? "pos" : v < 0 ? "neg" : "") : k === "infamy" && v >= R.coalitionInfamy ? "neg" : v === best[k] && list.length > 1 ? "lead" : "";
+      return `<td class="${cls}">${shown}</td>`; };
+    return `<div class="pad"><div class="filters">${[["all", "All"], ["neighbours", "Neighbours"], ["war", "At war"], ["friends", "Friends"], ["players", "Players"]].map(([id, label]) =>
+        `<button class="btn ${ledgerFilter === id ? "on" : ""}" data-lfilter="${id}">${label}</button>`).join("")}</div>
+      <div class="ledgerwrap"><table class="grid num ledgertab"><thead><tr><th class="left">Court</th>${COLS.map(([k, icon, label]) =>
+        `<th data-lsort="${k}" class="${ledgerSort === k ? "sorted" : ""}"${tip(`<h5>${label}</h5><div class="dim">Click to sort</div>`)}>${I(icon)}${ledgerSort === k ? (ledgerDesc ? "▾" : "▴") : ""}</th>`).join("")}</tr></thead>
+        <tbody>${list.map((n) => `<tr class="${n.me ? "me" : "court"}" data-court="${n.id}"><td class="left">${PaxMap.flag(n.id, N[nIndex[n.id]].color, 20, "flag inline")} ${esc(n.name)}${G.humans && G.humans[n.id] && !n.me ? " 👤" : ""}</td>${COLS.map(([k]) => cell(n, k)).join("")}</tr>`).join("")}</tbody></table></div>
+      <p class="sub">The best in each column is in gold. Armies count only what your scouts can see. Click a court to treat with it.</p></div>`;
+  }
+  // ------------------------------------------------------------------ correspondence: everything addressed to you, filtered
+  let corrCourt = "", corrKind = "all";
+  const CORR_KINDS = {letters: ["message"], proposals: ["proposal_made", "proposal_rejected", "proposal_expired", "proposal_countered"],
+    treaties: ["treaty_signed", "treaty_broken", "treaty_cancelled", "treaty_expired", "coalition_joined", "coalition_dissolved", "gift", "trade_completed", "trade_failed"],
+    wars: ["war_declared", "joined_war", "call_to_arms_ignored", "peace_signed", "province_ceded"]};
   function lettersTab() {
     const decisions = V.me.pending_events.map((e) => eventCard(e)).join("");
-    const proposals = V.proposals_to_answer.map(proposalCard).join("");
-    const letters = V.last_turn_events.filter((e) => e.kind === "message" && e.data.sender !== G.human)
-      .map((e) => `<div class="item">From <b>${esc(nameOf(e.data.sender))}</b><div class="letter">${esc(e.data.text)}</div></div>`).join("");
-    const replies = V.last_turn_events.filter((e) => ["proposal_rejected", "proposal_expired", "proposal_countered", "treaty_signed", "trade_completed", "trade_failed", "peace_signed", "province_ceded", "tribute_paid"].includes(e.kind) && e.nations.includes(G.human))
-      .map((e) => `<div class="item">${ICON[e.kind] || "•"} ${esc(e.summary)}</div>`).join("");
-    return `${decisions ? `<div class="pad"><h4>For the crown to decide</h4>${decisions}</div>` : ""}
-      ${proposals ? `<div class="pad">${proposals}</div>` : `<p class="muted pad">No proposal waits for your answer.</p>`}
-      ${letters ? `<div class="pad" style="padding-bottom:0"><h4>Letters</h4></div>${letters}` : ""}${replies ? `<div class="pad" style="padding-bottom:0"><h4>Replies</h4></div>${replies}` : ""}`;
+    const proposals = V.proposals_to_answer.filter((p) => !corrCourt || p.sender === corrCourt).map(proposalCard).join("");
+    const all = V.nations.flatMap((n) => n.correspondence.map((e) => ({e, court: n.id})));
+    const seen = new Set();
+    const items = all.filter(({e}) => { const key = `${e.turn}:${e.kind}:${e.summary}`; if (seen.has(key)) return false; seen.add(key); return true; })
+      .filter(({court}) => !corrCourt || court === corrCourt)
+      .filter(({e}) => corrKind === "all" || (CORR_KINDS[corrKind] || []).includes(e.kind))
+      .sort((a, b) => b.e.turn - a.e.turn).slice(0, 60)
+      .map(({e, court}) => { const mine = (e.data.sender || e.nations[0]) === G.human;
+        const body = e.kind === "message" ? `<div class="letter">${esc(e.data.text)}</div>` : `<div>${ICON[e.kind] || "•"} ${esc(e.summary)}</div>${e.data.note ? `<q>${esc(e.data.note)}</q>` : ""}`;
+        return `<div class="item corr ${mine ? "mine" : ""}"><small>${yearOf(e.turn)} · ${PaxMap.flag(court, N[nIndex[court]].color, 16, "flag inline")} ${mine ? `you → ${esc(nameOf(court))}` : esc(nameOf(court))}</small>${body}</div>`; }).join("");
+    const courts = V.nations.filter((n) => n.alive && n.correspondence.length);
+    return `${decisions ? `<div class="pad"><h4>${I("crown")} For the crown to decide</h4>${decisions}</div>` : ""}
+      <div class="pad"><div class="filters"><select class="field" id="corrcourt" aria-label="Court"><option value="">Every court</option>${courts.map((n) => `<option value="${n.id}" ${corrCourt === n.id ? "selected" : ""}>${esc(n.name)}</option>`).join("")}</select>
+        ${[["all", "All"], ["letters", "Letters"], ["proposals", "Proposals"], ["treaties", "Treaties"], ["wars", "Wars"]].map(([id, label]) => `<button class="btn ${corrKind === id ? "on" : ""}" data-ckind="${id}">${label}</button>`).join("")}</div>
+      ${proposals ? `<h4>${I("scroll-text")} Awaiting your answer</h4>${proposals}` : ""}
+      <h4>${I("mail")} Letters and dealings</h4>${items || `<p class="muted">Nothing here yet.</p>`}</div>`;
   }
   const told = (e) => e.kind === "order_rejected" ? "Your order failed: " + e.data.reason
     : e.kind === "proclamation" ? `${e.summary}: “${e.data.text}”` : e.summary;
+  let chronCourt = "", chronKind = "all";
+  const CHRON_KINDS = {war: ["battle", "war_declared", "joined_war", "peace_signed", "province_captured", "province_occupied", "province_ceded", "province_liberated", "siege", "nation_eliminated", "capital_moved", "general_fell", "call_to_arms_ignored"],
+    diplomacy: ["treaty_signed", "treaty_broken", "treaty_cancelled", "treaty_expired", "coalition_joined", "coalition_dissolved", "gift", "trade_completed", "message", "proclamation", "stance_changed", "infamy"],
+    realm: ["built", "developed", "improved", "researched", "mission_completed", "succession", "event_decided", "stability_changed", "prestige_changed", "general_appointed", "monument_raised"]};
   function chronicleTab() {
     if (!G.chronicle.length) return `<p class="muted pad">History begins when you end the first year.</p>`;
     const names = new RegExp(N.map((n) => n.name).join("|"), "g");
     const paint = (text) => esc(text).replace(names, (m) => `<span class="nn" style="color:${mix(N.find((n) => n.name === m).color, "#ffffff", .35)}">${m}</span>`);
-    return `<ol class="chron" style="max-height:none">${G.chronicle.map((y) => `<li class="year">${y.year}</li>` + y.events
-      .filter((e) => !["moved", "proposal_made"].includes(e.kind))
-      .map((e) => `<li class="${BAD.has(e.kind) ? "bad" : ""}"><span class="ic">${ICON[e.kind] || "•"}</span><span>${paint(told(e))}</span></li>`).join("")).join("")}</ol>`;
+    const keep = (e) => !["moved", "proposal_made", "market_trade", "recruited"].includes(e.kind) && (!chronCourt || e.nations.includes(chronCourt))
+      && (chronKind === "all" || (chronKind === "mine" ? e.nations.includes(G.human) : (CHRON_KINDS[chronKind] || []).includes(e.kind)));
+    const years = G.chronicle.map((y) => [y, y.events.filter(keep)]).filter(([, es]) => es.length);
+    return `<div class="pad"><div class="filters"><select class="field" id="chroncourt" aria-label="Court"><option value="">All Europe</option>${N.map((n) => `<option value="${n.id}" ${chronCourt === n.id ? "selected" : ""}>${esc(n.name)}</option>`).join("")}</select>
+      ${[["all", "All"], ["mine", "My realm"], ["war", "War"], ["diplomacy", "Diplomacy"], ["realm", "Works"]].map(([id, label]) => `<button class="btn ${chronKind === id ? "on" : ""}" data-chkind="${id}">${label}</button>`).join("")}</div></div>
+      <ol class="chron" style="max-height:none">${years.map(([y, es]) => `<li class="year">${y.year}</li>` + es
+      .map((e) => `<li class="${BAD.has(e.kind) ? "bad" : ""}"><span class="ic">${ICON[e.kind] || "•"}</span><span>${paint(told(e))}</span></li>`).join("")).join("") || `<li class="muted">Nothing of the kind.</li>`}</ol>`;
   }
+  // ------------------------------------------------------------------ the rail of offices and its window
+  const OFFICES = [["realm", "landmark", "Economy"], ["crown", "crown", "The Crown"], ["missions", "target", "Missions"],
+    ["army", "swords", "Army"], ["tech", "flask-conical", "Learning"], ["diplomacy", "handshake", "Diplomacy"],
+    ["letters", "mail", "Correspondence"], ["ledger", "chart-column", "Ledger of Europe"], ["chronicle", "book-open", "Chronicle"]];
+  let panelOpen = false, pinned = false, peekTimer = 0, leaveTimer = 0;
+  $("rail").innerHTML = OFFICES.map(([id, icon, label]) => `<button role="tab" data-tab="${id}" aria-label="${label}"${tip(`<h5>${label}</h5>`)}>${I(icon)}</button>`).join("");
+  function openOffice(id, pin = true) {
+    tab = id; panelOpen = true; pinned = pinned || pin;
+    render();
+  }
+  function closeOffice() { panelOpen = false; pinned = false; render(); }
+  const panelEl = $("panel");
+  $("rail").querySelectorAll("button").forEach((b) => {
+    b.onclick = () => { if (panelOpen && pinned && tab === b.dataset.tab) closeOffice(); else { pinned = true; openOffice(b.dataset.tab); } };
+    b.onmouseenter = () => { clearTimeout(leaveTimer); clearTimeout(peekTimer);
+      peekTimer = setTimeout(() => { if (!pinned || !panelOpen) { pinned = false; openOffice(b.dataset.tab, false); } else if (tab !== b.dataset.tab) openOffice(b.dataset.tab); }, 260); };
+    b.onmouseleave = () => clearTimeout(peekTimer);
+  });
+  const maybeClose = () => { clearTimeout(leaveTimer); leaveTimer = setTimeout(() => { if (panelOpen && !pinned && !panelEl.matches(":hover") && !$("rail").matches(":hover")) closeOffice(); }, 450); };
+  $("rail").onmouseleave = maybeClose; panelEl.onmouseleave = maybeClose; panelEl.onmouseenter = () => clearTimeout(leaveTimer);
+  panelEl.onclick = () => { if (panelOpen && !pinned) { pinned = true; panelEl.classList.add("pinned"); } };
+  $("panelclose").innerHTML = I("x"); $("panelclose").onclick = (e) => { e.stopPropagation(); closeOffice(); };
+  $("panelpin").innerHTML = I("anchor"); $("panelpin").onclick = (e) => { e.stopPropagation(); pinned = !pinned; panelEl.classList.toggle("pinned", pinned); };
+  $("realmbtn").onclick = () => { pinned = true; openOffice("crown"); };
   function office() {
+    panelEl.classList.toggle("open", panelOpen);
+    panelEl.parentElement.classList.toggle("paneled", panelOpen);
+    panelEl.classList.toggle("pinned", pinned);
+    const meta = OFFICES.find(([id]) => id === tab);
+    $("paneltitle").textContent = meta[2]; $("panelicon").innerHTML = I(meta[1]);
     document.querySelectorAll(".offices button").forEach((b) => {
-      b.setAttribute("aria-selected", b.dataset.tab === tab);
+      b.setAttribute("aria-selected", panelOpen && b.dataset.tab === tab);
       const count = b.dataset.tab === "letters" ? V.proposals_to_answer.filter((p) => !orders.some((o) => o.type === "respond" && o.proposal_id === p.id)).length
         + V.me.pending_events.filter((e) => !chosen(e.id)).length : 0;
       const old = b.querySelector(".count"); if (old) old.remove();
       if (count) b.insertAdjacentHTML("beforeend", `<span class="count">${count}</span>`);
     });
     const panel = $("office");
-    panel.innerHTML = {realm: realmTab, crown: crownTab, army: armyTab, tech: techTab, diplomacy: diplomacyTab, letters: lettersTab, chronicle: chronicleTab}[tab]();
-    const focusOn = (i) => { picked = i; send = Infinity; lead = true; map.centerOn(i, 2.2, innerWidth > 960 ? 200 : 0); render(); };
+    if (!panelOpen) { panel.innerHTML = ""; return; }
+    const keep = panel.scrollTop, same = panel.dataset.tab === tab;
+    panel.innerHTML = {realm: realmTab, crown: crownTab, missions: missionsTab, army: armyTab, tech: techTab, diplomacy: diplomacyTab, letters: lettersTab, ledger: ledgerTab, chronicle: chronicleTab}[tab]();
+    panel.dataset.tab = tab; if (same) panel.scrollTop = keep;
+    const focusOn = (i) => { picked = i; send = Infinity; lead = true; if (!pinned) panelOpen = false; map.centerOn(i, 2.2, innerWidth > 960 ? 300 : 0); render(); };
     panel.querySelectorAll("tr.click").forEach((tr) => tr.onclick = () => focusOn(+tr.dataset.p));
     panel.querySelectorAll("[data-goto]").forEach((b) => b.onclick = () => focusOn(+b.dataset.goto));
     panel.querySelectorAll("[data-research]").forEach((b) => b.onclick = () => queue({type: "research", branch: b.dataset.research}));
@@ -1155,6 +1308,20 @@
     panel.querySelectorAll("[data-buy]").forEach((b) => b.onclick = () => queue({type: "buy", resource: b.dataset.buy, amount: marketQty[b.dataset.buy] || 10}));
     panel.querySelectorAll("[data-sell]").forEach((b) => b.onclick = () => queue({type: "sell", resource: b.dataset.sell, amount: marketQty[b.dataset.sell] || 10}));
     panel.querySelectorAll("[data-option]").forEach((b) => b.onclick = () => choose(+b.dataset.event, +b.dataset.option));
+    panel.querySelectorAll("[data-lsort]").forEach((th) => th.onclick = () => { const k = th.dataset.lsort; ledgerDesc = ledgerSort === k ? !ledgerDesc : true; ledgerSort = k; render(); });
+    panel.querySelectorAll("[data-lfilter]").forEach((b) => b.onclick = () => { ledgerFilter = b.dataset.lfilter; render(); });
+    panel.querySelectorAll("tr[data-court]").forEach((tr) => tr.onclick = () => { if (tr.dataset.court === G.human) return; focus = nIndex[tr.dataset.court]; deskTab = "letters"; openOffice("diplomacy"); });
+    panel.querySelectorAll("[data-ckind]").forEach((b) => b.onclick = () => { corrKind = b.dataset.ckind; render(); });
+    const cc = panel.querySelector("#corrcourt"); if (cc) cc.onchange = () => { corrCourt = cc.value; render(); };
+    panel.querySelectorAll("[data-chkind]").forEach((b) => b.onclick = () => { chronKind = b.dataset.chkind; render(); });
+    const chc = panel.querySelector("#chroncourt"); if (chc) chc.onchange = () => { chronCourt = chc.value; render(); };
+    panel.querySelectorAll("[data-recruitkind]").forEach((b) => b.onclick = () => { const k = b.dataset.recruitkind, d = +b.dataset.d;
+      recruitN[k] = Math.max(0, (recruitN[k] || 0) + d); render(); });
+    const ra = panel.querySelector("#recruitat"); if (ra) ra.onchange = () => { recruitAt = ra.value; render(); };
+    const rgo = panel.querySelector("#recruitgo"); if (rgo) rgo.onclick = () => { U.forEach((u) => { const n = recruitN[u.id] || 0;
+      if (n > 0) queue({type: "recruit", province: recruitAt, regiments: n, unit: u.id}); }); recruitN = {}; render(); };
+    const mgo = panel.querySelector("#mercgo"); if (mgo) mgo.onclick = () => { const n = recruitN.mercs || 0;
+      if (n > 0) queue({type: "hire_mercenaries", province: recruitAt, regiments: n}); recruitN.mercs = 0; render(); };
     const taxRange = panel.querySelector("#taxrange");
     if (taxRange) taxRange.oninput = () => { const level = +taxRange.value;
       orders = orders.filter((o) => o.type !== "set_taxes");
@@ -1201,7 +1368,7 @@
         if (attach.startsWith("call:")) return queue({type: "call_to_arms", target: nid, enemy: attach.slice(5), ...note});
         return queue({type: attach, target: nid, ...note});
       }
-      if (kind === "declare_war" && !confirm(`Declare war on ${nameOf(nid)}?`)) return;
+      if (kind === "declare_war") return confirmWar(nid);
       queue({type: kind, target: nid});
     });
     const costLine = panel.querySelector("#peace-cost");
@@ -1224,7 +1391,7 @@
     panel.querySelectorAll("[data-call]").forEach((b) => b.onclick = () => queue({type: "call_to_arms", target: b.dataset.call, enemy: nid}));
     panel.querySelectorAll("[data-counter]").forEach((b) => b.onclick = () => {
       countering = V.proposals_to_answer.find((p) => p.id === +b.dataset.counter);
-      focus = nIndex[countering.sender]; tab = "diplomacy"; deskTab = countering.kind === "peace" ? "war" : "treaties"; render();
+      focus = nIndex[countering.sender]; deskTab = countering.kind === "peace" ? "war" : "treaties"; openOffice("diplomacy");
     });
     panel.querySelectorAll("[data-answer]").forEach((b) => b.onclick = () => {
       const id = +b.dataset.answer, note = (panel.querySelector(`[data-note="${id}"]`)?.value || "").trim();
@@ -1232,7 +1399,7 @@
       queue({type: "respond", proposal_id: id, accept: b.dataset.accept === "1", ...(note ? {note} : {})});
     });
   }
-  document.querySelectorAll(".offices button").forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+
 
   // ------------------------------------------------------------------ this year's orders, always in sight
   function describe(o) {
@@ -1279,6 +1446,7 @@
     }
   }
   function ordersBox() {
+    $("ordersbtn").innerHTML = I("scroll-text") + (orders.length ? `<span class="count">${orders.length}</span>` : "");
     $("orders").innerHTML = `<h4>This year's orders <small>${orders.length} of ${MAX_ORDERS}</small></h4>` + (orders.length
       ? orders.map((o, k) => `<div class="order"><span>${describe(o)}</span><button data-drop="${k}" aria-label="Withdraw this order" title="Withdraw">✕</button></div>`).join("")
       : `<p class="muted pad">No orders yet. Select a province on the map, or open an office above.</p>`);
@@ -1289,9 +1457,13 @@
   function report(before) {
     const lost = before ? before.me.provinces.filter((p) => !V.me.provinces.includes(p)) : [];
     const won = before ? V.me.provinces.filter((p) => !before.me.provinces.includes(p)) : [];
-    const items = V.last_turn_events.filter((e) => !["moved", "recruited", "proposal_made"].includes(e.kind))
-      .filter((e) => e.nations.includes(G.human) || ["war_declared", "nation_eliminated", "treaty_broken", "game_over", "proclamation", "event_decided"].includes(e.kind))
-      .map((e) => `<li class="${BAD.has(e.kind) ? "bad" : ""}">${ICON[e.kind] || "•"} ${esc(told(e))}</li>`).join("");
+    const noise = ["moved", "recruited", "proposal_made", "market_trade", "prestige_changed", "taxes_set"];
+    const line = (e) => `<li class="${BAD.has(e.kind) ? "bad" : ""}">${ICON[e.kind] || "•"} ${esc(told(e))}</li>`;
+    const items = V.last_turn_events.filter((e) => !noise.includes(e.kind) && e.nations.includes(G.human)).map(line).join("");
+    const europe = V.last_turn_events.filter((e) => !noise.includes(e.kind) && !e.nations.includes(G.human)
+      && ["war_declared", "joined_war", "peace_signed", "nation_eliminated", "treaty_broken", "coalition_joined", "coalition_dissolved", "infamy",
+          "mission_completed", "proclamation", "province_captured", "province_ceded", "succession", "capital_moved", "treaty_signed", "game_over"].includes(e.kind))
+      .slice(0, 16).map(line).join("");
     const discoveries = before ? T.filter((b) => V.me.technology[b.id] > before.me.technology[b.id]).map((b) => {
       const step = b.levels[V.me.technology[b.id] - 1];
       return `<div class="discovery">⚙ <b>${esc(step.name)}</b>: ${esc(step.unlocks)}.</div>`; }).join("") : "";
@@ -1312,9 +1484,11 @@
           `<tr class="${n.id === G.human ? "me" : ""}"><td>${k + 1}</td><td>${esc(n.name)}${n.alive ? "" : " †"}</td><td>${n.score}</td><td>${n.provinces}</td></tr>`).join("")}</tbody></table>
         <p><a href="${REPLAY}" target="_blank">Watch the whole game as a replay</a></p></div>` : "";
     $("sheet").innerHTML = `<h2 id="modaltitle">${G.finished ? "The end of an age" : `The year ${V.year - 1}`}</h2>${ending}${crowned}${discoveries}${works}${G.finished ? "" : danger}
-      ${won.length ? `<p>Your realm gained ${won.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
-      ${lost.length ? `<p style="color:#8f2f22">You lost ${lost.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
-      <ul>${items || "<li>A quiet year for your realm.</li>"}</ul>
+      <div class="yearcols"><section><h3>${PaxMap.flag(G.human, N[me].color, 22, "flag inline")} Your realm</h3>
+        ${won.length ? `<p class="gain-line">Gained ${won.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
+        ${lost.length ? `<p class="loss-line">Lost ${lost.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
+        <ul>${items || "<li>A quiet year for your realm.</li>"}</ul></section>
+      <section><h3>🌍 Europe</h3><ul>${europe || "<li>Europe holds its breath.</li>"}</ul></section></div>
       <button class="btn" id="closemodal">Continue</button>`;
     $("modal").classList.add("open"); $("closemodal").focus();
     $("closemodal").onclick = () => { $("modal").classList.remove("open"); eventSheet(); };
@@ -1323,14 +1497,38 @@
   const EVENT_ICON = {reformation: "✝", plague: "☠", harvest: "🌾", fuggers: "💰", artist: "🎨", revolt: "🔥",
     silver: "🪙", comet: "☄", reformer: "⚔", nobles: "👑", fair: "🎪", mine: "⛏"};
   const chosen = (id) => orders.find((o) => o.type === "choose_option" && o.event_id === id);
+  const colourEffects = (text) => esc(text).replace(/([+−-]\d+(?:\.\d+)?%?)\s([a-z ]+?)(?=,|$)/g, (m, n, what) =>
+    `<span class="${n.startsWith("+") ? "pos" : "neg"}">${n} ${what}</span>`).replace(/(repay [^,]+|[\d]+ regiments lost[^,]*|\d+ years of unrest[^,]*)/g, '<span class="neg">$1</span>');
   function eventCard(e, big = false) {
     const pick = chosen(e.id);
-    return `<div class="eventcard ${big ? "big" : ""}"><div class="ehead"><span class="eic">${EVENT_ICON[e.event] || "📜"}</span>
+    const scene = e.province && S.views[e.province] ? `<img class="escene" src="/views/${e.province}.jpg" alt="">`
+      : V.me.ruler ? `<div class="eruler">${portrait(V.me.ruler, N[me].color, big ? 72 : 48)}</div>` : "";
+    return `<div class="eventcard ${big ? "big" : ""}">${big ? scene : ""}<div class="ehead"><span class="eic">${EVENT_ICON[e.event] || "📜"}</span>
         <div><b>${esc(e.title)}</b>${e.province ? `<small>${esc(P[pIndex[e.province]].name)}</small>` : ""}</div></div>
       <p class="etext">${esc(e.text)}</p>
       <div class="eoptions">${e.options.map((o, k) => `<button class="btn eoption ${pick && pick.option === k ? "on" : ""}" data-event="${e.id}" data-option="${k}">
-        <b>${esc(o.label)}</b><small>${esc(o.effects)}</small></button>`).join("")}</div>
+        <b>${esc(o.label)}</b><small>${colourEffects(o.effects)}</small></button>`).join("")}</div>
       <p class="sub">${pick ? "Your decision is taken; it is carried out when the year ends." : `Undecided by the end of ${R.startYear + e.deadline_turn - 1}, the first answer is taken.`}</p></div>`;
+  }
+  // a declaration of war, weighed before it is sent
+  function confirmWar(nid) {
+    const n = V.nations.find((x) => x.id === nid), r = relation(nid);
+    const broken = [r.alliance && "your alliance", r.pact && "your non-aggression pact", r.truce && "the truce", r.marriage && "the royal marriage"].filter(Boolean);
+    const allies = n.allies.filter((a) => a !== G.human).map((a) => esc(nameOf(a)));
+    const league = V.nations.filter((x) => x.alive && x.leagued_against.includes(G.human) && x.id !== nid && V.nations.find((y) => y.id === nid).leagued_against.includes(G.human)).map((x) => esc(x.name));
+    const theirs = V.provinces.filter((p) => p.owner === nid).reduce((a, p) => a + (p.troops || 0), 0);
+    $("sheet").innerHTML = `<h2 id="modaltitle">${I("swords")} War on ${esc(n.name)}?</h2>
+      <div class="warconfirm">${PaxMap.flag(nid, N[nIndex[nid]].color, 54)}<div>
+        <p><b>${esc(n.name)}</b>: standing ${n.standing}, ${n.provinces} provinces, at least ${theirs} regiments seen. They think ${sign(n.opinion_of_you)} of you.</p>
+        <ul>${broken.length ? `<li class="bad">It breaks ${broken.join(" and ")}: −${R.breakPenalty} stability and every court thinks less of you.</li>` : ""}
+          ${allies.length ? `<li class="bad">Their allies will be called to arms: ${allies.join(", ")}.</li>` : "<li>They have no allies to call.</li>"}
+          ${league.length ? `<li class="bad">They are leagued against you with ${league.join(", ")}: the league marches too.</li>` : ""}
+          <li>Your armies mobilise for ${R.mobilization} year before they can attack.</li>
+          <li>Taken land is only occupied: a peace treaty moves borders, as far as your war score allows.</li></ul></div></div>
+      <div class="row"><button class="btn danger" id="waryes">Declare war</button><button class="btn" id="warno">Not now</button></div>`;
+    $("modal").classList.add("open");
+    $("warno").onclick = () => $("modal").classList.remove("open");
+    $("waryes").onclick = () => { $("modal").classList.remove("open"); queue({type: "declare_war", target: nid}); };
   }
   function choose(eventId, option) {
     orders = orders.filter((o) => !(o.type === "choose_option" && o.event_id === eventId));
@@ -1376,9 +1574,11 @@
       events: V.last_turn_events.filter((e) => e.province).map((e) => [e.kind, pIndex[e.province], e.nations.map((x) => nIndex[x])]),
     };
   }
-  const MODES = [["political", "Political"], ["terrain", "Terrain"], ["development", "Development"], ["goods", "Goods"], ["diplomacy", "Diplomacy"]];
-  MODES.forEach(([id, label], k) => { const b = document.createElement("button"); b.className = "btn"; b.textContent = label;
-    b.title = `${label} map mode (${k + 1})`; b.dataset.mode = id; b.onclick = () => { mode = id; render(); };
+  const MODES = [["political", "Political", "flag"], ["terrain", "Terrain", "mountain-snow"], ["development", "Development", "building-2"],
+    ["goods", "Trade goods", "package"], ["diplomacy", "Diplomacy", "handshake"]];
+  MODES.forEach(([id, label, icon], k) => { const b = document.createElement("button"); b.className = "iconbtn"; b.innerHTML = I(icon);
+    b.setAttribute("data-tip", esc(`<h5>${label} map</h5><div class="dim">Key ${k + 1}</div>`)); b.setAttribute("aria-label", `${label} map`);
+    b.dataset.mode = id; b.onclick = () => { mode = id; render(); };
     document.querySelector(".modes").appendChild(b); });
   function legend() {
     const L = $("legend");
@@ -1483,12 +1683,23 @@
       $("modal").classList.remove("open"); flash(r && r.ok ? "Thank you: your note is on its way." : "The note could not be sent.");
     };
   };
+  $("zin").innerHTML = I("zoom-in"); $("zout").innerHTML = I("zoom-out"); $("zhome").innerHTML = I("house");
+  $("guide").innerHTML = I("circle-help"); $("feedback").innerHTML = I("message-square-text");
+  $("ordersbtn").onclick = () => $("ordersbtn").parentElement.classList.toggle("open");
+  // the rich tooltip: any element with data-tip shows its HTML next to the pointer
+  const RT = $("richtip");
+  document.addEventListener("mouseover", (e) => { const el = e.target.closest && e.target.closest("[data-tip]");
+    if (!el) { RT.style.display = "none"; return; } RT.innerHTML = el.getAttribute("data-tip"); RT.style.display = "block"; });
+  document.addEventListener("mousemove", (e) => { if (RT.style.display !== "block") return;
+    const w = RT.offsetWidth, h = RT.offsetHeight;
+    RT.style.left = Math.min(innerWidth - w - 8, e.clientX + 14) + "px"; RT.style.top = (e.clientY + 18 + h > innerHeight ? e.clientY - h - 12 : e.clientY + 18) + "px"; });
+  document.addEventListener("mouseleave", () => (RT.style.display = "none"));
   $("zin").onclick = () => map.zoomAt(1 / 1.4); $("zout").onclick = () => map.zoomAt(1.4);
   $("zhome").onclick = () => map.home(V.me.provinces.map((p) => pIndex[p]));
   window.addEventListener("keydown", (e) => {
     if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
     if (e.key >= "1" && e.key <= String(MODES.length)) { mode = MODES[+e.key - 1][0]; render(); }
-    if (e.key === "Escape") { if ($("modal").classList.contains("open")) $("modal").classList.remove("open"); else { picked = -1; if (mode === "diplomacy") focus = -1; render(); } }
+    if (e.key === "Escape") { if ($("modal").classList.contains("open")) $("modal").classList.remove("open"); else if (panelOpen) closeOffice(); else { picked = -1; if (mode === "diplomacy") focus = -1; render(); } }
   });
   await load();
   requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add("ready")));

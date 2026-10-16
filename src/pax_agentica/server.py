@@ -299,7 +299,12 @@ def add_assets(app: FastAPI, static: dict[str, Any]) -> None:
 
     @app.get("/static/{name}")
     def asset(name: str) -> Response:
-        types = {"map.js": "text/javascript", "map.css": "text/css", "play.js": "text/javascript"}
+        types = {
+            "map.js": "text/javascript",
+            "map.css": "text/css",
+            "play.js": "text/javascript",
+            "icons.js": "text/javascript",
+        }
         if name not in types:
             raise HTTPException(404)
         return Response(web.joinpath(name).read_text(encoding="utf-8"), media_type=types[name])

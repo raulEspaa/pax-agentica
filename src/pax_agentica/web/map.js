@@ -19,8 +19,10 @@ const PaxMap = (() => {
   const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
   const TERRAIN = {plains: "#a9b06c", forest: "#4f6d36", hills: "#a58c5a", marsh: "#5f7e6b", mountains: "#8d8678"};
-  const RES = [["ducats", "Ducats", "💰"], ["manpower", "Manpower", "👥"], ["iron", "Iron", "⛏"],
-               ["grain", "Grain", "🌾"], ["timber", "Timber", "🪵"], ["goods", "Goods", "🧵"]];
+  // resource glyphs where the icon set is loaded (the play page), emoji elsewhere (the replay)
+  const glyph = (key, fallback) => (typeof PaxIcons !== "undefined" ? PaxIcons.icon(key, "res") : fallback);
+  const RES = [["ducats", "Ducats", glyph("ducats", "💰")], ["manpower", "Manpower", glyph("manpower", "👥")], ["iron", "Iron", glyph("iron", "⛏")],
+               ["grain", "Grain", glyph("grain", "🌾")], ["timber", "Timber", glyph("timber", "🪵")], ["goods", "Goods", glyph("goods", "🧵")]];
   // the banners of 1500, simplified for a 30 by 20 field
   const FLEUR = (x, y, c) => `<path transform="translate(${x} ${y}) scale(.5)" fill="${c}" d="M0 -6 C2 -4 2 -2 0 0 C-2 -2 -2 -4 0 -6Z M0 0 C3 -3 6 -2 5 1 C4 3 2 2 1 1Z M0 0 C-3 -3 -6 -2 -5 1 C-4 3 -2 2 -1 1Z M-3 2 H3 V3.2 H-3Z M-.8 3 V6 H.8 V3Z"/>`;
   const EAGLE = (x, y, s, c, heads) => `<g transform="translate(${x} ${y}) scale(${s})" fill="${c}">

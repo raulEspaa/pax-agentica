@@ -13,24 +13,9 @@
   .realm .shield { display: flex; align-items: center; clip-path: none; border: none; width: auto; height: auto; }
   .realm b { font: 700 20px var(--display); color: var(--brass-hi); display: block; line-height: 1.05; text-shadow: 0 2px 2px #000; }
   .realm span { font-size: 12.5px; color: var(--ink-3); font-style: italic; }
-  .treasury { display: flex; gap: 4px; }
-  .treasury > div { min-width: 66px; padding: 2px 7px; text-align: center; line-height: 1.15; background: var(--walnut-lo);
-                    border: 1px solid var(--brass-lo); box-shadow: inset 0 1px 4px rgba(0, 0, 0, .8); }
-  .treasury b { display: block; font-size: 15.5px; }
-  .treasury i { font-style: normal; font-size: 12px; color: #9dc79e; }
-  .treasury i.neg { color: #f1a69d; }
-  .treasury small { color: var(--ink-3); font-size: 11.5px; display: block; }
-  .treasury .btn { height: 18px; min-width: 0; padding: 0 6px; font-size: 11.5px; margin-top: 1px; }
 
-  /* the court's offices: a row of brass medallions */
-  .offices { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin: 10px 12px 0 6px; }
-  .offices button { position: relative; height: 54px; padding: 2px 0 0; cursor: pointer; color: var(--engraved);
-                    background: var(--brass-face); border: 1px solid #4a3312; border-radius: 3px 3px 0 0;
-                    box-shadow: inset 0 1px 0 rgba(255, 246, 214, .7), 0 2px 3px rgba(0, 0, 0, .5); font: 600 11.5px var(--body); }
-  .offices button .ic { display: block; font-size: 19px; line-height: 1.25; }
-  .offices button[aria-selected="true"] { background: var(--brass-press); color: #1b0f02; box-shadow: inset 0 2px 5px rgba(40, 20, 0, .6); }
-  .offices .count { position: absolute; top: 3px; right: 4px; min-width: 17px; padding: 0 4px; border-radius: 9px;
-                    background: #8f2f22; color: #fff; font-size: 11.5px; line-height: 17px; text-shadow: none; }
+  .count { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; text-align: center;
+           background: #8f2f22; color: #fff; font-size: 11.5px; line-height: 18px; text-shadow: none; }
   .office { margin: 0 12px 10px 6px; border: 2px solid transparent; border-image: var(--brass-face) 1; background: var(--leather);
             box-shadow: 0 3px 8px rgba(0, 0, 0, .6), inset 0 0 14px rgba(0, 0, 0, .55); }
   .office h4, .ordersbox h4 { margin: 10px 0 5px; font: 700 14px var(--display); color: var(--brass-hi); }
@@ -248,17 +233,155 @@
   .node.doing { animation: glow 1.8s ease-in-out infinite alternate; }
   @keyframes glow { from { box-shadow: 0 0 0 1px var(--brass-hi), 0 0 4px rgba(236, 208, 140, .2); } to { box-shadow: 0 0 0 1px var(--brass-hi), 0 0 16px rgba(236, 208, 140, .55); } }
   @media (prefers-reduced-motion: reduce) { .node.doing { animation: none; } }
-  /* phones: the treasury and the map modes wrap instead of widening the page */
-  @media (max-width: 700px) {
-    .top { gap: 8px; padding: 6px 8px; }
-    .treasury { flex-wrap: wrap; gap: 3px; width: 100%; }
-    .treasury > div { min-width: 0; flex: 1 1 54px; padding: 2px 4px; }
-    .treasury b { font-size: 14px; }
-    .modes { flex-wrap: wrap; width: 100%; }
-    .modes .btn { flex: 1 1 auto; padding: 0 6px; font-size: 12.5px; }
-    .offices button { font-size: 10px; }
-    .banner .btn { margin: 4px 4px 0 0; }
+
+  /* missions: a vertical tree */
+  .mtree { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 8px; }
+  .mcol { flex: 1 1 0; min-width: 120px; display: flex; flex-direction: column; align-items: stretch; }
+  .mnode { position: relative; padding: 8px 8px 7px; text-align: center; background: var(--walnut-lo); border: 1px solid var(--brass-lo); border-radius: 6px; cursor: help; }
+  .mnode .mic { display: grid; place-items: center; width: 38px; height: 38px; margin: 0 auto 4px; border-radius: 50%; border: 1px solid var(--brass-lo); background: #1a120b; color: var(--ink-3); }
+  .mnode .mic .ico { width: 22px; height: 22px; }
+  .mnode b { display: block; font-size: 14px; line-height: 1.2; color: var(--ink); }
+  .mnode small { display: block; color: var(--ink-3); font-size: 12px; }
+  .mnode .bar { display: block; position: relative; height: 5px; margin-top: 5px; background: rgba(255, 255, 255, .1); }
+  .mnode .bar b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--brass); }
+  .mnode.open { border-color: var(--brass-hi); box-shadow: 0 0 10px rgba(236, 208, 140, .25); } .mnode.open .mic { color: var(--brass-hi); border-color: var(--brass); }
+  .mnode.done { border-color: #4f7a45; background: rgba(70, 120, 60, .2); } .mnode.done .mic { color: #9fd08f; border-color: #4f7a45; }
+  .mnode.locked { opacity: .55; }
+  .mlink { align-self: center; width: 2px; height: 16px; background: var(--brass-lo); }
+  /* filters, the ledger */
+  .filters { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 8px; }
+  .filters .btn { height: 28px; padding: 0 10px; font-size: 13.5px; } .filters .btn.on { border-color: var(--brass-hi); color: #fff3cf; box-shadow: 0 0 0 1px var(--brass-hi); }
+  .filters select { height: 28px; }
+  .ledgerwrap { overflow-x: auto; }
+  .ledgertab th { cursor: pointer; white-space: nowrap; } .ledgertab th.sorted { color: var(--brass-hi); }
+  .ledgertab tr.court { cursor: pointer; } .ledgertab tr.court:hover td { background: var(--leather-hi); }
+  .ledgertab tr.me td { color: var(--brass-hi); font-weight: 700; }
+  .ledgertab td.lead { color: #f2cf6b; font-weight: 700; }
+  .grid .left { text-align: left; }
+  /* correspondence */
+  .item.corr { margin: 5px 0; padding: 6px 10px; border-left: 3px solid var(--brass-lo); background: var(--walnut-lo); }
+  .item.corr.mine { border-left-color: var(--brass); background: var(--leather-hi); }
+  .item.corr small { display: block; color: var(--ink-3); font-size: 12.5px; margin-bottom: 2px; }
+  .item.corr q { display: block; font-style: italic; color: var(--ink-2); }
+  /* recruiting from the army office */
+  .recruit { padding: 8px 10px; background: var(--walnut-lo); border: 1px solid var(--brass-lo); }
+  .rrow { display: grid; grid-template-columns: 30px 1fr auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid rgba(196, 154, 82, .14); }
+  .rrow .uic { grid-row: span 2; font-size: 22px; text-align: center; } .rrow b { font-size: 15px; } .rrow small { grid-column: 2; color: var(--ink-3); font-size: 13px; }
+  .rrow .stepper { grid-column: 3; grid-row: 1 / span 2; display: flex; align-items: center; gap: 6px; }
+  .rrow .stepper button { width: 28px; height: 28px; border: 1px solid var(--brass-lo); background: var(--leather-hi); color: var(--brass-hi); cursor: pointer; font-size: 16px; }
+  .rrow .stepper b { min-width: 24px; text-align: center; background: none; border: none; color: var(--ink); font-size: 16px; }
+  .rrow .stepper { background: none; border: none; }
+  .rrow.off { opacity: .5; }
+  .recruit .row { gap: 8px; align-items: center; margin: 6px 0 2px; }
+  .unlocks { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 4px 0; }
+  .unlocks .chipb { cursor: help; padding: 1px 7px; border: 1px solid var(--brass-lo); border-radius: 9px; font-size: 13px; }
+  .faith { font-size: 22px; color: var(--brass-hi); padding: 0 2px; }
+
+  /* the year's report, events and war */
+  .sheet { width: min(760px, 94vw); font-size: 16px; }
+  .yearcols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .yearcols h3 { margin: 6px 0 4px; font: 700 17px var(--display); border-bottom: 1px solid #b8a274; }
+  .yearcols ul { padding-left: 4px; list-style: none; font-size: 14.5px; }
+  .gain-line { color: #2f6a3e; font-weight: 600; } .loss-line { color: #8f2f22; font-weight: 600; }
+  @media (max-width: 700px) { .yearcols { grid-template-columns: 1fr; } }
+  .eventcard .escene { display: block; width: 100%; height: 150px; object-fit: cover; margin-bottom: 8px; border: 1px solid #3a2414; }
+  .eventcard .eruler { float: right; margin: 0 0 6px 10px; }
+  .eventcard.big .ehead b { font-size: 19px; }
+  .eoption small .pos { color: #2f7a3e; font-weight: 700; } .eoption small .neg { color: #a33a2a; font-weight: 700; }
+  .office .eoption small .pos { color: #9fd08f; } .office .eoption small .neg { color: #ef8f7a; }
+  .eoption b { font-size: 15.5px; } .eoption small { font-size: 13.5px; }
+  .eventcard .etext { font-size: 15.5px; }
+  .warconfirm { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+  .warconfirm ul { padding-left: 18px; } .warconfirm li.bad { color: #8f2f22; }
+  .sheet h2 .ico { width: 24px; height: 24px; vertical-align: -3px; }
+  /* ================================================================ the v2 shell: the map is the table */
+  .app.v2 { display: grid; grid-template-rows: 50px minmax(0, 1fr); height: 100vh; }
+  .topbar { display: flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--wood); position: relative; z-index: 8;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, .7); border-bottom: 2px solid #b48a4e; }
+  .realmbtn { display: flex; align-items: center; gap: 8px; background: none; border: none; cursor: pointer; padding: 0 8px 0 0;
+              color: var(--brass-hi); font: 700 18px var(--display); letter-spacing: .04em; white-space: nowrap; }
+  .realmbtn .shield { display: flex; align-items: center; clip-path: none; border: none; width: auto; height: auto; }
+  .topbar .treasury { display: flex; gap: 2px; align-items: center; }
+  .stat { display: flex; align-items: center; gap: 5px; height: 42px; padding: 0 7px; border-radius: 4px; cursor: default; background: none; border: 1px solid transparent; min-width: 0; }
+  .stat:hover { background: rgba(255, 240, 200, .06); border-color: var(--brass-lo); }
+  .stat .ico { width: 26px; height: 26px; flex: none; color: var(--brass-hi); }
+  .stat .val { display: flex; flex-direction: column; line-height: 1.05; }
+  .stat .val b { font: 700 17px var(--body); color: var(--ink); white-space: nowrap; }
+  .stat .val i { font-style: normal; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+  .stat .val i.pos, .richtip .pos, .pos { color: #9fd08f; } .stat .val i.neg, .richtip .neg, .neg { color: #ef8f7a; }
+  .stat .mini { height: 20px; width: 22px; min-width: 0; padding: 0; font-size: 14px; line-height: 1; margin-left: 3px; }
+  .stat.alarm .ico { color: #ef8f7a; }
+  .spacer { flex: 1; }
+  .date { text-align: right; margin-right: 6px; line-height: 1.05; }
+  .date b { display: block; font: 700 21px var(--display); color: var(--brass-hi); }
+  .date small { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+  .iconbtn { width: 38px; height: 38px; display: grid; place-items: center; flex: none; padding: 0; position: relative; cursor: pointer;
+             color: var(--brass-hi); background: linear-gradient(#2c1f14, #170f08); border: 1px solid var(--brass-lo); border-radius: 5px; }
+  .iconbtn .ico { width: 21px; height: 21px; }
+  .iconbtn:hover, .iconbtn.on { border-color: var(--brass-hi); color: #fff3cf; }
+  .iconbtn .count, .rail .count { position: absolute; top: -6px; right: -6px; }
+  .topbar #endturn { height: 38px; padding: 0 16px; font-size: 15px; white-space: nowrap; }
+  .orderswrap { position: relative; }
+  .orderswrap .ordersbox { position: absolute; right: 0; top: 46px; width: 400px; max-height: 65vh; overflow-y: auto; margin: 0; display: none; z-index: 9;
+                           box-shadow: 0 12px 30px rgba(0, 0, 0, .7); }
+  .orderswrap:hover .ordersbox, .orderswrap.open .ordersbox { display: block; }
+  .stage { position: relative; min-height: 0; overflow: hidden; }
+  .stage .mapwrap { position: absolute; inset: 0; margin: 0; border-radius: 0; box-shadow: inset 0 0 0 2px #120a04, inset 0 0 30px rgba(0, 0, 0, .5); }
+  .rail { position: absolute; left: 10px; top: 10px; z-index: 7; display: flex; flex-direction: column; gap: 7px; }
+  .rail button { width: 54px; height: 54px; display: grid; place-items: center; position: relative; cursor: pointer; color: var(--brass-hi);
+                 background: radial-gradient(circle at 50% 35%, #3a2a1a, #160e07); border: 1px solid var(--brass-lo); border-radius: 50%;
+                 box-shadow: 0 3px 8px rgba(0, 0, 0, .75), inset 0 0 0 2px rgba(0, 0, 0, .5); }
+  .rail button .ico { width: 27px; height: 27px; }
+  .rail button:hover { border-color: var(--brass); color: #fff3cf; }
+  .rail button[aria-selected="true"] { border-color: var(--brass-hi); color: #fff3cf; box-shadow: 0 0 0 2px var(--brass), 0 0 14px rgba(236, 208, 140, .45); }
+  .panel { position: absolute; left: 76px; top: 10px; bottom: 10px; z-index: 6; width: min(580px, calc(100vw - 96px)); display: flex; flex-direction: column;
+           background: var(--leather); border: 2px solid transparent; border-image: var(--brass-face) 1; box-shadow: 0 14px 40px rgba(0, 0, 0, .8);
+           opacity: 0; transform: translateX(-14px); pointer-events: none; transition: opacity .14s ease, transform .14s ease; }
+  .panel.open { opacity: 1; transform: none; pointer-events: auto; }
+  .panelhead { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; background: var(--brass-face); color: var(--engraved); }
+  .panelhead .ic .ico { width: 24px; height: 24px; display: block; }
+  .panelhead h3 { flex: 1; margin: 0; font: 700 19px var(--display); letter-spacing: .03em; }
+  .panelhead .iconbtn { width: 32px; height: 32px; background: rgba(42, 25, 6, .14); color: var(--engraved); border-color: rgba(42, 25, 6, .35); }
+  .panelhead .iconbtn .ico { width: 18px; height: 18px; }
+  .panel.pinned #panelpin { background: rgba(42, 25, 6, .55); color: #fff3cf; }
+  .panel .office { flex: 1; overflow-y: auto; margin: 0; border: none; background: none; font-size: 16.5px; }
+  .panel .office h4 { font-size: 16px; }
+  .panel .office .sub, .panel .office .note { font-size: 14.5px; }
+  .mapdock { position: absolute; right: 12px; bottom: 12px; z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .mapdock .legend { position: static; }
+  .dockrow { display: flex; gap: 10px; align-items: center; }
+  .modes, .stage .zoom { display: flex; flex-direction: row; gap: 4px; position: static; }
+  .modes button { width: 40px; height: 40px; }
+  .modes button[aria-pressed="true"] { border-color: var(--brass-hi); color: #fff3cf; box-shadow: 0 0 0 1px var(--brass-hi); }
+  .stage .deed { left: 78px; }
+  .stage.paneled .deed { left: auto; right: 12px; bottom: auto; top: 10px; max-height: calc(100% - 90px); }
+  .stage .hintbar { top: 10px; }
+  .toasts { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 8; width: max-content; max-width: min(760px, 70vw); }
+  .toasts .banner, .toasts .over { margin: 0 0 6px; box-shadow: 0 8px 20px rgba(0, 0, 0, .6); }
+  .richtip { position: fixed; z-index: 60; max-width: 360px; padding: 8px 11px; display: none; pointer-events: none; font-size: 14px; line-height: 1.35;
+             color: var(--ink); background: rgba(22, 14, 7, .97); border: 1px solid var(--brass); box-shadow: 0 8px 22px rgba(0, 0, 0, .7); }
+  .richtip h5 { margin: 0 0 4px; font: 700 14.5px var(--display); color: var(--brass-hi); }
+  .richtip .tl { display: flex; justify-content: space-between; gap: 14px; }
+  .richtip .tl.sum { border-top: 1px solid var(--brass-lo); margin-top: 3px; padding-top: 3px; font-weight: 700; }
+  .richtip .dim { color: var(--ink-3); font-size: 13px; }
+  .richtip .ico { width: 16px; height: 16px; vertical-align: -3px; }
+
+  td .ico, th .ico, .chips .ico, h4 .ico, .sub .ico, b .ico { width: 18px; height: 18px; vertical-align: -4px; }
+  @media (max-width: 860px) {
+    .app.v2 { grid-template-rows: auto minmax(0, 1fr); height: 100dvh; }
+    .topbar { flex-wrap: wrap; padding: 4px 6px; gap: 4px; }
+    .topbar .treasury { order: 5; width: 100%; flex-wrap: wrap; justify-content: space-between; }
+    .stat { height: 34px; padding: 0 4px; } .stat .ico { width: 20px; height: 20px; } .stat .val b { font-size: 14px; }
+    .realmbtn { font-size: 15px; }
+    .orderswrap .ordersbox { position: fixed; left: 6px; right: 6px; top: 96px; width: auto; }
+    .rail { top: auto; bottom: 8px; left: 6px; right: 6px; flex-direction: row; overflow-x: auto; gap: 5px; }
+    .rail button { width: 44px; height: 44px; flex: none; } .rail button .ico { width: 22px; height: 22px; }
+    .panel { left: 4px; right: 4px; width: auto; top: 4px; bottom: 60px; }
+    .mapdock { bottom: 62px; right: 6px; } .mapdock .legend { display: none; }
+    .stage .deed { left: 0; }
+    .toasts { max-width: 94vw; }
   }
+
   .node.locked { opacity: .55; }
   .node .btn { margin-top: 4px; height: 24px; padding: 0 8px; font-size: 12.5px; }
   .link { width: 2px; height: 10px; margin: 0 auto; background: var(--brass-lo); }
@@ -266,8 +389,8 @@
   .throne { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
   .throne b { font: 700 17px var(--display); color: var(--brass-hi); }
   .portrait { display: block; border: 2px solid var(--brass); box-shadow: 0 0 0 1px #000, 0 3px 6px rgba(0, 0, 0, .6); }
-  .stat { display: grid; grid-template-columns: 98px auto 1fr; gap: 6px; align-items: center; font-size: 13.5px; margin-top: 3px; }
-  .stat small { color: var(--ink-3); }
+  .throne .stat { display: grid; grid-template-columns: 98px auto 1fr; gap: 6px; align-items: center; font-size: 13.5px; margin-top: 3px; }
+  .throne .stat small { color: var(--ink-3); }
   .statpips { display: inline-flex; gap: 2px; }
   .statpips i { width: 9px; height: 9px; border: 1px solid var(--brass-lo); background: var(--walnut-lo); }
   .statpips i.on { background: var(--brass-face); border-color: #4a3312; }
@@ -291,49 +414,46 @@
 </style>
 </head>
 <body>
-<div class="app">
-  <header class="top">
-    <div class="realm"><span class="shield" id="myshield"></span><div><b id="myname"></b><span>your realm</span></div></div>
+<div class="app v2">
+  <header class="topbar">
+    <button class="realmbtn" id="realmbtn" data-tip="Your realm: open the Crown" type="button"><span class="shield" id="myshield"></span><b id="myname"></b></button>
     <div class="treasury num" id="treasury"></div>
-    <div class="group modes" role="group" aria-label="Map mode"></div>
-    <div class="plaque" aria-live="polite"><b id="year" class="num"></b><span id="turnlabel"></span></div>
+    <div class="spacer"></div>
+    <div class="date" aria-live="polite"><b id="year" class="num"></b><small id="turnlabel"></small></div>
+    <div class="orderswrap"><button class="iconbtn" id="ordersbtn" type="button" data-tip="This year's orders"></button>
+      <section class="ordersbox" id="orders"></section></div>
     <button class="btn primary" id="endturn" title="Send your orders and let the year pass">End the year</button>
+    <button class="iconbtn" id="guide" type="button" data-tip="How to play"></button>
+    <button class="iconbtn" id="feedback" type="button" data-tip="Send feedback to the makers"></button>
   </header>
-  <div class="main">
+  <div class="stage">
     <div class="mapwrap" id="mapwrap">
       <svg id="map" role="img" aria-label="Map of Europe"></svg>
-      <div class="neatline" aria-hidden="true"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="in"></i></div>
       <div class="hintbar" id="hintbar" role="status"></div>
-      <div class="zoom">
-        <button class="btn" id="zin" aria-label="Zoom in" title="Zoom in">+</button>
-        <button class="btn" id="zout" aria-label="Zoom out" title="Zoom out">−</button>
-        <button class="btn" id="zhome" aria-label="Show my realm" title="Show my realm">⌂</button>
+      <div class="mapdock">
+        <div class="legend" id="legend"></div>
+        <div class="dockrow"><div class="group modes" role="group" aria-label="Map mode"></div>
+          <div class="zoom"><button class="iconbtn" id="zin" aria-label="Zoom in" data-tip="Zoom in"></button>
+            <button class="iconbtn" id="zout" aria-label="Zoom out" data-tip="Zoom out"></button>
+            <button class="iconbtn" id="zhome" aria-label="Show my realm" data-tip="Show my realm"></button></div></div>
       </div>
-      <div class="legend" id="legend"></div>
       <div class="deed" id="deed" role="dialog" aria-labelledby="deedname"></div>
       <div class="tip" id="tip"></div>
     </div>
-    <aside>
-      <div id="banner"></div>
-      <nav class="offices" role="tablist" aria-label="Offices of the realm">
-        <button role="tab" data-tab="realm"><span class="ic">💰</span>Economy</button>
-        <button role="tab" data-tab="crown"><span class="ic">👑</span>Crown</button>
-        <button role="tab" data-tab="army"><span class="ic">⚔</span>Army</button>
-        <button role="tab" data-tab="tech"><span class="ic">⚙</span>Learning</button>
-        <button role="tab" data-tab="diplomacy"><span class="ic">🤝</span>Envoys</button>
-        <button role="tab" data-tab="letters"><span class="ic">✉</span>Letters</button>
-        <button role="tab" data-tab="chronicle"><span class="ic">📖</span>Chronicle</button>
-      </nav>
-      <section class="office" id="office" role="tabpanel"></section>
-      <section class="ordersbox" id="orders"></section>
-      <p class="help"><button class="btn" id="guide">How to play</button> <button class="btn" id="feedback">Send feedback</button></p>
-      <p class="help">Left-click your province to select its regiments; right-click a green province to march, a red one to attack (on a phone, use the March buttons in the province's Army tab).
-        <kbd>1</kbd>–<kbd>5</kbd> map modes, <kbd>Esc</kbd> deselects.</p>
-    </aside>
+    <nav class="offices rail" id="rail" role="tablist" aria-label="Offices of the realm"></nav>
+    <section class="panel" id="panel" aria-labelledby="paneltitle">
+      <header class="panelhead"><span class="ic" id="panelicon"></span><h3 id="paneltitle"></h3>
+        <button class="iconbtn" id="panelpin" type="button" data-tip="Keep this window open"></button>
+        <button class="iconbtn" id="panelclose" type="button" data-tip="Close (Esc)"></button></header>
+      <div class="office" id="office" role="tabpanel"></div>
+    </section>
+    <div id="banner" class="toasts"></div>
   </div>
 </div>
+<div class="richtip" id="richtip" role="tooltip"></div>
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modaltitle"><div class="sheet" id="sheet"></div></div>
 <div class="error" id="error" role="alert"></div>
+<script src="/static/icons.js"></script>
 <script src="/static/map.js"></script>
 <script src="/static/play.js"></script>
 </body>

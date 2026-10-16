@@ -418,3 +418,7 @@ kbd { font: 12px var(--body); border: 1px solid var(--brass-lo); padding: 0 4px;
 .mission .goals .bar { height: 6px; background: rgba(0, 0, 0, .12); position: relative; display: block; }
 .mission .goals .bar b { position: absolute; left: 0; top: 0; bottom: 0; background: #8a6a3a; }
 .levy.merc { border-top: 1px dashed rgba(107, 86, 56, .45); padding-top: 6px; }
+
+/* the icon set (play page) */
+.ico { display: inline-block; vertical-align: middle; flex: none; width: 1.25em; height: 1.25em; }
+.ico.res { width: 1.2em; height: 1.2em; vertical-align: -.25em; }
