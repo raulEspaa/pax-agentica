@@ -22,6 +22,7 @@
   .btn[disabled] { opacity: .5; cursor: default; }
   .tables { display: grid; gap: 10px; }
   .table { background: var(--leather); border: 1px solid var(--brass-lo); padding: 12px 14px; }
+  .table.closedt { opacity: .7; padding: 8px 14px; }
   .table.mine { border-color: var(--brass); box-shadow: inset 3px 0 0 var(--brass); }
   .thead { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
   .thead b { font: 700 17px var(--display); color: var(--brass-hi); }
@@ -42,7 +43,7 @@
 <body>
 <main>
   <h1>Pax Agentica</h1>
-  <p class="lead">Europe, 1500. Open a table, send its link to your friends, and each of you takes a throne. Every throne nobody takes is ruled by a bot. A year passes once every player has ended it, or when the table's clock runs out.</p>
+  <p class="lead">Europe, 1500. Open a table, send its link to your friends, and each of you takes a throne. Every throne nobody takes is ruled by a bot. A year passes once every player has ended it, or when the table's clock runs out; whoever has answered can stop waiting for an absent friend after ten minutes. A table closes when everyone leaves it, or after three days without anyone playing.</p>
 
   <h2>Your name</h2>
   <div class="panel"><form class="open" id="who" onsubmit="return false">
@@ -62,6 +63,7 @@
 
   <h2>Tables</h2>
   <div class="tables" id="tables"><p class="note">Loading…</p></div>
+  <div id="closed"></div>
   <p class="note">Your seats are remembered by this browser. To play from another device, open the seat link the page gives you there.</p>
 </main>
 <script src="/static/map.js"></script>
@@ -93,6 +95,13 @@
     L = await (await fetch("/api/lobby")).json();
     $("codebox").hidden = !L.code_required;
     if (!$("nation").options.length) $("nation").innerHTML = L.powers.map((n) => `<option value="${n.id}">${esc(n.name)}</option>`).join("");
+    const ago = (ts) => { const m = Math.round((Date.now() / 1000 - ts) / 60);
+      return m < 2 ? "just now" : m < 90 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+    const open = L.tables.filter((t) => !t.closed), closed = L.tables.filter((t) => t.closed);
+    $("closed").innerHTML = closed.length ? `<h2>Closed lately</h2>` + closed.map((t) => `<div class="table closedt"><div class="thead"><b>${esc(t.title)}</b>
+      <span>${esc(t.closed)}${t.winner ? `: ${esc(t.nations.find((n) => n.id === t.winner)?.name || t.winner)} won` : ""}, in ${t.year}</span>
+      ${t.turn > 1 ? `<a href="/t/${t.id}/replay">replay</a>` : ""}</div></div>`).join("") + `<p class="note">A closed table keeps its replay for a week.</p>` : "";
+    L.tables = open;
     $("tables").innerHTML = L.tables.length ? L.tables.map((t) => {
       const mine = seatOf(t.id);
       const seats = t.nations.map((n) => `<div class="seatbox ${n.player ? "taken" : ""} ${n.alive ? "" : "fallen"}">${PaxMap.flag(n.id, n.color, 26)}
@@ -101,6 +110,7 @@
       return `<div class="table ${mine ? "mine" : ""}" id="t-${t.id}"><div class="thead"><b>${esc(t.title)}</b>
         <span>${t.finished ? `ended${t.winner ? `: ${esc(t.nations.find((n) => n.id === t.winner)?.name || t.winner)} won` : ""}` : `${t.year}, year ${t.turn} of ${t.max_turns}`}</span>
         <span>${t.turn_minutes ? `${t.turn_minutes} min a year` : "waits for everyone"}</span>
+        <span>played ${ago(Math.max(t.last_active || 0, t.created || 0))}</span>
         ${mine ? `<a class="btn" href="/t/${t.id}">Play</a> <a href="/t/${t.id}?seat=${encodeURIComponent(mine)}" data-copy>seat link</a>` : ""}
         ${t.finished ? `<a href="/t/${t.id}/replay">replay</a>` : ""}</div>
         <div class="seats">${seats}</div></div>`; }).join("") : `<p class="note">No table yet. Open the first one above.</p>`;

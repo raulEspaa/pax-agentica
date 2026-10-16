@@ -4,14 +4,20 @@
 
 Anyone can open a table (a new game) and anyone with its link can take a free throne by name;
 every throne nobody takes is ruled by a bot. A year is resolved once every seated human has
-ended it, or when the table's turn timer runs out. Each seat gets a secret token, kept by the
-browser, so nobody can play another's nation. Every table is saved after every year and picked
-up again when the server restarts, so a host can come and go.
+ended it, when the table's turn timer runs out, or when a player who has answered stops waiting
+for the absent. Each seat gets a secret token, kept by the browser, so nobody can play another's
+nation. Every table is saved after every year (and every answer), and picked up again when the
+server restarts, so a host can come and go.
+
+Tables close by themselves: when the last player leaves, after days without anyone looking at
+them, or once the game is over; a closed table keeps its replay for a week, then goes. A table
+nobody has looked at for a while is let go from memory and read again when someone returns.
 
 Set PAX_INVITE_CODE to require a code to open a table or take a seat (for a server on the
 internet). Nothing else is private: this is for playing with friends, not strangers.
 """
 
+import json
 import os
 import re
 import secrets
@@ -21,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -31,8 +38,12 @@ from pax_agentica.runner import GameRecord
 from pax_agentica.server import Session, add_assets
 from pax_agentica.viewer import europe_map, render_html, static_payload
 
-MAX_TABLES = 30
+MAX_TABLES = 30  # open at once
 NAME = re.compile(r"^[\w .'-]{1,24}$")
+IDLE_CLOSE = 3 * 24 * 3600.0  # seconds without a player looking before a table closes
+KEEP_CLOSED = 7 * 24 * 3600.0  # seconds a closed table keeps its replay
+UNLOAD_AFTER = 15 * 60.0  # seconds without a visit before a table leaves memory
+SWEEP_EVERY = 60.0
 
 
 class Seat(BaseModel):
@@ -48,6 +59,13 @@ class TableMeta(BaseModel):
     turn_minutes: float | None = None
     created: float
     seats: dict[NationId, Seat] = Field(default_factory=dict)
+    last_active: float = 0.0  # the last time a seated player looked at the table
+    closed: str | None = None  # why it closed: "everyone left", "abandoned", "over"
+    closed_at: float | None = None
+    # the year in progress, so a restart or a deploy loses nothing
+    pending: dict[NationId, Orders] = Field(default_factory=dict)
+    deadline: float | None = None
+    first_answer: float | None = None
 
 
 class TableFile(BaseModel):
@@ -75,6 +93,7 @@ class Table:
     def __init__(self, meta: TableMeta, session: Session) -> None:
         self.meta = meta
         self.session = session
+        self.visited = time.time()
 
     def summary(self) -> dict[str, Any]:
         state = self.session.state
@@ -87,6 +106,10 @@ class Table:
             "finished": state.finished,
             "winner": state.winner,
             "turn_minutes": self.meta.turn_minutes,
+            "created": self.meta.created,
+            "closed": self.meta.closed,
+            "closed_at": self.meta.closed_at,
+            "last_active": self.meta.last_active,
             "nations": [
                 {
                     "id": n.id,
@@ -105,27 +128,35 @@ def _bots(seed: int, nations: list[NationId], humans: list[NationId]) -> dict[Na
 
 
 class Lobby:
-    """Every table on this server, kept in memory and saved to `saves` after every year."""
+    """Every table on this server. Only a small summary of each is kept at hand; a table's
+    game is read from its save when someone opens it, and let go after a while unvisited."""
 
     def __init__(self, saves: Path, invite_code: str | None = None) -> None:
         self.saves = saves
         self.invite_code = invite_code
-        self.tables: dict[str, Table] = {}
+        self.tables: dict[str, Table] = {}  # the tables in memory
+        self.summaries: dict[str, dict[str, Any]] = {}  # every table, in brief
         self.seen: dict[str, float] = {}  # the save each table in memory was built from
+        self.swept = 0.0
         saves.mkdir(parents=True, exist_ok=True)
-        for path in sorted(saves.glob("*.json")):
-            self._read(path)
+        for path in sorted(saves.glob("*.summary.json")):
+            try:
+                summary = json.loads(path.read_text(encoding="utf-8"))
+                self.summaries[summary["id"]] = summary
+            except (OSError, ValueError, KeyError):
+                continue
+        for path in sorted(saves.glob("*.json")):  # tables saved before summaries existed
+            fresh = not path.name.endswith(".summary.json") and path.stem not in self.summaries
+            if fresh and (table := self._read(path.stem)):
+                self._write_summary(table)
 
-    def _read(self, path: Path) -> None:
-        try:
-            stamp = path.stat().st_mtime
-            self._load(TableFile.model_validate_json(path.read_text(encoding="utf-8")))
-            self.seen[path.stem] = stamp
-        except (OSError, ValueError):
-            pass  # a file we cannot read is left alone
+    # ------------------------------------------------------------ files
 
     def _path(self, table_id: str) -> Path:
         return self.saves / f"{table_id}.json"
+
+    def _summary_path(self, table_id: str) -> Path:
+        return self.saves / f"{table_id}.summary.json"
 
     def _session(self, meta: TableMeta, record: GameRecord | None = None) -> Session:
         humans = list(meta.seats)
@@ -134,49 +165,92 @@ class Lobby:
         state = record.initial if record else new_game(meta.seed, max_turns=meta.max_turns)
         bots = _bots(meta.seed, list(state.nations), humans)
         if record is not None and record.turns:
-            return Session.resume(record, humans, bots, turn_seconds=seconds, names=names)
-        return Session(state, humans, bots, turn_seconds=seconds, names=names)
+            session = Session.resume(record, humans, bots, turn_seconds=seconds, names=names)
+        else:
+            session = Session(state, humans, bots, turn_seconds=seconds, names=names)
+        session.pending = {n: o for n, o in meta.pending.items() if n in humans}
+        session.first_answer = meta.first_answer
+        if meta.deadline is not None:
+            session.deadline = meta.deadline
+        return session
 
-    def _load(self, saved: TableFile) -> None:
-        session = self._session(saved.meta, saved.record)
-        self.tables[saved.meta.id] = Table(saved.meta, session)
-        self._hook(self.tables[saved.meta.id])
+    def _read(self, table_id: str) -> Table | None:
+        path = self._path(table_id)
+        try:
+            stamp = path.stat().st_mtime
+            saved = TableFile.model_validate_json(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None  # a file we cannot read is left alone
+        table = Table(saved.meta, self._session(saved.meta, saved.record))
+        self.tables[table_id] = table
+        self.seen[table_id] = stamp
+        self._hook(table)
+        return table
 
     def _hook(self, table: Table) -> None:
-        """Save the table's seats and record together whenever the game saves."""
+        """Save the table's seats, the year in progress and the record together whenever the
+        game saves."""
         session = table.session
 
         def save() -> None:
-            data = TableFile(meta=table.meta, record=session.record)
-            path = self._path(table.meta.id)
+            meta = table.meta
+            meta.pending = dict(session.pending)
+            meta.deadline = session.deadline
+            meta.first_answer = session.first_answer
+            data = TableFile(meta=meta, record=session.record)
+            path = self._path(meta.id)
             tmp = path.with_suffix(".tmp")
             tmp.write_text(data.model_dump_json(), encoding="utf-8")
             tmp.replace(path)
-            self.seen[table.meta.id] = path.stat().st_mtime
+            self.seen[meta.id] = path.stat().st_mtime
+            self._write_summary(table)
 
         session.save = save  # type: ignore[method-assign]
+
+    def _write_summary(self, table: Table) -> None:
+        summary = table.summary()
+        self.summaries[table.meta.id] = summary
+        path = self._summary_path(table.meta.id)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(summary), encoding="utf-8")
+        tmp.replace(path)
+
+    def _forget(self, table_id: str) -> None:
+        self.tables.pop(table_id, None)
+        self.summaries.pop(table_id, None)
+        self.seen.pop(table_id, None)
+        for path in (self._path(table_id), self._summary_path(table_id)):
+            path.unlink(missing_ok=True)
+
+    # ------------------------------------------------------------ the life of a table
 
     def check_code(self, code: str) -> None:
         if self.invite_code and not secrets.compare_digest(code, self.invite_code):
             raise HTTPException(403, "wrong invitation code")
 
+    def open_count(self) -> int:
+        return sum(not s.get("closed") for s in self.summaries.values())
+
     def open_table(self, req: NewTable) -> tuple[Table, str]:
         self.check_code(req.code)
         if not NAME.match(req.name):
             raise HTTPException(422, "a name of letters, digits and spaces, up to 24")
-        if sum(not t.session.state.finished for t in self.tables.values()) >= MAX_TABLES:
+        self.sweep(force=True)
+        if self.open_count() >= MAX_TABLES:
             raise HTTPException(429, "this server has enough tables already")
         seed = req.seed if req.seed is not None else secrets.randbelow(1_000_000)
+        if req.nation not in new_game(seed).nations:
+            raise HTTPException(422, f"no great power called {req.nation!r}")
+        now = time.time()
         meta = TableMeta(
             id=secrets.token_urlsafe(6),
             title=req.title.strip() or "A new age",
             seed=seed,
             max_turns=req.years,
             turn_minutes=req.turn_minutes,
-            created=time.time(),
+            created=now,
+            last_active=now,
         )
-        if req.nation not in new_game(seed).nations:
-            raise HTTPException(422, f"no great power called {req.nation!r}")
         token = secrets.token_urlsafe(16)
         meta.seats[req.nation] = Seat(name=req.name, token=token)
         table = Table(meta, self._session(meta))
@@ -187,6 +261,7 @@ class Lobby:
 
     def join(self, table: Table, req: Join) -> str:
         self.check_code(req.code)
+        self._open(table)
         if not NAME.match(req.name):
             raise HTTPException(422, "a name of letters, digits and spaces, up to 24")
         state = table.session.state
@@ -196,41 +271,97 @@ class Lobby:
             raise HTTPException(409, f"{state.nations[req.nation].name} is taken")
         token = secrets.token_urlsafe(16)
         table.meta.seats[req.nation] = Seat(name=req.name, token=token)
+        table.meta.last_active = time.time()
         table.session.seat(req.nation, req.name)
         table.session.save()
         return token
 
+    async def leave(self, table: Table, nation: NationId) -> None:
+        """A player gives the throne back to a bot; the last one to go closes the table."""
+        table.meta.seats.pop(nation, None)
+        table.session.unseat(nation, GreedyBot(table.meta.seed))
+        if not table.meta.seats:
+            self.close(table, "everyone left")
+            return
+        await table.session.settle()  # perhaps the others were only waiting for this one
+        table.session.save()
+
+    def close(self, table: Table, why: str) -> None:
+        if table.meta.closed:
+            return
+        table.meta.closed = why
+        table.meta.closed_at = time.time()
+        table.session.deadline = None
+        table.session.save()
+
+    def _open(self, table: Table) -> None:
+        if table.meta.closed:
+            raise HTTPException(410, f"this table is closed ({table.meta.closed})")
+
     def table(self, table_id: str) -> Table:
-        """A table, read again from its save if another server (during a deploy, the old and
-        the new revision overlap) has written it since."""
+        """A table, read from its save if it is not in memory, or if another server (during a
+        deploy, the old and the new revision overlap) has written it since."""
         path = self._path(table_id)
         try:
             newer = path.stat().st_mtime > self.seen.get(table_id, 0.0)
         except OSError:
             newer = False
-        if newer:
-            self._read(path)
-        table = self.tables.get(table_id)
+        table = self._read(table_id) if newer or table_id not in self.tables else None
+        table = table or self.tables.get(table_id)
         if table is None:
             raise HTTPException(404, "no such table")
+        table.visited = time.time()
+        self.sweep()
         return table
 
     def seat_of(self, table: Table, token: str | None) -> NationId:
         for nation, seat in table.meta.seats.items():
             if token and secrets.compare_digest(seat.token, token):
+                table.meta.last_active = time.time()
                 return nation
         raise HTTPException(403, "take a seat at this table first")
 
+    def sweep(self, *, force: bool = False) -> None:
+        """Close abandoned and finished tables, delete long-closed ones, and let go of tables
+        nobody has visited for a while. At most once a minute unless forced."""
+        now = time.time()
+        if not force and now - self.swept < SWEEP_EVERY:
+            return
+        self.swept = now
+        for table_id, s in list(self.summaries.items()):
+            if s.get("closed") and now - (s.get("closed_at") or now) > KEEP_CLOSED:
+                self._forget(table_id)
+                continue
+            if s.get("closed"):
+                continue
+            idle = now - max(s.get("last_active") or 0.0, s.get("created") or 0.0)
+            table = self.tables.get(table_id)
+            if table is not None:
+                idle = now - max(table.meta.last_active, table.meta.created)
+            if s.get("finished") or idle > IDLE_CLOSE:
+                table = table or self._read(table_id)
+                if table is not None:
+                    self.close(table, "over" if table.session.state.finished else "abandoned")
+        for table_id, table in list(self.tables.items()):
+            if now - table.visited > UNLOAD_AFTER and table.session.lock.locked() is False:
+                if not table.meta.closed:
+                    table.session.save()  # keep when its players last looked
+                del self.tables[table_id]
+
 
 def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
-    lobby = Lobby(
-        saves, invite_code if invite_code is not None else os.environ.get("PAX_INVITE_CODE")
-    )
+    code = invite_code if invite_code is not None else os.environ.get("PAX_INVITE_CODE")
+    lobby = Lobby(saves, code)
+    powers = [{"id": n.id, "name": n.name, "color": n.color} for n in new_game(1).nations.values()]
     app = FastAPI(title="Pax Agentica tables", docs_url=None, redoc_url=None)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)  # a game's view is mostly JSON
     web = files("pax_agentica").joinpath("web")
     static = static_payload(new_game(1), europe_map())
     add_assets(app, static)
     app.state.lobby = lobby
+
+    def playable(table: Table) -> None:
+        lobby._open(table)
 
     @app.get("/", response_class=HTMLResponse)
     def home() -> str:
@@ -238,16 +369,12 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
 
     @app.get("/api/lobby")
     async def tables() -> dict[str, Any]:
-        for t in lobby.tables.values():
-            await t.session.tick()
-        listed = sorted(lobby.tables.values(), key=lambda t: -t.meta.created)
-        return {
-            "code_required": bool(lobby.invite_code),
-            "powers": [
-                {"id": n.id, "name": n.name, "color": n.color} for n in new_game(1).nations.values()
-            ],
-            "tables": [t.summary() for t in listed],
-        }
+        for t in list(lobby.tables.values()):
+            if not t.meta.closed and await t.session.tick():
+                pass  # a table whose clock ran out moves on, and saves its summary
+        lobby.sweep()
+        listed = sorted(lobby.summaries.values(), key=lambda s: -(s.get("created") or 0))
+        return {"code_required": bool(lobby.invite_code), "powers": powers, "tables": listed}
 
     @app.post("/api/tables")
     def open_table(req: NewTable) -> dict[str, Any]:
@@ -261,7 +388,7 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
 
     @app.get("/t/{table_id}", response_class=HTMLResponse)
     def play(table_id: str) -> Any:
-        if table_id not in lobby.tables:
+        if table_id not in lobby.summaries:
             return RedirectResponse("/")
         page = web.joinpath("play.html").read_text(encoding="utf-8")
         boot = f'<script>window.PAX_TABLE = "{table_id}";</script>'
@@ -269,14 +396,16 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
 
     @app.get("/api/t/{table_id}/static")
     def table_static(table_id: str) -> dict[str, Any]:
-        lobby.table(table_id)
+        if table_id not in lobby.summaries:
+            raise HTTPException(404, "no such table")
         return static
 
     @app.get("/api/t/{table_id}/game")
     async def game(table_id: str, x_seat: str | None = Header(default=None)) -> dict[str, Any]:
         table = lobby.table(table_id)
         nation = lobby.seat_of(table, x_seat)
-        await table.session.tick()
+        if not table.meta.closed:
+            await table.session.tick()
         return table.session.payload(nation) | {"table": table.summary()}
 
     @app.get("/api/t/{table_id}/status")
@@ -284,14 +413,17 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
         table = lobby.table(table_id)
         nation = lobby.seat_of(table, x_seat)
         session = table.session
-        await session.tick()
-        left = session.deadline - time.monotonic() if session.deadline is not None else None
+        if not table.meta.closed:
+            await session.tick()
+        left = session.deadline - time.time() if session.deadline is not None else None
         return {
             "turn": session.state.turn,
             "finished": session.state.finished,
+            "closed": table.meta.closed,
             "submitted": nation in session.pending,
             "waiting_for": session.waiting_for(),
             "seconds_left": max(0, round(left)) if left is not None else None,
+            "force_in": session.force_in(nation),
         }
 
     @app.post("/api/t/{table_id}/turn")
@@ -300,15 +432,35 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         table = lobby.table(table_id)
         nation = lobby.seat_of(table, x_seat)
+        playable(table)
         await table.session.submit(nation, orders)
         return table.session.payload(nation) | {"table": table.summary()}
+
+    @app.post("/api/t/{table_id}/force")
+    async def force(table_id: str, x_seat: str | None = Header(default=None)) -> dict[str, Any]:
+        """End the year without the players who have not answered, once patience runs out."""
+        table = lobby.table(table_id)
+        nation = lobby.seat_of(table, x_seat)
+        playable(table)
+        if not await table.session.force(nation):
+            raise HTTPException(409, "not yet: give the others a little more time")
+        return table.session.payload(nation) | {"table": table.summary()}
+
+    @app.post("/api/t/{table_id}/leave")
+    async def leave(table_id: str, x_seat: str | None = Header(default=None)) -> dict[str, Any]:
+        """Give your throne back to a bot. When the last player leaves, the table closes."""
+        table = lobby.table(table_id)
+        nation = lobby.seat_of(table, x_seat)
+        playable(table)
+        await lobby.leave(table, nation)
+        return {"left": nation, "closed": table.meta.closed}
 
     @app.get("/t/{table_id}/replay", response_class=HTMLResponse)
     def replay(table_id: str) -> str:
         table = lobby.table(table_id)
         if not table.session.record.turns:
-            raise HTTPException(404, "play a year first")
-        if not table.session.state.finished:
+            raise HTTPException(404, "no year was played at this table")
+        if not (table.session.state.finished or table.meta.closed):
             raise HTTPException(403, "the replay opens when the game is over")
         return render_html(table.session.record)
 

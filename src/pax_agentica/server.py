@@ -33,6 +33,9 @@ from pax_agentica.players import Player
 from pax_agentica.runner import GameRecord, play_turn, snapshot
 from pax_agentica.viewer import europe_map, render_html, static_payload
 
+CHRONICLE_YEARS = 25  # past years sent to the page; the replay keeps them all
+PATIENCE = 600.0  # seconds a player who has answered waits before ending the year without others
+
 
 class HumanOrders:
     """The human's orders for one turn, wrapped as a `Player`."""
@@ -78,7 +81,10 @@ class Session:
             start=snapshot(state),
         )
         self.pending: dict[NationId, Orders] = {}
-        self.deadline = time.monotonic() + turn_seconds if turn_seconds else None
+        # wall-clock times, so a saved table keeps its clock across a restart
+        self.deadline = time.time() + turn_seconds if turn_seconds else None
+        self.first_answer: float | None = None  # when the first human ended this year
+        self.patience = PATIENCE
         self.lock = asyncio.Lock()
 
     @property
@@ -116,6 +122,15 @@ class Session:
         self.names[nation] = name
         self.record.players[nation] = name
 
+    def unseat(self, nation: NationId, bot: Player) -> None:
+        """A human leaves: a bot takes the throne from this year on."""
+        if nation in self.humans:
+            self.humans.remove(nation)
+        self.pending.pop(nation, None)
+        self.names.pop(nation, None)
+        self.rulers[nation] = bot
+        self.record.players[nation] = bot.name
+
     def waiting_for(self) -> list[NationId]:
         alive = set(self.state.alive_nations())
         return [h for h in self.humans if h not in self.pending and h in alive]
@@ -129,10 +144,38 @@ class Session:
             if nation not in self.humans:
                 raise HTTPException(403, "that throne is not yours")
             self.pending[nation] = orders
+            if self.first_answer is None:
+                self.first_answer = time.time()
             if self.waiting_for():
+                self.save()  # the answer survives a restart while the others decide
                 return False
             await self._resolve()
             return True
+
+    def force_in(self, nation: NationId) -> int | None:
+        """Seconds before `nation`, having answered, may end the year without the absent;
+        None when there is no one to wait for or it has not answered."""
+        if nation not in self.pending or not self.waiting_for() or self.state.finished:
+            return None
+        since = self.first_answer or time.time()
+        return max(0, round(since + self.patience - time.time()))
+
+    async def force(self, nation: NationId) -> bool:
+        """End the year without those who have not answered (they do nothing this year)."""
+        async with self.lock:
+            wait = self.force_in(nation)
+            if wait is None or wait > 0:
+                return False
+            await self._resolve()
+            return True
+
+    async def settle(self) -> bool:
+        """Resolve the year if no one is left to wait for (after someone leaves)."""
+        async with self.lock:
+            if self.pending and not self.waiting_for() and not self.state.finished:
+                await self._resolve()
+                return True
+        return False
 
     async def end_turn(self, orders: Orders) -> None:
         """The single player's orders: in a game for one, the year ends at once."""
@@ -140,10 +183,10 @@ class Session:
 
     async def tick(self) -> bool:
         """Resolve the year if its time is up. Called whenever someone looks at the game."""
-        if self.deadline is None or time.monotonic() < self.deadline or self.state.finished:
+        if self.deadline is None or time.time() < self.deadline or self.state.finished:
             return False
         async with self.lock:
-            if self.deadline is not None and time.monotonic() >= self.deadline:
+            if self.deadline is not None and time.time() >= self.deadline:
                 await self._resolve()
                 return True
         return False
@@ -156,8 +199,9 @@ class Session:
         self.record.turns.append(turn)
         self.record.winner = self.state.winner
         self.pending = {}
+        self.first_answer = None
         if self.turn_seconds:
-            self.deadline = time.monotonic() + self.turn_seconds
+            self.deadline = time.time() + self.turn_seconds
         self.save()
 
     def chronicle(self, nation: NationId | None = None) -> list[dict[str, Any]]:
@@ -199,15 +243,13 @@ class Session:
     def payload(self, nation: NationId | None = None) -> dict[str, Any]:
         nation = nation or self.human
         state = self.state
-        left = (
-            max(0, round(self.deadline - time.monotonic())) if self.deadline is not None else None
-        )
+        left = max(0, round(self.deadline - time.time())) if self.deadline is not None else None
         return {
             "human": nation,
             "view": view_for(state, nation).model_dump(mode="json"),
             "finished": state.finished,
             "winner": state.winner,
-            "chronicle": self.chronicle(nation),
+            "chronicle": self.chronicle(nation)[:CHRONICLE_YEARS],
             "rulers": self.record.players,
             "previews": self.previews(nation),
             "saved_to": str(self.save_to) if self.save_to else None,
@@ -215,6 +257,7 @@ class Session:
             "submitted": nation in self.pending,
             "waiting_for": self.waiting_for(),
             "seconds_left": left,
+            "force_in": self.force_in(nation),
         }
 
 

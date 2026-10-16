@@ -77,8 +77,8 @@ def test_the_clock_ends_the_year_for_those_who_dawdle(
     lobby: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     table, anne = open_table(lobby, turn_minutes=1)
-    now = time.monotonic()
-    monkeypatch.setattr(time, "monotonic", lambda: now + 61)
+    now = time.time()
+    monkeypatch.setattr(time, "time", lambda: now + 61)
     status = lobby.get(f"/api/t/{table}/status", headers={"X-Seat": anne}).json()
     assert status["turn"] == 2
 
@@ -100,3 +100,86 @@ def test_a_table_written_by_another_server_is_read_again(tmp_path: Path) -> None
 
 def test_the_server_says_it_is_alive(lobby: TestClient) -> None:
     assert lobby.get("/api/health").json() == {"status": "ok"}
+
+
+# ---------------------------------------------------------------- tables that end
+
+
+def join(client: TestClient, table: str, nation: str, name: str = "Pedro") -> str:
+    r = client.post(f"/api/t/{table}/join", json={"name": name, "nation": nation})
+    assert r.status_code == 200, r.text
+    return str(r.json()["token"])
+
+
+def test_the_last_player_to_leave_closes_the_table(lobby: TestClient) -> None:
+    table, anne = open_table(lobby)
+    pedro = join(lobby, table, "spain")
+    assert lobby.post(f"/api/t/{table}/leave", headers={"X-Seat": pedro}).json()["closed"] is None
+    left = lobby.post(f"/api/t/{table}/leave", headers={"X-Seat": anne}).json()
+    assert left["closed"] == "everyone left"
+    assert (
+        lobby.post(f"/api/t/{table}/join", json={"name": "Eve", "nation": "england"}).status_code
+        == 410
+    )
+    listed = lobby.get("/api/lobby").json()["tables"][0]
+    assert listed["closed"] == "everyone left"
+
+
+def test_leaving_lets_the_others_go_on(lobby: TestClient) -> None:
+    table, anne = open_table(lobby)
+    pedro = join(lobby, table, "spain")
+    lobby.post(f"/api/t/{table}/turn", json=RECRUIT, headers={"X-Seat": anne})
+    lobby.post(f"/api/t/{table}/leave", headers={"X-Seat": pedro})  # Anne was waiting for him
+    game = lobby.get(f"/api/t/{table}/game", headers={"X-Seat": anne}).json()
+    assert game["view"]["turn"] == 2
+    assert game["rulers"]["spain"] == "greedy"
+
+
+def test_patience_runs_out_for_the_absent(
+    lobby: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    table, anne = open_table(lobby)
+    join(lobby, table, "spain")
+    lobby.post(f"/api/t/{table}/turn", json=RECRUIT, headers={"X-Seat": anne})
+    assert lobby.post(f"/api/t/{table}/force", headers={"X-Seat": anne}).status_code == 409
+    now = time.time()
+    monkeypatch.setattr(time, "time", lambda: now + 601)
+    assert lobby.get(f"/api/t/{table}/status", headers={"X-Seat": anne}).json()["force_in"] == 0
+    forced = lobby.post(f"/api/t/{table}/force", headers={"X-Seat": anne}).json()
+    assert forced["view"]["turn"] == 2
+
+
+def test_abandoned_and_finished_tables_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = TestClient(create_lobby_app(tmp_path, invite_code=""))
+    table, _ = open_table(client)
+    now = time.time()
+    monkeypatch.setattr(time, "time", lambda: now + 4 * 24 * 3600)
+    lobby = client.app.state.lobby  # type: ignore[attr-defined]
+    lobby.sweep(force=True)
+    assert lobby.summaries[table]["closed"] == "abandoned"
+    monkeypatch.setattr(time, "time", lambda: now + 12 * 24 * 3600)
+    lobby.sweep(force=True)
+    assert table not in lobby.summaries  # a week after closing, gone
+    assert not (tmp_path / f"{table}.json").exists()
+
+
+def test_tables_load_when_opened_and_keep_answers_across_restarts(tmp_path: Path) -> None:
+    first = TestClient(create_lobby_app(tmp_path, invite_code=""))
+    table, anne = open_table(first)
+    join(first, table, "spain")
+    first.post(f"/api/t/{table}/turn", json=RECRUIT, headers={"X-Seat": anne})
+    again = TestClient(create_lobby_app(tmp_path, invite_code=""))
+    lobby = again.app.state.lobby  # type: ignore[attr-defined]
+    assert table in lobby.summaries
+    assert table not in lobby.tables  # nothing read yet
+    status = again.get(f"/api/t/{table}/status", headers={"X-Seat": anne}).json()
+    assert status["submitted"] is True  # Anne's answer survived the restart
+    assert status["waiting_for"] == ["spain"]
+
+
+def test_views_travel_compressed(lobby: TestClient) -> None:
+    table, anne = open_table(lobby)
+    r = lobby.get(f"/api/t/{table}/game", headers={"X-Seat": anne, "Accept-Encoding": "gzip"})
+    assert r.headers.get("content-encoding") == "gzip"

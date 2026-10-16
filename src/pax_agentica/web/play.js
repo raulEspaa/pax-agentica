@@ -67,7 +67,8 @@
         if (st.turn !== V.turn || st.finished) {
           const before = V; G = await (await api("/game")).json();
           orders = []; picked = -1; afterLoad(); report(before);
-        } else { G.waiting_for = st.waiting_for; G.submitted = st.submitted; G.seconds_left = st.seconds_left; banner(); }
+        } else { G.waiting_for = st.waiting_for; G.submitted = st.submitted; G.seconds_left = st.seconds_left; G.force_in = st.force_in;
+          if (st.closed && G.table) G.table.closed = st.closed; banner(); }
       } catch {}
       watch();
     }, G.submitted ? 2500 : 6000);
@@ -77,11 +78,26 @@
     const fallen = !V.me.provinces.length;
     const clock = G.seconds_left != null && !G.finished ? ` ⏳ ${Math.floor(G.seconds_left / 60)}:${String(G.seconds_left % 60).padStart(2, "0")} left this year.` : "";
     const others = (G.waiting_for || []).filter((n) => n !== G.human);
-    const table = TABLE && !G.finished ? (G.submitted
-      ? `<div class="banner">📜 Your orders are sent; you may still change them and send again. Waiting for ${others.map(who).join(", ") || "the clerks"}.${clock}</div>`
-      : others.length || clock ? `<div class="banner">${others.length ? `Still deciding: ${others.map(who).join(", ")}.` : ""}${clock}</div>` : "") : "";
+    const closed = TABLE && G.table && G.table.closed;
+    const force = G.force_in === 0 ? ` <button class="btn" id="forceyear">Don't wait for them</button>`
+      : G.force_in ? ` You may go on without them in ${Math.ceil(G.force_in / 60)} min.` : "";
+    const leave = TABLE && !closed && !G.finished ? ` <button class="btn quiet" id="leavetable" title="Give your throne back to a bot">Leave the table</button>` : "";
+    const table = closed ? `<div class="banner">This table is closed (${esc(closed)}). <a href="${REPLAY}" target="_blank">Watch the replay</a> · <a href="/">Back to the tables</a></div>`
+      : TABLE && !G.finished ? (G.submitted
+      ? `<div class="banner">📜 Your orders are sent; you may still change them and send again. Waiting for ${others.map(who).join(", ") || "the clerks"}.${clock}${force}${leave}</div>`
+      : `<div class="banner">${others.length ? `Still deciding: ${others.map(who).join(", ")}.` : "Your court awaits your orders."}${clock}${leave}</div>`) : "";
     $("banner").innerHTML = G.finished ? `<div class="over">👑 ${esc(G.winner ? nameOf(G.winner) + " wins." : "The game is over.")} <a href="${REPLAY}" target="_blank">Watch the replay</a></div>`
       : fallen ? `<div class="banner">Your realm has fallen. You can watch the rest of the game year by year.</div>` : table;
+    const fb = $("forceyear");
+    if (fb) fb.onclick = async () => { fb.disabled = true; const before = V;
+      const r = await api("/force", {method: "POST"});
+      if (r.ok) { G = await r.json(); orders = []; picked = -1; afterLoad(); report(before); } else flash("Not yet: give the others a little more time."); };
+    const lb = $("leavetable");
+    if (lb) lb.onclick = async () => {
+      if (!confirm("Leave this table? A bot will rule your realm from now on, and you cannot come back to it.")) return;
+      await api("/leave", {method: "POST"});
+      try { localStorage.removeItem(seatKey); } catch {}
+      location.href = "/"; };
   }
   function afterLoad() {
     V = G.view; me = nIndex[G.human];
@@ -1423,7 +1439,7 @@
     const fallen = !V.me.provinces.length;
     banner();
     $("endturn").textContent = G.finished ? "Game over" : fallen ? "Next year" : G.submitted ? "Send again" : "End the year";
-    $("endturn").disabled = G.finished;
+    $("endturn").disabled = G.finished || !!(TABLE && G.table && G.table.closed);
     treasury(); map.paint(world()); map.pick(picked);
     map.setArrows(orders.filter((o) => o.type === "move" || o.type === "attack").map((o) => [pIndex[o.origin], pIndex[o.target], o.type, o.regiments]));
     deed(); office(); ordersBox(); legend();
