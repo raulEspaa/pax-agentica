@@ -83,6 +83,22 @@ def test_the_clock_ends_the_year_for_those_who_dawdle(
     assert status["turn"] == 2
 
 
+def test_unsent_orders_are_carried_out_when_the_clock_runs_out(
+    lobby: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    table, anne = open_table(lobby, turn_minutes=1)
+    before = lobby.get(f"/api/t/{table}/game", headers={"X-Seat": anne}).json()
+    paris = next(p for p in before["view"]["provinces"] if p["id"] == "paris")["troops"]
+    r = lobby.post(f"/api/t/{table}/draft", json=RECRUIT, headers={"X-Seat": anne})
+    assert r.json() == {"ok": True}
+    assert lobby.post(f"/api/t/{table}/draft", json=RECRUIT).status_code in (401, 403)
+    now = time.time()
+    monkeypatch.setattr(time, "time", lambda: now + 61)
+    after = lobby.get(f"/api/t/{table}/game", headers={"X-Seat": anne}).json()
+    assert after["view"]["turn"] == 2
+    assert next(p for p in after["view"]["provinces"] if p["id"] == "paris")["troops"] == paris + 1
+
+
 def test_the_replay_waits_for_the_end(lobby: TestClient) -> None:
     table, anne = open_table(lobby)
     lobby.post(f"/api/t/{table}/turn", json=RECRUIT, headers={"X-Seat": anne})

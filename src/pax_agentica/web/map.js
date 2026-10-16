@@ -22,7 +22,7 @@ const PaxMap = (() => {
   // resource glyphs where the icon set is loaded (the play page), emoji elsewhere (the replay)
   const glyph = (key, fallback) => (typeof PaxIcons !== "undefined" ? PaxIcons.icon(key, "res") : fallback);
   const RES = [["ducats", "Ducats", glyph("ducats", "💰")], ["manpower", "Manpower", glyph("manpower", "👥")], ["iron", "Iron", glyph("iron", "⛏")],
-               ["grain", "Grain", glyph("grain", "🌾")], ["timber", "Timber", glyph("timber", "🪵")], ["goods", "Goods", glyph("goods", "🧵")]];
+               ["grain", "Grain", glyph("grain", "🌾")], ["timber", "Timber", glyph("timber", "🌳")], ["goods", "Goods", glyph("goods", "🧵")]];
   // the banners of 1500, simplified for a 30 by 20 field
   const FLEUR = (x, y, c) => `<path transform="translate(${x} ${y}) scale(.5)" fill="${c}" d="M0 -6 C2 -4 2 -2 0 0 C-2 -2 -2 -4 0 -6Z M0 0 C3 -3 6 -2 5 1 C4 3 2 2 1 1Z M0 0 C-3 -3 -6 -2 -5 1 C-4 3 -2 2 -1 1Z M-3 2 H3 V3.2 H-3Z M-.8 3 V6 H.8 V3Z"/>`;
   const EAGLE = (x, y, s, c, heads) => `<g transform="translate(${x} ${y}) scale(${s})" fill="${c}">
@@ -56,7 +56,7 @@ const PaxMap = (() => {
   const OPINION = (v) => { const t = Math.max(-1, Math.min(1, v / 60));
     return t < 0 ? mix("#b3aa98", "#b8483a", -t) : mix("#b3aa98", "#4f9a62", t); };
   const goodOf = (S, g) => (S.goods || {})[g] || {name: GOOD[g] || cap(g), icon: "◆", yield: {}, workings: "Workings"};
-  const BICON = {marketplace: "⚖", farm_estates: "🌾", ironworks: "⚒", lumber_mill: "🪚", university: "📜", bank: "🏦", cathedral: "⛪", training_grounds: "🎯",
+  const BICON = {marketplace: "⚖", farm_estates: "🌾", ironworks: "⚒", lumber_mill: "🌲", university: "📜", bank: "🏦", cathedral: "⛪", training_grounds: "🎯",
                  barracks: "⚔", armory: "🛡", fort: "🏰", citadel: "🏯", stables: "🐴", cannon_foundry: "🔥",
                  military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭", workshop: "🔨",
                  arms_manufactory: "🗡", powder_mill: "🧨"};
@@ -289,6 +289,11 @@ const PaxMap = (() => {
           el("line", {x1: 0, y1: 8, x2: 0, y2: -10, class: "pole"}, g);
           el("path", {d: "M0.5 -10 L11 -6.5 L0.5 -3 Z", fill: N[general.nation].color, class: "pennant"}, g);
           el("text", {x: 4.6, y: -6.3, class: "skill"}, g).textContent = general.skill;
+          // and a gold star over the regiments he leads, so a led army stands out at a glance
+          const s = el("g", {class: "genmark", transform: `translate(${p.x + 11 * k} ${p.y - 6 * k}) scale(${1.15 * k})`}, gMarks);
+          el("title", {}, s).textContent = `Led by ${general.name} (${"★".repeat(general.skill)})`;
+          el("circle", {r: 6.5, stroke: N[general.nation].color}, s);
+          el("text", {y: 0.5}, s).textContent = "★";
         }
         const bs = world.buildings[i];
         if (close && bs.length) {
@@ -587,7 +592,7 @@ const PaxMap = (() => {
 
   // ------------------------------------------------------------------ the deed's common sections
   // ---------------------------------------------------------------- the land, in words
-  const TERRAIN_ICON = {plains: "🌾", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"};
+  const TERRAIN_ICON = {plains: "🏞", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"};
   const TERRAIN_LORE = {plains: "Open fields: bread for armies, easy to grow, hard to hold.",
     forest: "Woods and clearings: timber in plenty, little bread, a cavalryman's trap.",
     hills: "Mines and hardy folk: iron and soldiers, and good ground to defend.",
@@ -704,7 +709,7 @@ const PaxMap = (() => {
         <div title="Development: output, score and building slots. ${d.dev} of ${maxDev}."><span>🏛</span><b>${d.dev}</b><i style="width:${Math.round(d.dev / maxDev * 100)}%"></i><small>development</small></div>
         <div title="Regiments in garrison"><span>⚔</span><b>${d.troops === null ? "?" : d.troops}</b><small>regiments</small></div>
         <div title="How much harder defenders fight here: terrain, forts, capital"><span>🛡</span><b>×${defence.toFixed(2)}</b><small>defence</small></div>
-        <div title="${esc(cap(p.terrain))}: ${esc((S.terrainEffects || {})[p.terrain] || "")}"><span>${{plains: "🌾", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"}[p.terrain]}</span><b>${cap(p.terrain)}</b><small>terrain</small></div>
+        <div title="${esc(cap(p.terrain))}: ${esc((S.terrainEffects || {})[p.terrain] || "")}"><span>${{plains: "🏞", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"}[p.terrain]}</span><b>${cap(p.terrain)}</b><small>terrain</small></div>
         <div title="${esc(goodOf(S, p.good).name)}: ${esc(yieldWords(goodOf(S, p.good).yield))} per development"><span>${goodOf(S, p.good).icon}</span><b>${esc(goodOf(S, p.good).name)}</b><small>trade good</small></div>
         ${d.faith ? `<div class="${d.heretic ? "heretic" : ""}" title="${d.heretic ? `Its people keep another faith than their ruler's: it yields less until they convert` : `Its people share their ruler's faith`}"><span>${FAITH_ICON[d.faith] || "✝"}</span><b>${cap(d.faith)}</b><small>${d.heretic ? "another faith" : "faith"}</small></div>` : ""}
       </section>

@@ -11,9 +11,12 @@ rest. It is how the game gets tested by people before the AI rulers arrive, and 
 - Share the lobby link. Friends write their name and **take** any throne a bot still holds,
   before the first year or in the middle of the game.
 - A year passes once **every seated player** has ended it. With a clock, it also passes when
-  time runs out: whoever has not answered does nothing that year. Until the year passes you can
-  change your orders and send them again.
-- The page shows who is still deciding and picks up the new year by itself.
+  time runs out. The page sends the orders you are preparing as you go (`POST
+  /api/t/{id}/draft`): whoever has not pressed "End the year" when the clock runs out (or when
+  the others stop waiting) has those orders carried out. Until the year passes you can change
+  your orders and send them again.
+- The page shows the clock and who is still deciding in a pill in the top bar, and picks up the
+  new year by itself.
 - Each seat has a **secret token**, kept by your browser. The lobby gives a *seat link* to
   open the same seat on another device: anyone with that link plays your nation.
 - Letters, proposals, alliances and peace treaties between players go through the game's own

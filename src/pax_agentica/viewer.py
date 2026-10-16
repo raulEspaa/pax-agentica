@@ -89,12 +89,12 @@ GOOD_ICONS = {
     Good.SALT: "🧂",
     Good.WOOL: "🐑",
     Good.CLOTH: "🧵",
-    Good.TIMBER: "🪵",
+    Good.TIMBER: "🌳",
     Good.IRON: "⛏",
-    Good.COPPER: "🟠",
+    Good.COPPER: "🥉",
     Good.FURS: "🦊",
     Good.SILVER: "🥈",
-    Good.GOLD: "🪙",
+    Good.GOLD: "🥇",
     Good.SPICES: "🌶",
 }
 PERSONALITY_WORDS = {

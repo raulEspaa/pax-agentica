@@ -65,7 +65,7 @@
       if (!r.ok) { const body = await r.json().catch(() => ({})); throw new Error(body.detail ? JSON.stringify(body.detail) : r.statusText); }
       const before = V, next = await r.json();
       if (next.view.turn === V.turn && !next.finished) { G = next; afterLoad(); watch(); return; } // the others are still deciding
-      G = next; orders = []; picked = -1; afterLoad(); report(before); watch();
+      G = next; orders = []; draftSent = "[]"; picked = -1; afterLoad(); report(before); watch();
     } catch (err) { flash(`The orders could not be sent: ${err.message}`); render(); }
   }
   // At a table: while others decide (or a turn timer runs), ask now and then whether the year has passed.
@@ -76,9 +76,11 @@
       try {
         const st = await (await api("/status")).json();
         if (st.turn !== V.turn || st.finished) {
-          const before = V, unsent = orders.length && !G.submitted; G = await (await api("/game")).json();
-          orders = []; picked = -1; afterLoad(); report(before);
-          if (unsent) flash("The year ended before you sent your orders: they were not carried out.");
+          const before = V, unsent = orders.length && !G.submitted, kept = JSON.stringify(orders) === draftSent;
+          G = await (await api("/game")).json();
+          orders = []; draftSent = "[]"; picked = -1; afterLoad(); report(before);
+          if (unsent) flash(kept ? "The year ended before you pressed “End the year”: the orders you had prepared were carried out."
+            : "The year ended before your last orders reached the court: some were not carried out.");
           if (document.hidden) document.title = `⚑ ${V.year}: your turn · Pax Agentica`;
         } else { G.waiting_for = st.waiting_for; G.submitted = st.submitted; G.seconds_left = st.seconds_left; G.force_in = st.force_in;
           if (st.closed && G.table) G.table.closed = st.closed; banner(); }
@@ -92,13 +94,22 @@
     const clock = G.seconds_left != null && !G.finished ? ` ⏳ ${Math.floor(G.seconds_left / 60)}:${String(G.seconds_left % 60).padStart(2, "0")} left this year.` : "";
     const others = (G.waiting_for || []).filter((n) => n !== G.human);
     const closed = TABLE && G.table && G.table.closed;
-    const force = G.force_in === 0 ? ` <button class="btn" id="forceyear">Don't wait for them</button>`
+    const force = G.force_in === 0 ? `<button class="btn" id="forceyear">Don't wait for them</button>`
       : G.force_in ? ` You may go on without them in ${Math.ceil(G.force_in / 60)} min.` : "";
-    const leave = TABLE && !closed && !G.finished ? ` <button class="btn quiet" id="leavetable" title="Give your throne back to a bot">Leave the table</button>` : "";
-    const table = closed ? `<div class="banner">This table is closed (${esc(closed)}). <a href="${REPLAY}" target="_blank">Watch the replay</a> · <a href="/">Back to the tables</a></div>`
-      : TABLE && !G.finished ? (G.submitted
-      ? `<div class="banner">📜 Your orders are sent; you may still change them and send again. Waiting for ${others.map(who).join(", ") || "the clerks"}.${clock}${force}${leave}</div>`
-      : `<div class="banner">${others.length ? `Still deciding: ${others.map(who).join(", ")}.` : "Your court awaits your orders."}${clock}${leave}</div>`) : "";
+    const leave = TABLE && !closed && !G.finished ? `<button class="btn quiet" id="leavetable" title="Give your throne back to a bot">Leave the table</button>` : "";
+    const late = G.seconds_left != null && G.seconds_left < 60;
+    const timer = G.seconds_left != null && !G.finished ? `${Math.floor(G.seconds_left / 60)}:${String(G.seconds_left % 60).padStart(2, "0")}` : "";
+    const pill = $("tablestatus");
+    pill.hidden = !(TABLE && !closed && !G.finished && !fallen);
+    if (!pill.hidden) {
+      const status = G.submitted ? `✓ sent${others.length ? ` · ${others.length} deciding` : ""}` : others.length ? `${others.length} deciding` : "your move";
+      pill.innerHTML = `<button class="tablepill ${G.submitted ? "sent" : ""} ${late && !G.submitted ? "late" : ""}" type="button">${timer ? `⏳ <span class="num">${timer}</span> · ` : ""}${status}</button>
+        <div class="tablebox"><p>${G.submitted ? "📜 Your orders are sent; you may still change them and send again." : "Your court awaits your orders. What you prepare is kept: if the year ends before you press “End the year”, it is carried out."}</p>
+          ${others.length ? `<p>Still deciding: ${others.map(who).join(", ")}.</p>` : ""}
+          ${timer ? `<p>⏳ ${timer} left this year.</p>` : ""}${force ? `<p>${force}</p>` : ""}<div class="row">${leave}</div></div>`;
+      pill.querySelector(".tablepill").onclick = () => pill.classList.toggle("open");
+    }
+    const table = closed ? `<div class="banner">This table is closed (${esc(closed)}). <a href="${REPLAY}" target="_blank">Watch the replay</a> · <a href="/">Back to the tables</a></div>` : "";
     $("banner").innerHTML = G.finished ? `<div class="over">👑 ${esc(G.winner ? nameOf(G.winner) + " wins." : "The game is over.")} <a href="${REPLAY}" target="_blank">Watch the replay</a></div>`
       : fallen ? `<div class="banner">Your realm has fallen. You can watch the rest of the game year by year.</div>` : table;
     const fb = $("forceyear");
@@ -345,7 +356,7 @@
     workshop: "makes goods"};
   const icons = (c) => RES.map(([, , ic], k) => c[k] ? `${c[k]}${ic}` : "").filter(Boolean).join(" ");
   const gainText = (g) => RES.map(([key, , ic]) => g && g[key] ? `<span>+${g[key]} ${ic}</span>` : "").join("");
-  let ownTab = "economy";
+  let ownTab = "economy", deedMin = false;
   function monumentCard(i, mine, t) {
     const p = prov(i), mon = M[p.id];
     if (!mon || p.monument === null) return "";
@@ -567,10 +578,15 @@
     if (p.controller) warNotes.push(`🏴 Occupied by ${esc(nameOf(p.controller))}: it yields nothing to ${p.owner === G.human ? "you" : esc(nameOf(p.owner))} until a peace says whose it is.`);
     const scroll = box.scrollTop;
     box.innerHTML = info.header + info.facts + (warNotes.length ? `<section class="warnotes">${warNotes.map((n) => `<p class="note war">${n}</p>`).join("")}</section>` : "") + siegeCard(i) + body;
+    // fold the deed to its ribbon, or drop the picture on the Army tab, to keep the map in sight
+    box.classList.toggle("min", deedMin);
+    box.classList.toggle("compact", deedMin || (mine && ownTab === "army"));
+    box.querySelector(".deedhead").insertAdjacentHTML("beforeend", `<button class="mini" data-min title="${deedMin ? "Unfold the deed" : "Fold the deed to see the map"}" aria-label="${deedMin ? "Unfold" : "Fold"}">${deedMin ? "▾" : "▴"}</button>`);
+    box.querySelector("[data-min]").onclick = () => { deedMin = !deedMin; deed(); };
     box.scrollTop = scroll;
     box.classList.add("open");
     box.querySelector("[data-close]").onclick = () => { picked = -1; render(); };
-    box.querySelectorAll("[data-dtab]").forEach((b) => b.onclick = () => { ownTab = b.dataset.dtab; deed(); });
+    box.querySelectorAll("[data-dtab]").forEach((b) => b.onclick = () => { ownTab = b.dataset.dtab; deedMin = false; deed(); });
     box.querySelectorAll("[data-envoy]").forEach((b) => b.onclick = () => { focus = nIndex[b.dataset.envoy]; openOffice("diplomacy"); });
     box.querySelectorAll(".stepper").forEach(wireStepper);
     const leadBox = box.querySelector("#lead"); if (leadBox) leadBox.onchange = () => { lead = leadBox.checked; deed(); };
@@ -1019,15 +1035,18 @@
     if (p.limit_army !== null && p.limit_army !== undefined) parts.push(`${does(receiver, "keep")} no more than ${p.limit_army} regiments during the truce`);
     return parts.join("; ");
   }
-  function proposalCard(p) {
-    const from = esc(nameOf(p.sender)), answered = orders.find((o) => o.type === "respond" && o.proposal_id === p.id);
-    const what = p.kind === "alliance" ? `${from} proposes an alliance.`
+  function proposalText(p) {
+    const from = esc(nameOf(p.sender));
+    return p.kind === "alliance" ? `${from} proposes an alliance.`
       : p.kind === "non_aggression" ? `${from} proposes a non-aggression pact for ten years.`
       : p.kind === "peace" ? `${from} offers peace${p.reply_to ? " (a counter-offer)" : ""}: ${termsText(p, p.sender) || "a white peace"}.`
       : p.kind === "trade" ? `${from} offers ${costText(unbundle(p.give))} for ${costText(unbundle(p.receive))}${p.reply_to ? " (a counter-offer)" : ""}.`
       : p.kind === "marriage" ? `${from} proposes a royal marriage between your houses.`
       : p.kind === "coalition" ? `${from} invites you into a league against ${esc(nameOf(p.enemy))}: if it attacks either of you, both go to war.`
       : `${from} calls you to arms against ${esc(nameOf(p.enemy))}. Ignoring it ends the alliance.`;
+  }
+  function proposalCard(p) {
+    const answered = orders.find((o) => o.type === "respond" && o.proposal_id === p.id), what = proposalText(p);
     const state = answered ? (answered.accept ? `<span class="ok">You accept.</span>` : answered.counter ? `<span class="ok">You counter.</span>` : `<span class="warn">You refuse.</span>`) : "";
     const canCounter = p.kind === "peace" || p.kind === "trade";
     return `<div class="proposal"><div>${what} ${state}</div>${p.note ? `<blockquote>“${esc(p.note)}”</blockquote>` : ""}
@@ -1623,6 +1642,8 @@
           `<tr class="${n.id === G.human ? "me" : ""}"><td>${k + 1}</td><td>${esc(n.name)}${n.alive ? "" : " †"}</td><td>${n.score}</td><td>${n.provinces}</td></tr>`).join("")}</tbody></table>
         <p><a href="${REPLAY}" target="_blank">Watch the whole game as a replay</a></p></div>` : "";
     $("sheet").innerHTML = `<h2 id="modaltitle">${G.finished ? "The end of an age" : `The year ${V.year - 1}`}</h2>${ending}${crowned}${discoveries}${works}${G.finished ? "" : danger}
+      ${unanswered().length ? `<section class="awaiting"><h3>📜 Letters awaiting your answer</h3><ul>${unanswered().map((p) => `<li>${PROPOSAL_ICON[p.kind] || "📜"} ${proposalText(p)}</li>`).join("")}</ul>
+        <button class="btn" id="toletters">Answer them</button></section>` : ""}
       ${war ? `<section class="warlog"><h3>⚔ Your battles and sieges</h3>${war}</section>` : ""}
       <div class="yearcols"><section><h3>${PaxMap.flag(G.human, N[me].color, 22, "flag inline")} Your realm</h3>
         ${won.length ? `<p class="gain-line">Gained ${won.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
@@ -1632,10 +1653,12 @@
       <button class="btn" id="closemodal">Continue</button>`;
     $("modal").classList.add("open"); $("closemodal").focus();
     $("closemodal").onclick = () => { $("modal").classList.remove("open"); eventSheet(); };
+    const tl = $("toletters");
+    if (tl) tl.onclick = () => { $("modal").classList.remove("open"); pinned = true; openOffice("letters"); };
   }
   // ------------------------------------------------------------------ the crown's decisions
   const EVENT_ICON = {reformation: "✝", plague: "☠", harvest: "🌾", fuggers: "💰", artist: "🎨", revolt: "🔥",
-    silver: "🪙", comet: "☄", reformer: "⚔", nobles: "👑", fair: "🎪", mine: "⛏"};
+    silver: "🥈", comet: "☄", reformer: "⚔", nobles: "👑", fair: "🎪", mine: "⛏"};
   const chosen = (id) => orders.find((o) => o.type === "choose_option" && o.event_id === id);
   const colourEffects = (text) => esc(text).replace(/([+−-]\d+(?:\.\d+)?%?)\s([a-z ]+?)(?=,|$)/g, (m, n, what) =>
     `<span class="${n.startsWith("+") ? "pos" : "neg"}">${n} ${what}</span>`).replace(/(repay [^,]+|[\d]+ regiments lost[^,]*|\d+ years of unrest[^,]*)/g, '<span class="neg">$1</span>');
@@ -1785,7 +1808,42 @@
   }
 
   // ------------------------------------------------------------------ render
+  // At a table, the orders being drafted travel to the server as they change: if the clock (or
+  // the others) end the year before "End the year", they are carried out instead of lost.
+  let draftSent = "[]";
+  function draft() {
+    if (!TABLE || G.finished) return;
+    clearTimeout(draft.t);
+    draft.t = setTimeout(async () => {
+      const body = JSON.stringify(orders);
+      if (body === draftSent) return;
+      try { const r = await api("/draft", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({actions: orders})});
+        if (r.ok) draftSent = body; } catch {}
+    }, 1200);
+  }
+  // Offers from other courts, at the top of the map until answered or put off: easy to miss in
+  // the Correspondence alone.
+  const PROPOSAL_ICON = {alliance: "🤝", non_aggression: "📜", peace: "🕊", trade: "⚖", marriage: "💍", coalition: "🛡", call_to_arms: "⚔"};
+  const putOff = new Set();
+  const unanswered = () => V.proposals_to_answer.filter((p) => !orders.some((o) => o.type === "respond" && o.proposal_id === p.id));
+  const PROPOSAL_SHORT = (p) => ({alliance: "an alliance", non_aggression: "a non-aggression pact", peace: "peace terms", trade: "a trade",
+    marriage: "a royal marriage", coalition: `a league against ${nameOf(p.enemy)}`, call_to_arms: `a call to arms against ${nameOf(p.enemy)}`})[p.kind] || "a proposal";
+  function notices() {
+    const box = $("notices");
+    // out of the way while a window or a province is open; back when the map is clear
+    const open = G.finished || panelOpen || picked >= 0 ? [] : unanswered().filter((p) => !putOff.has(p.id));
+    box.innerHTML = open.length ? `<div class="notice"><span class="ic">📜</span><div>
+        <b>${open.length === 1 ? "A letter awaits" : `${open.length} letters await`} your answer</b>
+        <ul>${open.slice(0, 4).map((p) => `<li>${PROPOSAL_ICON[p.kind] || "📜"} ${esc(nameOf(p.sender))}: ${esc(PROPOSAL_SHORT(p))}</li>`).join("")}${open.length > 4 ? `<li>…and ${open.length - 4} more</li>` : ""}</ul>
+        <div class="row"><button class="btn" data-answer>Read and answer</button><button class="btn quiet" data-putoff>Later</button></div></div></div>` : "";
+    box.querySelectorAll("[data-answer]").forEach((b) => b.onclick = () => { pinned = true; openOffice("letters"); });
+    box.querySelectorAll("[data-putoff]").forEach((b) => b.onclick = () => { open.forEach((p) => putOff.add(p.id)); notices(); });
+    const letters = document.querySelector('#rail [data-tab="letters"]');
+    if (letters) letters.classList.toggle("urgent", unanswered().length > 0);
+  }
   function render() {
+    draft();
+    notices();
     $("myshield").innerHTML = PaxMap.flag(N[me].id, N[me].color, 34);
     $("myname").textContent = N[me].name;
     $("year").textContent = V.year;

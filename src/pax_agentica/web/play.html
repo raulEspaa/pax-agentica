@@ -346,6 +346,27 @@
   .topbar #endturn { height: 38px; padding: 0 16px; font-size: 15px; white-space: nowrap; }
   .topbar { min-width: 0; } .topbar > * { flex: none; } .topbar .treasury { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; } .topbar .stat { flex: none; }
   @media (max-width: 1400px) and (min-width: 861px) { .stat .val i { display: none; } .stat { padding: 0 4px; gap: 3px; } .stat .ico { width: 22px; height: 22px; } }
+  /* the table's clock and who is still deciding: a pill in the top bar, details on hover */
+  .tablewrap { position: relative; flex: none; }
+  .tablepill { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border-radius: 17px; cursor: pointer; white-space: nowrap;
+               color: var(--ink); background: linear-gradient(#2c1f14, #170f08); border: 1px solid var(--brass-lo); font: 600 14px var(--body); }
+  .tablepill.sent { border-color: #4f7a45; } .tablepill.late { border-color: #c0563f; color: #ffd9cf; }
+  .tablepill .num { font-variant-numeric: tabular-nums; }
+  .tablebox { position: absolute; right: 0; top: 42px; width: 320px; display: none; z-index: 9; padding: 10px 12px; font-size: 14.5px;
+              background: var(--leather); border: 1px solid var(--brass); box-shadow: 0 12px 30px rgba(0, 0, 0, .7); }
+  .tablebox p { margin: 0 0 8px; } .tablebox .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tablewrap:hover .tablebox, .tablewrap.open .tablebox { display: block; }
+  .notices { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 8; width: min(380px, 60vw); }
+  .notice ul { list-style: none; margin: 3px 0 0; padding: 0; font-size: 14px; } .notice li { margin: 1px 0; }
+  .notice { display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; font-size: 14.5px; color: var(--ink);
+            background: rgba(31, 21, 13, .97); border: 1px solid var(--brass); border-left: 4px solid var(--brass-hi); box-shadow: 0 8px 20px rgba(0, 0, 0, .6); }
+  .notice .ic { font-size: 22px; line-height: 1.2; } .notice b { color: var(--brass-hi); }
+  .notice .row { display: flex; gap: 6px; margin-top: 6px; } .notice.more { justify-content: center; }
+  .sheet .awaiting { margin: 6px 0 12px; padding: 8px 12px; border: 1px solid #8a6a3a; border-left: 5px solid #c49a52; background: rgba(255, 250, 235, .5); }
+  .sheet .awaiting h3 { margin: 0 0 4px; }
+  @keyframes letterpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(236, 208, 140, .0); } 50% { box-shadow: 0 0 0 6px rgba(236, 208, 140, .45); } }
+  .rail button.urgent { border-color: var(--brass-hi); animation: letterpulse 1.6s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .rail button.urgent { animation: none; } }
   .orderswrap { position: relative; }
   .orderswrap .ordersbox { position: absolute; right: 0; top: 46px; width: 400px; max-height: 65vh; overflow-y: auto; margin: 0; display: none; z-index: 9;
                            box-shadow: 0 12px 30px rgba(0, 0, 0, .7); }
@@ -392,6 +413,23 @@
   .richtip .ico { width: 16px; height: 16px; vertical-align: -3px; }
 
   td .ico, th .ico, .chips .ico, h4 .ico, .sub .ico, b .ico { width: 18px; height: 18px; vertical-align: -4px; }
+  /* laptops with small screens: narrower windows, shorter pictures, smaller text */
+  @media (max-height: 820px) and (min-width: 861px), (max-width: 1400px) and (min-width: 861px) {
+    .panel { left: 66px; width: min(470px, calc(100vw - 84px)); }
+    .panel .office { font-size: 15px; } .panel .office h4 { font-size: 14.5px; }
+    .rail { gap: 5px; } .rail button { width: 46px; height: 46px; } .rail button .ico { width: 23px; height: 23px; }
+    .stage .deed { width: min(390px, calc(100% - 48px)); font-size: 14.5px; max-height: calc(100% - 70px); }
+    .stage .deed { left: 66px; }
+    .deedhead figure.view img { aspect-ratio: 570 / 150; }
+    .deed section { padding: 7px 12px 8px; }
+    .sheet { width: min(680px, 94vw); max-height: 88vh; font-size: 15px; padding: 14px 18px; }
+    .eventcard.big .escene { height: 110px; }
+  }
+  @media (max-height: 700px) and (min-width: 861px) {
+    .app.v2 { grid-template-rows: 44px minmax(0, 1fr); }
+    .stat { height: 36px; } .topbar #endturn { height: 34px; }
+    .deedhead figure.view img { aspect-ratio: 570 / 110; }
+  }
   @media (max-width: 860px) {
     .app.v2 { grid-template-rows: auto minmax(0, 1fr); height: 100dvh; }
     .topbar { flex-wrap: wrap; padding: 4px 6px; gap: 4px; }
@@ -444,6 +482,7 @@
     <button class="realmbtn" id="realmbtn" data-tip="Your realm: open the Crown" type="button"><span class="shield" id="myshield"></span><b id="myname"></b></button>
     <div class="treasury num" id="treasury"></div>
     <div class="spacer"></div>
+    <div class="tablewrap" id="tablestatus" hidden></div>
     <div class="date" aria-live="polite"><b id="year" class="num"></b><small id="turnlabel"></small></div>
     <div class="orderswrap"><button class="iconbtn" id="ordersbtn" type="button" data-tip="This year's orders"></button>
       <section class="ordersbox" id="orders"></section></div>
@@ -473,6 +512,7 @@
       <div class="office" id="office" role="tabpanel"></div>
     </section>
     <div id="banner" class="toasts"></div>
+    <div id="notices" class="notices" aria-live="polite"></div>
   </div>
 </div>
 <div class="richtip" id="richtip" role="tooltip"></div>

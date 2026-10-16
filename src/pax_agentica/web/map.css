@@ -135,6 +135,8 @@ svg .pick { fill: none; stroke: #fff6dc; stroke-width: 2.4; stroke-dasharray: 6 
 .badge text { font-family: var(--body); font-weight: 700; font-size: 10px; fill: #f4e8cc; text-anchor: middle;
               dominant-baseline: central; }
 .badge.fog text { fill: #a99a7c; }
+.genmark circle { fill: #e6c27e; stroke-width: 1.6; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .7)); }
+.genmark text { font: 700 9px var(--body); fill: #4a3010; text-anchor: middle; dominant-baseline: central; }
 .badge text.plan { text-anchor: start; font-size: 9.5px; stroke: #120a04; stroke-width: 2.6px; paint-order: stroke; }
 .badge text.plan.up { fill: #9fe08f; } .badge text.plan.down { fill: #f39a84; }
 .siegemark .sbg { fill: #17110b; stroke-width: 1.2; }
@@ -201,6 +203,13 @@ svg .pick { fill: none; stroke: #fff6dc; stroke-width: 2.4; stroke-dasharray: 6 
         border: 6px solid #3a2414; outline: 1px solid var(--brass); outline-offset: -9px;
         box-shadow: 0 0 0 1px #120a04, 0 12px 30px rgba(0, 0, 0, .7); }
 .deed.open { display: block; }
+/* a compact deed shows no picture (on the Army tab, to keep the map in sight); a folded one only
+   its ribbon and tabs */
+.deed.compact .deedhead > figure, .deed.compact .deedhead > svg { display: none; }
+.deed.compact .ribbon { margin-top: 10px; margin-right: 76px; }
+.deed.min > :not(.deedhead):not(.deedtabs) { display: none; }
+.deed header.deedhead .mini { position: absolute; top: 6px; right: 40px; background: rgba(239, 226, 194, .85); border: 1px solid #7a5c2c;
+  color: var(--sepia-2); font-size: 16px; line-height: 1; padding: 3px 7px; cursor: pointer; }
 .deed header { display: flex; gap: 10px; align-items: center; padding: 14px 16px 8px; border-bottom: 1px solid rgba(107, 86, 56, .35); }
 .deed header.deedhead { display: block; position: relative; padding: 0; border-bottom: none; }
 .vista { display: block; width: 100%; height: auto; }

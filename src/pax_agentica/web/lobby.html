@@ -10,6 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/map.css">
 <style>
+  /* map.css locks the page for the game's full-screen map; the lobby is a page that scrolls */
+  html, body { height: auto; min-height: 100%; overflow-x: hidden; overflow-y: auto; }
   body { margin: 0; min-height: 100vh; background: var(--wood); color: var(--ink); font: 17px/1.45 var(--body); }
   main { max-width: 1080px; margin: 0 auto; padding: 26px 16px 60px; }
   .hero { display: flex; gap: 18px; align-items: center; margin-bottom: 20px; }
@@ -59,6 +61,7 @@
   .note { color: var(--ink-3); font-size: 14px; }
   a { color: var(--brass-hi); }
   [hidden] { display: none !important; }
+  @media (max-height: 820px), (max-width: 1100px) { body { font-size: 15.5px; } main { padding-top: 14px; } .hero img { width: 52px; height: 52px; } h1 { font-size: 30px; } .panel { padding: 12px 14px; } .power { padding: 5px 6px; font-size: 14px; } .bigbtn { height: 42px; } }
   @media (max-width: 800px) { .who, .choice, .opts { grid-template-columns: 1fr; } .powers { grid-template-columns: 1fr 1fr; } h1 { font-size: 28px; } }
 </style>
 </head>

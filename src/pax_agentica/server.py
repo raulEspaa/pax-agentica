@@ -83,6 +83,9 @@ class Session:
             start=snapshot(state),
         )
         self.pending: dict[NationId, Orders] = {}
+        # orders a human is still working on, sent as they change: if the year ends without
+        # their answer (the clock, or the others going on), these are carried out instead
+        self.drafts: dict[NationId, Orders] = {}
         # wall-clock times, so a saved table keeps its clock across a restart
         self.deadline = time.time() + turn_seconds if turn_seconds else None
         self.first_answer: float | None = None  # when the first human ended this year
@@ -129,6 +132,7 @@ class Session:
         if nation in self.humans:
             self.humans.remove(nation)
         self.pending.pop(nation, None)
+        self.drafts.pop(nation, None)
         self.names.pop(nation, None)
         self.rulers[nation] = bot
         self.record.players[nation] = bot.name
@@ -154,6 +158,13 @@ class Session:
             await self._resolve()
             return True
 
+    def draft(self, nation: NationId, orders: Orders) -> None:
+        """Keep a human's unsent orders, in case the year ends before they answer."""
+        if nation not in self.humans:
+            raise HTTPException(403, "that throne is not yours")
+        if not self.state.finished:
+            self.drafts[nation] = orders
+
     def force_in(self, nation: NationId) -> int | None:
         """Seconds before `nation`, having answered, may end the year without the absent;
         None when there is no one to wait for or it has not answered."""
@@ -163,7 +174,7 @@ class Session:
         return max(0, round(since + self.patience - time.time()))
 
     async def force(self, nation: NationId) -> bool:
-        """End the year without those who have not answered (they do nothing this year)."""
+        """End the year without those who have not answered (their drafts are carried out)."""
         async with self.lock:
             wait = self.force_in(nation)
             if wait is None or wait > 0:
@@ -196,11 +207,13 @@ class Session:
     async def _resolve(self) -> None:
         players: dict[NationId, Player] = dict(self.rulers)
         for human in self.humans:
-            players[human] = HumanOrders(self.pending.get(human, Orders()))
+            chosen = self.pending[human] if human in self.pending else self.drafts.get(human)
+            players[human] = HumanOrders(chosen or Orders())
         self.state, turn = await play_turn(self.state, players)
         self.record.turns.append(turn)
         self.record.winner = self.state.winner
         self.pending = {}
+        self.drafts = {}
         self.first_answer = None
         if self.turn_seconds:
             self.deadline = time.time() + self.turn_seconds

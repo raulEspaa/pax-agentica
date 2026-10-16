@@ -64,6 +64,7 @@ class TableMeta(BaseModel):
     closed_at: float | None = None
     # the year in progress, so a restart or a deploy loses nothing
     pending: dict[NationId, Orders] = Field(default_factory=dict)
+    drafts: dict[NationId, Orders] = Field(default_factory=dict)  # unsent, kept for the clock
     deadline: float | None = None
     first_answer: float | None = None
 
@@ -174,6 +175,7 @@ class Lobby:
         else:
             session = Session(state, humans, bots, turn_seconds=seconds, names=names)
         session.pending = {n: o for n, o in meta.pending.items() if n in humans}
+        session.drafts = {n: o for n, o in meta.drafts.items() if n in humans}
         session.first_answer = meta.first_answer
         if meta.deadline is not None:
             session.deadline = meta.deadline
@@ -200,6 +202,7 @@ class Lobby:
         def save() -> None:
             meta = table.meta
             meta.pending = dict(session.pending)
+            meta.drafts = dict(session.drafts)
             meta.deadline = session.deadline
             meta.first_answer = session.first_answer
             data = TableFile(meta=meta, record=session.record)
@@ -461,6 +464,18 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
         playable(table)
         await table.session.submit(nation, orders)
         return table.session.payload(nation) | {"table": table.summary()}
+
+    @app.post("/api/t/{table_id}/draft")
+    async def draft(
+        table_id: str, orders: Orders, x_seat: str | None = Header(default=None)
+    ) -> dict[str, bool]:
+        """The orders a player is still working on: carried out if the year ends without them.
+        Kept in memory (and saved with the table's next save), so drafting costs no write."""
+        table = lobby.table(table_id)
+        nation = lobby.seat_of(table, x_seat)
+        playable(table)
+        table.session.draft(nation, orders)
+        return {"ok": True}
 
     @app.post("/api/t/{table_id}/force")
     async def force(table_id: str, x_seat: str | None = Header(default=None)) -> dict[str, Any]:
