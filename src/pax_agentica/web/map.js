@@ -163,7 +163,8 @@ const PaxMap = (() => {
     const view = {x: 0, y: 0, w: W, h: H};
     let world = null, picked = -1, hovered = -1;
     const px = () => view.w / Math.max(1, svg.getBoundingClientRect().width);
-    const aspect = () => { const r = svg.getBoundingClientRect(); return r.width / Math.max(1, r.height); };
+    // a map laid out while hidden (a background tab) has no size yet: assume a screen's shape
+    const aspect = () => { const r = svg.getBoundingClientRect(); return r.width && r.height ? r.width / r.height : 16 / 10; };
     const maxW = () => Math.min(W, H * aspect());
 
     function fillFor(i) {
@@ -674,20 +675,19 @@ const PaxMap = (() => {
   function deedInfo(S, i, d) {
     // d: {owner, isCapital, dev, maxDev, troops (null: hidden), fort, unrest, base[5], bonus[5], built[], queued[], general}
     const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, p = P[i];
-    const slots = d.slots ?? 1 + Math.floor(d.dev / R.slotEvery);
+    const slots = d.slots ?? R.slots ?? 5;
     const defence = R.defender * R.terrain[p.terrain] * (1 + R.fort * d.fort + (d.isCapital ? R.capital : 0));
     const rows = RES.map(([, label, ic], k) => {
       const total = d.unrest ? 0 : d.base[k] + d.bonus[k];
       return `<tr><td>${ic} ${label}</td><td>${d.base[k]}</td><td class="plus">${d.bonus[k] ? "+" + d.bonus[k] : ""}</td>
         <td class="total">${total}</td></tr>`; }).join("");
     const tiles = [], queued = d.queued || [];
-    for (let s = 0; s < Math.max(4, slots); s++) {
-      if (s < d.built.length) { const b = B[d.built[s]];
-        tiles.push(`<div class="slot ${b.category}" title="${esc(b.name)}: ${esc(b.effect)}"><span class="ic">${BICON[b.id]}</span>${esc(b.name)}</div>`); }
+    for (let s = 0; s < slots; s++) {
+      if (s < d.built.length) { const b = B[d.built[s]], lvl = (d.levels || [])[s] || 1;
+        tiles.push(`<div class="slot ${b.category}" title="${esc(b.name)}, level ${lvl}: ${esc(b.effect)}"><span class="ic">${BICON[b.id]}</span>${esc(b.name)}${b.maxLevel > 1 ? `<small class="lvl">${"★".repeat(lvl)}${"☆".repeat(b.maxLevel - lvl)}</small>` : ""}</div>`); }
       else if (s < d.built.length + queued.length) { const b = B[queued[s - d.built.length]];
         tiles.push(`<div class="slot queued" title="Ordered this year"><span class="ic">${BICON[b.id]}</span>${esc(b.name)}<br><small>ordered</small></div>`); }
-      else if (s < slots) tiles.push(`<div class="slot free" data-slot><span class="ic">＋</span>Free slot</div>`);
-      else tiles.push(`<div class="slot locked" title="Opens at development ${s * R.slotEvery}"><span class="ic">🔒</span>Development ${s * R.slotEvery}</div>`);
+      else tiles.push(`<div class="slot free" data-slot><span class="ic">＋</span>Free slot</div>`);
     }
     const owner = d.owner >= 0 ? esc(N[d.owner].name) + (d.isCapital ? ", capital" : "") : "Independent";
     const maxDev = d.maxDev || R.maxDevelopment;

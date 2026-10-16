@@ -151,7 +151,7 @@ function deed() {
         <div class="cost">${costText(b.cost)}</div></div></div>`; }).join("")}</div>`).join("");
   box.innerHTML = info.header + info.facts + info.production +
     `<section>${info.slotsHtml}<div class="catalog">${catalog}</div>
-     <p class="note">A new slot opens every ${R.slotEvery} development. Output buildings add half the land's yield, so they pay more in rich provinces.</p></section>`;
+     <p class="note">Every province has ${R.slots || 5} building slots; most works can be upgraded. Output buildings add half the land's yield, so they pay more in rich provinces.</p></section>`;
   box.classList.add("open");
   box.querySelector("[data-close]").onclick = () => pick(-1);
 }

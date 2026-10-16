@@ -325,6 +325,9 @@ table.prod { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .brow .badge.ok { color: #2f6a3e; } .brow .badge.bad { color: #fff; background: #8f2f22; }
 .blater { margin-top: 10px; } .blater summary { cursor: pointer; font: 700 14px var(--display); color: var(--sepia); }
 .blater .blist { margin-top: 5px; }
+.brow .lvl, .slot .lvl { font: 600 12px var(--body); color: #8a6420; letter-spacing: 1px; }
+.slot .lvl { display: block; }
+.brow .next { color: #2f6a3e; font-style: italic; font-size: 12.5px; }
 .deed .siege { background: rgba(143, 59, 46, .08); border-top: 2px solid #8f3b2e; }
 .deed .siege h4 { display: flex; align-items: center; gap: 6px; }
 .deed .siege h4 .ico { width: 18px; height: 18px; }

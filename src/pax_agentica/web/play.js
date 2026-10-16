@@ -139,6 +139,10 @@
     return {war, alliance: t("alliance"), pact: t("non_aggression"), truce: t("truce"), marriage: t("marriage"), leagues};
   };
   const buildCost = (id) => unbundle(V.me.building_costs[id]);
+  // raising a building to `level`: its own cost times the rules' factor, then engineering's discount
+  const upgradeCost = (id, level) => { const b = B[bIndex[id]], f = R.upgradeCosts[Math.min(level, R.upgradeCosts.length) - 1], off = V.me.modifiers.building_discount;
+    return b.cost.map((v, k) => { const c = Math.ceil(v * f); return RES[k][0] === "ducats" || RES[k][0] === "timber" ? Math.ceil(c * (1 - off)) : c; }); };
+  const levelOf = (i, id) => (prov(i).building_levels || {})[id] || 1;
   const researching = () => orders.find((o) => o.type === "research");
   // what one order takes from (negative) or gives to (positive) the treasury, resource by resource
   function delta(o) {
@@ -154,6 +158,7 @@
     if (o.type === "patronize") d[0] -= V.me.patronage_cost;
     if (o.type === "convert" && prov(pIndex[o.province]).convert_cost) sub(unbundle(prov(pIndex[o.province]).convert_cost));
     if (o.type === "build") sub(buildCost(o.building));
+    if (o.type === "upgrade_building") sub(upgradeCost(o.building, levelOf(pIndex[o.province], o.building) + 1));
     if (o.type === "boost_stability") d[0] -= stabilityCost();
     if (o.type === "research" && V.me.research_costs[o.branch]) sub(unbundle(V.me.research_costs[o.branch]));
     if (o.type === "hire_general") sub(R.generalCost);
@@ -397,7 +402,7 @@
       fort: p.fort, unrest: p.unrest, base: out.map((v, k) => v - extra[k]), bonus: extra, slots: p.building_slots,
       faith: p.faith, heretic: !!(p.faith && p.owner && p.faith !== (p.owner === G.human ? V.me.faith : V.nations.find((n) => n.id === p.owner)?.faith)),
       maxDev: mine ? V.me.modifiers.max_development : R.maxDevelopment, general: p.general,
-      built: p.buildings.map((b) => bIndex[b]), queued: mine ? queued : []});
+      built: p.buildings.map((b) => bIndex[b]), levels: p.buildings.map((b) => (p.building_levels || {})[b] || 1), queued: mine ? queued : []});
     let body = "";
     if (mine) {
       const here = troopsAfter(i), t = projected(), g = generalAt(i), targets = here > 0 ? targetsFrom(i) : [];
@@ -412,7 +417,7 @@
       if (ownTab === "economy") {
         const dev = unbundle(p.develop_cost), maxDev = V.me.modifiers.max_development;
         const devQueued = orders.some((x) => x.type === "develop" && pIndex[x.province] === i);
-        const next = p.development + 1, slotOpens = next % R.slotEvery === 0;
+        const next = p.development + 1;
         const devWhy = p.development >= maxDev ? `development is at its ceiling (${maxDev})` : devQueued ? "already ordered this year" : !affordable(dev, t) ? "too costly for now" : "";
         const ground = P[i].terrain;
         body += info.production + `<section><div class="land"><span class="ic">${PaxMap.TERRAIN_ICON[ground]}</span><div><b>${cap(ground)}</b>
@@ -420,7 +425,7 @@
           <section><div class="card ${devWhy ? "blocked" : "ready"}">
             <div class="cardhead"><span class="ic">🏛</span><div><b>Develop to ${Math.min(next, maxDev)}</b>
               <div class="gain">${p.development < maxDev ? gainText(preview.develop) || "<span>more score</span>" : ""}<span>+1 score</span></div></div></div>
-            <p class="note">${slotOpens ? "<b>Opens a new building slot.</b> " : `Next building slot at development ${Math.ceil(next / R.slotEvery) * R.slotEvery}. `}Score is what wins the game.</p>
+            <p class="note">Development raises every yield and the score, which is what wins the game.</p>
             <div class="act"><button class="btn" data-act="develop" ${devWhy ? "disabled" : ""}>${devWhy ? cap(devWhy) : "Develop"}</button><span class="cost">${costText(dev)}</span></div></div></section>`;
         // its people's faith: another than yours costs a quarter of what it yields
         if (p.convert_cost) {
@@ -464,22 +469,28 @@
           const eats = (b.consumes || []).some((v) => v) ? `<span class="out">${amounts(b.consumes, "−")}<small>a year</small></span>` : "";
           const isIdle = built && p.idle.includes(b.id);
           const shelf = built ? "built" : ordered ? "ordered" : why && why !== "too costly for now" ? "later" : "ready";
-          const right = built ? (isIdle ? `<span class="badge bad" title="Its inputs went unpaid last year">idle</span>` : `<span class="badge ok">✓ built</span>`)
+          const lvl = built ? levelOf(i, b.id) : 0, upOrdered = orders.some((o) => o.type === "upgrade_building" && o.province === p.id && o.building === b.id);
+          const upCost = built && lvl < b.maxLevel ? upgradeCost(b.id, lvl + 1) : null;
+          const upGain = upCost ? RES.map(([key]) => Math.max(0, ((preview.upgrades || {})[b.id] || {})[key] || 0)) : null;
+          const upgrade = !upCost ? "" : upOrdered ? `<span class="badge">⏳ level ${lvl + 1} next year</span>`
+            : `<span class="price">${amounts(upCost, "")}</span><button class="btn" data-upgrade="${b.id}" ${affordable(upCost, t) ? "" : `disabled title="Too costly for now"`}>⬆ Level ${lvl + 1}</button>`;
+          const right = built ? (isIdle ? `<span class="badge bad" title="Its inputs went unpaid last year">idle</span>` : "") + (upgrade || (b.maxLevel > 1 ? `<span class="badge ok">✓ highest level</span>` : `<span class="badge ok">✓ built</span>`))
             : ordered ? `<span class="badge">⏳ ready next year</span>`
             : shelf === "later" ? `<span class="why">${esc(why)}</span>`
             : `<span class="price">${amounts(cost, "")}</span><button class="btn" data-build="${b.id}" ${why ? `disabled title="${esc(why)}"` : ""}>${why ? "Too costly" : "Build"}</button>`;
           rows[shelf].push(`<div class="brow ${b.category} ${shelf}" title="${esc(`${b.name}: ${b.effect}.`)}">
             <span class="ic">${BICON[b.id]}</span>
-            <div class="bmain"><b>${esc(b.name)}${b.unique ? ` <small class="star" title="A great work: one per realm">★</small>` : ""}</b>
-              <div class="bfx">${yields}${eats}${PERK[b.id] ? `<span class="perk">${esc(PERK[b.id])}</span>` : ""}${!yields && !eats && !PERK[b.id] ? `<span class="perk">${esc(b.effect)}</span>` : ""}</div></div>
+            <div class="bmain"><b>${esc(b.name)}${b.unique ? ` <small class="star" title="A great work: one per realm">★</small>` : ""}${built && b.maxLevel > 1 ? ` <small class="lvl" title="Level ${lvl} of ${b.maxLevel}">${"★".repeat(lvl)}${"☆".repeat(b.maxLevel - lvl)}</small>` : !built && b.maxLevel > 1 ? ` <small class="lvl" title="Can be upgraded to level ${b.maxLevel}">up to level ${b.maxLevel}</small>` : ""}</b>
+              <div class="bfx">${yields}${eats}${PERK[b.id] ? `<span class="perk">${esc(PERK[b.id])}</span>` : ""}${!yields && !eats && !PERK[b.id] ? `<span class="perk">${esc(b.effect)}</span>` : ""}
+                ${upGain && upGain.some((v) => v) ? `<span class="next">next level: ${amounts(upGain, "+")}${(b.consumes || []).some((v) => v) ? " and eats more" : ""}</span>` : ""}</div></div>
             <div class="bside">${right}</div></div>`);
         });
         const shelf = (key, title) => rows[key].length ? `<h5 class="bshelf">${title} <small>${rows[key].length}</small></h5><div class="blist">${rows[key].join("")}</div>` : "";
         body += `${S.views[p.id] ? `<section class="town"><h4>The town today</h4>${info.vista}</section>` : ""}<section>${info.slotsHtml}
           ${shelf("built", "Built here")}${shelf("ordered", "Ordered this year")}
-          ${free > 0 ? shelf("ready", "You can build") : `<p class="note">Every slot is taken: develop ${esc(P[i].name)} to open another (one every ${R.slotEvery} levels).</p>`}
+          ${free > 0 ? shelf("ready", "You can build") : `<p class="note">All ${info.slots} slots are taken: upgrade what stands here to get more from it.</p>`}
           ${rows.later.length ? `<details class="blater"><summary>Not yet <small>${rows.later.length}</small></summary><div class="blist">${rows.later.join("")}</div></details>` : ""}
-          <p class="note">Green: what a work yields here each year. Red: what it eats; unfed, it stands idle. A new slot opens every ${R.slotEvery} development.</p></section>`;
+          <p class="note">Green: what a work yields here each year. Red: what it eats; unfed, it stands idle. Every province has ${info.slots} slots; most works can be raised to level 2 or 3, doing (and eating) more.</p></section>`;
       } else {
         const now = armyAfter(i), ground = P[i].terrain;
         const comp = U.map((u) => `<div class="unit ${now[u.id] ? "" : "none"}" title="${esc(u.name)}: ${esc(u.role)}">
@@ -589,6 +600,7 @@
       if (act === "liftsiege") queue({type: "lift_siege", province: id});
     });
     box.querySelectorAll("[data-build]").forEach((b) => b.onclick = () => queue({type: "build", province: P[i].id, building: b.dataset.build}));
+    box.querySelectorAll("[data-upgrade]").forEach((b) => b.onclick = () => queue({type: "upgrade_building", province: P[i].id, building: b.dataset.upgrade}));
   }
   function hint(text) { const h = $("hintbar"); h.textContent = text; h.classList.toggle("show", !!text); }
   function stepper(name, value, max, min = 1) {
@@ -678,7 +690,7 @@
     }).join("");
     return `<h4>The European market</h4><table class="grid num market"><thead><tr><th></th><th>Price</th><th>Buy</th><th>Sell</th><th>Yours</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       ${queued.length ? `<p class="sub">This year: ${queued.map((o) => `${o.type} ${o.amount} ${o.resource}`).join(", ")}.</p>` : ""}
-      <p class="sub">Trades happen first, so what you buy can be spent this year. What all Europe buys and sells moves next year's prices; the merchants keep ${Math.round(R.marketSpread * 100)}%.</p>`;
+      <p class="sub">Trades happen first, so what you buy can be spent this year. What all Europe buys and sells moves next year's prices; the merchants keep ${Math.round(R.marketSpread * (1 - (V.me.modifiers.trade_bonus || 0)) * 100)}% of each deal${V.me.modifiers.trade_bonus ? ` (${Math.round(R.marketSpread * 100)}% before your trade bonuses: economy technology, marketplaces, a treasurer, a royal exchange)` : "; economy technology, marketplaces, a treasurer and a royal exchange lower that cut"}.</p>`;
   }
   const TAX_WORDS = ["Very low", "Low", "Normal", "High", "Very high"];
   const taxNow = () => { const o = orders.find((x) => x.type === "set_taxes"); return o ? o.level : V.me.tax; };
@@ -1509,6 +1521,7 @@
       case "develop": return `Develop ${pn(o.province)}`;
       case "improve": return `${PaxMap.goodOf(S, P[pIndex[o.province]].good).icon} Raise the ${PaxMap.goodOf(S, P[pIndex[o.province]].good).workings.toLowerCase()} of ${pn(o.province)}`;
       case "build": return `Build ${B[bIndex[o.building]].name.toLowerCase()} in ${pn(o.province)}`;
+      case "upgrade_building": return `⬆ Raise the ${B[bIndex[o.building]].name.toLowerCase()} of ${pn(o.province)} to level ${levelOf(pIndex[o.province], o.building) + 1}`;
       case "boost_stability": return "Raise stability";
       case "convert": return `✝ Send preachers to ${pn(o.province)}`;
       case "set_taxes": return `⚖ Set taxes ${TAX_WORDS[o.level + 2].toLowerCase()}`;
@@ -1559,7 +1572,7 @@
   // A battle as two armies facing each other: who brought what, who lost what, and what came of it.
   function battleCard(e) {
     const d = e.data, mineAttacking = d.attacker === G.human, won = mineAttacking === d.attacker_won;
-    const side = (nid, name, regiments, army, lost, power, winner) => `<div class="bside ${winner ? "winner" : ""}">
+    const side = (nid, name, regiments, army, lost, power, winner) => `<div class="bfight ${winner ? "winner" : ""}">
       <div class="bwho">${nid ? PaxMap.flag(nid, N[nIndex[nid]].color, 26) : "🛡"}<b>${esc(name)}</b>${winner ? `<span class="crownmark">won</span>` : ""}</div>
       <div class="bnums"><span><b>${regiments}</b> regiments</span><span class="neg"><b>−${lost}</b> lost</span><span><b>${power}</b> power</span></div>
       ${army ? `<small>${esc(army)}</small>` : ""}</div>`;
