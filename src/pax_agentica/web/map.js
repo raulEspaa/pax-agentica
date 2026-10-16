@@ -20,11 +20,11 @@ const PaxMap = (() => {
 
   const TERRAIN = {plains: "#a9b06c", forest: "#4f6d36", hills: "#a58c5a", marsh: "#5f7e6b", mountains: "#8d8678"};
   const RES = [["ducats", "Ducats", "💰"], ["manpower", "Manpower", "👥"], ["iron", "Iron", "⛏"],
-               ["grain", "Grain", "🌾"], ["timber", "Timber", "🪵"]];
+               ["grain", "Grain", "🌾"], ["timber", "Timber", "🪵"], ["goods", "Goods", "🧵"]];
   const GOOD = {grain: "grain", iron: "iron", gold: "gold", timber: "timber"};
   const BICON = {marketplace: "⚖", farm_estates: "🌾", ironworks: "⚒", lumber_mill: "🪚", university: "📜", bank: "🏦", cathedral: "⛪", training_grounds: "🎯",
                  barracks: "⚔", armory: "🛡", fort: "🏰", citadel: "🏯", stables: "🐴", cannon_foundry: "🔥",
-                 military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭"};
+                 military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭", workshop: "🔨"};
   const UICON = {infantry: "⚔", archers: "🏹", cavalry: "🐎", artillery: "💣"};
   const ICON = {proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
     war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
@@ -473,7 +473,8 @@ const PaxMap = (() => {
     if (has("cannon_foundry")) { addOut(`<rect x="334" y="${ground - 20}" width="26" height="20" fill="#7a6a5a" stroke="${INK}" stroke-width=".7"/><path d="M340 ${ground - 20} l4 -16 h6 l4 16 z" fill="#5a4a3a" stroke="${INK}" stroke-width=".6"/><rect x="338" y="${ground - 8}" width="8" height="8" fill="#e8742a"/>`);
       for (let k = 0; k < 3; k++) addOut(`<circle cx="${347 + k * 3}" cy="${ground - 42 - k * 8}" r="${3.5 + k * 2}" fill="#5a524a" opacity="${.65 - k * .17}"/>`);
       addOut(`<path d="M318 ${ground + 14} h14" stroke="#2a2420" stroke-width="3.2" stroke-linecap="round"/><circle cx="320" cy="${ground + 17}" r="3" fill="none" stroke="#5a3a1a" stroke-width="1.4"/>`); }
-    if (has("observatory")) addOut(`<rect x="358" y="${ground - 40}" width="12" height="40" fill="#ddd0ae" stroke="${INK}" stroke-width=".7"/><path d="M356 ${ground - 40} a8 8 0 0 1 16 0 z" fill="#8a9aa8" stroke="${INK}" stroke-width=".7"/><path d="M364 ${ground - 46} l10 -8" stroke="${INK}" stroke-width="2"/>`);
+    if (has("workshop")) addOut(`<rect x="250" y="${ground + 6}" width="26" height="14" fill="#c9a77a" stroke="${INK}" stroke-width=".7"/><path d="M248 ${ground + 6} l15 -7 l15 7 z" fill="#8a5a3a" stroke="${INK}" stroke-width=".6"/><circle cx="263" cy="${ground + 14}" r="4" fill="none" stroke="${INK}" stroke-width="1"/>`);
+        if (has("observatory")) addOut(`<rect x="358" y="${ground - 40}" width="12" height="40" fill="#ddd0ae" stroke="${INK}" stroke-width=".7"/><path d="M356 ${ground - 40} a8 8 0 0 1 16 0 z" fill="#8a9aa8" stroke="${INK}" stroke-width=".7"/><path d="M364 ${ground - 46} l10 -8" stroke="${INK}" stroke-width="2"/>`);
     if (has("training_grounds")) { addOut(`<rect x="22" y="${ground + 26}" width="70" height="16" fill="none" stroke="#7a5a34" stroke-width="1.2" stroke-dasharray="3 2"/>`);
       for (let k = 0; k < 3; k++) addOut(`<circle cx="${34 + k * 22}" cy="${ground + 34}" r="4" fill="#e8dcb8" stroke="#9c2a1e" stroke-width="1.4"/>`); }
     front.forEach(house);

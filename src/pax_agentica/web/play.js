@@ -72,6 +72,8 @@
       if (o.type === "recruit") { const p = prov(pIndex[o.province]); sub(unbundle((p.recruit_costs || {})[o.unit || "infantry"] || p.recruit_cost).map((v) => v * o.regiments)); }
       if (o.type === "upgrade_monument") sub(R.monumentCost.map((v) => v * ((prov(pIndex[o.province]).monument || 0) + 1)));
       if (o.type === "propose_peace") sub(unbundle(o.give));
+      if (o.type === "buy") { const k = RES.findIndex(([key]) => key === o.resource); t[k] += o.amount; t[0] -= Math.ceil(o.amount * V.market[o.resource].buy); }
+      if (o.type === "sell") { const k = RES.findIndex(([key]) => key === o.resource); t[k] -= o.amount; t[0] += Math.floor(o.amount * V.market[o.resource].sell); }
       if (o.type === "develop") sub(unbundle(prov(pIndex[o.province]).develop_cost));
       if (o.type === "build") sub(buildCost(o.building));
       if (o.type === "boost_stability") sub([stabilityCost(), 0, 0, 0, 0]);
@@ -300,10 +302,13 @@
           const tech = b.tech && V.me.technology[b.tech[0]] < b.tech[1];
           const why = built || ordered ? "" : tech ? `🔒 ${cap(b.tech[0])} ${b.tech[1]}` : needs ? `needs a ${B[b.requires].name.toLowerCase()}` : free <= 0 ? "no free slot" : !affordable(cost, t) ? "too costly" : "";
           const gives = gainText((built ? preview.built || {} : preview.buildings || {})[b.id]);
+          const eats = gainText(Object.fromEntries(RES.map(([key], k) => [key, (b.consumes || [])[k] || 0]))).replaceAll("+", "−");
+          const isIdle = built && p.idle.includes(b.id);
           const what = [gives, PERK[b.id] ? `<span>${esc(PERK[b.id])}</span>` : ""].filter(Boolean).join("") || "<span>—</span>";
           const state = built ? "built" : ordered ? "ordered" : tech ? "locked" : why ? "blocked" : "ready";
           return [["built", "ordered", "ready", "blocked", "locked"].indexOf(state), `<div class="tile ${b.category} ${state}" title="${esc(b.name)}: ${esc(b.effect)}.${b.tech ? ` Needs ${b.tech[0]} technology ${b.tech[1]}.` : ""}">
-            <span class="gain top">${what}</span><span class="ic">${BICON[b.id]}</span><b>${esc(b.name)}${built ? " ✓" : ordered ? " ⏳" : ""}${b.unique ? ` <small title="A great work: one per realm">★</small>` : ""}</b>
+            <span class="gain top">${what}</span>${eats ? `<span class="eats" title="Consumed every year">${eats} a year</span>` : ""}
+            ${isIdle ? `<span class="idle">idle: inputs unpaid</span>` : ""}<span class="ic">${BICON[b.id]}</span><b>${esc(b.name)}${built ? " ✓" : ordered ? " ⏳" : ""}${b.unique ? ` <small title="A great work: one per realm">★</small>` : ""}</b>
             ${built || ordered ? "" : `<span class="cost">${costText(cost)}</span><button class="btn" data-build="${b.id}" ${why ? "disabled" : ""}>${why || "Build"}</button>`}</div>`];
         }).sort((x, y) => x[0] - y[0]).map((x) => x[1]).join("");
         body += `${S.views[p.id] ? `<section class="town"><h4>The town today</h4>${info.vista}</section>` : ""}<section>${info.slotsHtml}<div class="tiles">${tiles}</div>
@@ -454,28 +459,51 @@
     return out.sort((a, b) => b.theirs / Math.max(1, b.ours) - a.theirs / Math.max(1, a.ours));
   }
   const threatText = (t) => `${t.war ? "⚔" : "⚠"} ${esc(nameOf(t.nation))} masses ${t.theirs} regiments on your border; you have ${t.ours} facing them${t.pact ? " (a pact holds them, for now)" : t.war ? "" : ". War may come"}.`;
+  // The European market: today's prices, and what you hold
+  const marketQty = {};
+  function marketHtml() {
+    const t = projected(), held = Object.fromEntries(RES.map(([key], k) => [key, t[k]]));
+    const icon = Object.fromEntries(RES.map(([key, , ic]) => [key, ic]));
+    const queued = orders.filter((o) => o.type === "buy" || o.type === "sell");
+    const rows = Object.entries(V.market).map(([res, p]) => {
+      const n = marketQty[res] || 10, base = S.rules.marketBase[res], trend = p.price > base * 1.05 ? "▲" : p.price < base * 0.95 ? "▼" : "•";
+      return `<tr><td>${icon[res]} ${cap(res)}</td><td title="Usual price ${base}">${p.price.toFixed(2)} <span class="trend ${trend === "▲" ? "up" : trend === "▼" ? "down" : ""}">${trend}</span></td>
+        <td>${p.buy.toFixed(2)}</td><td>${p.sell.toFixed(2)}</td><td>${held[res]}</td>
+        <td class="trade"><input type="number" class="field" min="1" max="200" value="${n}" data-qty="${res}" aria-label="How much ${res}">
+          <button class="btn" data-buy="${res}" ${t[0] < Math.ceil(n * p.buy) ? "disabled" : ""} title="Costs ${Math.ceil(n * p.buy)} ducats">Buy</button>
+          <button class="btn" data-sell="${res}" ${held[res] < n ? "disabled" : ""} title="Brings ${Math.floor(n * p.sell)} ducats">Sell</button></td></tr>`;
+    }).join("");
+    return `<h4>The European market</h4><table class="grid num market"><thead><tr><th></th><th>Price</th><th>Buy</th><th>Sell</th><th>Yours</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      ${queued.length ? `<p class="sub">This year: ${queued.map((o) => `${o.type} ${o.amount} ${o.resource}`).join(", ")}.</p>` : ""}
+      <p class="sub">Trades happen first, so what you buy can be spent this year. What all Europe buys and sells moves next year's prices; the merchants keep ${Math.round(R.marketSpread * 100)}%.</p>`;
+  }
   function realmTab() {
     const inc = unbundle(V.me.income_per_turn), up = unbundle(V.me.army_upkeep_per_turn), now = unbundle(V.me.resources), after = projected();
+    const works = unbundle(V.me.inputs_per_turn);
     const mine = V.me.provinces.map((id) => pIndex[id]);
-    const land = [0, 0, 0, 0, 0];
+    const land = RES.map(() => 0);
     mine.forEach((i) => unbundle(prov(i).output_per_turn).forEach((v, k) => (land[k] += v)));
     const rows = RES.map(([, label, ic], k) => {
-      const mod = inc[k] - land[k], net = inc[k] - up[k];
+      const mod = inc[k] - land[k], net = inc[k] - up[k] - works[k];
       return `<tr><td>${ic} ${label}</td><td>${land[k]}</td><td>${mod ? sign(mod) : ""}</td><td class="${up[k] ? "neg" : ""}">${up[k] ? "−" + up[k] : ""}</td>
+        <td class="${works[k] ? "neg" : ""}">${works[k] ? "−" + works[k] : ""}</td>
         <td class="${net < 0 ? "neg" : "pos"}">${sign(net)}</td><td>${now[k]}${after[k] !== now[k] ? ` → ${after[k]}` : ""}</td></tr>`; }).join("");
     const short = [];
     if (now[3] + inc[3] < up[3]) short.push("Your granaries will not feed the army next year: some regiments will desert.");
     if (now[0] + inc[0] < up[0]) short.push("The treasury cannot pay the army next year: some regiments will desert.");
+    const idle = V.provinces.filter((p) => p.owner === G.human && p.idle.length);
+    if (idle.length) short.push(`Idle for want of inputs last year: ${idle.map((p) => p.idle.map((b) => `${B[bIndex[b]].name.toLowerCase()} in ${esc(p.name)}`).join(", ")).join("; ")}. Buy what they need, or make it.`);
     const table = mine.sort((a, b) => prov(b).development - prov(a).development).map((i) => {
       const p = prov(i), out = unbundle(p.output_per_turn);
       return `<tr class="click" data-p="${i}"><td>${esc(P[i].name)}${p.is_capital ? " ★" : ""}${p.unrest ? " 🔥" : ""}</td><td>${p.development}</td>
         <td>${p.buildings.length}/${p.building_slots}</td>${out.map((v) => `<td>${v}</td>`).join("")}</tr>`; }).join("");
     return `<div class="pad"><h4>The year's balance</h4>
-      <table class="grid num"><thead><tr><th></th><th title="What your provinces yield">Land</th><th title="Stability and economy technology">Mods</th><th title="Army pay and grain">Army</th><th>Net</th><th>Treasury</th></tr></thead><tbody>${rows}</tbody></table>
+      <table class="grid num"><thead><tr><th></th><th title="What your provinces yield">Land</th><th title="Stability and economy technology">Mods</th><th title="Army pay and grain, advisors' salaries">Army</th><th title="What your buildings consume">Works</th><th>Net</th><th>Treasury</th></tr></thead><tbody>${rows}</tbody></table>
       ${short.map((s) => `<p class="warn">${s}</p>`).join("")}
       ${threats().map((t) => `<p class="warn">${threatText(t)}</p>`).join("")}
       <p class="sub">Stability ${sign(V.me.stability)} and economy technology ${V.me.technology.economy} raise ducats; economy technology raises grain too.
         The manpower pool stops at ${V.me.manpower_cap}.</p>
+      ${marketHtml()}
       <h4>Provinces</h4>
       <table class="grid num"><thead><tr><th>Province</th><th>Dev.</th><th>Bldg.</th>${RES.map(([, label, ic]) => `<th title="${label}">${ic}</th>`).join("")}</tr></thead><tbody>${table}</tbody></table>
       <p class="sub">★ capital. 🔥 in unrest: a conquered province yields nothing for a few years.</p></div>`;
@@ -855,6 +883,9 @@
       orders = orders.filter((o) => !(o.type === "assign_general" && o.general === id));
       queue({type: "assign_general", general: id, province: to});
     });
+    panel.querySelectorAll("[data-qty]").forEach((x) => x.onchange = () => { marketQty[x.dataset.qty] = Math.max(1, Math.min(200, +x.value || 1)); render(); });
+    panel.querySelectorAll("[data-buy]").forEach((b) => b.onclick = () => queue({type: "buy", resource: b.dataset.buy, amount: marketQty[b.dataset.buy] || 10}));
+    panel.querySelectorAll("[data-sell]").forEach((b) => b.onclick = () => queue({type: "sell", resource: b.dataset.sell, amount: marketQty[b.dataset.sell] || 10}));
     panel.querySelectorAll("[data-option]").forEach((b) => b.onclick = () => choose(+b.dataset.event, +b.dataset.option));
     const proclaim = panel.querySelector("#proclaim");
     if (proclaim) proclaim.onclick = () => { const text = $("proclamation").value.trim();
@@ -949,6 +980,8 @@
       case "call_to_arms": return `Call ${nn(o.target)} to arms against ${nn(o.enemy)}`;
       case "send_message": return `Letter to ${nn(o.target)}`;
       case "proclaim": return `📣 Proclaim to Europe`;
+      case "buy": return `⚖ Buy ${o.amount} ${o.resource} for ${Math.ceil(o.amount * V.market[o.resource].buy)} ducats`;
+      case "sell": return `⚖ Sell ${o.amount} ${o.resource} for ${Math.floor(o.amount * V.market[o.resource].sell)} ducats`;
       case "choose_option": { const e = V.me.pending_events.find((x) => x.id === o.event_id);
         return e ? `${EVENT_ICON[e.event] || "📜"} ${esc(e.title)}: ${esc(e.options[o.option].label.toLowerCase())}` : "A decision"; }
       case "set_stance": return o.stance === "neutral" ? `Count ${nn(o.target)} neither friend nor rival` : `Name ${nn(o.target)} your ${o.stance}`;

@@ -185,7 +185,7 @@ function ledger(f) {
 }
 
 function income(f, k) {
-  const total = [0, 0, 0, 0, 0];
+  const total = RES.map(() => 0);
   f.o.forEach((o, i) => { if (o === k && !f.u[i]) for (let r = 0; r < 5; r++) total[r] += f.base[i][r] + f.bonus[i][r]; });
   total[0] = Math.max(0, Math.floor(total[0] * (1 + R.stabilityBonus * f.n[k].stability)));
   total[0] -= Math.ceil(f.n[k].army * R.pay); total[3] -= f.n[k].army; // army pay and grain
@@ -195,7 +195,7 @@ function income(f, k) {
 function card(f) {
   const box = $("card");
   if (selected < 0) { box.innerHTML = `<h3>Nation</h3><div class="body muted">Click a province or a row of the ledger to see a nation.</div>`; return; }
-  const n = N[selected], s = f.n[selected], hidden = secret(selected), inc = s.alive ? income(f, selected) : [0, 0, 0, 0, 0];
+  const n = N[selected], s = f.n[selected], hidden = secret(selected), inc = s.alive ? income(f, selected) : RES.map(() => 0);
   const chip = (cls, ks) => ks.length ? ks.map((k) => `<span class="chip ${cls}">${esc(N[k].name)}</span>`).join("") : `<span class="muted">none</span>`;
   const sign = (v) => (v > 0 ? "+" : "") + v;
   const buildings = f.b.reduce((a, b, i) => a + (f.o[i] === selected ? b.length : 0), 0);

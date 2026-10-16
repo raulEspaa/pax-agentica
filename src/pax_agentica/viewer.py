@@ -167,6 +167,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                 "name": spec.name,
                 "category": spec.category.value,
                 "cost": amounts(spec.cost),
+                "consumes": amounts(spec.consumes),
                 "effect": spec.effect,
                 "requires": KINDS.index(spec.requires) if spec.requires else -1,
                 "tech": [spec.requires_tech[0].value, spec.requires_tech[1]]
@@ -291,6 +292,8 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "maxMonument": rules.max_monument_level,
             "tributeYears": rules.tribute_years,
             "peaceCostArmyLimit": rules.peace_cost_army_limit,
+            "marketBase": rules.market_prices,
+            "marketSpread": rules.market_spread,
             "combinedShare": rules.combined_arms_share,
             "combinedBonus": {str(k): v for k, v in rules.combined_arms_bonus.items()},
             "siegeShare": rules.artillery_share_per_fort_level,
