@@ -8,19 +8,25 @@ else to play. Every number here comes from `Rules` in
 
 - **68 provinces** from Lisbon to Moscow and from Norrland to Tunis
   ([`scenario.py`](../src/pax_agentica/engine/scenario.py)). Each one has a **terrain**, a
-  **good** (grain, iron, timber or gold), a **development** level (1–12), **buildings** and
-  a garrison of **regiments**.
+  **trade good** (one of fourteen, see below), a **development** level (1–12), **workings**
+  (0–3), **buildings** and a garrison of **regiments**.
 - **Borders** are land borders or **straits** (the Channel, the Øresund, Gibraltar…). Straits
   can be crossed, but they favour the defender. Land borders are exactly the ones drawn on the
   map, which is built from real geography.
-- **Seven great powers**: England, France, Spain, Austria, the Ottoman Empire, Sweden and Russia.
-  Each starts with its capital (6 regiments), its other provinces (2 each; 3 on France's long
-  borders and Austria's Hungarian frontier, where Vienna and Buda also start with a fort), a
-  ruler, one general and the same treasury: 60 ducats, 10 manpower, 10 iron, 20 grain and 15
-  timber.
+- **Nine great powers**: England, France, Spain, Austria, the Ottoman Empire, Sweden, Russia,
+  Poland-Lithuania and Hungary. Austria holds the Low Countries (Flanders and Holland) by the
+  Burgundian inheritance; Hungary holds Bohemia and Transylvania under the Jagiellonian
+  Vladislaus II. Each starts with its capital (6 regiments), its other provinces (2 each; 3 on
+  France's long borders, in Styria and in Kiev and Transylvania, where Vienna and Buda also
+  start with a fort), a ruler, one general and the same treasury: 60 ducats, 10 manpower, 10
+  iron, 20 grain and 15 timber.
 - Everything else is an **independent minor**: no ruler, no income, and a garrison equal to its
-  development (3 more in Poland, Lithuania and the Danube principalities, which raised real
-  armies). Anyone can attack them without declaring war.
+  development (3 more in Wallachia and Bosnia, which raised real armies). Anyone can attack
+  them without declaring war.
+- **The courts remember**: in 1500 France resents England, Austria and Spain; Spain and Austria
+  are bound by the double Habsburg marriage; the Ottomans and Hungary face each other across the
+  frontier of Christendom; Poland-Lithuania and Muscovy contest the lands of Rus'. These
+  opinions fade like any other.
 
 ## A turn
 
@@ -54,8 +60,30 @@ breaks the rules is skipped, and the engine tells its author why next turn.
 - ducats equal to its development,
 - manpower equal to half its development (at least 1),
 - 1 iron, 3 grain and 1 timber,
-- plus its good: development × 1 extra grain, iron, timber, ducats (gold) or goods (cloth:
-  York, Lyon, Flanders, Holland, Florence).
+- plus its **trade good**, per level of development (rounded down):
+
+| Good | Per development | Where, for example |
+|---|---|---|
+| Gold | 2.5 ducats | Transylvania, Morocco |
+| Silver | 2 ducats | Saxony, Tyrol, Bohemia, Serbia |
+| Spices | 2 ducats, 0.5 goods | Lisbon, Venice, Constantinople |
+| Wine | 1.5 ducats | Champagne, Gascony, Andalusia, Rome, Buda |
+| Salt | 1.5 ducats | Kraków, Brittany, Bavaria, Hamburg |
+| Copper | 1.25 ducats, 0.5 iron | Stockholm (the Great Copper Mountain) |
+| Furs | 1.25 ducats, 0.5 goods | Moscow, Novgorod |
+| Wool | 1 ducat, 0.5 goods | York, Ireland, Madrid, Aragon |
+| Cloth | 1 goods, 0.5 ducats | London, Lyon, Flanders, Milan, Florence |
+| Fish | 1 grain, 0.5 ducats | Holland, Scotland, Norway, Galicia |
+| Horses | 0.5 grain, 0.5 manpower | Kiev, Wallachia, Switzerland |
+| Grain | 1.5 grain | Paris, Masovia, Prussia, Sicily |
+| Iron | 1.25 iron | Wales, Styria, Bosnia, Norrland |
+| Timber | 1.5 timber | Finland, Lithuania, Smolensk |
+
+A gold province is worth about twice a grain one; a cloth town feeds the workshops of a realm.
+
+**Workings.** `improve` raises a province's workings (its mine, vineyard, fishery, looms…) by one
+level, up to 3, for 35 ducats and 6 timber times the new level. Each level adds **half the good's
+yield again**, so it grows as the province develops. Workings take no building slot.
 
 **The land matters.** Terrain adds to (or takes from) what a province yields, changes what
 developing it costs, and how well it is defended:
@@ -84,7 +112,8 @@ lost. Barracks raise both. Disbanding a regiment sends its 2 manpower back to th
 |---|---|---|
 | `recruit` | 6 ducats, 2 manpower and 2 iron per regiment | regiments appear in one of your provinces |
 | `disband` | nothing | regiments go home: no more upkeep, +2 manpower each |
-| `develop` | 25 + 5 × development ducats, 2 + development ÷ 2 timber (times the terrain), and from development 6 development ÷ 3 goods | +1 development (max 12, or 15 with Grand Architecture): more output, more score, more building slots |
+| `develop` | 12 + 8 × development ducats and 2 + development ÷ 2 timber (times the terrain), 4 + development grain to feed the new townsfolk, and from development 6 development ÷ 3 goods | +1 development (max 12, or 15 with Grand Architecture): more output, more score, more building slots |
+| `improve` | 35 ducats and 6 timber, times the new level | +1 level of workings (max 3) |
 | `build` | see below | a building in one of your provinces |
 | `boost_stability` | 50 ducats, less with a diplomatic ruler | +1 stability (max +3) |
 
@@ -137,6 +166,8 @@ provinces.
 | Military academy | 140 ducats, 6 iron, 12 timber | one more general; generals appointed here start a star higher; needs military 3 |
 | Royal exchange | 160 ducats, 4 iron, 14 timber | +10% ducat income; consumes 2 goods; needs economy 3 |
 | Observatory | 120 ducats, 4 iron, 10 timber | research 15% cheaper; needs economy 2 |
+| Arms manufactory | 130 ducats, 10 iron, 10 timber | every levy in the realm needs half the iron and no goods; consumes 3 iron; needs military 1 |
+| Powder mill | 120 ducats, 6 iron, 12 timber | +5% battle power, and guns breach one more fort level; consumes 2 timber; needs military 2 |
 
 ### Monuments
 

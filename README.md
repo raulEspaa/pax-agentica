@@ -22,10 +22,13 @@ state directly, so a clever (or confused) agent can't cheat its way to victory.
 
 ## The game: Europe, 1500
 
-An arcade grand strategy game: **68 provinces** from Lisbon to Moscow, **seven great powers**
-(England, France, Spain, Austria, the Ottomans, Sweden and Russia) and a scatter of independent
-minors to swallow. Six resources (ducats, manpower, iron, grain, timber and goods) feed recruiting,
-development, civil and military buildings (some of which consume), great works and stability, with a European market whose prices move with what every court buys and sells. Armies mix pikemen,
+An arcade grand strategy game: **68 provinces** from Lisbon to Moscow, **nine great powers**
+(England, France, Spain, Austria, the Ottomans, Sweden, Russia, Poland-Lithuania and Hungary)
+and a scatter of independent minors to swallow. Every province is known for one of fourteen
+trade goods, from grain and fish to silver, spices and gold, and can deepen its mines, vineyards
+or looms. Six resources (ducats, manpower, iron, grain, timber and goods) feed recruiting,
+development, civil and military buildings (some of which consume), manufactories, great works
+and stability, with a European market whose prices move with what every court buys and sells. Armies mix pikemen,
 archers, cavalry and artillery, each with its ground; sixteen historical monuments, from
 Westminster Abbey to Hagia Sophia, reward whoever holds them. A tree of learning unlocks new
 buildings and powers; every throne has a historical ruler who ages and dies, and a council of
@@ -57,9 +60,10 @@ reparations.
 
 <p align="center"><img src="docs/assets/play.jpg" alt="The play page: France in 1501, its treasury across the top, its neighbours under the fog of war, and the Realm office with the yearly balance" width="760"></p>
 
-With seven rule-based "greedy" bots, the peripheral powers (Spain, the Ottomans) usually win and
-the central ones (France, Austria) are carved up. Surviving in the middle of Europe takes
-diplomacy, and that's the AI rulers' job.
+With nine rule-based "greedy" bots, France and the Ottomans win most games by swallowing the
+minors around them, Spain grows rich on silver, wine and spices, and Austria, squeezed between
+France and the Turk, is often carved up. Holding them back takes diplomacy, and that's the AI
+rulers' job.
 
 ## Roadmap
 
@@ -68,7 +72,7 @@ Each milestone ends with something you can run and watch. It's built in order, o
 | # | Milestone | What you see | Status |
 |---|-----------|--------------|--------|
 | 0 | **Foundations** | A repo with tests, linting, types and CI | ✅ |
-| 1 | **The game** | `pax play --seed 1`: Europe 1500, seven rule-based bots, a winner, an HTML replay | ✅ |
+| 1 | **The game** | `pax play --seed 1`: Europe 1500, nine rule-based bots, a winner, an HTML replay | ✅ |
 | 2 | **The first AI ruler** | One nation is governed by Gemini and plays against the bots | ⏳ next |
 | 3 | **Every throne an AI** | Rulers with personalities; the same world plays out differently | |
 | 4 | **Diplomacy** | Messages, pacts and trade between nations, and betrayals | |
@@ -101,7 +105,7 @@ Requirements: [uv](https://docs.astral.sh/uv/) and GNU make.
 make sync                                  # create .venv from uv.lock (installs Python 3.13 if needed)
 make check                                 # lint, types, tests
 uv run pax serve --nation france           # rule France yourself, in the browser, against the bots
-uv run pax play --seed 1                   # watch seven bots fight over Europe in the terminal
+uv run pax play --seed 1                   # watch nine bots fight over Europe in the terminal
 uv run pax play --seed 1 --html replays/1.html   # ... and replay it on a map in the browser
 uv run pax view france                     # exactly what France's ruler is allowed to see (JSON)
 uv run pax schema                          # the JSON schema a ruler must answer with

@@ -7,7 +7,7 @@ Where the game stands, what is shallow, and what is left before the AI work star
 
 | Area | Today | Depth |
 |---|---|---|
-| Map and scenario | 68 provinces, seven powers, minors, terrain, goods, monuments | solid |
+| Map and scenario | 68 provinces, nine powers, minors, terrain, fourteen trade goods, monuments, the grudges of 1500 | solid |
 | Economy | five resources, development, buildings that double output, stability | **linear**: income grows in a straight line, iron and timber rarely bind, nothing is ever scarce for long |
 | Trade | bilateral swaps of resources | **thin**: no market, no prices, nothing to specialise for |
 | Technology | three branches with milestones, lore | good |
@@ -92,10 +92,16 @@ and war score, and performance once games run with LLMs.
 
 ## Balance to watch
 
-Over 72 bot games after blocks 1 to 3, France, Austria and the Ottomans win nearly every game:
-with wars harder to win, growth comes from the independent minors around them, and Spain,
-England, Sweden and Russia have few. Iron and timber sink to the market's floor because every
-bot sells its surplus. Both want a pass once missions give the smaller powers a direction.
+Over 32 bot games with nine powers, fourteen goods and workings (2026-10-16): France wins 13,
+the Ottomans 12, Spain 5. France takes about nine minors a game and Austria loses the Low
+Countries to it; the poorest powers (Poland-Lithuania, Hungary, Sweden) grow slowly because
+their armies eat half their income. Developing now feeds the new townsfolk with grain, which
+lifted grain off the market's floor (0.4 to about 0.8 of its price); iron still sits at 0.4.
+
+What would fix the rest, in order: **aggressive expansion and coalitions** (block 4) to check
+France; **missions** (block 2) to give the small powers a direction; and something for a
+rich treasury to buy once its provinces are developed (Spain and the Ottomans still end with
+over a thousand ducats).
 
 ## How much is left
 
