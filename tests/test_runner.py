@@ -64,9 +64,9 @@ def test_the_greedy_bot_beats_random_rulers() -> None:
     for seed in range(4):
         state = new_game(seed, max_turns=40)
         players: dict[str, Player] = {n: RandomBot(seed) for n in state.nations}
-        players["england"] = GreedyBot(seed)
+        players["spain"] = GreedyBot(seed)
         record = asyncio.run(run_game(state, players))
-        wins += record.winner == "england"
+        wins += record.winner == "spain"
     assert wins >= 3
 
 

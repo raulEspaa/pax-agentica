@@ -52,6 +52,7 @@ class Modifiers(BaseModel):
     max_generals: int = 3
     marketplace_share: float = 0.5
     mill_share: float = 0.5  # farm estates and lumber mills
+    arms_manufactory: bool = False  # levies need half the iron and no goods
     sources: tuple[str, ...] = ()  # one line per bonus, for humans and prompts
 
 
@@ -62,6 +63,8 @@ def _has(state: GameState, nation: NationId, milestone: tuple[TechBranch, int]) 
 
 GREAT_WORKS = (
     BuildingKind.MILITARY_ACADEMY,
+    BuildingKind.ARMS_MANUFACTORY,
+    BuildingKind.POWDER_MILL,
     BuildingKind.ROYAL_EXCHANGE,
     BuildingKind.OBSERVATORY,
 )
@@ -222,6 +225,13 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
     if BuildingKind.MILITARY_ACADEMY in works:
         extra_generals += 1
         lines.append("military academy: one more general")
+    arms = BuildingKind.ARMS_MANUFACTORY in works
+    if arms:
+        lines.append("arms manufactory: levies need half the iron and no goods")
+    powder = BuildingKind.POWDER_MILL in works
+    if powder:
+        power += 0.05
+        lines.append("powder mill: +5% battle power, assaults knock one more fort level off")
     for pid, level in monuments:
         spec = rules.monuments[pid]
         amount = spec.per_level * level
@@ -271,7 +281,8 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         grain_upkeep_factor=0.8 if milestones["canals"] else 1.0,
         fort_bonus_per_level=(0.35 if milestones["star"] else rules.fort_bonus_per_level)
         + fort_extra,
-        ignores_fort_levels=1 if milestones["artillery"] else 0,
+        ignores_fort_levels=(1 if milestones["artillery"] else 0) + (1 if powder else 0),
+        arms_manufactory=arms,
         max_generals=rules.max_generals + (1 if milestones["revolution"] else 0) + extra_generals,
         marketplace_share=rules.building_output_bonus + (0.5 if milestones["mercantilism"] else 0),
         mill_share=rules.building_output_bonus + (0.5 if milestones["mills"] else 0),
@@ -579,6 +590,71 @@ RULERS: dict[str, list[tuple[str, str, str]]] = {
             "The first Romanov, elected Tsar by the land in 1613 after the Time of Troubles.",
         ),
     ],
+    "poland": [
+        (
+            "King",
+            "John I Albert",
+            "John Olbracht, scholar-king, who leads a disastrous crusade into Moldavia in 1497.",
+        ),
+        (
+            "King",
+            "Alexander",
+            "Grand Duke of Lithuania, then king: under him the Sejm wins the Nihil Novi in 1505.",
+        ),
+        (
+            "King",
+            "Sigismund I",
+            (
+                "Sigismund the Old, who brings the Italian Renaissance to "
+                "Wawel and takes Prussia's homage."
+            ),
+        ),
+        (
+            "King",
+            "Sigismund II",
+            (
+                "Sigismund Augustus, the last Jagiellon, who binds Poland and"
+                " Lithuania at Lublin in 1569."
+            ),
+        ),
+        (
+            "King",
+            "Stephen Báthory",
+            "A Transylvanian prince elected king, who beats Ivan the Terrible in the Livonian War.",
+        ),
+        (
+            "King",
+            "Sigismund III",
+            "A Vasa elected king, Catholic heir to Sweden too, who moves the capital to Warsaw.",
+        ),
+    ],
+    "hungary": [
+        (
+            "King",
+            "Vladislaus II",
+            (
+                "'King Dobže', who says yes to everything: the barons rule "
+                "while he reigns in Buda and Prague."
+            ),
+        ),
+        ("King", "Louis II", "A boy-king who falls at Mohács in 1526, and Hungary with him."),
+        (
+            "King",
+            "John Zápolya",
+            "The great magnate crowned king against the Habsburgs, with the Sultan's leave.",
+        ),
+        (
+            "King",
+            "John Sigismund",
+            "Zápolya's son, the first Prince of Transylvania and its tolerant founder.",
+        ),
+        ("Prince", "Stephen Báthory", "Prince of Transylvania, soon to be elected King of Poland."),
+        (
+            "Prince",
+            "Sigismund Báthory",
+            "A restless prince who changes sides in the Long Turkish War.",
+        ),
+    ],
 }
 
 
@@ -602,6 +678,10 @@ HISTORICAL_TRAITS: dict[str, list[Trait]] = {
     "John III": [BU, PI], "Sigismund": [PI],
     "Ivan III": [AM, CU], "Vasili III": [AM, CA], "Ivan IV": [CR, W], "Feodor I": [PI, ME],
     "Boris Godunov": [CU, BU], "Michael I": [CA],
+    "John I Albert": [SC, AM], "Alexander": [CA], "Sigismund I": [BU, CA], "Sigismund II": [CH, SC],
+    "Stephen Báthory": [W, CU], "Sigismund III": [PI, AM],
+    "Vladislaus II": [ME, PI], "Louis II": [W], "John Zápolya": [AM, CU], "John Sigismund": [SC],
+    "Sigismund Báthory": [AM, ME],
 }  # fmt: skip
 
 # What a trait does to the numbers: (Modifiers field, amount, in words).
@@ -720,6 +800,26 @@ ADVISOR_NAMES: dict[str, list[str]] = {
         "Fyodor Karpov",
         "Vasily Tuchkov",
         "Mikhail Tuchkov",
+    ],
+    "poland": [
+        "Jan Łaski",
+        "Krzysztof Szydłowiecki",
+        "Piotr Tomicki",
+        "Jan Zamoyski",
+        "Mikołaj Radziwiłł",
+        "Andrzej Frycz Modrzewski",
+        "Piotr Kmita",
+        "Jan Dantyszek",
+    ],
+    "hungary": [
+        "Tamás Bakócz",
+        "István Werbőczy",
+        "Pál Várdai",
+        "George Martinuzzi",
+        "Péter Perényi",
+        "Imre Perényi",
+        "Ferenc Batthyány",
+        "János Corvinus",
     ],
 }
 

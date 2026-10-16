@@ -36,6 +36,7 @@ from pax_agentica.engine.actions import (
     Gift,
     HireAdvisor,
     HireGeneral,
+    Improve,
     Move,
     Orders,
     Proclaim,
@@ -967,6 +968,8 @@ class _Resolver:
                         self._build(nation, action)
                     case UpgradeMonument():
                         self._upgrade_monument(nation, action)
+                    case Improve():
+                        self._improve(nation, action)
                     case Research():
                         self._research(nation, action)
                     case HireGeneral():
@@ -1052,7 +1055,8 @@ class _Resolver:
                     f"{limit.amount} regiments",
                 )
                 return
-        cost = recruit_cost(rules, a.regiments, province.buildings, a.unit)
+        arms = modifiers(self.s, nation).arms_manufactory
+        cost = recruit_cost(rules, a.regiments, province.buildings, a.unit, arms)
         if error := self._pay(nation, cost):
             self._reject(nation, a, error)
             return
@@ -1066,6 +1070,34 @@ class _Resolver:
             audience=(nation,),
             regiments=a.regiments,
             unit=a.unit.value,
+        )
+
+    def _improve(self, nation: NationId, a: Improve) -> None:
+        rules = self.s.rules
+        if error := self._own_error(nation, a.province):
+            self._reject(nation, a, error)
+            return
+        province = self.s.provinces[a.province]
+        good = self.s.map.provinces[a.province].good
+        name = rules.workings[good]
+        if province.workings >= rules.max_workings:
+            self._reject(
+                nation, a, f"the {name.lower()} of {self._pname(a.province)} are at their best"
+            )
+            return
+        level = province.workings + 1
+        if error := self._pay(nation, rules.improve_cost.times(level)):
+            self._reject(nation, a, error)
+            return
+        province.workings = level
+        self._emit(
+            EventKind.IMPROVED,
+            f"{self._name(nation)} improves the {name.lower()} of {self._pname(a.province)} to "
+            f"level {level}",
+            nations=(nation,),
+            province=a.province,
+            audience=(nation,),
+            level=level,
         )
 
     def _upgrade_monument(self, nation: NationId, a: UpgradeMonument) -> None:

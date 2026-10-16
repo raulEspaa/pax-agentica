@@ -2,8 +2,16 @@
 
 from collections.abc import Callable
 
-from pax_agentica.engine import EventKind, GameState, Resources
-from pax_agentica.engine.actions import Attack, BoostStability, Build, Develop, Disband, Recruit
+from pax_agentica.engine import EventKind, GameState, Resources, view_for
+from pax_agentica.engine.actions import (
+    Attack,
+    BoostStability,
+    Build,
+    Develop,
+    Disband,
+    Improve,
+    Recruit,
+)
 from pax_agentica.engine.mechanics import (
     army_upkeep,
     building_slots,
@@ -14,7 +22,7 @@ from pax_agentica.engine.mechanics import (
     province_output,
     recruit_cost,
 )
-from pax_agentica.engine.model import BuildingKind, Good, Terrain
+from pax_agentica.engine.model import BuildingKind, Good, Terrain, UnitKind
 
 type Play = Callable[..., GameState]
 
@@ -23,10 +31,16 @@ def reasons(state: GameState) -> list[str]:
     return [str(e.data["reason"]) for e in state.last_events if e.kind == EventKind.ORDER_REJECTED]
 
 
-def test_a_gold_province_yields_extra_ducats(state: GameState) -> None:
-    # London: development 7, gold, on plains (+2 grain)
+def test_each_good_yields_by_its_worth(state: GameState) -> None:
+    rules = state.rules
+    gold = land_yield(rules, Good.GOLD, 4)
+    grain = land_yield(rules, Good.GRAIN, 4)
+    assert gold.ducats == 4 + 12  # gold: three ducats a level
+    assert grain.grain == 3 + 6  # grain: a level and a half of bread
+    assert gold.ducats - 4 > grain.grain - 3  # a ducat is worth more than a sack of grain too
+    # London: development 7, cloth, on plains (+2 grain)
     assert province_output(state, "london") == Resources(
-        ducats=14, manpower=3, iron=1, grain=5, timber=1
+        ducats=7 + 3, manpower=3, iron=1, grain=5, timber=1, goods=7
     )
 
 
@@ -92,10 +106,10 @@ def test_more_development_means_more_building_slots(state: GameState) -> None:
 
 
 def test_a_marketplace_doubles_the_province_ducats(state: GameState, play: Play) -> None:
-    before = province_output(state, "london")  # development 7, gold: 14 ducats
+    before = province_output(state, "london")  # development 7: 7 ducats
     new = play(state, england=[Build(province="london", building=BuildingKind.MARKETPLACE)])
     assert new.provinces["london"].buildings == [BuildingKind.MARKETPLACE]
-    assert province_output(new, "london").ducats == before.ducats + 14
+    assert province_output(new, "london").ducats == 2 * before.ducats
     spent = state.rules.buildings[BuildingKind.MARKETPLACE].cost
     expected = (
         state.nations["england"].resources
@@ -195,9 +209,8 @@ def test_an_unpaid_army_deserts(state: GameState, play: Play) -> None:
 
 
 def test_a_lumber_mill_adds_timber(state: GameState) -> None:
+    base = province_output(state, "finland").timber  # timber, in forests
     state.provinces["finland"].buildings = [BuildingKind.LUMBER_MILL]
-    # Finland's good is timber, and its forests give 2 more
-    base = 1 + state.provinces["finland"].development + 2
     assert province_output(state, "finland").timber == 2 * base
 
 
@@ -226,3 +239,21 @@ def test_an_army_without_grain_deserts(state: GameState, play: Play) -> None:
     assert new.troops_of("england") == income_grain  # only what the harvest feeds stays
     assert new.nations["england"].resources.grain == 0
     assert EventKind.DESERTION in [e.kind for e in new.last_events]
+
+
+def test_workings_deepen_what_a_province_is_known_for(state: GameState, play: Play) -> None:
+    state.nations["hungary"].resources = Resources(ducats=500, timber=100)
+    before = province_output(state, "bohemia").ducats  # silver
+    new = play(state, hungary=[Improve(province="bohemia")])
+    assert new.provinces["bohemia"].workings == 1
+    assert province_output(new, "bohemia").ducats > before
+    view = view_for(new, "hungary")
+    bohemia = next(p for p in view.provinces if p.id == "bohemia")
+    assert bohemia.improve_cost == state.rules.improve_cost.times(2)
+
+
+def test_an_arms_manufactory_equips_every_levy(state: GameState) -> None:
+    plain = recruit_cost(state.rules, 1, kind=UnitKind.ARCHERS)
+    armed = recruit_cost(state.rules, 1, kind=UnitKind.ARCHERS, arms=True)
+    assert armed.goods == 0 < plain.goods
+    assert armed.iron <= plain.iron

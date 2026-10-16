@@ -289,6 +289,15 @@ class CancelTreaty(_Action):
     kind: Literal["alliance", "non_aggression"]
 
 
+class Improve(_Action):
+    """Improve the workings of one of your provinces by a level (up to 3): its mine,
+    vineyard, fishery or looms, by what it is known for. Each level adds half of what its good
+    yields; it takes no building slot. The next level costs the rules' improve_cost times it."""
+
+    type: Literal["improve"] = "improve"
+    province: ProvinceId
+
+
 class UpgradeMonument(_Action):
     """Raise the monument of one of your provinces by a level (from a bare site to level 1, up
     to the rules' maximum). Its bonus grows with every level and serves whoever holds it."""
@@ -367,6 +376,7 @@ type Action = Annotated[
     | Disband
     | Build
     | UpgradeMonument
+    | Improve
     | BoostStability
     | Research
     | HireGeneral

@@ -6,13 +6,15 @@ from pax_agentica.engine import GameState, new_game
 from pax_agentica.engine.scenario import EXTRA_GARRISON
 
 
-def test_the_map_has_68_provinces_and_seven_great_powers(state: GameState) -> None:
+def test_the_map_has_68_provinces_and_nine_great_powers(state: GameState) -> None:
     assert len(state.provinces) == 68
     assert sorted(state.nations) == [
         "austria",
         "england",
         "france",
+        "hungary",
         "ottomans",
+        "poland",
         "russia",
         "spain",
         "sweden",
@@ -60,7 +62,7 @@ def test_independent_minors_defend_themselves(state: GameState) -> None:
     assert state.provinces["krakow"].troops > state.provinces["krakow"].development
 
 
-def test_the_habsburgs_start_behind_walls(state: GameState) -> None:
+def test_the_frontier_against_the_turk_starts_behind_walls(state: GameState) -> None:
     assert state.provinces["vienna"].fort == 1
     assert state.provinces["buda"].fort == 1
 

@@ -71,6 +71,8 @@ ARTISTS = {
     "ottomans": "Mimar Sinan",
     "sweden": "Urban Målare",
     "russia": "Aristotele Fioravanti",
+    "poland": "Veit Stoss",
+    "hungary": "Benedetto da Maiano",
 }
 
 EVENTS: tuple[EventSpec, ...] = (
@@ -227,7 +229,8 @@ EVENTS: tuple[EventSpec, ...] = (
         weight=0.8,
         needs_province=True,
         check=lambda s, n: any(
-            s.map.provinces[p].good in (Good.IRON, Good.GOLD) for p in s.provinces_of(n)
+            s.map.provinces[p].good in (Good.IRON, Good.COPPER, Good.SILVER, Good.GOLD, Good.SALT)
+            for p in s.provinces_of(n)
         ),
     ),
 )
@@ -249,7 +252,12 @@ def roll(
     if event.needs_province:
         land = [p for p in state.provinces_of(nation) if not state.provinces[p].controller]
         if event.id == "mine":
-            land = [p for p in land if state.map.provinces[p].good in (Good.IRON, Good.GOLD)]
+            land = [
+                p
+                for p in land
+                if state.map.provinces[p].good
+                in (Good.IRON, Good.COPPER, Good.SILVER, Good.GOLD, Good.SALT)
+            ]
         if event.id == "plague":
             land = [p for p in land if state.provinces[p].development >= 3]
         if not land:

@@ -29,6 +29,7 @@ from pax_agentica.engine.actions import (
     Develop,
     HireAdvisor,
     HireGeneral,
+    Improve,
     Move,
     Proclaim,
     ProposeAlliance,
@@ -520,6 +521,7 @@ class _Planner:
         self._research(reserve)
         self._council(reserve)
         self._build(reserve)
+        self._improve(reserve)
         self._monument(reserve)
         starving = self.me.income_per_turn.grain < self.me.army_upkeep_per_turn.grain
         candidates = sorted(
@@ -529,7 +531,7 @@ class _Planner:
                 if self.provinces[p].development < self.me.modifiers.max_development
             ),
             key=lambda p: (
-                not (starving and self.provinces[p].good == Good.GRAIN),
+                not (starving and self.provinces[p].good in (Good.GRAIN, Good.FISH)),
                 self.provinces[p].development,
                 p,
             ),
@@ -573,6 +575,8 @@ class _Planner:
             wishes.append((BuildingKind.ARMORY, [staging]))
         if self.enemies:
             wishes.append((BuildingKind.CANNON_FOUNDRY, [staging]))
+            wishes.append((BuildingKind.ARMS_MANUFACTORY, [me.capital]))
+            wishes.append((BuildingKind.POWDER_MILL, [me.capital]))
         wishes += [
             *([] if goods_short else [(BuildingKind.MARKETPLACE, richest[:2])]),
             (BuildingKind.ROYAL_EXCHANGE, richest[:1]),
@@ -604,6 +608,23 @@ class _Planner:
                     self.actions.append(Build(province=pid, building=kind))
                     self.budget = self.budget - cost[kind]
                     return
+
+    def _improve(self, reserve: int) -> None:
+        """Deepen the mine (or vineyard, or fishery) of the province whose good pays best."""
+        rules = self.v.rules
+        worth = {"ducats": 1, "goods": 3, "iron": 2, "timber": 1.5, "grain": 1, "manpower": 3}
+
+        def value_of(pid: ProvinceId) -> float:
+            p = self.provinces[pid]
+            rates = rules.good_yields.get(p.good, {})
+            return sum(worth[k] * r for k, r in rates.items()) * p.development
+
+        for pid in sorted(self.owned, key=lambda x: (-value_of(x), x)):
+            cost = self.provinces[pid].improve_cost
+            if cost is not None and self.budget.covers(cost + Resources(ducats=reserve + 30)):
+                self.actions.append(Improve(province=pid))
+                self.budget = self.budget - cost
+                return
 
     def _monument(self, reserve: int) -> None:
         """Raise a monument when the treasury is comfortably full."""

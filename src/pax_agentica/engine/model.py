@@ -35,13 +35,23 @@ class Terrain(StrEnum):
 
 
 class Good(StrEnum):
-    """What a province produces on top of its base output."""
+    """What a province is known for, on top of its base output. Each yields its own mix of
+    resources by development (see `Rules.good_yields`): gold far more than grain."""
 
     GRAIN = "grain"
-    IRON = "iron"
+    FISH = "fish"
+    HORSES = "horses"
+    WINE = "wine"
+    SALT = "salt"
+    WOOL = "wool"
+    CLOTH = "cloth"  # the looms of Flanders, the silk of Lyon
     TIMBER = "timber"
-    GOLD = "gold"  # extra ducats: trade cities, mines of precious metal
-    CLOTH = "cloth"  # goods: the looms of Flanders, the silk of Lyon, the wool of York
+    IRON = "iron"
+    COPPER = "copper"
+    FURS = "furs"
+    SILVER = "silver"
+    GOLD = "gold"
+    SPICES = "spices"  # the trade of the Indies and the Levant
 
 
 RESOURCE_NAMES = ("ducats", "manpower", "iron", "grain", "timber", "goods")
@@ -111,6 +121,8 @@ class BuildingKind(StrEnum):
     CANNON_FOUNDRY = "cannon_foundry"
     # great works: one per realm, felt across all of it
     MILITARY_ACADEMY = "military_academy"
+    ARMS_MANUFACTORY = "arms_manufactory"
+    POWDER_MILL = "powder_mill"
     ROYAL_EXCHANGE = "royal_exchange"
     OBSERVATORY = "observatory"
 
@@ -450,6 +462,26 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             requires_tech=(TechBranch.MILITARY, 3),
             unique=True,
         ),
+        BuildingKind.ARMS_MANUFACTORY: BuildingSpec(
+            name="Arms manufactory",
+            category=military,
+            cost=Resources(ducats=130, iron=10, timber=10),
+            effect="regiments raised anywhere in the realm need half the iron and no goods; "
+            "it works 3 iron a year",
+            requires_tech=(TechBranch.MILITARY, 1),
+            unique=True,
+            consumes=Resources(iron=3),
+        ),
+        BuildingKind.POWDER_MILL: BuildingSpec(
+            name="Powder mill",
+            category=military,
+            cost=Resources(ducats=120, iron=6, timber=12),
+            effect="+5% battle power, and your assaults knock one more fort level off; it burns "
+            "2 timber a year",
+            requires_tech=(TechBranch.MILITARY, 2),
+            unique=True,
+            consumes=Resources(timber=2),
+        ),
         BuildingKind.ROYAL_EXCHANGE: BuildingSpec(
             name="Royal exchange",
             category=civil,
@@ -757,7 +789,48 @@ class Rules(BaseModel):
     base_grain_per_province: int = 3
     base_iron_per_province: int = 1  # every province has a smithy; iron provinces have mines
     base_timber_per_province: int = 1  # every province has woodland; timber provinces forests
-    good_yield_per_development: int = 1
+    good_yield_per_development: int = 1  # kept for older rules; `good_yields` decides
+    # what each good adds, per level of development
+    good_yields: dict[Good, dict[str, float]] = Field(
+        default_factory=lambda: {
+            Good.GRAIN: {"grain": 1.5},
+            Good.FISH: {"grain": 1.0, "ducats": 0.5},
+            Good.HORSES: {"grain": 0.5, "manpower": 0.5},
+            Good.WINE: {"ducats": 2.0},
+            Good.SALT: {"ducats": 2.0},
+            Good.WOOL: {"goods": 0.5, "ducats": 1.0},
+            Good.CLOTH: {"goods": 1.0, "ducats": 0.5},
+            Good.TIMBER: {"timber": 1.5},
+            Good.IRON: {"iron": 1.25},
+            Good.COPPER: {"iron": 0.5, "ducats": 1.5},
+            Good.FURS: {"ducats": 1.5, "goods": 0.5},
+            Good.SILVER: {"ducats": 2.5},
+            Good.GOLD: {"ducats": 3.0},
+            Good.SPICES: {"ducats": 2.5, "goods": 0.5},
+        }
+    )
+    # a province's workings (its mine, vineyard, fishery...): each level adds half its good again
+    workings: dict[Good, str] = Field(
+        default_factory=lambda: {
+            Good.GRAIN: "Great estates",
+            Good.FISH: "Fisheries",
+            Good.HORSES: "Stud farms",
+            Good.WINE: "Vineyards",
+            Good.SALT: "Salt works",
+            Good.WOOL: "Sheepwalks",
+            Good.CLOTH: "Looms",
+            Good.TIMBER: "Woodcutters",
+            Good.IRON: "Iron mines",
+            Good.COPPER: "Copper mines",
+            Good.FURS: "Trading posts",
+            Good.SILVER: "Silver mines",
+            Good.GOLD: "Gold mines",
+            Good.SPICES: "Warehouses",
+        }
+    )
+    workings_bonus: float = 0.5  # of the good's yield, per level
+    max_workings: int = 3
+    improve_cost: Resources = Resources(ducats=35, timber=6)  # times the new level
     stability_income_bonus: float = 0.1  # ducat income x (1 + bonus * stability)
     # what the land itself adds to (or takes from) a province's yield, whatever its development
     terrain_yield: dict[Terrain, dict[str, int]] = Field(
@@ -964,6 +1037,7 @@ class ProvinceState(BaseModel):
     monument: NonNegativeInt = 0  # level of the province's monument, if it has one (0: a site)
     controller: NationId | None = None  # an enemy occupying it in a war; None: its owner holds it
     idle: list[BuildingKind] = Field(default_factory=list)  # buildings whose inputs went unpaid
+    workings: NonNegativeInt = 0  # level of its mine, vineyard, fishery... (0 to 3)
     siege_by: NationId | None = None  # who besieges its walls
     siege_years: NonNegativeInt = 0  # years of siege won so far
 

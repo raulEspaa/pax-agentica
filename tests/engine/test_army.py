@@ -142,11 +142,11 @@ def test_guns_knock_forts_down(state: GameState) -> None:
 
 
 def test_the_survivors_keep_their_kinds(state: GameState, play: Play) -> None:
-    state.provinces["paris"].set_army({P: 0, A: 0, C: 20, G: 0})
-    new = play(state, france=[Attack(origin="paris", target="flanders", regiments=20)])
-    flanders = new.provinces["flanders"]
-    assert flanders.owner == "france"
-    assert flanders.army()[C] == flanders.troops > 0
+    state.provinces["lyon"].set_army({P: 0, A: 0, C: 20, G: 0})
+    new = play(state, france=[Attack(origin="lyon", target="switzerland", regiments=20)])
+    swiss = new.provinces["switzerland"]
+    assert swiss.owner == "france"
+    assert swiss.army()[C] == swiss.troops > 0
 
 
 # ---------------------------------------------------------------- great works
@@ -225,5 +225,5 @@ def test_a_monument_serves_whoever_holds_it(state: GameState, play: Play) -> Non
 
 
 def test_an_empty_choice_of_regiments_is_refused(state: GameState, play: Play) -> None:
-    new = play(state, france=[Attack(origin="paris", target="flanders", regiments=3, units={})])
+    new = play(state, france=[Attack(origin="lyon", target="switzerland", regiments=3, units={})])
     assert reasons(new) == ["the regiments by kind add up to 0, not 3"]

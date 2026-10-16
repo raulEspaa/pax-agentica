@@ -57,17 +57,18 @@ def test_high_development_and_fine_troops_need_goods(state: GameState, play: Pla
 
 
 def test_a_building_without_its_inputs_stands_idle(state: GameState, play: Play) -> None:
-    state.provinces["madrid"].buildings.append(BuildingKind.MARKETPLACE)
-    state.nations["spain"].resources = Resources(ducats=100)  # Spain weaves no cloth
+    state.provinces["stockholm"].buildings.append(BuildingKind.MARKETPLACE)
+    state.nations["sweden"].resources = Resources(ducats=100)  # Sweden makes no goods
     new = play(state)
-    assert BuildingKind.MARKETPLACE in new.provinces["madrid"].idle
+    assert BuildingKind.MARKETPLACE in new.provinces["stockholm"].idle
     assert EventKind.BUILDINGS_IDLE in [e.kind for e in new.last_events]
-    view = view_for(new, "spain")
-    madrid = next(p for p in view.provinces if p.id == "madrid")
-    assert BuildingKind.MARKETPLACE in madrid.idle
+    view = view_for(new, "sweden")
+    stockholm = next(p for p in view.provinces if p.id == "stockholm")
+    assert BuildingKind.MARKETPLACE in stockholm.idle
     working = new.model_copy(deep=True)
-    working.provinces["madrid"].idle = []
-    assert province_output(working, "madrid").ducats > province_output(new, "madrid").ducats
+    working.provinces["stockholm"].idle = []
+    ducats = province_output(working, "stockholm").ducats
+    assert ducats > province_output(new, "stockholm").ducats
 
 
 def test_inputs_are_paid_every_year(state: GameState, play: Play) -> None:

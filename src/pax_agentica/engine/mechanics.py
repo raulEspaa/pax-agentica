@@ -40,17 +40,24 @@ def land_yield(
     rules: Rules, good: Good, development: int, terrain: Terrain | None = None
 ) -> Resources:
     """What land of this development, good and terrain yields, before buildings."""
-    extra = development * rules.good_yield_per_development
     ground = rules.terrain_yield.get(terrain, {}) if terrain else {}
     base = {
-        "ducats": development + (extra if good is Good.GOLD else 0),
+        "ducats": development,
         "manpower": max(1, development // 2),
-        "iron": rules.base_iron_per_province + (extra if good is Good.IRON else 0),
-        "grain": rules.base_grain_per_province + (extra if good is Good.GRAIN else 0),
-        "timber": rules.base_timber_per_province + (extra if good is Good.TIMBER else 0),
-        "goods": extra if good is Good.CLOTH else 0,
+        "iron": rules.base_iron_per_province,
+        "grain": rules.base_grain_per_province,
+        "timber": rules.base_timber_per_province,
+        "goods": 0,
     }
+    for k, v in good_yield(rules, good, development).amounts().items():
+        base[k] += v
     return Resources(**{k: max(0, v + ground.get(k, 0)) for k, v in base.items()})
+
+
+def good_yield(rules: Rules, good: Good, development: int, share: float = 1.0) -> Resources:
+    """What a province's good adds at this development (a share of it, for its workings)."""
+    rates = rules.good_yields.get(good, {})
+    return Resources(**{k: math.floor(development * rate * share) for k, rate in rates.items()})
 
 
 def buildings_yield(
@@ -98,7 +105,7 @@ def building_output(state: GameState, province: ProvinceId) -> Resources:
     """The extra yield of the province's buildings, with its owner's technology."""
     p = state.provinces[province]
     mods = modifiers(state, p.owner)
-    return buildings_yield(
+    built = buildings_yield(
         state.rules,
         base_output(state, province),
         [b for b in p.buildings if b not in p.idle],  # an idle building yields nothing
@@ -106,6 +113,17 @@ def building_output(state: GameState, province: ProvinceId) -> Resources:
         mods.mill_share,
         p.development,
     )
+    return built + workings_yield(state, province)
+
+
+def workings_yield(state: GameState, province: ProvinceId, level: int | None = None) -> Resources:
+    """What a province's workings (mine, vineyard, fishery...) add at their level."""
+    p = state.provinces[province]
+    level = p.workings if level is None else level
+    if not level:
+        return Resources()
+    good = state.map.provinces[province].good
+    return good_yield(state.rules, good, p.development, state.rules.workings_bonus * level)
 
 
 def output_with(
@@ -392,8 +410,13 @@ def recruit_cost(
     regiments: int,
     buildings: Collection[BuildingKind] = (),
     kind: UnitKind = UnitKind.INFANTRY,
+    arms: bool = False,
 ) -> Resources:
+    """What raising regiments costs here: an armory in the province halves the iron, and an
+    arms manufactory in the realm (`arms`) halves it too and spares the goods."""
     cost = unit_cost(rules, kind).times(regiments)
+    if arms:
+        cost = cost.model_copy(update={"iron": math.ceil(cost.iron / 2), "goods": 0})
     if BuildingKind.ARMORY in buildings:
         iron = math.ceil(cost.iron * (1 - rules.armory_iron_discount))
         cost = cost.model_copy(update={"iron": iron})

@@ -95,6 +95,8 @@ class ProvinceView(_View):
     develop_cost: Resources  # for its owner, after universities and engineering
     recruit_cost: Resources  # per pikeman, for its owner, after an armory
     recruit_costs: dict[UnitKind, Resources]  # yours only: per regiment of each kind raisable here
+    workings: int  # level of its mine, vineyard, fishery... (0 to rules.max_workings)
+    improve_cost: Resources | None  # yours only: what the next level of workings costs
     monument: int | None  # level of its monument (see rules.monuments); None if it has none
     neighbors: tuple[ProvinceId, ...]
     sea_neighbors: tuple[ProvinceId, ...]
@@ -285,15 +287,21 @@ def view_for(state: GameState, nation: NationId) -> NationView:
                 _mods(state, ps.owner).building_discount,
                 definition.terrain,
             ),
-            recruit_cost=recruit_cost(state.rules, 1, ps.buildings),
+            recruit_cost=recruit_cost(
+                state.rules, 1, ps.buildings, arms=_mods(state, ps.owner).arms_manufactory
+            ),
             recruit_costs={
-                kind: recruit_cost(state.rules, 1, ps.buildings, kind)
+                kind: recruit_cost(state.rules, 1, ps.buildings, kind, mods.arms_manufactory)
                 for kind, spec in state.rules.units.items()
                 if spec.requires is None or spec.requires in ps.buildings
             }
             if ps.owner == nation and not ps.controller
             else {},
             monument=ps.monument if pid in state.rules.monuments else None,
+            workings=ps.workings,
+            improve_cost=state.rules.improve_cost.times(ps.workings + 1)
+            if ps.owner == nation and ps.workings < state.rules.max_workings
+            else None,
             neighbors=definition.neighbors,
             sea_neighbors=definition.sea_neighbors,
         )

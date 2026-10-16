@@ -275,7 +275,25 @@ _NATIONS: list[tuple[str, str, str, str]] = [
     ("ottomans", "Ottoman Empire", "#4e8a4a", "constantinople"),
     ("sweden", "Sweden", "#4a9fd2", "stockholm"),
     ("russia", "Russia", "#7a4b9a", "moscow"),
+    ("poland", "Poland-Lithuania", "#c0486b", "krakow"),
+    ("hungary", "Hungary", "#8f5a2e", "buda"),
 ]
+
+# Who held what in 1500 where the table above is coarser: the Jagiellonian kingdoms (Vladislaus
+# II was king of Hungary and of Bohemia at once; Poland and Lithuania shared their king) and the
+# Habsburgs' Burgundian lands.
+OWNERS_1500: dict[str, str | None] = {
+    "krakow": "poland",
+    "masovia": "poland",
+    "lithuania": "poland",
+    "kiev": "poland",
+    "buda": "hungary",
+    "transylvania": "hungary",
+    "bohemia": "hungary",
+    # The Burgundian inheritance: Maximilian's son Philip the Handsome rules the Low Countries.
+    "flanders": "austria",
+    "holland": "austria",
+}
 
 # Commanders of the age, handed out in order as each nation appoints generals.
 GENERAL_NAMES: dict[str, list[str]] = {
@@ -322,6 +340,20 @@ GENERAL_NAMES: dict[str, list[str]] = {
         "Mikhail Glinsky",
         "Dmitry Belsky",
     ],
+    "poland": [
+        "Konstanty Ostrogski",
+        "Jan Tarnowski",
+        "Mikołaj Firlej",
+        "Stanisław Żółkiewski",
+        "Jan Karol Chodkiewicz",
+    ],
+    "hungary": [
+        "Pál Kinizsi",
+        "Pál Tomori",
+        "István Dobó",
+        "Bálint Török",
+        "Miklós Zrínyi",
+    ],
 }
 
 
@@ -338,18 +370,46 @@ PROVINCE_GARRISON = 2
 # Balance, measured over many bot games: without these the Ottomans walk through the east and
 # France, surrounded, is torn apart.
 EXTRA_GARRISON = {
-    # Poland, Lithuania and the Danube principalities raise real armies.
-    **dict.fromkeys(("krakow", "masovia", "lithuania", "wallachia", "transylvania", "bosnia"), 3),
+    # The Danube principalities raise real armies.
+    **dict.fromkeys(("wallachia", "bosnia"), 3),
+    # The Jagiellonian marches against Tatar and Turk.
+    **dict.fromkeys(("kiev", "transylvania"), 1),
     # France has the longest border in Europe and garrisons to match.
     **dict.fromkeys(("normandy", "brittany", "champagne", "lyon", "gascony", "languedoc"), 1),
-    # The Habsburg frontier against the Turk.
-    "buda": 1,
+    # The Habsburg march.
     "styria": 1,
 }
+# What each province was known for around 1500. The table above gives a coarse good; this
+# gives the trade that made its name.
+GOODS_1500: dict[str, Good] = {
+    "london": Good.CLOTH, "york": Good.WOOL, "wales": Good.IRON, "scotland": Good.FISH,
+    "ireland": Good.WOOL, "lisbon": Good.SPICES, "galicia": Good.FISH, "madrid": Good.WOOL,
+    "andalusia": Good.WINE, "valencia": Good.WINE, "aragon": Good.WOOL, "navarre": Good.IRON,
+    "morocco": Good.GOLD, "algiers": Good.SALT, "tunis": Good.GRAIN,
+    "paris": Good.GRAIN, "normandy": Good.GRAIN, "brittany": Good.SALT, "champagne": Good.WINE,
+    "lyon": Good.CLOTH, "gascony": Good.WINE, "languedoc": Good.WINE, "provence": Good.SALT,
+    "flanders": Good.CLOTH, "holland": Good.FISH, "rhineland": Good.WINE, "hamburg": Good.SALT,
+    "brandenburg": Good.GRAIN, "saxony": Good.SILVER, "bavaria": Good.SALT,
+    "switzerland": Good.HORSES, "prussia": Good.GRAIN,
+    "vienna": Good.WINE, "tyrol": Good.SILVER, "bohemia": Good.SILVER, "styria": Good.IRON,
+    "milan": Good.CLOTH, "venice": Good.SPICES, "florence": Good.CLOTH, "rome": Good.WINE,
+    "naples": Good.WINE, "sicily": Good.GRAIN,
+    "stockholm": Good.COPPER, "gotaland": Good.GRAIN, "finland": Good.TIMBER,
+    "norrland": Good.IRON, "norway": Good.FISH, "scania": Good.FISH, "zealand": Good.FISH,
+    "jutland": Good.HORSES,
+    "krakow": Good.SALT, "masovia": Good.GRAIN, "lithuania": Good.TIMBER, "livonia": Good.GRAIN,
+    "kiev": Good.HORSES, "moscow": Good.FURS, "novgorod": Good.FURS, "smolensk": Good.TIMBER,
+    "ryazan": Good.GRAIN,
+    "buda": Good.WINE, "transylvania": Good.GOLD, "wallachia": Good.HORSES,
+    "serbia": Good.SILVER, "bosnia": Good.IRON, "bulgaria": Good.GRAIN, "greece": Good.WINE,
+    "constantinople": Good.SPICES, "anatolia": Good.CLOTH,
+}  # fmt: skip
+
 STARTING_BUILDINGS: dict[str, list[BuildingKind]] = {
     "vienna": [BuildingKind.FORT],  # the walls the Turk will test in 1529
     "buda": [BuildingKind.FORT],
     "paris": [BuildingKind.STABLES],  # the gendarmerie, Europe's finest heavy horse
+    "krakow": [BuildingKind.STABLES],  # the hussar banners
     "anatolia": [BuildingKind.STABLES],  # the timariot sipahis
     "moscow": [BuildingKind.STABLES],  # the cavalry host of the steppe frontier
 }
@@ -362,6 +422,8 @@ STARTING_UNITS: dict[str, dict[UnitKind, int]] = {
     "constantinople": {UnitKind.CAVALRY: 2, UnitKind.ARCHERS: 1},  # sipahis and janissaries
     "stockholm": {UnitKind.ARCHERS: 2},
     "moscow": {UnitKind.CAVALRY: 3},
+    "krakow": {UnitKind.CAVALRY: 3},  # the winged hussars' forebears
+    "buda": {UnitKind.CAVALRY: 2, UnitKind.ARCHERS: 1},  # hussars and the Black Army's gunmen
 }
 
 
@@ -379,7 +441,7 @@ def europe_map() -> MapDef:
             id=pid,
             name=name,
             terrain=terrain,
-            good=good,
+            good=GOODS_1500.get(pid, good),
             lon=lon,
             lat=lat,
             neighbors=tuple(sorted(land[pid])),
@@ -396,9 +458,10 @@ def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> Game
     rules_ = rules or Rules()
     provinces = {
         pid: ProvinceState(
-            owner=owner,
+            owner=OWNERS_1500.get(pid, owner),
             development=dev,
-            troops=_garrison(pid, dev, owner, capitals) + EXTRA_GARRISON.get(pid, 0),
+            troops=_garrison(pid, dev, OWNERS_1500.get(pid, owner), capitals)
+            + EXTRA_GARRISON.get(pid, 0),
             buildings=list(STARTING_BUILDINGS.get(pid, [])),
             units=dict(STARTING_UNITS.get(pid, {})),
             monument=rules_.monuments[pid].level_1500 if pid in rules_.monuments else 0,
