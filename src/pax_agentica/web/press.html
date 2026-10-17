@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pax Agentica · Press kit</title>
+<link rel="icon" href="/static/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/map.css">
+<style>
+  :root { --bg: #1c130b; --panel: #2a1c10; --ink: #f2e4c4; --dim: #bfa883; --brass: #c9963e; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.45 "EB Garamond", Georgia, serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 22px 16px 60px; }
+  h1 { font: 700 28px Cinzel, serif; margin: 0 0 4px; letter-spacing: .04em; } h2 { font: 700 18px Cinzel, serif; margin: 0; }
+  .lead { color: var(--dim); margin: 0 0 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; padding: 10px 12px; background: var(--panel); border: 1px solid #5a4024; }
+  .controls label { color: var(--dim); } select, button { font: inherit; } select { background: #f2e4c4; color: #2a1708; border: 1px solid #5a3c12; padding: 2px 6px; }
+  button { background: linear-gradient(#e2bf72, #a77a32); color: #2a1708; border: 1px solid #5a3c12; padding: 4px 12px; cursor: pointer; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+  .cap { background: var(--panel); border: 1px solid #5a4024; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .cap canvas { width: 100%; height: auto; display: block; background: repeating-conic-gradient(#3a2a1a 0 25%, #2a1c10 0 50%) 0 0 / 16px 16px; }
+  .cap .meta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; } .cap small { color: var(--dim); }
+  .cap p { margin: 0; color: var(--dim); font-size: 15px; }
+  #status { color: var(--dim); font-style: italic; }
+  .offstage { position: absolute; left: -10000px; top: 0; width: 1600px; height: 1000px; }
+  .offstage svg { width: 1600px; height: 1000px; }
+  @media (max-width: 420px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pax Agentica · Store capsules</h1>
+  <p class="lead">Every image the store asks for, painted from the game's own map at the exact size. Pick the year of the map, then download each PNG.</p>
+  <div class="controls">
+    <label for="year">Map of</label> <select id="year"></select>
+    <button id="all" type="button" disabled>Download all</button>
+    <span id="status">Playing a game of bots to paint from…</span>
+  </div>
+  <div class="grid" id="grid"></div>
+</main>
+<div class="offstage" aria-hidden="true"><svg id="map"></svg></div>
+<script src="/static/icons.js"></script>
+<script src="/static/map.js"></script>
+<script src="/static/press.js"></script>
+<script>
+"use strict";
+(async () => {
+  const $ = (id) => document.getElementById(id), NS = "http://www.w3.org/2000/svg";
+  // the store's sizes; "text" says what goes over the map
+  const CAPSULES = [
+    {id: "header", name: "Header capsule", w: 920, h: 430, text: "title+tag", zoom: .78, note: "Top of the store page, and lists."},
+    {id: "small", name: "Small capsule", w: 462, h: 174, text: "title", zoom: .6, note: "Search results and lists: the name must read at a glance."},
+    {id: "main", name: "Main capsule", w: 1232, h: 706, text: "title+tag", zoom: .82, note: "The front page's big carousel."},
+    {id: "vertical", name: "Vertical capsule", w: 748, h: 896, text: "stacked", zoom: .42, note: "Seasonal sales pages."},
+    {id: "library", name: "Library capsule", w: 600, h: 900, text: "stacked", zoom: .4, note: "The player's library grid."},
+    {id: "hero", name: "Library hero", w: 3840, h: 1240, text: "none", zoom: 1, bare: true, note: "Behind the library page: no title or text on it."},
+    {id: "logo", name: "Library logo", w: 1280, h: 720, text: "logo", zoom: 0, note: "The title alone on transparency, laid over the hero."},
+    {id: "background", name: "Page background", w: 1438, h: 810, text: "none", zoom: .9, dim: .55, bare: true, note: "Behind the store page; kept quiet."},
+    {id: "icon", name: "Community icon", w: 184, h: 184, text: "crest", zoom: 0, note: "The crest, for the community hub."},
+  ];
+  const K = await PaxPress.boot($("map"));
+  const {S, R, map} = K;
+  R.years.forEach((y, i) => { const o = document.createElement("option"); o.value = i; o.textContent = y; $("year").appendChild(o); });
+  $("year").value = Math.min(R.years.length - 1, 12); // a few years in: the borders have begun to move
+
+  // the map's own stylesheet and its title face, inlined: an SVG drawn as an image loads nothing
+  const css = await fetch("/static/map.css").then((r) => r.text());
+  async function inlineFont(family, weight) {
+    try {
+      const sheet = await fetch(`https://fonts.googleapis.com/css2?family=${family}:wght@${weight}&display=block`).then((r) => r.text());
+      const urls = [...sheet.matchAll(/url\((https:[^)]+)\)/g)].map((m) => m[1]);
+      const url = urls.at(-1); // the latin subset comes last
+      const buf = await fetch(url).then((r) => r.arrayBuffer());
+      let bin = ""; new Uint8Array(buf).forEach((b) => (bin += String.fromCharCode(b)));
+      return `@font-face{font-family:"${family.replace("+", " ")}";font-weight:${weight};src:url(data:font/woff2;base64,${btoa(bin)}) format("woff2");}`;
+    } catch { return ""; }
+  }
+  const faces = (await Promise.all([inlineFont("Cinzel", 700), inlineFont("Cinzel", 500), inlineFont("EB+Garamond", 500)])).join("");
+  await document.fonts.load("700 40px Cinzel"); await document.fonts.load("italic 400 20px 'EB Garamond'");
+
+  async function mapImage(w, h, zoom, bare) {
+    const W = S.map.width, H = S.map.height, vw = Math.min(W, W * zoom * Math.max(1, (w / h) / (W / H))), vh = vw * h / w;
+    const cx = W * .5, cy = H * .53;
+    const clone = $("map").cloneNode(true);
+    clone.setAttribute("xmlns", NS);
+    clone.setAttribute("viewBox", `${Math.max(0, Math.min(W - vw, cx - vw / 2))} ${Math.max(0, Math.min(H - vh, cy - vh / 2))} ${vw} ${vh}`);
+    clone.setAttribute("width", w); clone.setAttribute("height", h); clone.setAttribute("preserveAspectRatio", "xMidYMid slice");
+    if (bare) clone.querySelectorAll("text").forEach((x) => x.remove()); // the store wants no lettering here
+    const style = document.createElementNS(NS, "style"); style.textContent = faces + css; clone.insertBefore(style, clone.firstChild);
+    const img = new Image();
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    await img.decode();
+    return img;
+  }
+  function brass(g, x, y0, y1) {
+    const gr = g.createLinearGradient(x, y0, x, y1);
+    gr.addColorStop(0, "#fff1c2"); gr.addColorStop(.45, "#e6c070"); gr.addColorStop(.55, "#c9963e"); gr.addColorStop(1, "#8a5a20");
+    return gr;
+  }
+  // the title as a struck brass plate: dark edge, gilt face, a soft shadow beneath
+  function title(g, text, x, y, size, align = "center") {
+    g.save();
+    g.font = `700 ${size}px Cinzel`; g.textAlign = align; g.textBaseline = "alphabetic";
+    if ("letterSpacing" in g) g.letterSpacing = `${Math.round(size * .06)}px`;
+    g.shadowColor = "rgba(0,0,0,.75)"; g.shadowBlur = size * .25; g.shadowOffsetY = size * .06;
+    g.lineJoin = "round"; g.lineWidth = Math.max(2, size * .09); g.strokeStyle = "#1e1006"; g.strokeText(text, x, y);
+    g.shadowColor = "transparent";
+    g.fillStyle = brass(g, x, y - size * .8, y + size * .05); g.fillText(text, x, y);
+    g.restore();
+  }
+  function tagline(g, text, x, y, size) {
+    g.save(); g.font = `italic 400 ${size}px "EB Garamond"`; g.textAlign = "center";
+    g.shadowColor = "rgba(0,0,0,.9)"; g.shadowBlur = size * .5; g.fillStyle = "#f6e7c4"; g.fillText(text, x, y); g.restore();
+  }
+  function shade(g, w, h, {bottom = .6, edge = .55} = {}) {
+    const v = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .3, w / 2, h / 2, Math.hypot(w, h) * .6);
+    v.addColorStop(0, "rgba(20,10,4,0)"); v.addColorStop(1, `rgba(20,10,4,${edge})`); g.fillStyle = v; g.fillRect(0, 0, w, h);
+    const b = g.createLinearGradient(0, h * .35, 0, h); b.addColorStop(0, "rgba(20,10,4,0)"); b.addColorStop(1, `rgba(20,10,4,${bottom})`);
+    g.fillStyle = b; g.fillRect(0, 0, w, h);
+  }
+  function rule(g, w, h) { // a thin gilt double rule, as on a bound atlas
+    const m = Math.round(Math.min(w, h) * .03);
+    g.strokeStyle = "rgba(230,192,112,.85)"; g.lineWidth = Math.max(1.5, m * .14); g.strokeRect(m, m, w - 2 * m, h - 2 * m);
+    g.strokeStyle = "rgba(230,192,112,.45)"; g.lineWidth = Math.max(1, m * .07); g.strokeRect(m * 1.45, m * 1.45, w - 2.9 * m, h - 2.9 * m);
+  }
+  async function crest(g, x, y, size) {
+    const img = new Image(); img.src = "/static/favicon.svg"; await img.decode(); g.drawImage(img, x - size / 2, y - size / 2, size, size);
+  }
+  const TAG = "Nine crowns. Fifty years. One Europe.";
+  async function paint(c, cv) {
+    const g = cv.getContext("2d"), {w, h} = c;
+    g.clearRect(0, 0, w, h);
+    if (c.zoom) {
+      g.drawImage(await mapImage(w, h, c.zoom, c.bare), 0, 0, w, h);
+      if (c.dim) { g.fillStyle = `rgba(20,10,4,${c.dim})`; g.fillRect(0, 0, w, h); }
+    }
+    if (c.text === "title+tag") { shade(g, w, h, {bottom: .8}); rule(g, w, h);
+      title(g, "PAX AGENTICA", w / 2, h * .6, Math.round(w * .088)); tagline(g, TAG, w / 2, h * .6 + w * .06, Math.round(w * .036)); }
+    if (c.text === "title") { shade(g, w, h, {bottom: .75, edge: .7}); title(g, "PAX AGENTICA", w / 2, h * .64, Math.round(w * .095)); }
+    if (c.text === "stacked") { shade(g, w, h, {bottom: .7}); rule(g, w, h);
+      await crest(g, w / 2, h * .2, w * .2);
+      title(g, "PAX", w / 2, h * .42, Math.round(w * .19)); title(g, "AGENTICA", w / 2, h * .52, Math.round(w * .13));
+      tagline(g, "Nine crowns.", w / 2, h * .86, Math.round(w * .055)); tagline(g, "Fifty years. One Europe.", w / 2, h * .86 + w * .07, Math.round(w * .055)); }
+    if (c.text === "none") shade(g, w, h, {bottom: .35, edge: .45});
+    if (c.text === "logo") { title(g, "PAX", w / 2, h * .48, Math.round(w * .17)); title(g, "AGENTICA", w / 2, h * .74, Math.round(w * .13)); }
+    if (c.text === "crest") { g.fillStyle = "#2a1708"; g.fillRect(0, 0, w, h); await crest(g, w / 2, h / 2, w * .82); }
+  }
+  const cards = CAPSULES.map((c) => {
+    const box = document.createElement("section"); box.className = "cap";
+    box.innerHTML = `<div class="meta"><h2>${c.name}</h2><small>${c.w} × ${c.h}</small></div><canvas width="${c.w}" height="${c.h}"></canvas>
+      <p>${c.note}</p><button type="button">Download PNG</button>`;
+    $("grid").appendChild(box);
+    const cv = box.querySelector("canvas");
+    box.querySelector("button").onclick = () => save(c, cv);
+    return {c, cv};
+  });
+  function save(c, cv) {
+    cv.toBlob((blob) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `pax-agentica-${c.id}-${c.w}x${c.h}.png`; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000); }, "image/png");
+  }
+  async function paintAll() {
+    $("all").disabled = true; $("status").textContent = "Painting…";
+    map.paint(K.worldAt(+$("year").value));
+    for (const {c, cv} of cards) await paint(c, cv);
+    $("all").disabled = false; $("status").textContent = `The map of ${R.years[+$("year").value]}, from a game of bots (seed ${new URLSearchParams(location.search).get("seed") || "default"}).`;
+  }
+  $("year").onchange = paintAll;
+  $("all").onclick = async () => { for (const {c, cv} of cards) { save(c, cv); await new Promise((r) => setTimeout(r, 350)); } };
+  await paintAll();
+})();
+</script>
+</body>
+</html>

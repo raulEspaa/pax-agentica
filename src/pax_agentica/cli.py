@@ -43,6 +43,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "map": _map,
         "bench": _bench,
         "serve": _serve,
+        "press": _press,
         "host": _host,
         "brief": _brief,
         "tournament": _tournament,
@@ -96,6 +97,12 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument(
         "--saves", type=Path, default=Path("saves"), help="where games are saved (default saves/)"
     )
+
+    press = sub.add_parser("press", help="store capsules and a trailer, drawn from a game of bots")
+    press.add_argument("--seed", type=int, default=7, help="the game the trailer replays")
+    press.add_argument("--turns", type=int, default=50)
+    press.add_argument("--port", type=int, default=8090)
+    press.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
 
     brief = sub.add_parser("brief", help="print a nation's briefing, as a prompt would see it")
     brief.add_argument("nation")
@@ -346,6 +353,23 @@ def _serve(args: argparse.Namespace) -> int:
     if not args.no_browser:
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return 0
+
+
+def _press(args: argparse.Namespace) -> int:
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    from pax_agentica.press import create_press_app
+
+    url = f"http://127.0.0.1:{args.port}"
+    print(f"The press kit: capsules at {url}/press, the trailer at {url}/trailer  (Ctrl+C to stop)")
+    if not args.no_browser:
+        threading.Timer(1.0, webbrowser.open, args=(f"{url}/press",)).start()
+    app = create_press_app(args.seed, args.turns)
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
     return 0
 
 

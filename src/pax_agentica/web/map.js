@@ -333,10 +333,10 @@ const PaxMap = (() => {
     // The year in motion: banners marching from province to province, a clash where they
     // fought, a flash of the conqueror's colour where land changed hands. Resolves when done;
     // a click skips it. items: [{from, to, color, fight, won, took, takerColor}]
-    function motion(items) {
+    function motion(items, {scale = 1} = {}) {
       return new Promise((done) => {
         if (!items.length || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return done();
-        const k = px() * 1.35, layer = el("g", {class: "motion"}, gPings), t0 = performance.now();
+        const k = px() * 1.35 * scale, layer = el("g", {class: "motion"}, gPings), t0 = performance.now();
         const TRAVEL = 1150, TOTAL = 2100;
         const runs = items.slice(0, 30).map((m, n) => {
           const p = P[m.from], q = P[m.to], dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy) || 1;
@@ -438,6 +438,8 @@ const PaxMap = (() => {
       plabels.forEach((t) => { t.setAttribute("font-size", (12 * k).toFixed(2)); t.setAttribute("y", P[+t.dataset.i].y - 22 * k); });
     }
     const refresh = () => { markers(); eventMarks(); drawArrows(); };
+    // the camera set by hand, for a frame of an animated flight over the map (the trailer's)
+    function look(x, y, w) { view.x = x; view.y = y; view.w = w; applyView(); }
     function toMap(cx, cy) { const r = svg.getBoundingClientRect(), s = view.w / r.width;
       return [view.x + (cx - r.left) * s, view.y + (cy - r.top) * s]; }
     function zoomAt(factor, cx, cy) {
@@ -484,7 +486,7 @@ const PaxMap = (() => {
     window.addEventListener("pointerup", () => { drag = null; wrap.classList.remove("dragging"); });
     window.addEventListener("resize", () => { applyView(); refresh(); });
 
-    return {paint, pick, setTargets, setArrows, zoomAt, home, centerOn, refresh, view, maxW, px, ping, motion, get picked() { return picked; }};
+    return {paint, pick, setTargets, setArrows, zoomAt, home, centerOn, refresh, view, maxW, px, ping, motion, look, aspect, get picked() { return picked; }};
   }
 
   // ------------------------------------------------------------------ the province vista

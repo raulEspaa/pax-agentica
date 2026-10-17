@@ -117,6 +117,7 @@ uv run pax play --seed 1 --html replays/1.html   # ... and replay it on a map in
 uv run pax view france                     # exactly what France's ruler is allowed to see (JSON)
 uv run pax schema                          # the JSON schema a ruler must answer with
 uv run pax bench --games 40                # who wins, seat by seat, over 40 seeded games
+uv run pax press                           # store capsules and a trailer, drawn from a game of bots
 ```
 
 ## Repository map

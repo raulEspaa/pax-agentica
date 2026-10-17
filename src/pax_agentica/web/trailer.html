@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pax Agentica · Trailer</title>
+<link rel="icon" href="/static/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/map.css">
+<style>
+  /* A stage to record from the screen at 1920 by 1080 (F11 for full screen): nothing on it but the
+     map, the year, a line of text and, now and then, a woodcut. */
+  html, body { margin: 0; height: 100%; background: #0d0905; overflow: hidden; }
+  body.rolling, body.rolling * { cursor: none !important; }
+  #stage { position: fixed; inset: 0; opacity: 0; transition: opacity 1.4s ease; }
+  #stage.on { opacity: 1; }
+  #map { width: 100vw; height: 100vh; display: block; }
+  .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, rgba(13, 9, 5, 0) 55%, rgba(13, 9, 5, .75) 100%); }
+  .year { position: fixed; left: 4vw; top: 4vh; font: 700 6.4vh Cinzel, serif; color: #f3dfa4; letter-spacing: .06em;
+          text-shadow: 0 .3vh 1.2vh #000, 0 0 .2vh #000; opacity: 0; transition: opacity .8s; }
+  .year.on { opacity: 1; }
+  .line { position: fixed; left: 0; right: 0; bottom: 9vh; text-align: center; font: italic 400 5vh "EB Garamond", serif; color: #fbf0d6;
+          text-shadow: 0 .3vh 1.4vh #000, 0 0 .4vh #000; opacity: 0; transform: translateY(1vh); transition: opacity .7s ease, transform .9s ease; }
+  .line.on { opacity: 1; transform: none; }
+  .black { position: fixed; inset: 0; display: grid; place-items: center; background: #0d0905; opacity: 0; pointer-events: none; transition: opacity 1s ease; }
+  .black.on { opacity: 1; }
+  .words { font: 700 9vh Cinzel, serif; color: #f3dfa4; letter-spacing: .08em; text-align: center; text-shadow: 0 .4vh 2vh #000; }
+  .words small { display: block; margin-top: 2vh; font: italic 400 4.2vh "EB Garamond", serif; letter-spacing: 0; color: #e8d6ae; }
+  .words .cta { display: inline-block; margin-top: 5vh; padding: 1.4vh 3vh; border: .3vh solid #c9963e; font: 600 3.4vh Cinzel, serif; color: #f3dfa4; }
+  .card { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(13, 9, 5, .82); opacity: 0; transition: opacity .7s ease; pointer-events: none; }
+  .card.on { opacity: 1; }
+  .card figure { margin: 0; width: min(78vw, 140vh); transform: scale(.96); transition: transform 4s ease-out; }
+  .card.on figure { transform: scale(1.03); }
+  .card svg { display: block; width: 100%; height: auto; border: .3vh solid #c9963e; box-shadow: 0 2vh 6vh rgba(0, 0, 0, .7); }
+  .card figcaption { margin-top: 3vh; text-align: center; font: italic 400 4.6vh "EB Garamond", serif; color: #fbf0d6; text-shadow: 0 .3vh 1vh #000; }
+  .start { position: fixed; inset: 0; display: grid; place-items: center; background: #0d0905; color: #e8d6ae; font: 400 22px "EB Garamond", serif; z-index: 9; text-align: center; }
+  .start b { display: block; font: 700 34px Cinzel, serif; color: #f3dfa4; margin-bottom: 10px; }
+  .start p { margin: 6px; color: #bfa883; }
+  .start button { margin-top: 14px; font: 600 20px Cinzel, serif; padding: 10px 24px; background: linear-gradient(#e2bf72, #a77a32); color: #2a1708; border: 1px solid #5a3c12; cursor: pointer; }
+  .start button:disabled { opacity: .5; cursor: wait; }
+</style>
+</head>
+<body>
+<div id="stage"><svg id="map" role="img" aria-label="Map of Europe"></svg><div class="vignette"></div></div>
+<div class="year" id="year"></div>
+<div class="line" id="line"></div>
+<div class="card" id="card"></div>
+<div class="black on" id="black"><div class="words" id="words"></div></div>
+<div class="start" id="start"><div><b>Pax Agentica · Trailer</b>
+  <p>A game of bots, played and filmed by the game itself. About seventy seconds.</p>
+  <p>Full screen (F11) at 1920 × 1080, start the screen recorder, then press the button. Esc stops.</p>
+  <p>Options in the address: <code>?seed=7&amp;turns=50&amp;cta=Wishlist%20on%20Steam&amp;music=0</code></p>
+  <button id="go" type="button" disabled>Playing a game of bots…</button></div></div>
+<script src="/static/icons.js"></script>
+<script src="/static/map.js"></script>
+<script src="/static/juice.js"></script>
+<script src="/static/scenes.js"></script>
+<script src="/static/press.js"></script>
+<script>
+"use strict";
+(async () => {
+  const $ = (id) => document.getElementById(id), q = new URLSearchParams(location.search);
+  const K = await PaxPress.boot($("map")), {R, P, map, worldAt, marchesAt, color, name, frame, pIndex} = K, J = window.PaxJuice, A = window.PaxScenes;
+  const CTA = q.get("cta") || "Wishlist on Steam";
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  let stopped = false;
+  addEventListener("keydown", (e) => { if (e.key === "Escape") { stopped = true; document.body.classList.remove("rolling"); } });
+
+  // the camera glides from where it is to a view, over ms
+  async function glide(to, ms) {
+    const from = {...map.view}, t0 = performance.now(), ease = (f) => (f < .5 ? 4 * f * f * f : 1 - Math.pow(-2 * f + 2, 3) / 2);
+    for (;;) {
+      const f = Math.min(1, (performance.now() - t0) / ms), e = ease(f);
+      map.look(from.x + (to.x - from.x) * e, from.y + (to.y - from.y) * e, from.w + (to.w - from.w) * e);
+      if (f >= 1 || stopped) break;
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    map.refresh();
+  }
+  const say = async (text, ms = 2600) => { $("line").textContent = text; $("line").classList.add("on"); await wait(ms); $("line").classList.remove("on"); await wait(500); };
+  const sayOn = (text) => { $("line").textContent = text; $("line").classList.add("on"); };
+  const unsay = () => $("line").classList.remove("on");
+  async function words(html, ms) { $("words").innerHTML = html; $("words").style.opacity = 0; await wait(60);
+    $("words").style.transition = "opacity .9s"; $("words").style.opacity = 1; await wait(ms); $("words").style.opacity = 0; await wait(900); }
+  async function card(svg, caption, ms = 3200) {
+    $("card").innerHTML = `<figure>${svg}<figcaption>${caption}</figcaption></figure>`; $("card").classList.add("on");
+    await wait(ms); $("card").classList.remove("on"); await wait(700);
+  }
+  function setYear(i) { $("year").textContent = R.years[i]; }
+  // the camera's subject in a year: its first battle (or march) and the armies around it
+  function focusOn(marches) {
+    const key = marches.find((m) => m.fight && m.took) || marches.find((m) => m.fight) || marches[0], at = P[key.to], reach = K.S.map.width * .16;
+    const near = marches.filter((m) => Math.hypot(P[m.to].x - at.x, P[m.to].y - at.y) < reach);
+    return frame(near.flatMap((m) => [m.from, m.to]), K.S.map.width / 2.9);
+  }
+  // one year of the game: the map of the year before, its armies marching, then the new borders
+  async function year(i, {camera = true} = {}) {
+    const marches = marchesAt(i);
+    if (camera && marches.length) await glide(focusOn(marches), 1100);
+    setYear(i);
+    await map.motion(marches, {scale: Math.max(1.4, innerHeight / 420)}); // banners that read on a 1080p frame
+    map.paint(worldAt(i));
+  }
+  // what to show between the years: the most telling battle, peace and age of the game
+  const battleAt = R.marches.findIndex((ms) => ms.some((m) => m.fight && m.took));
+  const peaceAt = R.headlines.findIndex((hs) => hs.some((h) => h.kind === "peace_signed"));
+  const ageAt = R.headlines.findIndex((hs) => hs.some((h) => h.kind === "crisis"));
+  const firstBattle = battleAt >= 0 ? R.marches[battleAt].find((m) => m.fight && m.took) : null;
+  const peace = peaceAt >= 0 ? R.headlines[peaceAt].find((h) => h.kind === "peace_signed") : null;
+
+  $("go").disabled = false; $("go").textContent = "Roll";
+  await new Promise((r) => ($("go").onclick = r));
+  if (q.get("music") === "0") J.setMuted(true);
+  $("start").remove(); document.body.classList.add("rolling");
+
+  // 1. black: the premise
+  await wait(800);
+  await words("1500", 1500);
+  await words("Nine crowns.<small>Each with a mind of its own.</small>", 2400);
+  // 2. Europe comes up out of the dark
+  map.paint(worldAt(0)); map.home();
+  const all = {...map.view};
+  map.look(all.x + all.w * .2, all.y + all.w * .12, all.w * .6);
+  $("black").classList.remove("on"); $("stage").classList.add("on"); setYear(0); $("year").classList.add("on");
+  await glide(all, 3200);
+  await say("Every throne is ruled by an artificial mind.", 2400);
+  // 3. the first years, each with its armies, a line now and then
+  const LINES = ["They raise armies.", "They march.", "They take what they can hold."];
+  let i = 1;
+  for (; i <= 3 && i < R.years.length && !stopped; i++) { sayOn(LINES[i - 1]); await year(i); await wait(250); unsay(); }
+  if (firstBattle && !stopped) {
+    const where = P[pIndex[firstBattle.to]];
+    await card(A.battle({a: color(firstBattle.nation), b: color(R.owners[battleAt][R.provinces.indexOf(firstBattle.to)] || ""), terrain: where.terrain, attackerWon: firstBattle.won, seed: where.id}),
+      `The battle of ${where.name}`);
+  }
+  for (; i <= 6 && i < R.years.length && !stopped; i++) { if (i === 4) sayOn("They forge alliances…"); if (i === 6) sayOn("…and break them."); await year(i); await wait(200); unsay(); }
+  if (peace && !stopped) {
+    const [a, b] = peace.nations;
+    await card(A.treaty({a: color(a), b: color(b || "")}), `${name(a)} and ${name(b || "")} make peace`);
+  }
+  if (!stopped) await card(ageAt >= 0 ? A.plague({color: "#7a5a3a", seed: "age"}) : A.comet({seed: "age"}), "And the age has plans of its own.", 2800);
+  // 4. fifty years in a breath
+  await glide(all, 1400);
+  sayOn("Fifty years.");
+  for (; i < R.years.length && !stopped; i++) { setYear(i); map.paint(worldAt(i)); if (i % 3 === 0) J.play("click"); await wait(i < 12 ? 320 : 220); }
+  unsay();
+  await wait(600);
+  const winner = R.winner;
+  if (winner && !stopped) {
+    await say("One crown will stand above the rest.", 2200);
+    await card(A.laurels({color: color(winner)}), `${name(winner)} prevails, ${R.years.at(-1)}`, 2800);
+  }
+  // 5. the title
+  $("year").classList.remove("on"); $("stage").classList.remove("on"); $("black").classList.add("on");
+  await wait(1200);
+  $("words").innerHTML = `PAX AGENTICA<small>Rule a crown of Europe against artificial kings — or write your own.</small><span class="cta">${CTA.replace(/[<>&]/g, "")}</span>`;
+  $("words").style.opacity = 0; await wait(60); $("words").style.transition = "opacity 1.4s"; $("words").style.opacity = 1;
+})();
+</script>
+</body>
+</html>

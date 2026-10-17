@@ -139,3 +139,19 @@ def test_the_epilogue_lays_the_whole_game_open_only_once_it_is_over(client: Test
         if b
     )
     assert gained == changed
+
+
+def test_the_press_kit_reel_follows_every_army_of_a_game_of_bots() -> None:
+    from pax_agentica.press import create_press_app
+
+    press = TestClient(create_press_app(seed=3, turns=6))
+    assert "trailer" in press.get("/trailer").text.lower()
+    assert press.get("/static/press.js").status_code == 200
+    reel = press.get("/api/reel").json()
+    assert reel["years"] == list(range(1500, 1507))
+    assert len(reel["marches"]) == len(reel["headlines"]) == 6
+    assert len(reel["owners"][0]) == 104
+    marches = [m for year in reel["marches"] for m in year]
+    assert marches  # six years of bots never stay home
+    assert all(m["from"] in reel["provinces"] and m["to"] in reel["provinces"] for m in marches)
+    assert press.get("/api/reel", params={"turns": 200}).status_code == 422
