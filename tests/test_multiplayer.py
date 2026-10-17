@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from pax_agentica.multiplayer import create_lobby_app
+from pax_agentica.multiplayer import abandoned_after, create_lobby_app
 
 RECRUIT = {"actions": [{"type": "recruit", "province": "paris", "regiments": 1}]}
 
@@ -174,7 +174,7 @@ def test_abandoned_and_finished_tables_close(
     monkeypatch.setattr(time, "time", lambda: now + 4 * 24 * 3600)
     lobby = client.app.state.lobby  # type: ignore[attr-defined]
     lobby.sweep(force=True)
-    assert lobby.summaries[table]["closed"] == "abandoned"
+    assert lobby.summaries[table]["closed"] == "everyone left"
     monkeypatch.setattr(time, "time", lambda: now + 12 * 24 * 3600)
     lobby.sweep(force=True)
     assert table not in lobby.summaries  # a week after closing, gone
@@ -233,3 +233,29 @@ def test_the_lobby_can_check_a_code_as_it_is_typed(tmp_path: Path) -> None:
     client = TestClient(create_lobby_app(tmp_path, invite_code="pikes42"))
     assert client.post("/api/code", json={"code": "PIKES42"}).json() == {"ok": True}
     assert client.post("/api/code", json={"code": "nope"}).json() == {"ok": False}
+
+
+def test_a_table_nobody_has_open_closes_within_the_hour(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = TestClient(create_lobby_app(tmp_path, invite_code=""))
+    lobby = client.app.state.lobby  # type: ignore[attr-defined]
+    table, anne = open_table(client)
+    now = time.time()
+    # Anne keeps the game open: her page asks for news every few seconds
+    for minutes in (10, 20, 30, 40):
+        monkeypatch.setattr(time, "time", lambda m=minutes: now + m * 60)
+        client.get(f"/api/t/{table}/status", headers={"X-Seat": anne})
+        lobby.sweep(force=True)
+    assert lobby.summaries[table]["closed"] is None
+    # then she closes the tab, without pressing "Leave": half an hour later the table is gone
+    monkeypatch.setattr(time, "time", lambda: now + 40 * 60 + 31 * 60)
+    lobby.sweep(force=True)
+    assert lobby.summaries[table]["closed"] == "everyone left"
+
+
+def test_a_table_playing_a_year_a_day_waits_two_days_for_its_players() -> None:
+    assert abandoned_after(None) == 30 * 60
+    assert abandoned_after(5) == 30 * 60
+    assert abandoned_after(60 * 24) == 2 * 24 * 3600
+    assert abandoned_after(60 * 24 * 5) == 3 * 24 * 3600  # never more than three days

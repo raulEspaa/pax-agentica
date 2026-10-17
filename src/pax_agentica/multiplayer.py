@@ -9,7 +9,8 @@ for the absent. Each seat gets a secret token, kept by the browser, so nobody ca
 nation. Every table is saved after every year (and every answer), and picked up again when the
 server restarts, so a host can come and go.
 
-Tables close by themselves: when the last player leaves, after days without anyone looking at
+Tables close by themselves: when the last player leaves, when no player has had the game open for
+half an hour (longer for tables whose years last longer), when nobody has looked at
 them, or once the game is over; a closed table keeps its replay for a week, then goes. A table
 nobody has looked at for a while is let go from memory and read again when someone returns.
 
@@ -40,7 +41,8 @@ from pax_agentica.viewer import europe_map, render_html, static_payload
 
 MAX_TABLES = 30  # open at once
 NAME = re.compile(r"^[\w .'-]{1,24}$")
-IDLE_CLOSE = 3 * 24 * 3600.0  # seconds without a player looking before a table closes
+IDLE_CLOSE = 3 * 24 * 3600.0  # the longest a table waits with nobody at it before it closes
+ABANDON_AFTER = 30 * 60.0  # with nobody at it this long (a game page polls every few seconds)
 KEEP_CLOSED = 7 * 24 * 3600.0  # seconds a closed table keeps its replay
 UNLOAD_AFTER = 15 * 60.0  # seconds without a visit before a table leaves memory
 SWEEP_EVERY = 60.0
@@ -122,6 +124,14 @@ class Table:
                 for n in state.nations.values()
             ],
         }
+
+
+def abandoned_after(turn_minutes: float | None) -> float:
+    """How long a table waits with no player looking at it before it closes: half an hour, or
+    two of its years when a year lasts longer (a table playing a year a day waits two days), and
+    never more than three days."""
+    two_years = 2 * 60 * turn_minutes if turn_minutes else 0.0
+    return min(IDLE_CLOSE, max(ABANDON_AFTER, two_years))
 
 
 def _plain(code: str) -> str:
@@ -354,10 +364,11 @@ class Lobby:
             table = self.tables.get(table_id)
             if table is not None:
                 idle = now - max(table.meta.last_active, table.meta.created)
-            if s.get("finished") or idle > IDLE_CLOSE:
+            if s.get("finished") or idle > abandoned_after(s.get("turn_minutes")):
                 table = table or self._read(table_id)
                 if table is not None:
-                    self.close(table, "over" if table.session.state.finished else "abandoned")
+                    finished = table.session.state.finished
+                    self.close(table, "over" if finished else "everyone left")
         for table_id, table in list(self.tables.items()):
             if now - table.visited > UNLOAD_AFTER and table.session.lock.locked() is False:
                 if not table.meta.closed:
