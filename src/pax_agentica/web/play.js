@@ -22,7 +22,7 @@
   if (TABLE && !SEAT) { location.href = `/?table=${TABLE}`; return; }
   const api = (path, opts = {}) => fetch(`${BASE}${path}`, {...opts, headers: {...(opts.headers || {}), ...(SEAT ? {"X-Seat": SEAT} : {})}});
   const REPLAY = TABLE ? `/t/${TABLE}/replay` : "/replay";
-  const J = window.PaxJuice || {play() {}, countTo() {}, floatText() {}, celebrate() {}, omen() {}, yearCard: async () => {}, vignette() {}, muted: () => true, setMuted() {}};
+  const J = window.PaxJuice || {play() {}, countTo() {}, floatText() {}, celebrate() {}, omen() {}, ceremony() {}, yearCard: async () => {}, vignette() {}, muted: () => true, setMuted() {}};
   const CRISIS_ICON = {plague: "☠", ice_age: "❄", price_revolution: "⚖"};
   const CRISIS_EFFECT = {plague: "Every town may lose a level of development each year; closed towns far less often, at a price.",
     ice_age: "Grain from every field −35%; bread dearer on the market.", price_revolution: "Market prices +40%, works and development 20% dearer, ducats +10%."};
@@ -1524,8 +1524,10 @@
         ${lineChart(years, [{name: title, color, mine: true, values: vals}], {height: 70})}</div>`; };
     // reigns: who sat on the throne, and what the realm became under them
     const reigns = reignsOf(H);
-    const reignRows = reigns.map((g) => `<li><b>${esc(g.ruler || "A regency")}</b> <small>${g.from}–${g.to}</small>
-      <span>development ${g.a.development} → ${g.b.development}, provinces ${g.a.provinces} → ${g.b.provinces}, ${ordinal(g.ra)} → ${ordinal(g.rb)} in Europe</span></li>`).join("");
+    const sitter = (g) => { const [title, ...rest] = (g.ruler || "").split(" "); return {title, name: rest.join(" "), age: 40}; };
+    const reignRows = reigns.map((g, k) => `<li><div class="gport">${portrait(k === reigns.length - 1 && V.me.ruler ? V.me.ruler : sitter(g), color, 52)}</div>
+      <div><b>${esc(g.ruler || "A regency")}</b> <small>${g.from}–${g.to}${k === reigns.length - 1 ? ", reigning" : ""}</small>
+      <span>development ${g.a.development} → ${g.b.development}, provinces ${g.a.provinces} → ${g.b.provinces}, ${ordinal(g.ra)} → ${ordinal(g.rb)} in Europe</span></div></li>`).join("");
     // nemesis and friend, from what passed between the courts
     const bonds = Object.entries(story.bonds || {}).filter(([n]) => N[nIndex[n]]);
     const enmity = (b) => b.battles_won + b.battles_lost + 3 * b.wars + 2 * (b.taken + b.lost) + 4 * b.betrayals;
@@ -1545,7 +1547,7 @@
       ${nemesis || friend ? `<h4>${I("swords")} Between the courts</h4><div class="bonds">
         ${nemesis ? `<div><span class="sub">Your nemesis</span>${who(nemesis[0])}<small>${nemesis[1].wars} war${nemesis[1].wars === 1 ? "" : "s"}, battles ${nemesis[1].battles_won}–${nemesis[1].battles_lost}, land ${nemesis[1].taken} taken, ${nemesis[1].lost} lost${nemesis[1].betrayals ? `, ${nemesis[1].betrayals} betrayal${nemesis[1].betrayals > 1 ? "s" : ""}` : ""}</small></div>` : ""}
         ${friend ? `<div><span class="sub">Your firmest friend</span>${who(friend[0])}<small>${friend[1].treaties} treat${friend[1].treaties === 1 ? "y" : "ies"} signed, never at war</small></div>` : ""}</div>` : ""}
-      <h4>${I("crown")} Reigns</h4><ul class="reigns">${reignRows}</ul>
+      <h4>${I("crown")} The dynasty</h4><ul class="reigns">${reignRows}</ul>
       <h4>${I("book-open")} Milestones</h4>${miles ? `<ol class="miles">${miles}</ol>` : `<p class="muted">Nothing worth the chronicler's ink yet.</p>`}</div>`;
   }
   function chronicleTab() {
@@ -1828,6 +1830,17 @@
     if (far) return `Abroad, ${far.summary.replace(/\.$/, "")}`;
     return "A quiet year in the realm";
   }
+  // A new reign: the heir crowned, with what they bring to the throne.
+  function coronation(r) {
+    const color = N[me].color, ended = reignsOf(G.history || []).slice(-2, -1)[0];
+    const pip = (n) => `<span class="cpips">${"◆".repeat(n)}${"◇".repeat(Math.max(0, 6 - n))}</span>`;
+    J.play("coronation");
+    J.ceremony(`<div class="crown-top">👑</div><div class="cportrait">${portrait(r, color, 120)}</div>
+      <div class="tbig">Long live ${esc(r.title)} ${esc(r.name)}</div>
+      <div class="tsub">${esc(nameOf(G.human))} has a new ${esc(r.title.toLowerCase())}, aged ${r.age}.${ended ? ` ${reignLine(ended)}` : ""}</div>
+      ${r.traits && r.traits.length ? `<div class="ctraits">${r.traits.map((tr) => `<span>${esc(cap(tr))}</span>`).join("")}</div>` : ""}
+      <div class="cstats"><div>Administration ${pip(r.administration)}</div><div>Diplomacy ${pip(r.diplomacy)}</div><div>Military ${pip(r.military)}</div></div>`);
+  }
   // The ambitions closest to fulfilment: a next step always in sight.
   function nextAmbitions() {
     const share = (m) => m.goals.reduce((a, g) => a + Math.min(1, g.have / Math.max(1, g.need)), 0) / Math.max(1, m.goals.length);
@@ -1851,6 +1864,8 @@
       setTimeout(() => { J.play("omen"); J.vignette("war"); J.omen(CRISIS_ICON[V.crisis.kind] || "☠", V.crisis.title, `${V.crisis.text} (${V.crisis.first_year} to ${V.crisis.last_year})`); }, 350);
       return;
     }
+    const crowned = evs.find((e) => e.kind === "succession" && e.nations[0] === G.human);
+    if (crowned && V.me.ruler) { setTimeout(() => coronation(V.me.ruler), 350); return; }
     setTimeout(() => {
       if (missions.length) { J.play("triumph"); J.celebrate(missions[0].summary.split(": ").slice(1).join(": ") || "Ambition fulfilled", "An ambition of the crown is fulfilled"); }
       else if (won.length) { J.play("triumph"); J.celebrate(`${won.map((x) => P[pIndex[x]].name).join(", ")} ${won.length > 1 ? "are" : "is"} ours`, "The realm grows", [N[me].color, "#ecd08c", "#fff3cf"]); }

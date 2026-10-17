@@ -52,6 +52,8 @@ window.PaxJuice = (() => {
     peace: () => { noise({dur: 0.12, freq: 400, gain: 0.7}); bell(659.25, 0.12, 0.2); bell(880, 0.3, 0.14); },
     letter: () => { tone(880, {dur: 0.18, gain: 0.18}); tone(1174.7, {at: 0.12, dur: 0.3, gain: 0.16}); },
     seal: () => { noise({dur: 0.1, freq: 500, gain: 0.8}); tone(196, {dur: 0.25, gain: 0.3, slide: 0.8}); },
+    coronation: () => { bell(523.25, 0, 0.22); bell(659.25, 0.25, 0.2); bell(783.99, 0.5, 0.2); bell(1046.5, 0.9, 0.24);
+      [392, 523.25, 659.25, 783.99, 1046.5].forEach((f, k) => tone(f, {at: 1.2 + k * 0.12, dur: 0.7, type: "triangle", gain: 0.16})); },
     omen: () => { bell(130.81, 0, 0.35); bell(123.47, 0.9, 0.3); tone(65.4, {dur: 3, type: "sawtooth", gain: 0.05}); },
   };
   function play(name) { if (!muted && SOUNDS[name]) try { SOUNDS[name](); } catch {} }
@@ -114,6 +116,22 @@ window.PaxJuice = (() => {
     document.body.appendChild(box);
     const go = () => { box.classList.add("out"); setTimeout(() => box.remove(), 450); };
     box.onclick = go; setTimeout(go, 9000);
+  }
+  // a ceremony: a card built by the page (trusted, already escaped), with gold falling
+  function ceremony(html) {
+    const box = document.createElement("div");
+    box.className = "triumph ceremony";
+    box.innerHTML = `<div class="tcard">${html}<small class="go">Click to go on</small></div>`;
+    if (!still()) for (let i = 0; i < 40; i++) {
+      const s = document.createElement("i");
+      s.style.left = `${Math.random() * 100}%`; s.style.background = ["#ecd08c", "#c49a52", "#fff3cf"][i % 3];
+      s.style.animationDelay = `${0.4 + Math.random() * 1.2}s`; s.style.animationDuration = `${2.2 + Math.random() * 1.6}s`;
+      s.style.setProperty("--drift", `${(Math.random() - 0.5) * 120}px`); s.style.setProperty("--spin", `${(Math.random() - 0.5) * 700}deg`);
+      box.appendChild(s);
+    }
+    document.body.appendChild(box);
+    const go = () => { box.classList.add("out"); setTimeout(() => box.remove(), 450); };
+    box.onclick = go; setTimeout(go, 12000);
   }
   // a red (or gold) breath at the edges of the screen
   function vignette(cls = "war") {
@@ -211,6 +229,6 @@ window.PaxJuice = (() => {
   // browsers allow sound only after a gesture: the first click on the page starts the music
   document.addEventListener("pointerdown", function first() { document.removeEventListener("pointerdown", first); startMusic(); });
 
-  return {play, muted: () => muted, setMuted, countTo, floatText, celebrate, omen, yearCard, vignette, still,
+  return {play, muted: () => muted, setMuted, countTo, floatText, celebrate, omen, ceremony, yearCard, vignette, still,
     music: () => musicOn, setMusic};
 })();
