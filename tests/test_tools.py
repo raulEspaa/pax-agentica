@@ -7,7 +7,15 @@ from pax_agentica.engine import EventKind, GameState, Resources, view_for
 from pax_agentica.engine.actions import Attack
 from pax_agentica.engine.mechanics import output_with
 from pax_agentica.engine.model import BuildingKind
-from pax_agentica.tools import TOOL_SPECS, battle_odds, briefing, call_tool, win_chance, work_gain
+from pax_agentica.tools import (
+    TOOL_SPECS,
+    battle_odds,
+    best_tactic,
+    briefing,
+    call_tool,
+    win_chance,
+    work_gain,
+)
 
 type Play = Callable[..., GameState]
 
@@ -28,6 +36,7 @@ def test_battle_odds_match_the_engine(state: GameState, play: Play) -> None:
     state.provinces["aragon"].troops = 6  # pikemen
     state.provinces["navarre"].troops = 4
     view = view_for(state, "spain")
+    tactic = best_tactic(view, "aragon", "navarre")
     odds = battle_odds(view, "aragon", "navarre")
     assert odds is not None
     assert 0.05 < odds < 0.95
@@ -36,7 +45,9 @@ def test_battle_odds_match_the_engine(state: GameState, play: Play) -> None:
     for seed in range(games):
         trial = state.model_copy(deep=True)
         trial.seed = seed
-        new = play(trial, spain=[Attack(origin="aragon", target="navarre", regiments=6)])
+        new = play(
+            trial, spain=[Attack(origin="aragon", target="navarre", regiments=6, tactic=tactic)]
+        )
         battles = [e for e in new.last_events if e.kind == EventKind.BATTLE]
         wins += new.provinces["navarre"].owner == "spain" or bool(
             battles and battles[0].data.get("attacker_won")

@@ -18,9 +18,11 @@ from pax_agentica.engine.model import (
     BuildingKind,
     Focus,
     NationId,
+    Posture,
     ProvinceId,
     Resources,
     Stance,
+    Tactic,
     TechBranch,
     UnitKind,
 )
@@ -213,6 +215,16 @@ class Attack(_Action):
         "out to send a proportional mix. Cavalry charges best on plains; every tenth of the "
         "army in artillery knocks a fort level off.",
     )
+    tactic: Tactic = Field(
+        default=Tactic.ASSAULT,
+        description="How to fight it, against the garrison's posture (see the province's "
+        "`posture`). assault (carried by infantry) beats a garrison that skirmishes and breaks "
+        "on one that holds the line; flank (cavalry; gains half as much in forest, hills, marsh "
+        "and mountains) turns a held line and is caught by a sally; bombard (artillery) "
+        "shatters a sally and is picked off by skirmishers. Worth rules.tactic_edge either way, "
+        "as far as the regiments that carry it can; a tactic your army cannot carry (a flank "
+        "without horse) costs as much as one outguessed. `targets` tells the best one.",
+    )
 
 
 class LiftSiege(_Action):
@@ -396,6 +408,17 @@ class SetFocus(_Action):
     focus: Focus
 
 
+class SetPosture(_Action):
+    """Tell the garrison of one of your provinces how to wait for an attack: hold (the line of
+    pikes, carried by infantry), skirmish (shot and bows thrown forward, carried by archers) or
+    sally (horse kept back to charge, carried by cavalry). Each beats one attacking tactic and
+    loses to another (see Attack.tactic). Free; whoever can see the garrison sees its posture."""
+
+    type: Literal["set_posture"] = "set_posture"
+    province: ProvinceId
+    posture: Posture
+
+
 class UpgradeMonument(_Action):
     """Raise the monument of one of your provinces by a level (from a bare site to level 1, up
     to the rules' maximum). Its bonus grows with every level and serves whoever holds it."""
@@ -480,6 +503,7 @@ type Action = Annotated[
     | UpgradeMonument
     | Improve
     | SetFocus
+    | SetPosture
     | Convert
     | BoostStability
     | Research

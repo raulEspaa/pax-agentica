@@ -366,6 +366,30 @@ technology, milestones, ruler and council.
   defence × a roll × the defender's military technology and general. Defence = 1.2 (home ground)
   × terrain (plains 1, forest 1.1, hills 1.25, marsh 1.25, mountains 1.5)
   × (1 + 0.25 for a fort + 0.25 for a citadel + 0.25 for a capital + 0.25 across a strait).
+- **Tactics against postures.** Every `attack` names a `tactic`, and every garrison waits in a
+  `posture` (`set_posture`, free; a new garrison holds the line). Each tactic beats one posture
+  and breaks on another:
+
+  | Tactic | Carried by | Beats | Breaks on |
+  |---|---|---|---|
+  | Assault (the pikes push straight in) | infantry | Skirmish | Hold the line |
+  | Flank (the horse rides round) | cavalry | Hold the line | Sally |
+  | Bombard (the guns open first) | artillery | Sally | Skirmish |
+
+  Winning the match-up adds 15% to the attack, losing it takes 15% off, as far as the side
+  that wins it can carry its way of fighting: in full once the kind that carries it is 40% of
+  the army (infantry), 30% (archers, cavalry) or 15% (artillery), less below. A side that fights
+  in a way its regiments cannot carry (a sally with no horse, a bombardment with no guns) is
+  caught out as badly as one outguessed. Never more than 15% either way. In forest, hills,
+  marsh and mountains a flank gains half as much. Whoever can see a garrison sees its posture,
+  so it may pick the tactic that beats it; postures change before battles, so a garrison can
+  change its posture in the year it is attacked. Siege lines always hold the line.
+- **Veterancy** (0 to 1) belongs to a garrison and to siege lines. A victory adds 0.2, less for
+  beating a smaller army (0.2 × the beaten regiments / the winner's); a veteran army fights up
+  to 25% harder. Regiments carry their veterancy when they march, join or besiege; raw recruits
+  dilute it, mercenaries arrive at 0.5, and every year it fades by 0.02.
+- **Morale**: an army fights 2% harder for each point of its realm's stability and 0.75% less
+  for each point of war exhaustion.
 - **The loser loses every regiment** in the fight. The winner loses about half the ratio of the
   loser's power to its own, and always keeps at least one regiment.
 - **Armies from several provinces join.** Every `attack` a realm orders on the same province in
@@ -614,8 +638,8 @@ leagues against those who wronged it, and is readier to make war on them.
 - Your own nation, completely: treasury, income, upkeep, treaties, wars.
 - The whole map: borders, owners, development, buildings, what each province produces, terrain
   and goods.
-- Troop counts only in your provinces, your allies' provinces and every province bordering
-  yours. Elsewhere they are hidden.
+- Troop counts, postures and veterancy only in your provinces, your allies' provinces and
+  every province bordering yours. Elsewhere they are hidden.
 - Other nations: size, score, capital, wars and alliances, ruler, technology and number of
   generals, but not their treasuries or councils.
 - Last turn's events you could witness: public news (wars, battles, treaties, trades, conquests),

@@ -32,6 +32,7 @@ from pax_agentica.engine.mechanics import (
     manpower_cap,
     market_cut,
     market_price,
+    morale,
     nation_income,
     nation_upkeep,
     province_output,
@@ -57,6 +58,7 @@ from pax_agentica.engine.model import (
     NationId,
     PendingEvent,
     Personality,
+    Posture,
     ProposalKind,
     ProvinceId,
     Resources,
@@ -115,6 +117,9 @@ class ProvinceView(_View):
     troops: int | None  # None: hidden by the fog of war
     army: dict[UnitKind, int] | None  # the same regiments by kind; None when hidden
     general: GeneralView | None  # the general here, if you can see this province
+    posture: Posture | None  # how its garrison waits for an attack; None when hidden
+    veterancy: float | None  # of its garrison, 0 (raw) to 1 (veteran); None when hidden
+    siege_veterancy: float | None  # of the besiegers before it, when you can see them
     develop_cost: Resources  # for its owner, after universities and engineering
     recruit_cost: Resources  # per pikeman, for its owner, after an armory
     recruit_costs: dict[UnitKind, Resources]  # yours only: per regiment of each kind raisable here
@@ -228,6 +233,7 @@ class MyNation(_View):
         ProvinceId, ...
     ]  # where your armies stand: your own unoccupied land and what you occupy
     war_exhaustion: float  # 0 to 20: costs ducats, and stability from 10
+    morale: float  # your armies' battle power from stability and war exhaustion (1 = even)
     prestige: int  # 0 to 100: ducats, cheaper stability, and half of it counts towards victory
     standing: int  # development plus half the prestige: what wins when time runs out
     faith: Faith
@@ -395,6 +401,11 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             troops=ps.troops if pid in seen else None,
             army=ps.army() if pid in seen else None,
             general=_general(state, pid) if pid in seen else None,
+            posture=ps.posture if pid in seen else None,
+            veterancy=round(ps.veterancy, 2) if pid in seen else None,
+            siege_veterancy=round(ps.siege_veterancy, 2)
+            if ps.siege_by is not None and (pid in seen or ps.siege_by == nation)
+            else None,
             develop_cost=develop_cost(
                 state.rules,
                 ps.development,
@@ -468,6 +479,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         provinces=tuple(state.provinces_of(nation)),
         held=tuple(state.held_by(nation)),
         war_exhaustion=me.war_exhaustion,
+        morale=round(morale(state, nation), 3),
         prestige=me.prestige,
         standing=state.standing(nation),
         faith=me.faith,

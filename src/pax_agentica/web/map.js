@@ -266,6 +266,12 @@ const PaxMap = (() => {
         if ((troops > 0 || plan > 0 || (hidden && close)) && (o >= 0 || close)) {
           const label = hidden ? "?" : String(troops);
           const {g, w} = shield(gMarks, label, o >= 0 ? N[o].color : "#8a7d60", {fog: hidden || o < 0, x: p.x, y: p.y + 2 * k, scale: 1.15 * k});
+          const stripes = Math.floor(((world.veterans || [])[i] || 0) * 4 + 1e-9); // a chevron a quarter of veterancy
+          if (stripes && !hidden) { // a sergeant's chevrons under the shield: veterans
+            const v = el("g", {class: "veteran", transform: "translate(0 12.6)"}, g);
+            el("title", {}, v).textContent = `Veterans: ${Math.round(world.veterans[i] * 100)}% seasoned`;
+            for (let s = 0; s < Math.min(3, stripes); s++) el("path", {d: `M-4.2 ${s * 2.6 - 1.2} L0 ${s * 2.6 + 1.4} L4.2 ${s * 2.6 - 1.2}`}, v);
+          }
           if (plan) { // this year's orders: raised here (+) or marching away (−), shown before the year ends
             el("title", {}, g).textContent = `${troops} regiments now, ${troops + plan} once your orders are carried out`;
             el("text", {x: w / 2 + 2, y: 0.5, class: "plan " + (plan > 0 ? "up" : "down")}, g).textContent = `${plan > 0 ? "+" : "−"}${Math.abs(plan)}`;

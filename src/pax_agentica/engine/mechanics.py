@@ -11,10 +11,12 @@ from pax_agentica.engine.model import (
     GameState,
     Good,
     NationId,
+    Posture,
     ProvinceId,
     Resources,
     Rules,
     Settlement,
+    Tactic,
     TechBranch,
     Terrain,
     UnitKind,
@@ -418,6 +420,82 @@ def siege_result(rules: Rules, score: int) -> tuple[int, str]:
         if score >= least:
             gain, name = progress, called
     return gain, name
+
+
+TACTIC_BEATS: dict[Tactic, Posture] = {
+    Tactic.ASSAULT: Posture.SKIRMISH,
+    Tactic.FLANK: Posture.HOLD,
+    Tactic.BOMBARD: Posture.SALLY,
+}
+TACTIC_LOSES: dict[Tactic, Posture] = {
+    Tactic.ASSAULT: Posture.HOLD,
+    Tactic.FLANK: Posture.SALLY,
+    Tactic.BOMBARD: Posture.SKIRMISH,
+}
+CARRIED_BY: dict[Tactic | Posture, UnitKind] = {
+    Tactic.ASSAULT: UnitKind.INFANTRY,
+    Tactic.FLANK: UnitKind.CAVALRY,
+    Tactic.BOMBARD: UnitKind.ARTILLERY,
+    Posture.HOLD: UnitKind.INFANTRY,
+    Posture.SKIRMISH: UnitKind.ARCHERS,
+    Posture.SALLY: UnitKind.CAVALRY,
+}
+BROKEN_GROUND = frozenset({Terrain.FOREST, Terrain.HILLS, Terrain.MARSH, Terrain.MOUNTAINS})
+
+
+def carried(rules: Rules, how: Tactic | Posture, army: Mapping[UnitKind, int]) -> float:
+    """How well an army can fight this way: 1 once the kind that carries it is a large enough
+    share of it (rules.tactic_share), less below."""
+    total = sum(army.values())
+    if not total:
+        return 0.0
+    kind = CARRIED_BY[how]
+    return min(1.0, army.get(kind, 0) / total / rules.tactic_share[kind])
+
+
+def tactic_factor(
+    rules: Rules,
+    tactic: Tactic,
+    posture: Posture,
+    attackers: Mapping[UnitKind, int],
+    defenders: Mapping[UnitKind, int],
+    terrain: Terrain,
+) -> float:
+    """What the attacker's tactic is worth against the garrison's posture, as a factor on the
+    attack. A tactic that beats the posture adds rules.tactic_edge, as far as the attackers can
+    carry it; a posture that beats the tactic takes it off, as far as the garrison can carry
+    its own. A side that fights in a way its regiments cannot carry is caught out as badly as
+    one outguessed: a sally with no horse, a bombardment with no guns. Never more than the edge
+    either way. Horse cannot ride round an enemy in broken ground: there a flank gains half as
+    much (and loses as much as anywhere)."""
+    ours, theirs = carried(rules, tactic, attackers), carried(rules, posture, defenders)
+    swing = (1 - theirs) - (1 - ours)
+    if TACTIC_BEATS[tactic] == posture:
+        swing += ours
+    elif TACTIC_LOSES[tactic] == posture:
+        swing -= theirs
+    swing = max(-1.0, min(1.0, swing))
+    if tactic == Tactic.FLANK and terrain in BROKEN_GROUND and swing > 0:
+        swing /= 2
+    return 1 + rules.tactic_edge * swing
+
+
+def morale(state: GameState, nation: NationId | None) -> float:
+    """A realm's morale in battle: its stability steadies its men, its war exhaustion tires
+    them. Independent levies fight as they always have."""
+    if nation is None:
+        return 1.0
+    me, rules = state.nations[nation], state.rules
+    return (
+        1
+        + rules.morale_per_stability * me.stability
+        - rules.morale_per_exhaustion * me.war_exhaustion
+    )
+
+
+def veteran(rules: Rules, veterancy: float) -> float:
+    """What a veteran army is worth: up to rules.veterancy_bonus more at full veterancy."""
+    return 1 + rules.veterancy_bonus * veterancy
 
 
 def battle_factor(state: GameState, nation: NationId | None, general_skill: int = 0) -> float:

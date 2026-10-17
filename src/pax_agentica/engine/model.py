@@ -276,6 +276,23 @@ class Personality(StrEnum):
     VISIONARY = "visionary"  # thinks in generations
 
 
+class Tactic(StrEnum):
+    """How an attack is fought. Each wins against one posture and loses against another, and
+    is only as good as the regiments that carry it."""
+
+    ASSAULT = "assault"  # the pikes push straight in: beats skirmishers, breaks on a held line
+    FLANK = "flank"  # the horse rides round: turns a held line, is caught by a sally
+    BOMBARD = "bombard"  # the guns open first: shatters a sally, is picked off by skirmishers
+
+
+class Posture(StrEnum):
+    """How a province's garrison waits for an attack."""
+
+    HOLD = "hold"  # a line of pikes behind what cover there is
+    SKIRMISH = "skirmish"  # shot and bows thrown forward to harry
+    SALLY = "sally"  # horse kept back to charge whoever comes
+
+
 class Focus(StrEnum):
     """What a province's people turn their hands to. A focus strengthens one side of its
     output, the more the larger its town."""
@@ -1194,6 +1211,25 @@ class Rules(BaseModel):
     roll_min: float = 0.8
     roll_max: float = 1.2
     winner_loss_factor: float = 0.5  # winner loses factor * (loser power / winner power)
+    # tactics: the edge of a tactic over the posture it beats (and the loss to the one that beats
+    # it), at full strength once the kind that carries it is this share of the army
+    tactic_edge: float = 0.15
+    tactic_share: dict[UnitKind, float] = Field(
+        default_factory=lambda: {
+            UnitKind.INFANTRY: 0.4,
+            UnitKind.ARCHERS: 0.3,
+            UnitKind.CAVALRY: 0.3,
+            UnitKind.ARTILLERY: 0.15,
+        }
+    )
+    # veterancy: what a regiment learns in a victory (0 to 1), and what a veteran army is worth
+    veterancy_per_victory: float = 0.2
+    veterancy_bonus: float = 0.25  # battle power at full veterancy
+    mercenary_veterancy: float = 0.5  # hired soldiers come seasoned
+    # morale: a steady realm fights better, a tired one worse
+    morale_per_stability: float = 0.02
+    morale_per_exhaustion: float = 0.0075
+    veterancy_decay: float = 0.02  # a year: the veterans grow old and go home
 
     # diplomacy
     mobilization_turns: int = 1  # after a war starts, armies wait this long before attacking
@@ -1332,6 +1368,9 @@ class ProvinceState(BaseModel):
     levels: dict[BuildingKind, NonNegativeInt] = Field(default_factory=dict)
     faith: Faith | None = None  # what its people believe; set for every province by the scenario
     focus: Focus | None = None  # what its people turn their hands to
+    posture: Posture = Posture.HOLD  # how its garrison waits for an attack
+    veterancy: float = Field(default=0.0, ge=0.0, le=1.0)  # of its garrison: 0 raw, 1 veteran
+    siege_veterancy: float = Field(default=0.0, ge=0.0, le=1.0)  # of the besiegers
     focus_since: int | None = None  # the turn the focus was set
 
     @property
@@ -1370,15 +1409,28 @@ class ProvinceState(BaseModel):
         army = self.siege_army()
         self.siege_by, self.siege_years, self.siege_progress = None, 0, 0
         self.besiegers, self.siege_from = {}, None
+        self.siege_veterancy = 0.0
         return army
 
-    def set_army(self, army: dict[UnitKind, int]) -> None:
+    def set_army(self, army: dict[UnitKind, int], veterancy: float | None = None) -> None:
+        """Put this army in the province, as seasoned as `veterancy` if given. An empty
+        province keeps no veterans."""
         self.troops = sum(army.values())
         self.units = {k: n for k, n in army.items() if k != UnitKind.INFANTRY and n}
+        if veterancy is not None:
+            self.veterancy = min(1.0, max(0.0, veterancy))
+        if not self.troops:
+            self.veterancy = 0.0
 
-    def add(self, army: dict[UnitKind, int]) -> None:
+    def add(self, army: dict[UnitKind, int], veterancy: float | None = None) -> None:
+        """Bring regiments in. With their `veterancy`, the garrison's becomes the average of
+        both; without it, they are taken to be as seasoned as the garrison."""
         mine = self.army()
-        self.set_army({k: mine[k] + army.get(k, 0) for k in UnitKind})
+        before, coming = self.troops, sum(army.values())
+        seasoned = None
+        if veterancy is not None and before + coming:
+            seasoned = (self.veterancy * before + veterancy * coming) / (before + coming)
+        self.set_army({k: mine[k] + army.get(k, 0) for k in UnitKind}, seasoned)
 
     def take(
         self, regiments: int, wanted: dict[UnitKind, int] | None = None

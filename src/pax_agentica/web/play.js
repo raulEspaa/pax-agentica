@@ -49,7 +49,7 @@
   const MAX_ORDERS = 50;
 
   let G = null, V = null, me = -1;                // game payload, my view, my nation index
-  let orders = [], mode = "political", picked = -1, focus = -1, tab = "realm", send = Infinity, lead = true;
+  let orders = [], mode = "political", picked = -1, focus = -1, tab = "realm", send = Infinity, lead = true, tactic = "best";
   let pickMix = null; // regiments chosen by kind for the next march, or null for a proportional draw
 
   const map = PaxMap.create($("map"), S, {
@@ -280,6 +280,42 @@
     const bonus = Math.max(0, ...Object.entries(R.combinedBonus).filter(([k]) => kinds >= +k).map(([, b]) => b));
     return power * (1 + bonus);
   }
+  // ------------------------------------------------------------------ tactics, postures, veterans
+  // [id, icon, name, what it is, the kind that carries it]
+  const TACTICS = [["assault", "🔱", "Assault", "the pikes push straight in", "infantry"],
+    ["flank", "🐎", "Flank", "the horse rides round", "cavalry"], ["bombard", "💣", "Bombard", "the guns open first", "artillery"]];
+  const POSTURES = [["hold", "🛡", "Hold the line", "a line of pikes behind what cover there is", "infantry"],
+    ["skirmish", "🏹", "Skirmish", "shot and bows thrown forward to harry", "archers"], ["sally", "🏇", "Sally", "horse kept back to charge whoever comes", "cavalry"]];
+  const BEATS = {assault: "skirmish", flank: "hold", bombard: "sally"}, LOSES = {assault: "hold", flank: "sally", bombard: "skirmish"};
+  const BROKEN = new Set(["forest", "hills", "marsh", "mountains"]);
+  const tacticOf = (id) => TACTICS.find(([k]) => k === id), postureOf = (id) => POSTURES.find(([k]) => k === id) || POSTURES[0];
+  function carried(kind, army) {
+    const total = KINDS.reduce((t, k) => t + (army[k] || 0), 0);
+    return total ? Math.min(1, (army[kind] || 0) / total / R.tactics.share[kind]) : 0;
+  }
+  function tacticFactor(t, posture, attackers, defenders, terrain) { // as the engine's tactic_factor
+    const ours = carried(tacticOf(t)[4], attackers), theirs = carried(postureOf(posture)[4], defenders);
+    let swing = (1 - theirs) - (1 - ours);
+    if (BEATS[t] === posture) swing += ours; else if (LOSES[t] === posture) swing -= theirs;
+    swing = Math.max(-1, Math.min(1, swing));
+    if (t === "flank" && BROKEN.has(terrain) && swing > 0) swing /= 2; // horse cannot ride round in broken ground
+    return 1 + R.tactics.edge * swing;
+  }
+  const veteranFactor = (v) => 1 + R.tactics.veteranBonus * (v || 0);
+  const myMorale = () => V.me.morale ?? 1;
+  const seasoning = (v) => (v >= 0.75 ? "veterans" : v >= 0.5 ? "seasoned" : v >= 0.25 ? "blooded" : "raw");
+  // the garrison a tactic meets: its posture (dug-in lines hold), and who carries it
+  function facing(to) {
+    const p = prov(to);
+    if (p.siege_by && p.siege_by !== G.human) return {posture: "hold", army: {infantry: p.besiegers || 0}, vet: p.siege_veterancy || 0, seen: true};
+    return {posture: p.posture || "hold", army: p.army || {infantry: p.troops || 0}, vet: p.veterancy || 0, seen: p.posture != null};
+  }
+  function bestTactic(to, army) {
+    const f = facing(to);
+    if (!f.seen) return "assault";
+    return TACTICS.map(([k]) => k).reduce((a, b) => (tacticFactor(b, f.posture, army, f.army, P[to].terrain) > tacticFactor(a, f.posture, army, f.army, P[to].terrain) + 1e-9 ? b : a), "assault");
+  }
+  const chosenTactic = (to, army) => (tactic === "best" ? bestTactic(to, army) : tactic);
   const siege = (army) => { const total = KINDS.reduce((t, k) => t + (army[k] || 0), 0);
     return total ? Math.floor((army.artillery || 0) / total / R.siegeShare + 1e-9) : 0; };
   function generalPositions() { // where each of my generals stands once this year's orders are carried out
@@ -346,7 +382,7 @@
     }
     return joint;
   }
-  function odds(from, to, alone = force(from), extraArmies = 0) {
+  function odds(from, to, alone = force(from), extraArmies = 0, how = null) {
     const army = jointWith(from, to, alone);
     const armies = 1 + extraArmies + new Set(orders.filter((o) => o.type === "attack" && pIndex[o.target] === to && pIndex[o.origin] !== from).map((o) => o.origin)).size;
     const coordination = 1 - Math.min(R.jointPenaltyMax || 0, (R.jointPenalty || 0) * (armies - 1));
@@ -354,14 +390,18 @@
     const n = KINDS.reduce((t, k) => t + army[k], 0);
     const ground = P[to].terrain;
     if (p.siege_by === G.human) return null; // reinforcements for your own lines: no battle
+    const f = facing(to), t = how || chosenTactic(to, army);
+    const drill = tacticFactor(t, f.posture, army, f.army, ground) * veteranFactor(prov(from).veterancy) * myMorale();
+    const holderOf = V.nations.find((x) => x.id === (p.siege_by || p.controller || p.owner));
+    const tired = holderOf ? 1 - R.tactics.perExhaustion * holderOf.war_exhaustion : 1; // their stability is their secret
     if (p.siege_by) { // a relief army against the siege lines
       if (!p.besiegers || !n) return p.besiegers === 0 ? 1 : null;
-      return winChance(strength(army, ground, true) * myFactor(g) * coordination, p.besiegers, R.defender * R.terrain[ground]);
+      return winChance(strength(army, ground, true) * myFactor(g) * coordination * drill, p.besiegers * veteranFactor(f.vet) * tired, R.defender * R.terrain[ground]);
     }
     if (p.troops === null || !n) return null;
     if (!p.troops) return 1;
-    const mine = strength(army, ground, true) * myFactor(g) * coordination; // joint armies coordinate poorly
-    const theirs = p.army ? strength(p.army, ground, false, p.controller || p.owner) : p.troops;
+    const mine = strength(army, ground, true) * myFactor(g) * coordination * drill; // joint armies coordinate poorly
+    const theirs = (p.army ? strength(p.army, ground, false, p.controller || p.owner) : p.troops) * veteranFactor(f.vet) * tired;
     return winChance(mine, theirs, defence(from, to, siege(army)));
   }
 
@@ -393,6 +433,7 @@
     const order = {type: kind, origin: P[from].id, target: P[to].id, regiments: n};
     if (pickMix) order.units = Object.fromEntries(KINDS.filter((k) => army[k]).map((k) => [k, army[k]]));
     if (g) order.general = g.id;
+    if (kind === "attack") order.tactic = chosenTactic(to, army);
     queue(order);
   }
 
@@ -558,9 +599,16 @@
           <span class="ic">${UICON[u.id]}</span><b>${now[u.id]}</b><small>${esc(u.id)}</small></div>`).join("");
         const mixed = U.filter((u) => now[u.id] / Math.max(1, here) >= R.combinedShare).length;
         const marches = targets.map(([j, kind]) => {
-          const chance = kind === "attack" ? odds(i, j) : null;
-          return `<button class="btn" data-march="${j}" data-kind="${kind}">${kind === "move" ? "➜" : "⚔"} ${esc(P[j].name)}${chance !== null ? ` ${Math.round(chance * 100)}%` : ""}</button>`;
+          const chance = kind === "attack" ? odds(i, j) : null, how = kind === "attack" && prov(j).siege_by !== G.human ? tacticOf(chosenTactic(j, force(i))) : null;
+          return `<button class="btn" data-march="${j}" data-kind="${kind}" ${how ? `title="${esc(`${how[2]}: ${how[3]}`)}"` : ""}>${kind === "move" ? "➜" : "⚔"} ${esc(P[j].name)}${how ? ` ${how[1]}` : ""}${chance !== null ? ` ${Math.round(chance * 100)}%` : ""}</button>`;
         }).join("");
+        const tacticChips = `<div class="foci tactics"><button class="btn ${tactic === "best" ? "on" : ""}" data-tactic="best" title="The tactic that does most against each garrison's posture, where you can see it">✦ Best</button>${TACTICS.map(([k, ic, name, what, kind]) =>
+          `<button class="btn ${tactic === k ? "on" : ""}" data-tactic="${k}" title="${esc(`${name}: ${what}. Carried by ${kind}; beats ${postureOf(BEATS[k])[2].toLowerCase()}, breaks on ${postureOf(LOSES[k])[2].toLowerCase()}.`)}">${ic} ${name}</button>`).join("")}</div>`;
+        const vet = p.veterancy || 0, queuedPosture = orders.find((o) => o.type === "set_posture" && o.province === P[i].id);
+        const stance = queuedPosture ? queuedPosture.posture : p.posture || "hold";
+        const postureChips = `<div class="foci postures">${POSTURES.map(([k, ic, name, what, kind]) => {
+          const beats = TACTICS.find(([t]) => LOSES[t] === k), loses = TACTICS.find(([t]) => BEATS[t] === k);
+          return `<button class="btn ${stance === k ? "on" : ""} ${queuedPosture && queuedPosture.posture === k ? "queued" : ""}" data-posture="${k}" title="${esc(`${name}: ${what}. Carried by ${kind}; beats ${beats[2].toLowerCase()}, falls to ${loses[2].toLowerCase()}.`)}">${ic} ${name}</button>`; }).join("")}</div>`;
         const leader = g ? `<label class="leader"><input type="checkbox" id="lead" ${lead ? "checked" : ""}> led by ${esc(g.name)} <span class="stars">${stars(g.skill)}</span></label>`
           : V.me.generals.length < V.me.modifiers.max_generals ? `<div class="act"><button class="btn" data-act="hire" ${affordable(R.generalCost, t) ? "" : "disabled"}>Appoint a general here</button><span class="cost">${costText(R.generalCost)}</span></div>` : "";
         const chooser = pickMix
@@ -592,11 +640,15 @@
         const tally = raising || leaving ? `<div class="tally"><span><b>${standing}</b> here now</span>${raising ? `<span class="up"><b>+${raising}</b> being raised</span>` : ""}${leaving > 0 ? `<span class="down"><b>−${leaving}</b> marching or disbanded</span>` : ""}<span>= <b>${here}</b> this year</span></div>
           ${raising ? `<p class="note">New regiments are raised before armies move, so they can march or attack this same year. On the map they show as <b class="up">+${raising}</b> until the year ends.</p>` : ""}` : "";
         body += `<section><h4>The garrison${raising || leaving ? " after your orders" : ""}</h4>${tally}<div class="units">${comp}</div>
-          <p class="note">On ${esc(ground)} they defend with a strength of ${strength(now, ground, false).toFixed(1)}${mixed >= 3 ? `, and fight ${Math.round((R.combinedBonus[mixed] || R.combinedBonus[3]) * 100)}% harder for their combined arms` : ""}.</p></section>
+          <p class="note">On ${esc(ground)} they defend with a strength of ${strength(now, ground, false).toFixed(1)}${mixed >= 3 ? `, and fight ${Math.round((R.combinedBonus[mixed] || R.combinedBonus[3]) * 100)}% harder for their combined arms` : ""}.</p>
+          ${here > 0 ? `<p class="note veterancy"><b>${cap(seasoning(vet))}</b>: ${Math.round(vet * 100)}% veterancy, +${Math.round((veteranFactor(vet) - 1) * 100)}% in battle. Victories season them; raw recruits dilute them; the years send them home.</p>` : ""}
+          <h5 class="bshelf">How they wait for an attack</h5>${postureChips}
+          <p class="note">Whoever can see the garrison sees its posture, and may choose the tactic that beats it. A posture its regiments cannot carry is as bad as one outguessed.</p></section>
           <section><h4>March</h4><div class="actions">
           <div class="row"><button class="btn" id="mixmode">${pickMix ? "Send a fair share instead" : "Choose regiments by kind"}</button></div>
           ${chooser}
           ${leader}
+          ${here > 0 && targets.some(([, k]) => k === "attack") ? `<h5 class="bshelf">How they attack</h5>${tacticChips}` : ""}
           ${here > 0 && marches ? `<div class="row">${marches}</div>` : `<p class="note">${here > 0 ? "No province to march to." : "No regiments here."}</p>`}
           <p class="note">Cavalry charges best on plains; every tenth of an attacking army in guns knocks a fort level off.</p></div></section>
           ${works ? `<section><h4>Levy</h4><div class="levies">${levy}${mercs}</div>` : `<section><p class="note">Occupied land: no levies here, only the regiments that hold it.</p>`}
@@ -620,7 +672,9 @@
         const all = {}; near.forEach((j) => { const a = armyAfter(j); KINDS.forEach((k) => (all[k] = (all[k] || 0) + (a[k] || 0))); });
         const total = near.reduce((a, j) => a + troopsAfter(j), 0), together = near.length > 1 ? odds(best, i, all, near.length - 1) ?? 0 : null;
         const war = p.owner === null || relation(p.owner).war;
-        body += `<section><h4>Attack</h4><p class="note" style="font-style:normal">All ${troopsAfter(best)} regiments of ${esc(P[best].name)}${g ? ` under ${esc(g.name)}` : ""}
+        const f = facing(i), how = tacticOf(bestTactic(i, armyAfter(best))), seen = postureOf(f.posture);
+        const watch = f.seen && p.troops ? `<p class="note">${seen[1]} The garrison waits: <b>${seen[2].toLowerCase()}</b> (${seen[3]}); ${seasoning(f.vet)}, ${Math.round(f.vet * 100)}% veterancy. Best answer from ${esc(P[best].name)}: <b>${how[1]} ${how[2].toLowerCase()}</b>.</p>` : "";
+        body += `<section><h4>Attack</h4>${watch}<p class="note" style="font-style:normal">All ${troopsAfter(best)} regiments of ${esc(P[best].name)}${g ? ` under ${esc(g.name)}` : ""}
           against ${p.troops}: <b>${Math.round(chance * 100)}% to win</b>.${together !== null ? ` With all ${total} from the ${near.length} provinces next door, in one battle: <b>${Math.round(together * 100)}%</b>.` : ""}
           ${war ? `Select ${esc(P[best].name)} and right-click here.` : `You must declare war on ${esc(N[o].name)} first.`}</p></section>`;
       }
@@ -642,6 +696,11 @@
     box.querySelectorAll("[data-envoy]").forEach((b) => b.onclick = () => { focus = nIndex[b.dataset.envoy]; openOffice("diplomacy"); });
     box.querySelectorAll(".stepper").forEach(wireStepper);
     const leadBox = box.querySelector("#lead"); if (leadBox) leadBox.onchange = () => { lead = leadBox.checked; deed(); };
+    box.querySelectorAll("[data-tactic]").forEach((b) => b.onclick = () => { tactic = b.dataset.tactic; deed(); });
+    box.querySelectorAll("[data-posture]").forEach((b) => b.onclick = () => {
+      const id = P[i].id; orders = orders.filter((x) => !(x.type === "set_posture" && x.province === id));
+      if (b.dataset.posture !== (prov(i).posture || "hold")) queue({type: "set_posture", province: id, posture: b.dataset.posture}); else { render(); }
+    });
     const mixButton = box.querySelector("#mixmode");
     if (mixButton) mixButton.onclick = () => { pickMix = pickMix ? null : Object.fromEntries(KINDS.map((k) => [k, armyAfter(i)[k]])); deed(); };
     const disbandKind = box.querySelector("#disbandkind"); if (disbandKind) disbandKind.onchange = () => { box.dataset.disbandkind = disbandKind.value; };
@@ -865,6 +924,7 @@
           <i class="bar"><b style="width:${Math.min(100, Math.round(100 * men / Math.max(1, capMen)))}%"></b></i></div>
         <div class="stock"><span class="ic">🌾</span><div><b class="num">${up.grain}</b><span class="label">grain eaten a year</span></div><div class="flow"><b class="num">${sign(V.me.income_per_turn.grain - up.grain)}</b><small>net</small></div></div>
         <div class="stock"><span class="ic">💪</span><div><b class="num">${sign(Math.round(power * 100))}%</b><span class="label">battle power</span></div><div class="flow"><small>${V.me.modifiers.navy ? "a navy: straits favour no one" : "technology, ruler, council"}</small></div></div>
+        <div class="stock"><span class="ic">🚩</span><div><b class="num">${sign(Math.round((myMorale() - 1) * 100))}%</b><span class="label">morale</span></div><div class="flow"><small>stability steadies, war exhaustion tires</small></div></div>
         <div class="stock"><span class="ic">💰</span><div><b class="num">${R.mercenaryLimit - hired}</b><span class="label">mercenaries for hire</span></div><div class="flow"><small>${R.mercenaryCost} ducats each</small></div></div>
       </div><div class="units office-units">${kinds}</div>`;
     // the fronts: each war, and every border where a court masses more than you
@@ -1756,6 +1816,7 @@
       case "upgrade_monument": return `🏛 Raise ${esc(M[o.province]?.name || "the monument")}`;
       case "disband": return `Disband ${o.regiments}${o.unit ? ` ${o.unit}` : ""} in ${pn(o.province)}`;
       case "develop": return `Develop ${pn(o.province)}`;
+      case "set_posture": { const k = postureOf(o.posture); return `${k[1]} ${pn(o.province)}: ${k[2].toLowerCase()}`; }
       case "set_focus": { const f = FOCI.find(([k]) => k === o.focus); return `${f ? f[1] : "🎯"} Turn ${pn(o.province)} to ${f ? f[2].toLowerCase() : o.focus}`; }
       case "improve": return `${PaxMap.goodOf(S, P[pIndex[o.province]].good).icon} Raise the ${PaxMap.goodOf(S, P[pIndex[o.province]].good).workings.toLowerCase()} of ${pn(o.province)}`;
       case "build": return `Build ${B[bIndex[o.building]].name.toLowerCase()} in ${pn(o.province)}`;
@@ -1774,7 +1835,8 @@
       case "attack": { const s = prov(pIndex[o.target]).siege_by, verb = s === G.human ? "Reinforce the siege of" : s ? "Break the siege of" : "Attack";
         const together = orders.filter((x) => x.type === "attack" && x.target === o.target);
         const joint = together.length > 1 ? ` · one battle with ${together.reduce((a, x) => a + x.regiments, 0)} regiments from ${together.length} provinces` : "";
-        return `⚔ ${verb} ${pn(o.target)} with ${o.regiments} from ${pn(o.origin)}${o.general ? ` under ${gname(o.general)}` : ""}${joint}`; }
+        const how = s === G.human ? null : tacticOf(o.tactic || "assault");
+        return `⚔ ${verb} ${pn(o.target)} with ${o.regiments} from ${pn(o.origin)}${o.general ? ` under ${gname(o.general)}` : ""}${how ? ` · ${how[1]} ${how[2].toLowerCase()}` : ""}${joint}`; }
       case "lift_siege": return `🏳 Lift the siege of ${pn(o.province)}`;
       case "declare_war": return `Declare war on ${nn(o.target)}`;
       case "propose_alliance": return `Propose an alliance to ${nn(o.target)}`;
@@ -1820,7 +1882,8 @@
       <div class="bhead"><span>⚔ Battle of ${esc(P[pIndex[e.province]].name)}</span><b>${won ? "Victory" : "Defeat"}</b></div>
       <div class="bsides">${side(d.attacker, d.attacker_name, d.attacker_regiments, d.attacker_army, d.attacker_losses, d.attacker_power, d.attacker_won)}
         <span class="vs">vs</span>${side(d.defender, d.defender_name, d.defender_regiments, d.defender_army, d.defender_losses, d.defender_power, !d.attacker_won)}</div>
-      <p class="bthen">${esc(cap(String(d.then || "")))}. <small>Power is regiments × their kind on this ground × technology, generals and walls × the dice.</small></p></div>`;
+      ${d.tactic ? `<p class="btactic">${tacticOf(d.tactic)[1]} ${tacticOf(d.tactic)[2]} against ${postureOf(d.posture)[1]} ${postureOf(d.posture)[2].toLowerCase()}: <b>${sign(Math.round((d.edge - 1) * 100))}%</b> to the attack${d.attacker_veterancy || d.defender_veterancy ? `. Veterancy ${Math.round((d.attacker_veterancy || 0) * 100)}% against ${Math.round((d.defender_veterancy || 0) * 100)}%` : ""}</p>` : ""}
+      <p class="bthen">${esc(cap(String(d.then || "")))}. <small>Power is regiments × their kind on this ground × technology, generals, tactics, veterancy, morale and walls × the dice.</small></p></div>`;
   }
   function siegeLine(e) {
     const d = e.data, where = esc(P[pIndex[e.province]].name);
@@ -2448,6 +2511,7 @@
       owner: V.provinces.map((p) => (p.owner === null ? -1 : nIndex[p.owner])),
       controller: V.provinces.map((p) => (p.controller ? nIndex[p.controller] : -1)),
       troops: V.provinces.map((p) => p.troops), dev: V.provinces.map((p) => p.development),
+      veterans: V.provinces.map((p) => p.veterancy || 0),
       planned: V.provinces.map((p, i) => (owned(i) && p.troops !== null ? troopsAfter(i) - p.troops : 0)),
       forts: V.provinces.map((p) => p.fort || 0),
       sieges: V.provinces.map((p) => (p.siege_by ? {by: nIndex[p.siege_by], progress: p.siege_progress, besiegers: p.besiegers} : null)),

@@ -15,8 +15,22 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from pax_agentica.engine import NationView, Resources
-from pax_agentica.engine.mechanics import army_strength, buildings_yield, good_yield, land_yield
-from pax_agentica.engine.model import BuildingKind, ProvinceId, TechBranch, UnitKind
+from pax_agentica.engine.mechanics import (
+    army_strength,
+    buildings_yield,
+    good_yield,
+    land_yield,
+    tactic_factor,
+    veteran,
+)
+from pax_agentica.engine.model import (
+    BuildingKind,
+    Posture,
+    ProvinceId,
+    Tactic,
+    TechBranch,
+    UnitKind,
+)
 from pax_agentica.engine.view import ProvinceView
 
 # ---------------------------------------------------------------- odds
@@ -65,9 +79,11 @@ def battle_odds(
     army: Mapping[UnitKind, int] | None = None,
     *,
     with_general: bool = True,
+    tactic: Tactic | None = None,
 ) -> float | None:
     """The chance an attack from `origin` on `target` wins, with `army` (default: everything at
-    `origin`). None when the defenders are hidden by the fog of war."""
+    `origin`) fighting by `tactic` (default: the best against the garrison's posture). None when
+    the defenders are hidden by the fog of war."""
     rules = view.rules
     here, there = _province(view, origin), _province(view, target)
     army = dict(army if army is not None else (here.army or {}))
@@ -78,8 +94,13 @@ def battle_odds(
     if there.troops == 0:
         return 1.0
     ground = there.terrain
+    held = there.army or {UnitKind.INFANTRY: there.troops}
+    posture = Posture.HOLD if there.siege_by else (there.posture or Posture.HOLD)
+    tactic = tactic or best_tactic(view, origin, target, army)
     mine = army_strength(rules, army, ground, attacking=True, nation=view.me.id)
     mine *= 1 + view.me.modifiers.battle_power
+    mine *= tactic_factor(rules, tactic, posture, army, held, ground)
+    mine *= veteran(rules, here.veterancy or 0.0) * view.me.morale
     if with_general and here.general is not None and here.general.nation == view.me.id:
         mine *= 1 + rules.general_bonus_per_skill * here.general.skill
     theirs = (
@@ -92,6 +113,8 @@ def battle_odds(
     owner = next((n for n in view.nations if n.id == there.owner), None)
     if owner is not None:
         theirs *= 1 + rules.military_tech_bonus * owner.technology[TechBranch.MILITARY]
+        theirs *= 1 - rules.morale_per_exhaustion * owner.war_exhaustion  # their stability: unseen
+    theirs *= veteran(rules, there.veterancy or 0.0)
     if there.general is not None and there.general.nation == there.owner:
         theirs *= 1 + rules.general_bonus_per_skill * there.general.skill
     breach = _guns_breach(view, army) + view.me.modifiers.ignores_fort_levels
@@ -106,6 +129,27 @@ def battle_odds(
     return round(win_chance(mine, theirs, rules.roll_min, rules.roll_max), 3)
 
 
+def best_tactic(
+    view: NationView,
+    origin: ProvinceId,
+    target: ProvinceId,
+    army: Mapping[UnitKind, int] | None = None,
+) -> Tactic:
+    """The tactic that does most against the garrison's posture, as far as `army` (default:
+    everything at `origin`) can carry it. Assault when the posture is hidden."""
+    rules = view.rules
+    here, there = _province(view, origin), _province(view, target)
+    army = dict(army if army is not None else (here.army or {}))
+    if there.posture is None and not there.siege_by:
+        return Tactic.ASSAULT
+    posture = Posture.HOLD if there.siege_by else (there.posture or Posture.HOLD)
+    held = there.army or {UnitKind.INFANTRY: there.troops or 1}
+    return max(
+        Tactic,
+        key=lambda t: (tactic_factor(rules, t, posture, army, held, there.terrain), t == "assault"),
+    )
+
+
 def targets(view: NationView, origin: ProvinceId) -> list[dict[str, Any]]:
     """Where the regiments at `origin` can go: marches to your own land, attacks elsewhere."""
     here = _province(view, origin)
@@ -116,9 +160,9 @@ def targets(view: NationView, origin: ProvinceId) -> list[dict[str, Any]]:
         if holder == view.me.id:
             out.append({"province": pid, "action": "move"})
         elif holder is None or holder in view.me.at_war_with:
-            out.append(
-                {"province": pid, "action": "attack", "odds": battle_odds(view, origin, pid)}
-            )
+            tactic = best_tactic(view, origin, pid)
+            odds = battle_odds(view, origin, pid, tactic=tactic)
+            out.append({"province": pid, "action": "attack", "tactic": tactic, "odds": odds})
     return out
 
 
@@ -329,6 +373,7 @@ TOOLS: dict[str, ToolFn] = {
             a["origin"],
             a["target"],
             {UnitKind(k): n for k, n in a["army"].items()} if a.get("army") else None,
+            tactic=Tactic(a["tactic"]) if a.get("tactic") else None,
         )
     },
     "targets": lambda v, a: {"targets": targets(v, a["origin"])},
@@ -352,6 +397,12 @@ TOOL_SPECS: list[dict[str, Any]] = [
                     "default: everything at origin",
                     "additionalProperties": {"type": "integer"},
                 },
+                "tactic": {
+                    "type": "string",
+                    "enum": [t.value for t in Tactic],
+                    "description": "assault, flank or bombard; default: the best against the "
+                    "garrison's posture",
+                },
             },
             "required": ["origin", "target"],
         },
@@ -359,7 +410,7 @@ TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "targets",
         "description": "Where the regiments of a province can march (your land) or attack, with "
-        "the odds of each attack.",
+        "the best tactic and the odds of each attack.",
         "parameters": {
             "type": "object",
             "properties": {"origin": {"type": "string"}},

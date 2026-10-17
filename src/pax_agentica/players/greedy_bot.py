@@ -47,6 +47,7 @@ from pax_agentica.engine.actions import (
     Sell,
     SendMessage,
     SetFocus,
+    SetPosture,
     SetStance,
     SetTaxes,
     Terms,
@@ -54,22 +55,27 @@ from pax_agentica.engine.actions import (
     UpgradeMonument,
 )
 from pax_agentica.engine.fortune import EVENTS_BY_ID, Option
+from pax_agentica.engine.mechanics import tactic_factor
 from pax_agentica.engine.model import (
     AdvisorRole,
     BuildingKind,
     Focus,
     Good,
     Personality,
+    Posture,
     ProposalKind,
     ProvinceId,
     Stance,
+    Tactic,
     TechBranch,
     TreatyKind,
     UnitKind,
 )
 from pax_agentica.engine.view import ProposalView, ProvinceView
+from pax_agentica.tools import best_tactic
 
 CAPITAL_GUARD = 3
+type Army = dict[UnitKind, int]
 
 # How much the bot thinks each resource is worth, in ducats.
 PRICES = Resources(ducats=1, manpower=3, iron=2, grain=1, timber=2)
@@ -141,6 +147,7 @@ class _Planner:
         self._command()
         self._attack()
         self._march_to_the_border()
+        self._postures()
         self._invest()
         self._diplomacy()
         self._stances()
@@ -658,8 +665,9 @@ class _Planner:
             fighting = (seen.troops or 0) or seen.siege_by is not None
             send = spare if fighting else min(spare, max(2, need + 2))
             leader = self.leaders.pop(origin, None)
+            tactic = best_tactic(self.v, origin, target)
             self.actions.append(
-                Attack(origin=origin, target=target, regiments=send, general=leader)
+                Attack(origin=origin, target=target, regiments=send, general=leader, tactic=tactic)
             )
             self.troops[origin] -= send
             self.targeted.add(target)
@@ -683,8 +691,9 @@ class _Planner:
             if left <= 0:
                 break
             send = min(n, left)
+            leader, tactic = self.leaders.pop(o, None), best_tactic(self.v, o, target)
             self.actions.append(
-                Attack(origin=o, target=target, regiments=send, general=self.leaders.pop(o, None))
+                Attack(origin=o, target=target, regiments=send, general=leader, tactic=tactic)
             )
             self.troops[o] -= send
             left -= send
@@ -712,6 +721,39 @@ class _Planner:
                 step = min(closer)
                 self.actions.append(Move(origin=pid, target=step, regiments=spare))
                 self.troops[pid] -= spare
+
+    def _postures(self) -> None:
+        """Every garrison on a border waits in the posture the armies next door can do least
+        against, each with its best tactic: the enemy's if at war, any crown's in peace."""
+        rules = self.v.rules
+        for pid in sorted(self.mine):
+            here = self.provinces[pid]
+            if not here.army or not sum(here.army.values()):
+                continue
+            threats = [
+                n.army
+                for n in (self.provinces[x] for x in self._neighbors(pid))
+                if n.army
+                and sum(n.army.values())
+                and (n.controller or n.owner) not in (None, self.me.id, *self.friends)
+                and (not self.enemies or (n.controller or n.owner) in self.enemies)
+            ]
+            if not threats:
+                continue
+
+            def worst(
+                posture: Posture, at: ProvinceView = here, threats: list[Army] = threats
+            ) -> float:
+                return max(
+                    tactic_factor(rules, t, posture, army, at.army or {}, at.terrain)
+                    for army in threats
+                    for t in Tactic
+                )
+
+            current = here.posture or Posture.HOLD
+            best = min(Posture, key=lambda p: (worst(p) - (p == current) * 1e-6, p.value))
+            if best != current and worst(best) < worst(current) - 0.01:
+                self.actions.append(SetPosture(province=pid, posture=best))
 
     # ------------------------------------------------------------ 6. invest
 
