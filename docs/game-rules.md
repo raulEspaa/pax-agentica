@@ -560,7 +560,9 @@ refuses or ignores it **dissolves the alliance**, in public.
 
 ## Victory
 
-- **Domination**: rule half the provinces of Europe (35 of 69), or be the last nation standing.
+- **Domination**: rule half the provinces of Europe (52 of 104), or be the last nation standing.
+- **Destiny**: fulfil every ambition of your crown (its five missions). Small crowns can win this
+  way as surely as great ones.
 - **Otherwise**, when the turn limit (50 by default) runs out, the highest **standing** wins:
   the total development you own plus half your prestige. Ties go to more provinces, then more
   ducats.

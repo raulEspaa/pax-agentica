@@ -1140,6 +1140,7 @@ class Rules(BaseModel):
 
     # victory
     domination_share: float = 0.5  # own this share of all provinces to win outright
+    ambition_victory: bool = True  # fulfilling every mission of one's crown wins the game
     start_year: int = 1500
 
 

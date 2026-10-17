@@ -1345,7 +1345,10 @@
       <ul class="goals">${m.goals.map((g) => `<li class="${g.have >= g.need ? "met" : ""}"><span>${g.have >= g.need ? "✓" : "○"} ${esc(g.text)}</span>
         <i class="bar"><b style="width:${Math.round(100 * Math.min(1, g.have / Math.max(1, g.need)))}%"></b></i><small class="num">${g.have}/${g.need}</small></li>`).join("")}</ul>
       <div class="sub">Reward: <span class="pos">${esc(m.reward)}</span></div></div>`).join("");
-    return `<div class="pad"><div class="mtree">${cols}</div>
+    const done = ms.filter((m) => m.status === "done").length;
+    const destiny = R.ambitionVictory ? `<div class="destiny"><span class="ic">🏆</span><div><b>${done} of ${ms.length} ambitions fulfilled</b>
+      <small>Fulfil them all and your crown wins the game outright, whatever its size.</small><i class="bar"><b style="width:${Math.round(100 * done / Math.max(1, ms.length))}%"></b></i></div></div>` : "";
+    return `<div class="pad">${destiny}<div class="mtree">${cols}</div>
       <p class="sub">Hover a mission for its goals and reward. A mission is fulfilled by itself at the end of a year in which all its goals hold.</p>
       ${open ? `<h4>${I("target")} Open now</h4><div class="missions">${open}</div>` : ""}</div>`;
   }
@@ -1811,7 +1814,8 @@
     const share = (m) => m.goals.reduce((a, g) => a + Math.min(1, g.have / Math.max(1, g.need)), 0) / Math.max(1, m.goals.length);
     const open = (V.me.missions || []).filter((m) => m.status === "open").sort((a, b) => share(b) - share(a)).slice(0, 2);
     if (!open.length || G.finished) return "";
-    return `<section class="within"><h3>🎯 Within reach</h3>${open.map((m) => { const s = Math.round(share(m) * 100), todo = m.goals.filter((g) => g.have < g.need);
+    const done = (V.me.missions || []).filter((m) => m.status === "done").length, all = (V.me.missions || []).length;
+    return `<section class="within"><h3>🎯 Within reach <small>${done} of ${all} ambitions fulfilled${R.ambitionVictory ? ": all of them win the game" : ""}</small></h3>${open.map((m) => { const s = Math.round(share(m) * 100), todo = m.goals.filter((g) => g.have < g.need);
       return `<div class="amb"><div class="amhead"><b>${esc(m.title)}</b><span>${s}%</span></div><i class="bar"><b style="width:${s}%"></b></i>
         <small>${todo.length ? `Still to do: ${todo.map((g) => esc(g.text)).join("; ")}` : "Every goal holds: it is fulfilled at the end of this year."}</small>
         <small class="rw">Reward: ${esc(m.reward)}</small></div>`; }).join("")}</section>`;

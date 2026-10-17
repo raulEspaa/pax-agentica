@@ -347,6 +347,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "siegeDisease": rules.siege_disease,
             "siegeRing": rules.siege_ring_per_wall,
             "jointPenalty": rules.joint_attack_penalty,
+            "ambitionVictory": rules.ambition_victory,
             "jointPenaltyMax": rules.joint_attack_penalty_max,
         },
     }

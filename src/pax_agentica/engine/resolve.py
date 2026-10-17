@@ -2798,9 +2798,22 @@ class _Resolver:
         else:
             needed = math.ceil(self.s.rules.domination_share * total)
             dominant = [n for n in alive if len(self.s.provinces_of(n)) >= needed]
+            # a crown that fulfils every ambition of its history has won its own game
+            destined = [
+                n
+                for n in alive
+                if self.s.rules.ambition_victory
+                and missions.missions_of(n)
+                and {m.id for m in missions.missions_of(n)} <= set(self.s.nations[n].missions_done)
+            ]
             if dominant:
                 winner = max(dominant, key=lambda n: len(self.s.provinces_of(n)))
                 reason = f"rules {len(self.s.provinces_of(winner))} of {total} provinces"
+            elif destined:
+                winner = min(destined, key=self._ranking)
+                reason = (
+                    f"fulfilled every ambition of its crown ({len(missions.missions_of(winner))})"
+                )
             elif self.turn >= self.s.max_turns:
                 winner = min(alive, key=self._ranking)
                 reason = (
