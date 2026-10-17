@@ -116,3 +116,26 @@ def test_the_page_gets_the_reign_year_by_year_and_its_story() -> None:
     story = game["story"]
     assert any(m["kind"] == "war_declared" for m in story["milestones"])
     assert story["bonds"]["spain"]["wars"] == 1
+
+
+def test_the_epilogue_lays_the_whole_game_open_only_once_it_is_over(client: TestClient) -> None:
+    assert client.get("/api/game").json()["epilogue"] is None  # it would see through the fog
+    for _ in range(3):
+        game = client.post("/api/turn", json={"actions": []}).json()
+    epilogue = game["epilogue"]
+    assert epilogue["years"] == [1500, 1501, 1502, 1503]
+    assert len(epilogue["owners"]) == 4
+    assert len(epilogue["owners"][0]) == len(epilogue["provinces"]) == 104
+    paris = epilogue["provinces"].index("paris")
+    assert epilogue["owners"][0][paris] == "france"
+    spain = epilogue["courts"]["spain"]
+    assert len(spain["series"]["standing"]) == 4
+    assert spain["series"]["provinces"][0] > 0
+    gained = sum(c["gained"] for c in epilogue["courts"].values())
+    changed = sum(
+        a != b
+        for before, after in zip(epilogue["owners"], epilogue["owners"][1:], strict=False)
+        for a, b in zip(before, after, strict=True)
+        if b
+    )
+    assert gained == changed

@@ -8,6 +8,7 @@ they decide in parallel while the engine waits for you to end the turn.
 """
 
 import asyncio
+import itertools
 import secrets
 import time
 from collections.abc import Mapping, Sequence
@@ -264,6 +265,57 @@ class Session:
             )
         return rows
 
+    def epilogue(self) -> dict[str, Any] | None:
+        """The whole game laid open once it is over: every court's course year by year, its
+        battles and the land it won and lost, and who held each province every year, for the
+        closing charts and the map's replay. Nothing while the game goes on: it sees through
+        the fog of war."""
+        if not self.state.finished:
+            return None
+        start = self.record.initial.rules.start_year
+        snaps = [(start, self.record.start)] + [(t.year + 1, t.after) for t in self.record.turns]
+        provinces = list(self.record.start.provinces)
+        owners = [[snap.provinces[p].owner or "" for p in provinces] for _, snap in snaps]
+        measures = ("standing", "development", "provinces", "regiments", "income", "prestige")
+        courts: dict[str, dict[str, Any]] = {}
+        for nid in self.record.start.nations:
+            series: dict[str, list[int]] = {m: [] for m in measures}
+            for _, snap in snaps:
+                n = snap.nations.get(nid)
+                alive = n is not None and n.alive
+                values = (
+                    (n.standing, n.score, n.provinces, n.regiments, n.income, n.prestige)
+                    if n is not None and alive
+                    else (0,) * len(measures)
+                )
+                for m, v in zip(measures, values, strict=True):
+                    series[m].append(v)
+            courts[nid] = {"series": series, "battles_won": 0, "battles_lost": 0,
+                           "gained": 0, "lost": 0, "wars": 0}  # fmt: skip
+        for before, after in itertools.pairwise(owners):
+            for was, now in zip(before, after, strict=True):
+                if was != now:
+                    if now in courts:
+                        courts[now]["gained"] += 1
+                    if was in courts:
+                        courts[was]["lost"] += 1
+        for turn in self.record.turns:
+            for e in turn.events:
+                if e.kind.value == "battle" and "attacker" in e.data and e.data.get("defender"):
+                    won = bool(e.data.get("attacker_won"))
+                    a, d = str(e.data["attacker"]), str(e.data["defender"])
+                    for nid, victory in ((a, won), (d, not won)):
+                        if nid in courts:
+                            courts[nid]["battles_won" if victory else "battles_lost"] += 1
+                if e.kind.value == "war_declared" and e.nations and e.nations[0] in courts:
+                    courts[e.nations[0]]["wars"] += 1
+        return {
+            "years": [y for y, _ in snaps],
+            "provinces": provinces,
+            "owners": owners,
+            "courts": courts,
+        }
+
     def story(self, nation: NationId | None = None) -> dict[str, Any]:
         """The milestones of this human's whole reign, and what binds it to every court:
         battles fought, wars, treaties, land taken. For the page's chronicle of the reign."""
@@ -354,6 +406,7 @@ class Session:
             "previews": self.previews(nation),
             "history": self.history(nation),
             "story": self.story(nation),
+            "epilogue": self.epilogue(),
             "saved_to": str(self.save_to) if self.save_to else None,
             "humans": {h: self.names.get(h, "you") for h in self.humans},
             "submitted": nation in self.pending,

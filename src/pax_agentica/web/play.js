@@ -115,8 +115,9 @@
       pill.querySelector(".tablepill").onclick = () => pill.classList.toggle("open");
     }
     const table = closed ? `<div class="banner">This table is closed (${esc(closed)}). <a href="${REPLAY}" target="_blank">Watch the replay</a> · <a href="/">Back to the tables</a></div>` : "";
-    $("banner").innerHTML = G.finished ? `<div class="over">👑 ${esc(G.winner ? nameOf(G.winner) + " wins." : "The game is over.")} <a href="${REPLAY}" target="_blank">Watch the replay</a></div>`
+    $("banner").innerHTML = G.finished ? `<div class="over">👑 ${esc(G.winner ? nameOf(G.winner) + " wins." : "The game is over.")} <a href="#" id="theend">How the age ended</a> · <a href="${REPLAY}" target="_blank">Watch the replay</a></div>`
       : fallen ? `<div class="banner">Your realm has fallen. You can watch the rest of the game year by year.</div>` : table;
+    const te = $("theend"); if (te) te.onclick = (e) => { e.preventDefault(); report(null); };
     const fb = $("forceyear");
     if (fb) fb.onclick = async () => { fb.disabled = true; const before = V;
       const r = await api("/force", {method: "POST"});
@@ -2119,6 +2120,102 @@
     const all = [...view.nations.filter((n) => n.alive && n.id !== G.human).map((n) => n.standing), view.me.standing];
     return 1 + all.filter((s) => s > view.me.standing).length;
   }
+  // ------------------------------------------------------------------ the epilogue: the whole game, once it is over
+  // Every court's course year by year in one chart (pick the measure), what each did in the
+  // field and at the treaty table, and Europe's map replayed a year at a time.
+  const MEASURES = [["standing", "Standing"], ["development", "Development"], ["provinces", "Provinces"], ["regiments", "Regiments"], ["income", "Income"]];
+  let epiMeasure = "standing";
+  const courtColor = (nid) => (nid in nIndex ? N[nIndex[nid]].color : "#9a8f78");
+  function epilogueSection() {
+    const E = G.epilogue, ids = Object.keys(E.courts).sort((a, b) => E.courts[b].series.standing.at(-1) - E.courts[a].series.standing.at(-1));
+    const rows = ids.map((nid) => { const c = E.courts[nid], s = c.series, alive = s.provinces.at(-1) > 0;
+      const peak = Math.max(...s.provinces), at = E.years[s.provinces.indexOf(peak)];
+      return `<tr class="${nid === G.human ? "me" : ""}"><td><i class="sw" style="background:${courtColor(nid)}"></i>${esc(nameOf(nid))}${alive ? "" : " †"}</td>
+        <td>${s.standing.at(-1)}</td><td>${peak} <small>in ${at}</small></td><td>${c.battles_won}–${c.battles_lost}</td><td>+${c.gained} / −${c.lost}</td><td>${c.wars}</td></tr>`; }).join("");
+    return `<section class="epilogue"><h3>Europe, ${E.years[0]}–${E.years.at(-1)}</h3>
+      <div class="epitabs" role="tablist">${MEASURES.map(([k, label]) => `<button type="button" class="btn ${k === epiMeasure ? "on" : ""}" data-measure="${k}" role="tab" aria-selected="${k === epiMeasure}">${label}</button>`).join("")}</div>
+      <div class="epichart" id="epichart"></div>
+      <div class="epilegend">${ids.map((nid) => `<span class="${nid === G.human ? "me" : ""}"><i class="sw" style="background:${courtColor(nid)}"></i>${esc(nameOf(nid))}</span>`).join("")}</div>
+      <table class="grid num epitable"><thead><tr><th>Nation</th><th>Standing</th><th>Most land</th><th>Battles won–lost</th><th>Provinces won / lost</th><th>Wars declared</th></tr></thead><tbody>${rows}</tbody></table>
+      <button class="btn" id="epireplay" type="button">▶ Watch Europe's map, year by year</button></section>`;
+  }
+  function epilogueChart() {
+    const E = G.epilogue, box = $("epichart"); if (!box) return;
+    const W = 540, H = 230, L = 38, R = 78, T = 10, B = 24, years = E.years, n = years.length;
+    const ids = Object.keys(E.courts), data = ids.map((nid) => ({nid, v: E.courts[nid].series[epiMeasure]}));
+    const top = Math.max(4, ...data.flatMap((d) => d.v)), mag = Math.pow(10, Math.floor(Math.log10(top / 4)));
+    const step = [1, 2, 5, 10].map((m) => m * mag).find((s) => s * 4 >= top), nice = step * 4;
+    const x = (i) => L + (W - L - R) * (n > 1 ? i / (n - 1) : 0), y = (v) => T + (H - T - B) * (1 - v / nice);
+    const ticks = [0, 1, 2, 3, 4].map((k) => k * step);
+    const yearTicks = years.filter((yr, i) => i === 0 || i === n - 1 || (yr % 10 === 0 && i > 2 && i < n - 3));
+    // mine drawn last, so it is never under another court's line
+    data.sort((a, b) => (a.nid === G.human) - (b.nid === G.human));
+    // labels at the right end, nudged apart so none overlap
+    const ends = data.map((d) => ({nid: d.nid, y: y(d.v.at(-1)), v: d.v.at(-1)})).sort((a, b) => a.y - b.y);
+    for (let k = 1; k < ends.length; k++) ends[k].y = Math.max(ends[k].y, ends[k - 1].y + 11);
+    const over = ends.length ? ends.at(-1).y - (H - B) : 0; if (over > 0) ends.forEach((e) => (e.y -= over));
+    box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(MEASURES.find((m) => m[0] === epiMeasure)[1])} of every court, year by year">
+      ${ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="gridline"/><text x="${L - 6}" y="${y(v) + 3.5}" class="ytick">${v}</text>`).join("")}
+      ${yearTicks.map((yr) => `<text x="${x(years.indexOf(yr))}" y="${H - 6}" class="xtick">${yr}</text>`).join("")}
+      ${data.map((d) => { const path = d.v.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(""), w = d.nid === G.human ? 3 : 2;
+        // a thin dark casing, so a pale banner (Austria's white) still reads on parchment
+        return `<path d="${path}" fill="none" stroke="rgba(58, 36, 20, .45)" stroke-width="${w + 1.4}" stroke-linejoin="round" stroke-linecap="round"/>
+          <path d="${path}" fill="none" stroke="${courtColor(d.nid)}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"/>`; }).join("")}
+      ${ends.map((e) => `<text x="${W - R + 6}" y="${e.y + 3.5}" class="endlabel ${e.nid === G.human ? "me" : ""}">${esc(nameOf(e.nid).split(/[ -]/)[0])} ${e.v}</text>`).join("")}
+      <line class="cross" x1="0" x2="0" y1="${T}" y2="${H - B}" style="display:none"/>
+      <rect class="hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/></svg><div class="epitip" hidden></div>`;
+    const svg = box.querySelector("svg"), cross = svg.querySelector(".cross"), tip = box.querySelector(".epitip");
+    const at = (evt) => { const r = svg.getBoundingClientRect(), sx = (evt.clientX - r.left) / r.width * W;
+      return Math.max(0, Math.min(n - 1, Math.round((sx - L) / (W - L - R) * (n - 1)))); };
+    svg.querySelector(".hit").addEventListener("pointermove", (evt) => {
+      const i = at(evt), r = svg.getBoundingClientRect();
+      cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.style.display = "";
+      const list = data.map((d) => [d.nid, d.v[i]]).sort((a, b) => b[1] - a[1]);
+      tip.innerHTML = `<b>${years[i]}</b>${list.map(([nid, v]) => `<div class="${nid === G.human ? "me" : ""}"><i class="sw" style="background:${courtColor(nid)}"></i>${esc(nameOf(nid))}<span>${v}</span></div>`).join("")}`;
+      tip.hidden = false;
+      const px = x(i) / W * r.width;
+      tip.style.left = `${px > r.width / 2 ? px - tip.offsetWidth - 10 : px + 10}px`;
+    });
+    svg.querySelector(".hit").addEventListener("pointerleave", () => { cross.style.display = "none"; tip.hidden = true; });
+  }
+  function epilogueWire() {
+    epilogueChart();
+    document.querySelectorAll(".epitabs [data-measure]").forEach((b) => b.onclick = () => {
+      epiMeasure = b.dataset.measure;
+      document.querySelectorAll(".epitabs [data-measure]").forEach((o) => { o.classList.toggle("on", o === b); o.setAttribute("aria-selected", String(o === b)); });
+      epilogueChart(); });
+    $("epireplay").onclick = replayEurope;
+  }
+  // Europe's map from the first year to the last, a third of a second a year; the end report
+  // comes back when it is over (or at a click on Skip).
+  async function replayEurope() {
+    const E = G.epilogue, base = world(), order = E.provinces.map((id) => pIndex[id]);
+    $("modal").classList.remove("open");
+    map.home();
+    const bar = document.createElement("div");
+    bar.className = "replaybar";
+    bar.innerHTML = `<b class="ryear"></b><div class="rtrack"><i></i></div><button class="btn" type="button">Skip</button>`;
+    $("map").parentElement.appendChild(bar);
+    $("banner").style.visibility = "hidden";
+    let stop = false;
+    bar.querySelector("button").onclick = () => { stop = true; };
+    const pace = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 700 : 330;
+    for (let i = 0; i < E.years.length && !stop; i++) {
+      const owner = new Array(P.length).fill(-1);
+      E.owners[i].forEach((nid, k) => { if (order[k] !== undefined) owner[order[k]] = nid && nid in nIndex ? nIndex[nid] : -1; });
+      const none = owner.map(() => null);
+      map.paint({...base, mode: "political", owner, controller: owner.map(() => -1), troops: owner.map(() => 0), planned: [], sieges: none,
+        generals: new Map(), buildings: owner.map(() => []), forts: owner.map(() => 0), events: [], capitals: new Set(), alive: N.map((_, k) => owner.includes(k))});
+      bar.querySelector(".ryear").textContent = E.years[i];
+      bar.querySelector(".rtrack i").style.width = `${(i + 1) / E.years.length * 100}%`;
+      if (i && E.owners[i].some((o, k) => o !== E.owners[i - 1][k])) J.play("click");
+      await new Promise((r) => setTimeout(r, i === E.years.length - 1 ? 1200 : pace));
+    }
+    bar.remove();
+    $("banner").style.visibility = "";
+    render();
+    $("modal").classList.add("open");
+  }
   // The year's marches, for the map to play before the report: your own moves, every battle and
   // conquest you can see on screen, each drawn from where the army set out to where it arrived.
   function marches(events) {
@@ -2184,6 +2281,7 @@
           `<tr class="${n.id === G.human ? "me" : ""}"><td>${k + 1}</td><td>${esc(n.name)}${n.alive ? "" : " †"}</td><td>${n.score}</td><td>${n.provinces}</td></tr>`).join("")}</tbody></table>
         <div class="chronicle-end"><h3>The chronicle of your reign</h3><p id="reigntext">${esc(chronicleOfReign())}</p>
           <button class="btn" id="copyreign" type="button">Copy the chronicle</button> <button class="btn" id="sharereign2" type="button">🖼 A picture of your reign</button></div>
+        ${G.epilogue ? epilogueSection() : ""}
         <p><a href="${REPLAY}" target="_blank">Watch the whole game as a replay</a></p></div>` : "";
     const tiles = before ? [["Rank", rankOf(V), rankOf(before), true], ["Standing", V.me.standing, before.me.standing], ["Development", V.me.score, before.me.score],
       ["Provinces", V.me.provinces.length, before.me.provinces.length], ["Regiments", V.me.regiments, before.me.regiments]] : [];
@@ -2208,6 +2306,7 @@
     feelYear(before, V.last_turn_events, won, lost);
     $("closemodal").onclick = () => { $("modal").classList.remove("open"); sheet.classList.remove("reveal"); eventSheet(); };
     const sr2 = $("sharereign2"); if (sr2) sr2.onclick = () => shareReign(sr2);
+    if (G.epilogue && $("epichart")) epilogueWire();
     const cr = $("copyreign");
     if (cr) cr.onclick = () => { navigator.clipboard?.writeText(`${$("reigntext").textContent}\n— Pax Agentica`); cr.textContent = "Copied"; };
     const tl = $("toletters");

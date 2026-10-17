@@ -632,6 +632,27 @@
   .ending h3 { margin: 0 0 4px; font: 700 19px var(--display); }
   .ending table { width: 100%; margin: 6px 0; }
   .ending tr.me td { font-weight: 700; background: rgba(196, 154, 82, .3); }
+  .epilogue { margin: 12px 0 6px; } .epilogue h3 { margin: 0 0 6px; font: 700 16px var(--display); }
+  .epitabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; } .epitabs .btn { padding: 3px 9px; font-size: 13px; }
+  .epitabs .btn.on { background: #6a4a22; color: #f6e7c4; border-color: #3a2414; }
+  .epichart { position: relative; } .epichart svg { display: block; width: 100%; height: auto; }
+  .epichart .gridline { stroke: rgba(58, 36, 20, .14); } .epichart .ytick, .epichart .xtick { font: 10px var(--body, serif); fill: #6a5238; }
+  .epichart .ytick { text-anchor: end; } .epichart .xtick { text-anchor: middle; }
+  .epichart .endlabel { font: 10.5px var(--body, serif); fill: #4a3420; } .epichart .endlabel.me { font-weight: 700; fill: #2a1a0c; }
+  .epichart .cross { stroke: #3a2414; stroke-width: 1; stroke-dasharray: 3 3; }
+  .epitip { position: absolute; top: 4px; min-width: 150px; padding: 6px 8px; background: #fbf3df; border: 1px solid #8a6a3a; box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+            font-size: 12.5px; pointer-events: none; }
+  .epitip div { display: flex; align-items: center; gap: 5px; } .epitip div span { margin-left: auto; padding-left: 10px; font-variant-numeric: tabular-nums; }
+  .epitip div.me { font-weight: 700; }
+  .epilegend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 8px; font-size: 12.5px; } .epilegend .me { font-weight: 700; }
+  i.sw { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border: 1px solid rgba(0, 0, 0, .4); vertical-align: -1px; }
+  .epitable td small { color: #7a6448; }
+  @media (max-width: 560px) { .epitable { font-size: 12px; } .epitable th:nth-child(6), .epitable td:nth-child(6), .epitable td small { display: none; }
+    .replaybar { gap: 8px; padding: 6px 10px; } .replaybar .rtrack { width: 80px; } }
+  .replaybar { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 20; display: flex; align-items: center; gap: 12px;
+               padding: 8px 14px; background: rgba(32, 20, 10, .88); border: 1px solid var(--brass); color: #f6e7c4; }
+  .replaybar .ryear { font: 700 26px var(--display); min-width: 64px; text-align: center; }
+  .replaybar .rtrack { width: 160px; height: 6px; background: rgba(255, 255, 255, .15); } .replaybar .rtrack i { display: block; height: 100%; width: 0; background: var(--brass); transition: width .3s; }
 </style>
 </head>
 <body>
