@@ -496,6 +496,18 @@
     border: 1px solid #3a2414; box-shadow: 0 4px 12px rgba(0, 0, 0, .3); }
   .deedofyear figcaption { margin-top: 4px; text-align: center; font: italic 15px var(--body); color: var(--sepia-2); }
   .sheet.reveal .deedofyear { animation: linein .7s ease-out both; }
+  .deeds { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+  .deed-item { display: grid; grid-template-columns: 30px 1fr; gap: 0 8px; align-items: center; padding: 6px 8px; background: var(--walnut-lo);
+               border: 1px solid var(--brass-lo); opacity: .55; filter: grayscale(.8); }
+  .deed-item.won { opacity: 1; filter: none; border-color: var(--brass); box-shadow: inset 0 0 0 1px rgba(236, 208, 140, .25); }
+  .deed-item .ic { grid-row: span 2; font-size: 22px; text-align: center; } .deed-item b { font-size: 14px; color: var(--brass-hi); }
+  .deed-item small { font-size: 12px; color: var(--ink-3); }
+  .deedtoast { position: fixed; right: 18px; bottom: 80px; z-index: 70; display: flex; gap: 10px; align-items: center; padding: 10px 16px;
+               color: var(--engraved); background: var(--brass-face); border: 1px solid #4a3312; box-shadow: 0 10px 30px rgba(0, 0, 0, .6);
+               animation: toastin .5s cubic-bezier(.2, 1.6, .4, 1); }
+  .deedtoast.out { animation: fadeout .5s ease-in forwards; }
+  .deedtoast .ic { font-size: 30px; } .deedtoast small { display: block; font-style: italic; } .deedtoast b { font: 700 18px var(--display); }
+  @keyframes toastin { from { transform: translateX(120%); } }
   .orderswrap { position: relative; }
   .orderswrap .ordersbox { position: absolute; right: 0; top: 46px; width: 400px; max-height: 65vh; overflow-y: auto; margin: 0; display: none; z-index: 9;
                            box-shadow: 0 12px 30px rgba(0, 0, 0, .7); }

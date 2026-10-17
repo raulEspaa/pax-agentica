@@ -1512,7 +1512,7 @@
   }
   function reignTab() {
     const H = G.history || [], story = G.story || {milestones: [], bonds: {}};
-    if (H.length < 2) return `<p class="muted pad">Your reign is young: end a year or two, and its story starts here.</p>`;
+    if (H.length < 2) return `<div class="pad"><p class="muted">Your reign is young: end a year or two, and its story starts here.</p>${deedsShelf()}</div>`;
     const years = H.map((r) => r.year), first = H[0].me, last = H[H.length - 1].me, color = N[me].color;
     const ranks = H.map(rankIn), best = Math.min(...ranks), bestYear = years[ranks.indexOf(best)];
     // the three courts ahead of you, or closest behind, at the end
@@ -1548,7 +1548,8 @@
         ${nemesis ? `<div><span class="sub">Your nemesis</span>${who(nemesis[0])}<small>${nemesis[1].wars} war${nemesis[1].wars === 1 ? "" : "s"}, battles ${nemesis[1].battles_won}–${nemesis[1].battles_lost}, land ${nemesis[1].taken} taken, ${nemesis[1].lost} lost${nemesis[1].betrayals ? `, ${nemesis[1].betrayals} betrayal${nemesis[1].betrayals > 1 ? "s" : ""}` : ""}</small></div>` : ""}
         ${friend ? `<div><span class="sub">Your firmest friend</span>${who(friend[0])}<small>${friend[1].treaties} treat${friend[1].treaties === 1 ? "y" : "ies"} signed, never at war</small></div>` : ""}</div>` : ""}
       <h4>${I("crown")} The dynasty</h4><ul class="reigns">${reignRows}</ul>
-      <h4>${I("book-open")} Milestones</h4>${miles ? `<ol class="miles">${miles}</ol>` : `<p class="muted">Nothing worth the chronicler's ink yet.</p>`}</div>`;
+      <h4>${I("book-open")} Milestones</h4>${miles ? `<ol class="miles">${miles}</ol>` : `<p class="muted">Nothing worth the chronicler's ink yet.</p>`}
+      ${deedsShelf()}</div>`;
   }
   function chronicleTab() {
     if (!G.chronicle.length) return `<p class="muted pad">History begins when you end the first year.</p>`;
@@ -1863,7 +1864,63 @@
       return fig(art.treaty({a: color(G.human), b: color(other)}), `${peace ? "The peace" : "A treaty"} of ${nameOf(G.human)} and ${nameOf(other)}, ${year}`); }
     return "";
   }
+  // ------------------------------------------------------------------ deeds of renown
+  // Achievements kept by this browser across games: each a test on the year just played.
+  // ctx: {evs: this year's events, won/lost provinces, H: history, story, finished, winner}
+  const holds = (...ids) => ids.every((id) => V.me.provinces.includes(id));
+  const DEEDS = [
+    ["first_blood", "⚔", "First blood", "Win a battle.", (c) => c.evs.some((e) => e.kind === "battle" && "attacker" in e.data && (e.data.attacker === G.human) === !!e.data.attacker_won)],
+    ["banner", "⚑", "The banner rises", "Win a province, by the sword or the pen.", (c) => c.won.length > 0],
+    ["walls_fall", "🏰", "The walls fall", "Take a town by siege.", (c) => c.evs.some((e) => e.kind === "siege" && e.nations[0] === G.human && e.data.progress >= 100)],
+    ["vengeance", "💢", "Vengeance", "Win land from a court that wronged you.", (c) => c.evs.some((e) => e.kind === "province_ceded" && e.nations[1] === G.human && (V.me.grudges || []).some((g) => g.against === e.nations[0]))],
+    ["first_crown", "👑", "First among crowns", "Stand first in Europe.", () => rankOf(V) === 1],
+    ["pax", "🕊", "Pax", "Thirty years in a row without war.", (c) => { let run = 0, best = 0; c.H.forEach((r) => { run = r.me.at_war ? 0 : run + 1; best = Math.max(best, run); }); return best >= 31; }],
+    ["wonders", "🏛", "Patron of wonders", "Raise a monument to its third level.", () => V.provinces.some((p) => p.owner === G.human && p.monument >= 3)],
+    ["reason", "📜", "Light of reason", "Reach the fifth level of a technology.", () => Object.values(V.me.technology).some((v) => v >= 5)],
+    ["stone", "🏗", "A realm of stone", "Hold buildings worth 25 levels in all.", () => V.provinces.filter((p) => p.owner === G.human).reduce((a, p) => a + Object.values(p.building_levels || {}).reduce((x, y) => x + y, 0), 0) >= 25],
+    ["fugger", "💰", "The Fuggers' envy", "Hold a thousand ducats.", () => V.me.resources.ducats >= 1000],
+    ["marriages", "💍", "The marriage market", "Be joined by marriage to three houses at once.", () => V.me.treaties.filter((t) => t.kind === "marriage").length >= 3],
+    ["dynasty", "🌳", "A long dynasty", "See four rulers on your throne.", (c) => reignsOf(c.H).length >= 4],
+    ["weathered", "☠", "The years of trial", "Come through the crisis of the age without losing a province.", (c) => {
+      const end = c.evs.find((e) => e.kind === "crisis" && !e.data.begins); if (!end) return false;
+      const at = c.H.find((r) => r.year === end.data.first), now = c.H[c.H.length - 1]; return !!at && now.me.provinces >= at.me.provinces; }],
+    ["italy", "⚜", "The Italian Wars", "As France, hold Milan and Naples.", () => G.human === "france" && holds("milan", "naples")],
+    ["iberia", "🏰", "One crown for Iberia", "As Spain, hold Lisbon and Porto.", () => G.human === "spain" && holds("lisbon", "porto")],
+    ["gates", "☪", "The gates of Vienna", "As the Ottomans, take Vienna.", () => G.human === "ottomans" && holds("vienna")],
+    ["isles", "⚓", "Lord of the isles", "As England, hold Scotland, the Highlands, Ireland and Ulster.", () => G.human === "england" && holds("scotland", "highlands", "ireland", "ulster")],
+    ["third_rome", "☦", "The third Rome", "As Russia, hold Kiev and Novgorod and Pskov.", () => G.human === "russia" && holds("kiev", "novgorod", "pskov")],
+    ["sands", "🦅", "From the sands of Brandenburg", "Win the game with Brandenburg-Prussia.", (c) => c.finished && c.winner === "brandenburg" && G.human === "brandenburg"],
+    ["destiny", "🏆", "Destiny", "Win by fulfilling every ambition of your crown.", (c) => c.finished && c.winner === G.human && c.evs.some((e) => e.kind === "game_over" && /ambition/.test(e.summary))],
+    ["hegemon", "🌍", "Hegemon", "Win by ruling half of Europe.", (c) => c.finished && c.winner === G.human && c.evs.some((e) => e.kind === "game_over" && /rules \d+ of/.test(e.summary))],
+    ["victor", "⭐", "Victor", "Win a game.", (c) => c.finished && c.winner === G.human],
+  ];
+  const DEEDS_KEY = "pax-deeds";
+  const deedsKept = () => { try { return JSON.parse(localStorage.getItem(DEEDS_KEY) || "{}"); } catch { return {}; } };
+  // Test every deed against the year just played; new ones are kept and announced.
+  function checkDeeds(evs, won) {
+    const kept = deedsKept(), fresh = [];
+    const c = {evs, won, H: G.history || [], story: G.story || {}, finished: G.finished, winner: G.winner};
+    for (const [id, icon, title, , test] of DEEDS) {
+      if (kept[id]) continue;
+      let ok = false; try { ok = !!test(c); } catch {}
+      if (ok) { kept[id] = {year: V.year - 1, nation: nameOf(G.human), date: new Date().toISOString().slice(0, 10)}; fresh.push([icon, title]); }
+    }
+    if (fresh.length) { try { localStorage.setItem(DEEDS_KEY, JSON.stringify(kept)); } catch {} }
+    return fresh;
+  }
+  function deedsShelf() {
+    const kept = deedsKept(), have = DEEDS.filter(([id]) => kept[id]).length;
+    return `<h4>🎖 Deeds of renown <small class="sub">${have} of ${DEEDS.length}, kept by this browser across games</small></h4>
+      <div class="deeds">${DEEDS.map(([id, icon, title, hint]) => { const k = kept[id];
+        return `<div class="deed-item ${k ? "won" : ""}" title="${esc(hint)}${k ? ` Won in ${k.year} with ${k.nation}.` : ""}"><span class="ic">${k ? icon : "🔒"}</span><b>${esc(title)}</b><small>${k ? `${k.year}, ${esc(k.nation)}` : esc(hint)}</small></div>`; }).join("")}</div>`;
+  }
   // A new reign: the heir crowned, with what they bring to the throne.
+  function deedToast(icon, title) {
+    const box = document.createElement("div"); box.className = "deedtoast";
+    box.innerHTML = `<span class="ic"></span><div><small>A deed of renown</small><b></b></div>`;
+    box.querySelector(".ic").textContent = icon; box.querySelector("b").textContent = title;
+    document.body.appendChild(box); setTimeout(() => box.classList.add("out"), 4200); setTimeout(() => box.remove(), 4800);
+  }
   function coronation(r) {
     const color = N[me].color, ended = reignsOf(G.history || []).slice(-2, -1)[0];
     const pip = (n) => `<span class="cpips">${"◆".repeat(n)}${"◇".repeat(Math.max(0, 6 - n))}</span>`;
@@ -1887,6 +1944,8 @@
   }
   // Each year closes with the feeling it deserves: one sound, and a triumph when it earned one.
   function feelYear(before, evs, won, lost) {
+    const fresh = checkDeeds(evs, won);
+    fresh.forEach(([icon, title], k) => setTimeout(() => { J.play("triumph"); J.floatText($("endturn"), `${icon} ${title}`, "gold"); deedToast(icon, title); }, 4200 + k * 1800));
     const mine = evs.filter((e) => e.nations.includes(G.human));
     const missions = mine.filter((e) => e.kind === "mission_completed" && e.nations[0] === G.human);
     const attacked = mine.some((e) => e.kind === "war_declared" && e.nations[0] !== G.human);

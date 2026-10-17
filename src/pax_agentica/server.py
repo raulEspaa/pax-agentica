@@ -253,6 +253,7 @@ class Session:
                         "standing": mine.standing,
                         "stability": mine.stability,
                         "ruler": mine.ruler,
+                        "at_war": bool(mine.at_war_with),
                     },
                     "courts": {
                         nid: [n.score, n.provinces, n.standing]
