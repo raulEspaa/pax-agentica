@@ -10,6 +10,7 @@ Small value objects (resources, map definitions, rules) are frozen outright.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, Self
 
@@ -291,6 +292,50 @@ class Posture(StrEnum):
     HOLD = "hold"  # a line of pikes behind what cover there is
     SKIRMISH = "skirmish"  # shot and bows thrown forward to harry
     SALLY = "sally"  # horse kept back to charge whoever comes
+
+
+class Water(StrEnum):
+    """The three waters a fleet can hold. Every coastal province looks onto one or two."""
+
+    ATLANTIC = "atlantic"  # the ocean, the Channel, the North Sea
+    BALTIC = "baltic"  # the Baltic and the Gulf of Bothnia
+    MEDITERRANEAN = "mediterranean"  # with the Adriatic and the Black Sea
+
+
+class Ship(StrEnum):
+    GALLEY = "galley"  # oars: cheap, quick in calm inland seas, lost on the ocean
+    GALLEON = "galleon"  # sail and guns: dear, the master of the ocean
+
+
+class ShipSpec(BaseModel):
+    """What a kind of ship costs and is worth in each water."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    cost: Resources
+    pay: float  # ducats a year at war (0: the crews are pressed when needed)
+    strength: dict[Water, float]
+    role: str
+
+
+def default_ships() -> dict[Ship, ShipSpec]:
+    return {
+        Ship.GALLEY: ShipSpec(
+            name="Galleys",
+            cost=Resources(ducats=12, timber=3, manpower=1),
+            pay=0.0,
+            strength={Water.MEDITERRANEAN: 1.5, Water.BALTIC: 1.0, Water.ATLANTIC: 0.5},
+            role="oared war galleys: cheap, and masters of the calm inland seas",
+        ),
+        Ship.GALLEON: ShipSpec(
+            name="Galleons",
+            cost=Resources(ducats=30, timber=6, iron=2, goods=1),
+            pay=0.0,
+            strength={Water.ATLANTIC: 2.5, Water.BALTIC: 2.0, Water.MEDITERRANEAN: 1.5},
+            role="tall ships with broadsides of guns: dear, and the only masters of the ocean",
+        ),
+    }
 
 
 class Focus(StrEnum):
@@ -966,6 +1011,7 @@ class ProvinceDef(BaseModel):
     lat: float
     neighbors: tuple[ProvinceId, ...]  # land borders
     sea_neighbors: tuple[ProvinceId, ...] = ()  # straits: crossings that favour the defender
+    coasts: tuple[Water, ...] = ()  # the waters it looks onto: ships are built and blockaded here
 
 
 class MapDef(BaseModel):
@@ -973,6 +1019,14 @@ class MapDef(BaseModel):
 
     name: str
     provinces: dict[ProvinceId, ProvinceDef]
+    straits: dict[str, Water] = Field(default_factory=dict)  # "a|b" (sorted): the water crossed
+
+    def strait_water(self, a: ProvinceId, b: ProvinceId) -> Water | None:
+        """The water a crossing between two provinces goes over (None: a land border)."""
+        return self.straits.get("|".join(sorted((a, b))))
+
+    def coastal(self, water: Water) -> tuple[ProvinceId, ...]:
+        return tuple(pid for pid, p in self.provinces.items() if water in p.coasts)
 
     def adjacent(self, a: ProvinceId, b: ProvinceId) -> bool:
         p = self.provinces[a]
@@ -1121,6 +1175,16 @@ class Rules(BaseModel):
     buildings: dict[BuildingKind, BuildingSpec] = Field(default_factory=default_buildings)
     # the regiments each crown was famed for: one kind of its army, under its own name
     national_units: dict[str, NationalUnit] = Field(default_factory=default_national_units)
+    # fleets
+    ships: dict[Ship, ShipSpec] = Field(default_factory=default_ships)
+    ships_per_port: int = 3  # ships a port can launch in a year, and one more per 3 development
+    fleet_command: float = 2.0  # a fleet this many times the enemy's closes its straits to it
+    blockade_share: float = 0.25  # ducats a blockaded port loses
+    blockade_min: float = 8.0  # the least fleet strength that can blockade a coast
+    naval_loser_loss: float = 0.5  # share of the beaten fleet sunk or taken
+    naval_winner_loss: float = 0.3  # times the ratio of the loser's strength to the winner's
+    naval_battle_counts: int = 3  # ships the loser must lose for a sea battle to count in the war
+    great_sea_battle: int = 30  # ships on both sides: a battle all Europe talks of
     # from a hamlet to a great city, by development: each step up gives room for one more work
     settlements: tuple[Settlement, ...] = Field(default_factory=default_settlements)
     # what a building does and eats at each level, times its first level's
@@ -1500,6 +1564,19 @@ class NationState(BaseModel):
     infamy: float = 0.0  # aggressive expansion: grows with every province taken, fades yearly
     grudges: list[Grudge] = Field(default_factory=list)  # wrongs it will not forget
     flags: list[str] = Field(default_factory=list)  # choices that last, e.g. "quarantine"
+    fleets: dict[Water, dict[Ship, int]] = Field(default_factory=dict)  # public, as navies are
+
+    def ships(self, water: Water) -> dict[Ship, int]:
+        """The ships stationed in a water, every kind listed."""
+        here = self.fleets.get(water, {})
+        return {k: here.get(k, 0) for k in Ship}
+
+    def set_ships(self, water: Water, ships: Mapping[Ship, int]) -> None:
+        kept = {k: n for k, n in ships.items() if n > 0}
+        if kept:
+            self.fleets[water] = kept
+        else:
+            self.fleets.pop(water, None)
 
 
 class PendingEvent(BaseModel):

@@ -56,7 +56,7 @@ class Modifiers(BaseModel):
     marketplace_share: float = 0.5
     mill_share: float = 0.5  # farm estates and lumber mills
     arms_manufactory: bool = False  # levies need half the iron and no goods
-    navy: bool = False  # attacks across a strait give the defender no sea-crossing bonus
+    navy: float = 0.0  # fleet strength, on top of the ships'
     faith_tolerance: float = 0.0  # share of the penalty for provinces of another faith forgiven
     trade_bonus: float = 0.0  # share of the merchants' cut waived, buying and selling
     sources: tuple[str, ...] = ()  # one line per bonus, for humans and prompts
@@ -82,9 +82,8 @@ TRADITIONS: dict[NationId, tuple[tuple[str, str, dict[str, float]], ...]] = {
     "england": (
         (
             "The Navy Royal",
-            "attacks across a strait face no sea-crossing bonus, and the Merchant Adventurers "
-            "waive a fifth of the merchants' cut",
-            {"navy": 1.0, "trade": 0.2},
+            "+25% fleet strength, and the Merchant Adventurers waive a fifth of the merchants' cut",
+            {"navy": 0.25, "trade": 0.2},
         ),
         ("The wool staple", "+10% ducats", {"ducat_income": 0.10}),
     ),
@@ -111,8 +110,8 @@ TRADITIONS: dict[NationId, tuple[tuple[str, str, dict[str, float]], ...]] = {
     "sweden": (
         (
             "Baltic fleets and peasant pikes",
-            "attacks across a strait face no sea-crossing bonus, and +5% battle power",
-            {"navy": 1.0, "battle_power": 0.05},
+            "+25% fleet strength, and +5% battle power",
+            {"navy": 0.25, "battle_power": 0.05},
         ),
         ("The copper of Falun", "+10% ducats", {"ducat_income": 0.10}),
     ),
@@ -240,7 +239,7 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
     trait_research = 0.0
     trait_forts = 0.0
     penalty = rules.treaty_break_stability_penalty
-    navy, grain_upkeep, tolerance = False, 1.0, 0.0
+    navy, grain_upkeep, tolerance = 0.0, 1.0, 0.0
     grain_spirit, manpower, building_spirit = 0.0, 0.0, 0.0
     trade = rules.trade_bonus_per_economy_level * tech[TechBranch.ECONOMY]
     if trade:
@@ -254,7 +253,7 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         stability += effects.get("stability", 0.0)
         building_spirit += effects.get("building", 0.0)
         grain_upkeep += effects.get("grain_upkeep", 0.0)
-        navy = navy or bool(effects.get("navy"))
+        navy += effects.get("navy", 0.0)
         tolerance += effects.get("tolerance", 0.0)
         lines.append(f"{title}: {words}")
     if tech[TechBranch.ECONOMY]:

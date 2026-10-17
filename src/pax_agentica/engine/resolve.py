@@ -26,6 +26,7 @@ from pax_agentica.engine.actions import (
     Attack,
     BoostStability,
     Build,
+    BuildShips,
     Buy,
     CancelTreaty,
     ChooseOption,
@@ -54,6 +55,9 @@ from pax_agentica.engine.actions import (
     RequestCallToArms,
     Research,
     Respond,
+    SailFleet,
+    ScrapShips,
+    SeekBattle,
     Sell,
     SendMessage,
     SetFocus,
@@ -79,15 +83,19 @@ from pax_agentica.engine.mechanics import (
     defense_multiplier,
     develop_cost,
     fight,
+    fleet_pay,
+    fleet_upkeep,
     focus_bonus,
     manpower_cap,
     market_price,
     market_total,
     morale,
     nation_income,
+    naval_power,
     peace_cost,
     recruit_cost,
     research_cost,
+    sea_command,
     settlement,
     siege_levels,
     siege_modifiers,
@@ -118,12 +126,14 @@ from pax_agentica.engine.model import (
     ProvinceId,
     ProvinceState,
     Resources,
+    Ship,
     Stance,
     Trait,
     Treaty,
     TreatyKind,
     UnitKind,
     War,
+    Water,
     pair,
     share,
 )
@@ -198,6 +208,8 @@ class _Resolver:
         self.flow: dict[str, int] = dict.fromkeys(TRADED, 0)  # net market purchases this year
         self.fallen: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)
         self.mercenaries: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)  # hired this year
+        self.launched: dict[ProvinceId, int] = {}  # ships launched from each port this year
+        self.at_sea: list[tuple[NationId, Water, dict[Ship, int]]] = []  # sailing this year
         self.patrons: set[NationId] = set()  # nations that patronised the arts this year
         self.preached: set[NationId] = set()  # nations that converted a province this year
 
@@ -1275,6 +1287,20 @@ class _Resolver:
                         self._improve(nation, action)
                     case SetFocus():
                         self._set_focus(nation, action)
+                    case BuildShips():
+                        self._build_ships(nation, action)
+                    case ScrapShips():
+                        here = self.s.nations[nation].ships(action.water)
+                        if here[action.ship] < action.count:
+                            have, sea = here[action.ship], action.water.value.title()
+                            self._reject(
+                                nation,
+                                action,
+                                f"only {have} {self._ships(action.ship)} in the {sea}",
+                            )
+                        else:
+                            here[action.ship] -= action.count
+                            self.s.nations[nation].set_ships(action.water, here)
                     case SetPosture():
                         if error := self._hold_error(nation, action.province):
                             self._reject(nation, action, error)
@@ -1556,6 +1582,53 @@ class _Resolver:
             level=level,
         )
 
+    def _ships(self, kind: Ship) -> str:
+        return self.s.rules.ships[kind].name.lower()
+
+    def _build_ships(self, nation: NationId, a: BuildShips) -> None:
+        rules = self.s.rules
+        if error := self._own_error(nation, a.province):
+            self._reject(nation, a, error)
+            return
+        where = self._pname(a.province)
+        coasts = self.s.map.provinces[a.province].coasts
+        water = a.water or (coasts[0] if coasts else None)
+        if water is None or water not in coasts:
+            sea = f"the {water.value.title()}" if water else "the sea"
+            self._reject(nation, a, f"{where} has no port on {sea}")
+            return
+        province = self.s.provinces[a.province]
+        if province.siege_by is not None:
+            self._reject(nation, a, f"{where} is besieged")
+            return
+        room = rules.ships_per_port + province.development // 3 - self.launched.get(a.province, 0)
+        if a.count > room:
+            self._reject(
+                nation,
+                a,
+                f"the yards of {where} can launch only {max(0, room)} more ships this year",
+            )
+            return
+        spec = rules.ships[a.ship]
+        if error := self._pay(nation, spec.cost.times(a.count)):
+            self._reject(nation, a, error)
+            return
+        self.launched[a.province] = self.launched.get(a.province, 0) + a.count
+        me = self.s.nations[nation]
+        fleet = me.ships(water)
+        fleet[a.ship] += a.count
+        me.set_ships(water, fleet)
+        self._emit(
+            EventKind.SHIPS_BUILT,
+            f"{self._name(nation)} launches {a.count} {spec.name.lower()} from {where} into the "
+            f"{water.value.title()}",
+            nations=(nation,),
+            province=a.province,
+            water=water.value,
+            ship=a.ship.value,
+            count=a.count,
+        )
+
     def _set_focus(self, nation: NationId, a: SetFocus) -> None:
         rules = self.s.rules
         if error := self._own_error(nation, a.province):
@@ -1730,6 +1803,31 @@ class _Resolver:
             nations=(nation,),
             audience=(nation,),
             role=a.role.value,
+        )
+
+    def _pay_fleet(self, nation: NationId) -> None:
+        """At war the crews are paid before the army; unpaid, they leave, and the dearest ships
+        are laid up until the rest can be paid."""
+        me, rules = self.s.nations[nation], self.s.rules
+        pay = fleet_pay(self.s, nation)
+        if pay <= me.resources.ducats:
+            me.resources = me.resources - Resources(ducats=pay)
+            return
+        laid_up = 0
+        while me.fleets and fleet_upkeep(rules, me.fleets) > me.resources.ducats:
+            water = max(me.fleets, key=lambda w: (sum(me.fleets[w].values()), w))
+            ships = me.ships(water)
+            kind = max((k for k in Ship if ships[k]), key=lambda k: rules.ships[k].pay)
+            ships[kind] -= 1
+            me.set_ships(water, ships)
+            laid_up += 1
+        me.resources = me.resources - Resources(ducats=fleet_upkeep(rules, me.fleets))
+        self._emit(
+            EventKind.DESERTION,
+            f"{laid_up} of {me.name}'s ships are laid up: their crews went unpaid",
+            nations=(nation,),
+            audience=(nation,),
+            ships=laid_up,
         )
 
     def _pay_council(self, nation: NationId) -> None:
@@ -1925,6 +2023,9 @@ class _Resolver:
 
     def _movement(self) -> None:
         for nation in self.order:
+            for sail in self._actions(nation, SailFleet):
+                self._sail(nation, sail)
+        for nation in self.order:
             for lift in self._actions(nation, LiftSiege):
                 p = self.s.provinces.get(lift.province)
                 if p is None or p.siege_by != nation:
@@ -1968,6 +2069,125 @@ class _Resolver:
                     origin=a.origin,
                 )
 
+    def _sail(self, nation: NationId, a: SailFleet) -> None:
+        me = self.s.nations[nation]
+        if a.origin == a.target:
+            self._reject(nation, a, f"the fleet is already in the {a.target.value.title()}")
+            return
+        ports = [p for p in self.s.map.coastal(a.target) if self.s.provinces[p].holder == nation]
+        if not ports:
+            self._reject(nation, a, f"you hold no port on the {a.target.value.title()}")
+            return
+        here = me.ships(a.origin)
+        for kind, n in a.ships.items():
+            if n < 0 or here[kind] < n:
+                self._reject(
+                    nation,
+                    a,
+                    f"only {here[kind]} {self._ships(kind)} in the {a.origin.value.title()}",
+                )
+                return
+        going = {k: n for k, n in a.ships.items() if n}
+        if not going:
+            self._reject(nation, a, "no ships named")
+            return
+        me.set_ships(a.origin, {k: here[k] - going.get(k, 0) for k in Ship})
+        self.at_sea.append((nation, a.target, going))
+        count = sum(going.values())
+        self._emit(
+            EventKind.FLEET_SAILED,
+            f"{self._name(nation)} sends {count} ships from the {a.origin.value.title()} to the "
+            f"{a.target.value.title()}",
+            nations=(nation,),
+            origin=a.origin.value,
+            water=a.target.value,
+            count=count,
+        )
+
+    def _landfall(self) -> None:
+        """The fleets at sea this year make port in their new water."""
+        for nation, water, ships in self.at_sea:
+            me = self.s.nations[nation]
+            if not me.alive:
+                continue
+            here = me.ships(water)
+            me.set_ships(water, {k: here[k] + ships.get(k, 0) for k in Ship})
+        self.at_sea = []
+
+    def _sea_battles(self) -> None:
+        """Fleets that seek each other out fight before the armies march: one battle a year
+        for each pair of realms in each water."""
+        fought: set[tuple[Water, tuple[NationId, NationId]]] = set()
+        for nation in self.order:
+            for a in self._actions(nation, SeekBattle):
+                key = (a.water, tuple(sorted((nation, a.enemy))))
+                if key in fought:
+                    continue
+                if error := self._sea_battle_error(nation, a):
+                    self._reject(nation, a, error)
+                    continue
+                fought.add(key)  # type: ignore[arg-type]
+                self._sea_battle(nation, a.enemy, a.water)
+
+    def _sea_battle_error(self, nation: NationId, a: SeekBattle) -> str | None:
+        if a.enemy not in self.s.nations or not self.s.nations[a.enemy].alive:
+            return f"there is no realm '{a.enemy}'"
+        war = self.s.war(nation, a.enemy)
+        if war is None:
+            return f"you are not at war with {self._name(a.enemy)}: declare war first"
+        if self.turn < war.since + self.s.rules.mobilization_turns:
+            return "your fleet is still fitting out: it can sail out next year"
+        if not naval_power(self.s, nation, a.water):
+            return f"you have no ships in the {a.water.value.title()}"
+        if not naval_power(self.s, a.enemy, a.water):
+            return f"{self._name(a.enemy)} has no fleet in the {a.water.value.title()} to fight"
+        return None
+
+    def _sea_battle(self, nation: NationId, enemy: NationId, water: Water) -> None:
+        rules = self.s.rules
+        mine, theirs = self.s.nations[nation].ships(water), self.s.nations[enemy].ships(water)
+        lo, hi = rules.roll_min, rules.roll_max
+        att = naval_power(self.s, nation, water) * morale(self.s, nation) * self.rng.uniform(lo, hi)
+        dfn = naval_power(self.s, enemy, water) * morale(self.s, enemy) * self.rng.uniform(lo, hi)
+        won = att > dfn
+        winner, loser = (nation, enemy) if won else (enemy, nation)
+        win_ships, lose_ships = (mine, theirs) if won else (theirs, mine)
+        ratio = min(att, dfn) / max(att, dfn)
+        sunk = {k: math.ceil(n * rules.naval_loser_loss) for k, n in lose_ships.items()}
+        lost = {k: round(n * rules.naval_winner_loss * ratio) for k, n in win_ships.items()}
+        self.s.nations[loser].set_ships(water, {k: lose_ships[k] - sunk[k] for k in Ship})
+        self.s.nations[winner].set_ships(water, {k: win_ships[k] - lost[k] for k in Ship})
+        if sum(sunk.values()) >= rules.naval_battle_counts:  # a skirmish of boats is no battle
+            self._battle_counts(nation, enemy, won=won)
+        total = sum(mine.values()) + sum(theirs.values())
+        great = total >= rules.great_sea_battle
+        if great:  # a battle all Europe talks of for a generation
+            self._prestige(winner, 2 * rules.prestige_battle, "a great sea battle won")
+            self._prestige(loser, -2 * rules.prestige_battle, "a great sea battle lost")
+
+        def ships(fleet: dict[Ship, int]) -> str:
+            return ", ".join(f"{n} {k.value}s" for k, n in fleet.items() if n) or "no ships"
+
+        self._emit(
+            EventKind.NAVAL_BATTLE,
+            f"{'A great sea battle' if great else 'Sea battle'} in the {water.value.title()}: "
+            f"{self._name(nation)} ({ships(mine)}) against {self._name(enemy)} ({ships(theirs)}). "
+            f"{self._name(winner)} wins. Ships lost: {sum(lost.values())} to "
+            f"{sum(sunk.values())}",
+            nations=(nation, enemy),
+            water=water.value,
+            attacker=nation,
+            defender=enemy,
+            attacker_fleet=ships(mine),
+            defender_fleet=ships(theirs),
+            attacker_power=round(att, 1),
+            defender_power=round(dfn, 1),
+            attacker_won=won,
+            winner_lost=sum(lost.values()),
+            loser_lost=sum(sunk.values()),
+            great=great,
+        )
+
     def _composition_error(
         self, origin: ProvinceId, regiments: int, units: Mapping[UnitKind, int] | None
     ) -> str | None:
@@ -1985,6 +2205,7 @@ class _Resolver:
     # ------------------------------------------------------------ phase 5: battles
 
     def _combat(self) -> None:
+        self._sea_battles()
         queues = {n: self._joined(n, list(self._actions(n, Attack))) for n in self.order}
         while any(queues.values()):
             for nation in self.order:
@@ -1992,6 +2213,7 @@ class _Resolver:
                     self._attack(nation, queues[nation].pop(0))
                 elif queues[nation]:
                     queues[nation].clear()
+        self._landfall()
 
     def _joined(self, nation: NationId, attacks: list[Attack]) -> list[Attack]:
         """A realm's armies that fall on the same province in the same year fight it as one:
@@ -2054,6 +2276,22 @@ class _Resolver:
         rules = self.s.rules
         return 1 - min(rules.joint_attack_penalty_max, rules.joint_attack_penalty * (armies - 1))
 
+    def _crossing_error(self, nation: NationId, a: Attack) -> str | None:
+        """An army cannot cross a strait whose water the enemy's fleet commands."""
+        water = self.s.map.strait_water(a.origin, a.target)
+        if water is None:
+            return None
+        target = self.s.provinces[a.target]
+        enemy = target.siege_by if target.siege_by not in (None, nation) else target.holder
+        if enemy is None or enemy == nation:
+            return None
+        if sea_command(self.s, nation, enemy, water) == "closed":
+            return (
+                f"the fleet of {self._name(enemy)} commands the {water.value.title()}: no army "
+                "of yours can cross until you match it at sea"
+            )
+        return None
+
     def _join_error(self, nation: NationId, a: Attack) -> str | None:
         """Why one army of a joint attack cannot march with the others."""
         if a.target not in self.s.provinces:
@@ -2062,6 +2300,8 @@ class _Resolver:
             return error
         if not self.s.map.adjacent(a.origin, a.target):
             return f"{self._pname(a.origin)} and {self._pname(a.target)} do not border"
+        if error := self._crossing_error(nation, a):
+            return error
         if self.s.provinces[a.origin].troops == 0:
             return f"no regiments left in {self._pname(a.origin)}"
         if a.units is not None and (
@@ -2097,6 +2337,9 @@ class _Resolver:
             )
             return
         origin, target = self.s.provinces[a.origin], self.s.provinces[a.target]
+        if error := self._crossing_error(nation, a):
+            self._reject(nation, a, error)
+            return
         if target.siege_by == nation:
             self._reinforce(nation, a)
             return
@@ -2696,6 +2939,7 @@ class _Resolver:
         self.s.generals = [g for g in self.s.generals if g.nation != nation]
         state.alive = False
         state.resources = Resources()
+        state.fleets = {}
         for p in self.s.provinces.values():
             if p.controller == nation:  # its occupying armies melt away
                 p.controller = None
@@ -2895,19 +3139,26 @@ class _Resolver:
         treasury and the year's yield cannot cover stands idle and yields nothing."""
         for pid in self.s.provinces_of(nation):
             self.s.provinces[pid].idle = []
-        income = nation_income(self.s, nation)
-        available = self.s.nations[nation].resources + income
-        paid, idle = Resources(), []
-        for pid, kind in building_inputs(self.s, nation):
-            need = building_consumes(self.s.rules, kind, self.s.provinces[pid].level(kind))
-            if available.covers(need):
-                available = available - need
-                paid = paid + need
-            else:
+        idle: list[tuple[ProvinceId, BuildingKind]] = []
+        while True:  # an idle building yields less, which may leave another unfed in turn
+            income = nation_income(self.s, nation)
+            available = self.s.nations[nation].resources + income
+            paid, short = Resources(), []
+            for pid, kind in building_inputs(self.s, nation):
+                if (pid, kind) in idle:
+                    continue
+                need = building_consumes(self.s.rules, kind, self.s.provinces[pid].level(kind))
+                if available.covers(need):
+                    available = available - need
+                    paid = paid + need
+                else:
+                    short.append((pid, kind))
+            if not short:
+                break
+            for pid, kind in short:
                 idle.append((pid, kind))
                 self.s.provinces[pid].idle.append(kind)
         if idle:
-            income = nation_income(self.s, nation)
             names = ", ".join(
                 f"{self.s.rules.buildings[k].name.lower()} in {self._pname(pid)}" for pid, k in idle
             )
@@ -3005,6 +3256,7 @@ class _Resolver:
         if state.resources.manpower > cap:
             state.resources = state.resources.model_copy(update={"manpower": cap})
         self._pay_council(nation)
+        self._pay_fleet(nation)
         factor = modifiers(self.s, nation).grain_upkeep_factor
         upkeep = army_upkeep(rules, army_of(self.s, nation), factor)
         paid = upkeep.capped_by(state.resources)

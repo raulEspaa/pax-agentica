@@ -46,6 +46,8 @@ class EventKind(StrEnum):
     BUILT = "built"
     IMPROVED = "improved"
     FOCUS_SET = "focus_set"
+    SHIPS_BUILT = "ships_built"
+    FLEET_SAILED = "fleet_sailed"
     MISSION_COMPLETED = "mission_completed"
     TAXES_SET = "taxes_set"
     INFAMY = "infamy"
@@ -69,6 +71,7 @@ class EventKind(StrEnum):
     # war
     MOVED = "moved"
     BATTLE = "battle"
+    NAVAL_BATTLE = "naval_battle"
     PROVINCE_CAPTURED = "province_captured"
     PROVINCE_OCCUPIED = "province_occupied"
     PROVINCE_LIBERATED = "province_liberated"

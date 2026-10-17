@@ -11,6 +11,7 @@ A player never receives the `GameState`; it receives a `NationView` built here. 
   including messages, proposals and the reasons your own orders were rejected.
 """
 
+import math
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -21,12 +22,15 @@ from pax_agentica.engine.mechanics import (
     army_of,
     army_upkeep,
     base_output,
+    blockaded,
+    blockaded_ports,
     building_cost,
     building_output,
     building_slots,
     convert_cost,
     develop_cost,
     faith_penalty,
+    fleet_pay,
     focus_bonus,
     inputs_upkeep,
     manpower_cap,
@@ -35,6 +39,7 @@ from pax_agentica.engine.mechanics import (
     morale,
     nation_income,
     nation_upkeep,
+    naval_power,
     province_output,
     recruit_cost,
     research_cost,
@@ -64,11 +69,13 @@ from pax_agentica.engine.model import (
     Resources,
     Ruler,
     Rules,
+    Ship,
     Stance,
     TechBranch,
     Terrain,
     TreatyKind,
     UnitKind,
+    Water,
 )
 from pax_agentica.engine.realm import Modifiers, advisor_candidates, advisor_hire_cost, modifiers
 
@@ -132,6 +139,8 @@ class ProvinceView(_View):
     monument: int | None  # level of its monument (see rules.monuments); None if it has none
     neighbors: tuple[ProvinceId, ...]
     sea_neighbors: tuple[ProvinceId, ...]
+    coasts: tuple[Water, ...]  # the waters it looks onto: where ships are built
+    straits: dict[ProvinceId, Water]  # the water each sea crossing goes over
 
 
 class TreatyView(_View):
@@ -234,6 +243,9 @@ class MyNation(_View):
     ]  # where your armies stand: your own unoccupied land and what you occupy
     war_exhaustion: float  # 0 to 20: costs ducats, and stability from 10
     morale: float  # your armies' battle power from stability and war exhaustion (1 = even)
+    fleets: dict[Water, dict[Ship, int]]  # your ships in each water
+    naval_power: dict[Water, float]  # what they are worth there (galleys rule calm seas)
+    blockaded: tuple[Water, ...]  # waters an enemy fleet holds against you: those ports earn less
     prestige: int  # 0 to 100: ducats, cheaper stability, and half of it counts towards victory
     standing: int  # development plus half the prestige: what wins when time runs out
     faith: Faith
@@ -278,6 +290,8 @@ class NationSummary(_View):
     prestige: int
     standing: int
     faith: Faith
+    fleets: dict[Water, dict[Ship, int]]  # its ships in each water: navies are public
+    naval_power: dict[Water, float]  # what they are worth there
     stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
     infamy: float  # its conquests' weight on Europe; from rules.coalition_infamy, a league may form
     leagued_against: tuple[NationId, ...]  # the conquerors this court has leagued against
@@ -328,6 +342,10 @@ class NationView(_View):
     market: dict[str, PriceView]  # the European market today: trade with `buy` and `sell`
     crisis: CrisisView | None  # the age's great trouble, from the year it is announced
     rules: Rules
+
+
+def _naval(state: GameState, nation: NationId) -> dict[Water, float]:
+    return {w: round(v, 2) for w in Water if (v := naval_power(state, nation, w))}
 
 
 def visible_provinces(state: GameState, nation: NationId) -> set[ProvinceId]:
@@ -446,6 +464,12 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             else None,
             neighbors=definition.neighbors,
             sea_neighbors=definition.sea_neighbors,
+            coasts=definition.coasts,
+            straits={
+                q: w
+                for q in definition.sea_neighbors
+                if (w := state.map.strait_water(pid, q)) is not None
+            },
         )
         for pid, definition in state.map.provinces.items()
         for ps in [state.provinces[pid]]
@@ -480,6 +504,9 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         held=tuple(state.held_by(nation)),
         war_exhaustion=me.war_exhaustion,
         morale=round(morale(state, nation), 3),
+        fleets={w: dict(ships) for w, ships in me.fleets.items()},
+        naval_power=_naval(state, nation),
+        blockaded=tuple(sorted(blockaded(state, nation))),
         prestige=me.prestige,
         standing=state.standing(nation),
         faith=me.faith,
@@ -549,6 +576,8 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             technology=dict(ns.technology),
             generals=len(state.generals_of(nid)),
             ruler=ns.ruler,
+            fleets={w: dict(ships) for w, ships in ns.fleets.items()},
+            naval_power=_naval(state, nid),
             opinion_of_you=state.opinion(nid, nation),
             stances=dict(ns.stances),
             war_exhaustion=ns.war_exhaustion,
@@ -680,21 +709,33 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
             for k, v in full.amounts().items():
                 discontent[k] -= v - kept.amounts()[k]
     income = nation_income(state, nation).amounts()
+    choked = {"ducats": 0}
+    for pid in blockaded_ports(state, nation):
+        ducats = province_output(state, pid).ducats
+        choked["ducats"] -= ducats - math.floor(ducats * (1 - state.rules.blockade_share))
     crown = {  # stability, technology, ruler, prestige, taxes, exhaustion...
-        k: v - land.amounts()[k] - buildings.amounts()[k] - workings.amounts()[k] - discontent[k]
+        k: v
+        - land.amounts()[k]
+        - buildings.amounts()[k]
+        - workings.amounts()[k]
+        - discontent[k]
+        - choked.get(k, 0)
         for k, v in income.items()
     }
     factor = modifiers(state, nation).grain_upkeep_factor
     army = army_upkeep(state.rules, army_of(state, nation), factor)
-    council = nation_upkeep(state, nation) - army
     me = state.nations[nation]
+    fleet = Resources(ducats=fleet_pay(state, nation))
+    council = nation_upkeep(state, nation) - army - fleet
     lines = [
         LedgerLine(kind="income", source="land", amount=land.amounts()),
         LedgerLine(kind="income", source="buildings", amount=buildings.amounts()),
         LedgerLine(kind="income", source="workings", amount=workings.amounts()),
         LedgerLine(kind="income", source="provinces of another faith", amount=discontent),
         LedgerLine(kind="income", source="the crown's modifiers", amount=crown),
+        LedgerLine(kind="income", source="blockaded ports", amount=choked),
         LedgerLine(kind="expense", source="the army", amount=army.amounts()),
+        LedgerLine(kind="expense", source="the fleets", amount=fleet.amounts()),
         LedgerLine(kind="expense", source="the council", amount=council.amounts()),
         LedgerLine(
             kind="expense", source="building inputs", amount=inputs_upkeep(state, nation).amounts()

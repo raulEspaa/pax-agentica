@@ -30,6 +30,7 @@ from pax_agentica.engine.model import (
     Tactic,
     TechBranch,
     UnitKind,
+    Water,
 )
 from pax_agentica.engine.view import ProvinceView
 
@@ -91,6 +92,8 @@ def battle_odds(
         return 0.0
     if there.troops is None:
         return None
+    if sea_command(view, origin, target) == "closed":
+        return 0.0  # their fleet bars the strait: the army cannot cross
     if there.troops == 0:
         return 1.0
     ground = there.terrain
@@ -123,10 +126,39 @@ def battle_odds(
         bonus += 0.2
     if there.is_capital:
         bonus += rules.capital_bonus
-    if target in here.sea_neighbors and not view.me.modifiers.navy:
+    if target in here.sea_neighbors and sea_command(view, origin, target) != "ours":
         bonus += rules.sea_crossing_bonus
     theirs *= rules.defender_advantage * rules.terrain_defense[ground] * (1 + bonus)
     return round(win_chance(mine, theirs, rules.roll_min, rules.roll_max), 3)
+
+
+def naval_power(view: NationView, nation: str | None, water: Water) -> float:
+    """A realm's fleet strength in a water, as Europe knows it (navies are public)."""
+    if nation is None:
+        return 0.0
+    if nation == view.me.id:
+        return view.me.naval_power.get(water, 0.0)
+    other = next((n for n in view.nations if n.id == nation), None)
+    return other.naval_power.get(water, 0.0) if other else 0.0
+
+
+def sea_command(view: NationView, origin: ProvinceId, target: ProvinceId) -> str:
+    """Who holds the water an attack from `origin` would cross to `target`, as the engine
+    judges it: "closed" (their fleet bars the crossing), "ours" (the strait favours no one),
+    "contested" (it favours the defender) or "land" (no strait)."""
+    water = _province(view, origin).straits.get(target)
+    if water is None:
+        return "land"
+    there = _province(view, target)
+    enemy = (
+        there.siege_by
+        if there.siege_by not in (None, view.me.id)
+        else (there.controller or there.owner)
+    )
+    mine, theirs = naval_power(view, view.me.id, water), naval_power(view, enemy, water)
+    if theirs > 0 and theirs >= view.rules.fleet_command * mine:
+        return "closed"
+    return "ours" if mine > theirs else "contested"
 
 
 def best_tactic(
@@ -159,7 +191,9 @@ def targets(view: NationView, origin: ProvinceId) -> list[dict[str, Any]]:
         holder = p.controller or p.owner
         if holder == view.me.id:
             out.append({"province": pid, "action": "move"})
-        elif holder is None or holder in view.me.at_war_with:
+        elif (holder is None or holder in view.me.at_war_with) and sea_command(
+            view, origin, pid
+        ) != "closed":
             tactic = best_tactic(view, origin, pid)
             odds = battle_odds(view, origin, pid, tactic=tactic)
             out.append({"province": pid, "action": "attack", "tactic": tactic, "odds": odds})

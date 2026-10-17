@@ -11,7 +11,8 @@ else to play. Every number here comes from `Rules` in
   **trade good** (one of fourteen, see below), a **development** level (1–12), **workings**
   (0–3), **buildings** and a garrison of **regiments**.
 - **Borders** are land borders or **straits** (the Channel, the Øresund, Gibraltar…). Straits
-  can be crossed, but they favour the defender. Land borders are exactly the ones drawn on the
+  can be crossed, but they favour the defender unless the attacker's fleet holds the water, and
+  a fleet twice the attacker's closes them (see Fleets). Land borders are exactly the ones drawn on the
   map, which is built from real geography.
 - **Nine great powers**: England, France, Spain, Austria, the Ottoman Empire, Sweden, Russia,
   Poland-Lithuania and Brandenburg-Prussia. Two unions come early, so the middle of Europe has
@@ -315,11 +316,11 @@ bots' tournaments get a little more.
 | Spain | Tercios (pikemen, attack and defence ×1.15) | The Catholic Kings: stability 10% cheaper · The Mesta: +10% grain |
 | Austria | Landsknechte (pikemen, attack ×1.15, 15% cheaper) | The imperial crown: +5% ducats · Let others wage war: stability 10% cheaper |
 | France | Gendarmes (cavalry, attack ×1.3, defence ×1.15) | The Most Christian King: +10% ducats · The first army of Christendom: +8% battle power |
-| England | Longbowmen (archers, defence ×1.25, 20% cheaper) | The Navy Royal: no sea-crossing bonus against its attacks, a fifth of the merchants' cut waived · The wool staple: +10% ducats |
+| England | Longbowmen (archers, defence ×1.25, 20% cheaper) | The Navy Royal: +25% fleet strength, a fifth of the merchants' cut waived · The wool staple: +10% ducats |
 | Ottomans | Janissaries (archers, attack ×1.35, defence ×1.15) | The millet system: other faiths cost half · The devshirme: +5% battle power, +10% manpower |
 | Poland-Lithuania | Winged Hussars (cavalry, attack ×1.35, ×1.45 on plains) | The granary of Europe: +20% grain · Golden liberty: stability 10% cheaper |
 | Russia | Streltsy (archers, defence ×1.2, 15% cheaper) | The lands of Rus': +25% manpower · The Third Rome: buildings and development 10% cheaper |
-| Sweden | Dalecarlians (pikemen, defence ×1.2, ×1.15 in forests and hills) | Baltic fleets and peasant pikes: no sea-crossing bonus against its attacks, +5% battle power · The copper of Falun: +10% ducats |
+| Sweden | Dalecarlians (pikemen, defence ×1.2, ×1.15 in forests and hills) | Baltic fleets and peasant pikes: +25% fleet strength, +5% battle power · The copper of Falun: +10% ducats |
 | Brandenburg-Prussia | Reiters (cavalry, attack ×1.2, no penalty in forests) | Prussian drill: +10% battle power, 15% less grain · A refuge for the persecuted: buildings and development 10% cheaper |
 
 **The council.** Three seats, each filled by an advisor of skill 1 to 3, and of a temper (hawk,
@@ -434,6 +435,39 @@ technology, milestones, ruler and council.
   marched into, nor raise levies or build. A peace lifts the siege.
 - **An occupied capital** costs its owner 1 stability. A capital only changes hands in a peace,
   and only to the side that occupies it; a nation that loses its last province is gone.
+
+### Fleets
+
+Fleets are not drawn on the map: each realm keeps ships in three **waters**, the Atlantic (with
+the Channel and the North Sea), the Baltic (with the Gulf of Bothnia) and the Mediterranean (with
+the Adriatic and the Black Sea). Every coastal province looks onto one or two of them. Navies are
+public: every court knows every fleet.
+
+| Ship | Cost | Strength: Atlantic | Baltic | Mediterranean |
+|---|---|---|---|---|
+| Galley | 12 ducats, 3 timber, 1 manpower | 0.5 | 1 | 1.5 |
+| Galleon | 30 ducats, 6 timber, 2 iron, 1 goods | 2.5 | 2 | 1.5 |
+
+Ships cost their price once: the crews are pressed when needed, so a fleet costs nothing a
+year (a tournament may set `pay`, ducats a year at war).
+
+- `build_ships` launches ships from one of your ports into its water: at most 3 a year from a
+  port, and one more for every 3 development. `scrap_ships` lays them up. `sail_fleet` sends
+  ships to another water where you hold a port; they are at sea all year and arrive at its end.
+- **The straits.** A fleet twice as strong as the attacker's (and stronger than nothing) closes
+  a strait's water to its armies: they cannot cross. A fleet stronger than the defender's takes
+  away the strait's 25% defence bonus.
+- **Sea battles.** `seek_battle` sends your fleet in a water against an enemy's there, before the
+  armies march. Strength × morale × a roll of 0.8 to 1.2 decides it; the beaten fleet loses half
+  its ships, the winner 30% of the loser's strength over its own. It counts in the war score like
+  a land battle when the beaten fleet loses 3 ships or more. With 30 ships or more on both sides it is a great sea battle: twice the
+  prestige.
+- **Blockade.** At war, an enemy fleet of strength 8 or more, twice yours in a water, blockades
+  it: your provinces whose every coast is on blockaded water earn 25% fewer ducats.
+- The fleets of 1500: the Sultan's 10 galleys and a galleon; Spain's 6 galleys and 3 galleons
+  on two seas; France's 4 galleys and 2 galleons; England's 4 galleons and a galley; Sweden's 3
+  galleys and 2 galleons; a galley each for Brandenburg and Austria. England and Sweden sail a
+  quarter better.
 
 ### War score and exhaustion
 

@@ -157,7 +157,7 @@
     attack: ["order", "⚔"], move: ["order", "➜"], buy: ["coins", null], sell: ["coins", null], gift: ["coins", null], convert: ["order", "✝"],
     lift_siege: ["unorder", "🏳"], declare_war: ["war", null], send_message: ["seal", null], respond: ["seal", null],
     choose_option: ["seal", null], set_taxes: ["coins", null], boost_stability: ["coins", null], patronize: ["coins", null],
-    hire_general: ["order", "★"], assign_general: ["order", "★"]};
+    hire_general: ["order", "★"], assign_general: ["order", "★"], build_ships: ["build", null], sail_fleet: ["order", null], seek_battle: ["war", null], scrap_ships: ["unorder", null]};
   function queue(order) {
     if (orders.length >= MAX_ORDERS) return flash(`A realm can give at most ${MAX_ORDERS} orders a year.`);
     orders.push(order);
@@ -197,6 +197,7 @@
     if (o.type === "sell") { const k = RES.findIndex(([key]) => key === o.resource); d[k] -= o.amount; d[0] += Math.floor(o.amount * V.market[o.resource].sell); }
     if (o.type === "develop") sub(unbundle(prov(pIndex[o.province]).develop_cost));
     if (o.type === "set_focus") sub(R.focus.cost);
+    if (o.type === "build_ships") sub(R.ships[o.ship].cost.map((v) => v * o.count));
     if (o.type === "improve" && prov(pIndex[o.province]).improve_cost) sub(unbundle(prov(pIndex[o.province]).improve_cost));
     if (o.type === "hire_mercenaries") d[0] -= o.regiments * R.mercenaryCost;
     if (o.type === "patronize") d[0] -= V.me.patronage_cost;
@@ -316,6 +317,72 @@
     return TACTICS.map(([k]) => k).reduce((a, b) => (tacticFactor(b, f.posture, army, f.army, P[to].terrain) > tacticFactor(a, f.posture, army, f.army, P[to].terrain) + 1e-9 ? b : a), "assault");
   }
   const chosenTactic = (to, army) => (tactic === "best" ? bestTactic(to, army) : tactic);
+  // ------------------------------------------------------------------ fleets
+  const WATERS = [["atlantic", "🌊", "The Atlantic", "the ocean, the Channel and the North Sea"],
+    ["baltic", "❄", "The Baltic", "the Baltic and the Gulf of Bothnia"], ["mediterranean", "☀", "The Mediterranean", "with the Adriatic and the Black Sea"]];
+  const waterOf = (id) => WATERS.find(([k]) => k === id) || WATERS[0];
+  const SHIPS = ["galley", "galleon"], SICON = {galley: "🚣", galleon: "⛵"};
+  function navalPower(nid, w) {
+    if (!nid) return 0;
+    if (nid === G.human) return (V.me.naval_power || {})[w] || 0;
+    const n = V.nations.find((x) => x.id === nid);
+    return n ? (n.naval_power || {})[w] || 0 : 0;
+  }
+  // who holds the water an attack from `origin` crosses to `target`, as the engine judges it
+  function seaCommand(origin, target) {
+    const w = (P[origin].straits || {})[target];
+    if (!w) return "land";
+    const p = prov(target), enemy = p.siege_by && p.siege_by !== G.human ? p.siege_by : p.controller || p.owner;
+    const mine = navalPower(G.human, w), theirs = navalPower(enemy, w);
+    if (theirs > 0 && theirs >= R.navy.command * mine) return "closed";
+    return mine > theirs ? "ours" : "contested";
+  }
+  const shipsIn = (w) => ({galley: 0, galleon: 0, ...((V.me.fleets || {})[w] || {})});
+  const buildWater = (o) => o.water || P[pIndex[o.province]].coasts[0];
+  const launching = (w) => { const out = {galley: 0, galleon: 0}; orders.filter((o) => o.type === "build_ships" && buildWater(o) === w).forEach((o) => (out[o.ship] += o.count)); return out; };
+  const shipPower = (ships, w) => SHIPS.reduce((t, k) => t + (ships[k] || 0) * R.ships[k].strength[w], 0) * (1 + (V.me.modifiers.navy || 0));
+  let fleetPort = {}, fleetN = {};
+  function fleetsSection() {
+    const ports = (w) => V.me.provinces.map((id) => pIndex[id]).filter((i) => P[i].coasts.includes(w) && !prov(i).controller && !prov(i).siege_by);
+    const waters = WATERS.filter(([w]) => ports(w).length || SHIPS.some((k) => shipsIn(w)[k]));
+    if (!waters.length) return `<p class="muted">You hold no port: a realm without a coast keeps no fleet.</p>`;
+    const cards = waters.map(([w, ic, name, what]) => {
+      const have = shipsIn(w), coming = launching(w), mine = navalPower(G.human, w);
+      const harbours = ports(w);
+      if (!fleetPort[w] || !harbours.includes(pIndex[fleetPort[w]])) fleetPort[w] = harbours.length ? P[harbours.sort((a, b) => prov(b).development - prov(a).development)[0]].id : null;
+      const port = fleetPort[w] ? pIndex[fleetPort[w]] : -1;
+      const used = orders.filter((o) => o.type === "build_ships" && o.province === fleetPort[w]).reduce((a, o) => a + o.count, 0);
+      const room = port >= 0 ? R.navy.perPort + Math.floor(prov(port).development / 3) - used : 0;
+      const n = (k) => Math.min(fleetN[`${w}:${k}`] || 0, room);
+      const cost = [0, 0, 0, 0, 0, 0]; SHIPS.forEach((k) => R.ships[k].cost.forEach((v, j) => (cost[j] += v * n(k))));
+      const ok = SHIPS.some((k) => n(k) > 0) && affordable(cost) && SHIPS.reduce((a, k) => a + n(k), 0) <= room;
+      const courts = [{id: G.human, name: V.me.name, power: mine}, ...V.nations.filter((x) => x.alive).map((x) => ({id: x.id, name: x.name, power: navalPower(x.id, w)}))]
+        .filter((c) => c.power > 0).sort((a, b) => b.power - a.power);
+      const top = courts[0] ? courts[0].power : 1;
+      const race = courts.slice(0, 5).map((c) => `<div class="raceline ${c.id === G.human ? "me" : ""}"><span>${esc(c.name)}${c.id !== G.human && relation(c.id).war ? " ⚔" : ""}</span><i><b style="width:${Math.round(100 * c.power / top)}%;background:${N[nIndex[c.id]].color}"></b></i><span class="num">${c.power.toFixed(1)}</span></div>`).join("");
+      const enemies = V.me.wars.filter((x) => x.attacks_allowed_from_turn <= V.turn && navalPower(x.enemy, w) > 0).map((x) => x.enemy);
+      const seeking = new Set(orders.filter((o) => o.type === "seek_battle" && o.water === w).map((o) => o.enemy));
+      const foe = (nid) => { const ex = V.nations.find((x) => x.id === nid)?.war_exhaustion || 0;
+        return winChance(mine * myMorale(), navalPower(nid, w) * (1 - R.tactics.perExhaustion * ex), 1); };
+      const battles = mine > 0 ? enemies.map((e) => `<button class="btn ${seeking.has(e) ? "on" : ""}" data-seek="${w}:${e}" ${seeking.has(e) ? "disabled" : ""}>⚔ Seek out the fleet of ${esc(nameOf(e))} · ${Math.round(foe(e) * 100)}%</button>`).join("") : "";
+      const blockaded = (V.me.blockaded || []).includes(w);
+      const strongest = courts[0] && courts[0].id === G.human;
+      const status = blockaded ? `<span class="chip war">⚓ blockaded: your ports here earn ${Math.round(R.navy.blockadeShare * 100)}% fewer ducats</span>`
+        : strongest ? `<span class="chip">👑 the strongest fleet here</span>` : "";
+      const others = WATERS.filter(([x]) => x !== w && ports(x).length);
+      const total = SHIPS.reduce((a, k) => a + have[k], 0);
+      const sailing = orders.some((o) => o.type === "sail_fleet" && o.origin === w);
+      const stepper = (k) => `<span class="stepper"><button type="button" data-fleetkind="${w}:${k}" data-d="-1">−</button><b class="num">${n(k)}</b><button type="button" data-fleetkind="${w}:${k}" data-d="1">+</button></span>`;
+      return `<div class="fleetcard"><div class="fhead"><span class="ic">${ic}</span><b>${name}</b><small>${what}</small>${status}</div>
+        <div class="fships">${SHIPS.map((k) => `<span${tip(`<h5>${SICON[k]} ${esc(R.ships[k].name)}</h5><div>${esc(R.ships[k].role)}.</div><div class="dim">Strength here ${R.ships[k].strength[w]}${R.ships[k].pay ? `; ${R.ships[k].pay} ducats a year at war` : ""}</div>`)}>${SICON[k]} <b>${have[k]}</b> ${k}s${coming[k] ? ` <small class="up">+${coming[k]}</small>` : ""}</span>`).join("")}<span>strength <b>${mine.toFixed(1)}</b></span></div>
+        ${race ? `<div class="race">${race}</div>` : ""}
+        ${harbours.length ? `<div class="row"><span class="sub">Launch from</span><select class="field" data-fport="${w}">${harbours.map((i) => `<option value="${P[i].id}" ${P[i].id === fleetPort[w] ? "selected" : ""}>${esc(P[i].name)}</option>`).join("")}</select><small class="sub">${room} more this year</small></div>
+        <div class="row">${SHIPS.map((k) => `<span>${SICON[k]} ${esc(R.ships[k].name)}</span>${stepper(k)}`).join("")}<button class="btn" data-fbuild="${w}" ${ok ? "" : "disabled"}>Launch</button><span class="cost">${cost.some((v) => v) ? costText(cost) : ""}</span></div>` : `<p class="sub">No port of yours on these waters: ships here can only sail away.</p>`}
+        ${total && others.length && !sailing ? `<div class="row"><span class="sub">Sail all ${total} ships to</span>${others.map(([x, xi, xn]) => `<button class="btn" data-fsail="${w}:${x}">${xi} ${xn}</button>`).join("")}</div>` : ""}
+        ${battles ? `<div class="row">${battles}</div>` : ""}</div>`;
+    }).join("");
+    return `${cards}<p class="sub">Galleys are cheap and rule calm seas; galleons cost more and rule the ocean. A fleet ${R.navy.command} times the enemy's closes the straits to its armies and blockades its ports; any fleet stronger than the enemy's takes away the strait's advantage. The beaten fleet in a sea battle loses ${Math.round(R.navy.loserLoss * 100)}% of its ships.</p>`;
+  }
   const siege = (army) => { const total = KINDS.reduce((t, k) => t + (army[k] || 0), 0);
     return total ? Math.floor((army.artillery || 0) / total / R.siegeShare + 1e-9) : 0; };
   function generalPositions() { // where each of my generals stands once this year's orders are carried out
@@ -340,7 +407,7 @@
     const perLevel = holder && holder.technology.engineering >= 4 ? 0.35 : R.fort; // star forts
     let bonus = perLevel * forts + (p.is_capital && held === p.owner ? R.capital : 0);
     if (p.buildings.includes("training_grounds")) bonus += 0.2 * (R.levelFactors[((p.building_levels || {}).training_grounds || 1) - 1] || 1);
-    if (P[origin].sea.includes(target) && !V.me.modifiers.navy) bonus += R.sea;
+    if (P[origin].sea.includes(target) && seaCommand(origin, target) !== "ours") bonus += R.sea; // unless your fleet holds the water
     const tech = holder ? 1 + T[0].perLevel * holder.technology.military : 1;
     const guard = p.general && p.general.nation === held ? 1 + R.generalBonus * p.general.skill : 1;
     return R.defender * R.terrain[P[target].terrain] * (1 + bonus) * tech * guard;
@@ -360,6 +427,7 @@
       const o = holder(j), sieged = prov(j).siege_by;
       if (sieged && sieged !== G.human && o === G.human) { if (relation(sieged).war) out.push([j, "attack"]); } // break the siege
       else if (o === G.human) out.push([j, "move"]);
+      else if (seaCommand(i, j) === "closed") continue; // their fleet bars the strait
       else if (o === null) out.push([j, "attack"]);
       else { const w = relation(o).war; if (w && w.attacks_allowed_from_turn <= V.turn) out.push([j, "attack"]); }
     }
@@ -923,7 +991,7 @@
         <div class="stock"><span class="ic">👥</span><div><b class="num">${men}</b><span class="label">manpower of ${capMen}</span></div><div class="flow"><b class="num">${sign(V.me.income_per_turn.manpower)}</b><small>a year</small></div>
           <i class="bar"><b style="width:${Math.min(100, Math.round(100 * men / Math.max(1, capMen)))}%"></b></i></div>
         <div class="stock"><span class="ic">🌾</span><div><b class="num">${up.grain}</b><span class="label">grain eaten a year</span></div><div class="flow"><b class="num">${sign(V.me.income_per_turn.grain - up.grain)}</b><small>net</small></div></div>
-        <div class="stock"><span class="ic">💪</span><div><b class="num">${sign(Math.round(power * 100))}%</b><span class="label">battle power</span></div><div class="flow"><small>${V.me.modifiers.navy ? "a navy: straits favour no one" : "technology, ruler, council"}</small></div></div>
+        <div class="stock"><span class="ic">💪</span><div><b class="num">${sign(Math.round(power * 100))}%</b><span class="label">battle power</span></div><div class="flow"><small>technology, ruler, council</small></div></div>
         <div class="stock"><span class="ic">🚩</span><div><b class="num">${sign(Math.round((myMorale() - 1) * 100))}%</b><span class="label">morale</span></div><div class="flow"><small>stability steadies, war exhaustion tires</small></div></div>
         <div class="stock"><span class="ic">💰</span><div><b class="num">${R.mercenaryLimit - hired}</b><span class="label">mercenaries for hire</span></div><div class="flow"><small>${R.mercenaryCost} ducats each</small></div></div>
       </div><div class="units office-units">${kinds}</div>`;
@@ -955,6 +1023,7 @@
     return `<div class="pad"><h4>The army</h4>${summary}
       <h4>${I("swords")} Raise regiments</h4>${recruitBox()}
       <h4>Fronts</h4>${fronts || `<p class="muted">No war, and no court masses troops against you.</p>`}
+      <h4>⛵ The fleets</h4>${fleetsSection()}
       <h4>Armies</h4><table class="grid num"><thead><tr><th>Province</th><th>Regiments</th><th>Kinds</th><th>General</th><th>Best attack</th></tr></thead><tbody>${rows}</tbody></table>
       <p class="sub">Click an army to select it, then right-click on the map where it should go. The odds count what you can see.</p>
       <h4>Generals, ${V.me.generals.length} of ${V.me.modifiers.max_generals}</h4>${generals || `<p class="muted">No general serves you.</p>`}
@@ -1514,7 +1583,7 @@
     : ["proposal_rejected", "proposal_countered"].includes(e.kind) && e.data.note ? `${e.summary}: “${e.data.note}”`
     : e.kind === "proclamation" ? `${e.summary}: “${e.data.text}”` : e.summary;
   let chronCourt = "", chronKind = "all";
-  const CHRON_KINDS = {war: ["battle", "war_declared", "joined_war", "peace_signed", "province_captured", "province_occupied", "province_ceded", "province_liberated", "siege", "nation_eliminated", "capital_moved", "general_fell", "call_to_arms_ignored"],
+  const CHRON_KINDS = {war: ["battle", "naval_battle", "war_declared", "joined_war", "peace_signed", "province_captured", "province_occupied", "province_ceded", "province_liberated", "siege", "nation_eliminated", "capital_moved", "general_fell", "call_to_arms_ignored"],
     diplomacy: ["grudge", "treaty_signed", "treaty_broken", "treaty_cancelled", "treaty_expired", "coalition_joined", "coalition_dissolved", "gift", "trade_completed", "message", "proclamation", "stance_changed", "infamy"],
     realm: ["built", "developed", "improved", "researched", "mission_completed", "succession", "event_decided", "stability_changed", "prestige_changed", "general_appointed", "monument_raised"]};
   // ------------------------------------------------------------------ the reign: progress you can see
@@ -1718,6 +1787,13 @@
     panel.querySelectorAll("[data-recruitkind]").forEach((b) => b.onclick = () => { const k = b.dataset.recruitkind, d = +b.dataset.d;
       recruitN[k] = Math.max(0, (recruitN[k] || 0) + d); render(); });
     const ra = panel.querySelector("#recruitat"); if (ra) ra.onchange = () => { recruitAt = ra.value; render(); };
+    panel.querySelectorAll("[data-fleetkind]").forEach((b) => b.onclick = () => { const k = b.dataset.fleetkind; fleetN[k] = Math.max(0, (fleetN[k] || 0) + +b.dataset.d); render(); });
+    panel.querySelectorAll("[data-fport]").forEach((x) => x.onchange = () => { fleetPort[x.dataset.fport] = x.value; render(); });
+    panel.querySelectorAll("[data-fbuild]").forEach((b) => b.onclick = () => { const w = b.dataset.fbuild;
+      SHIPS.forEach((k) => { const n = fleetN[`${w}:${k}`] || 0; if (n > 0) queue({type: "build_ships", province: fleetPort[w], ship: k, count: n, water: w}); fleetN[`${w}:${k}`] = 0; }); render(); });
+    panel.querySelectorAll("[data-fsail]").forEach((b) => b.onclick = () => { const [from, to] = b.dataset.fsail.split(":");
+      queue({type: "sail_fleet", origin: from, target: to, ships: Object.fromEntries(SHIPS.filter((k) => shipsIn(from)[k]).map((k) => [k, shipsIn(from)[k]]))}); });
+    panel.querySelectorAll("[data-seek]").forEach((b) => b.onclick = () => { const [w, e] = b.dataset.seek.split(":"); queue({type: "seek_battle", water: w, enemy: e}); });
     const rgo = panel.querySelector("#recruitgo"); if (rgo) rgo.onclick = () => { U.forEach((u) => { const n = recruitN[u.id] || 0;
       if (n > 0) queue({type: "recruit", province: recruitAt, regiments: n, unit: u.id}); }); recruitN = {}; render(); };
     const mgo = panel.querySelector("#mercgo"); if (mgo) mgo.onclick = () => { const n = recruitN.mercs || 0;
@@ -1816,6 +1892,10 @@
       case "upgrade_monument": return `🏛 Raise ${esc(M[o.province]?.name || "the monument")}`;
       case "disband": return `Disband ${o.regiments}${o.unit ? ` ${o.unit}` : ""} in ${pn(o.province)}`;
       case "develop": return `Develop ${pn(o.province)}`;
+      case "build_ships": return `${SICON[o.ship]} Launch ${o.count} ${o.ship}${o.count > 1 ? "s" : ""} from ${pn(o.province)}`;
+      case "scrap_ships": return `⚓ Lay up ${o.count} ${o.ship}${o.count > 1 ? "s" : ""} in ${waterOf(o.water)[2].toLowerCase()}`;
+      case "sail_fleet": { const n = Object.values(o.ships).reduce((a, b) => a + b, 0); return `${waterOf(o.target)[1]} Sail ${n} ships from ${waterOf(o.origin)[2].toLowerCase()} to ${waterOf(o.target)[2].toLowerCase()}`; }
+      case "seek_battle": return `⚔ Seek out the fleet of ${nn(o.enemy)} in ${waterOf(o.water)[2].toLowerCase()}`;
       case "set_posture": { const k = postureOf(o.posture); return `${k[1]} ${pn(o.province)}: ${k[2].toLowerCase()}`; }
       case "set_focus": { const f = FOCI.find(([k]) => k === o.focus); return `${f ? f[1] : "🎯"} Turn ${pn(o.province)} to ${f ? f[2].toLowerCase() : o.focus}`; }
       case "improve": return `${PaxMap.goodOf(S, P[pIndex[o.province]].good).icon} Raise the ${PaxMap.goodOf(S, P[pIndex[o.province]].good).workings.toLowerCase()} of ${pn(o.province)}`;
@@ -1884,6 +1964,18 @@
         <span class="vs">vs</span>${side(d.defender, d.defender_name, d.defender_regiments, d.defender_army, d.defender_losses, d.defender_power, !d.attacker_won)}</div>
       ${d.tactic ? `<p class="btactic">${tacticOf(d.tactic)[1]} ${tacticOf(d.tactic)[2]} against ${postureOf(d.posture)[1]} ${postureOf(d.posture)[2].toLowerCase()}: <b>${sign(Math.round((d.edge - 1) * 100))}%</b> to the attack${d.attacker_veterancy || d.defender_veterancy ? `. Veterancy ${Math.round((d.attacker_veterancy || 0) * 100)}% against ${Math.round((d.defender_veterancy || 0) * 100)}%` : ""}</p>` : ""}
       <p class="bthen">${esc(cap(String(d.then || "")))}. <small>Power is regiments × their kind on this ground × technology, generals, tactics, veterancy, morale and walls × the dice.</small></p></div>`;
+  }
+  // A sea battle: two fleets, what they were worth, and what went down.
+  function navalCard(e) {
+    const d = e.data, mine = d.attacker === G.human, won = mine === d.attacker_won, w = waterOf(d.water);
+    const side = (nid, fleet, power, lost, winner) => `<div class="bfight ${winner ? "winner" : ""}">
+      <div class="bwho">${PaxMap.flag(nid, N[nIndex[nid]].color, 26)}<b>${esc(nameOf(nid))}</b>${winner ? `<span class="crownmark">won</span>` : ""}</div>
+      <div class="bnums"><span class="neg"><b>−${lost}</b> ships</span><span><b>${power}</b> power</span></div><small>${esc(fleet)}</small></div>`;
+    return `<div class="battlecard ${won ? "won" : "lost"}">
+      <div class="bhead"><span>${w[1]} ${d.great ? "A great sea battle" : "Sea battle"} in ${esc(w[2].toLowerCase())}</span><b>${won ? "Victory" : "Defeat"}</b></div>
+      <div class="bsides">${side(d.attacker, d.attacker_fleet, d.attacker_power, d.attacker_won ? d.winner_lost : d.loser_lost, d.attacker_won)}
+        <span class="vs">vs</span>${side(d.defender, d.defender_fleet, d.defender_power, d.attacker_won ? d.loser_lost : d.winner_lost, !d.attacker_won)}</div>
+      <p class="bthen">${d.attacker_won === mine ? "The sea is yours: its straits and its ports are in your hands while your fleet holds it." : "Their fleet holds the sea: your armies cannot cross where it commands, and your ports may be blockaded."}</p></div>`;
   }
   function siegeLine(e) {
     const d = e.data, where = esc(P[pIndex[e.province]].name);
@@ -2365,10 +2457,10 @@
     const won = before ? V.me.provinces.filter((p) => !before.me.provinces.includes(p)) : [];
     const noise = ["moved", "recruited", "proposal_made", "market_trade", "prestige_changed", "taxes_set"];
     const line = (e) => `<li class="${BAD.has(e.kind) ? "bad" : ""}">${ICON[e.kind] || "•"} ${esc(told(e))}</li>`;
-    const fought = (e) => (e.kind === "battle" && "attacker" in e.data) || (e.kind === "siege" && ("progress" in e.data || "lifted" in e.data));
+    const fought = (e) => (e.kind === "battle" && "attacker" in e.data) || e.kind === "naval_battle" || (e.kind === "siege" && ("progress" in e.data || "lifted" in e.data));
     const items = V.last_turn_events.filter((e) => !noise.includes(e.kind) && e.nations.includes(G.human) && !fought(e)).map(line).join("");
     const mineWar = V.last_turn_events.filter((e) => e.nations.includes(G.human) && fought(e));
-    const war = mineWar.filter((e) => e.kind === "battle").map(battleCard).join("") + mineWar.filter((e) => e.kind === "siege").map(siegeLine).join("");
+    const war = mineWar.filter((e) => e.kind === "naval_battle").map(navalCard).join("") + mineWar.filter((e) => e.kind === "battle").map(battleCard).join("") + mineWar.filter((e) => e.kind === "siege").map(siegeLine).join("");
     const europe = V.last_turn_events.filter((e) => !noise.includes(e.kind) && !e.nations.includes(G.human)
       && ["war_declared", "joined_war", "peace_signed", "nation_eliminated", "treaty_broken", "coalition_joined", "coalition_dissolved", "infamy",
           "mission_completed", "proclamation", "province_captured", "province_ceded", "succession", "capital_moved", "treaty_signed", "game_over"].includes(e.kind))

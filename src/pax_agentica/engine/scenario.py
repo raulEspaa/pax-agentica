@@ -20,8 +20,10 @@ from pax_agentica.engine.model import (
     ProvinceState,
     Resources,
     Rules,
+    Ship,
     Terrain,
     UnitKind,
+    Water,
 )
 from pax_agentica.engine.realm import make_ruler
 
@@ -358,26 +360,66 @@ _LAND_BORDERS: list[tuple[str, str]] = [  # as the real map draws them (scripts/
     ("wales", "york"),
 ]
 
-_SEA_CROSSINGS: list[tuple[str, str]] = [
-    ("london", "flanders"),  # the Narrow Sea
-    ("london", "normandy"),  # the Channel
-    ("wales", "ireland"),  # the Irish Sea
-    ("scotland", "ulster"),  # the North Channel
-    ("sardinia", "genoa"),  # the Ligurian Sea
-    ("sardinia", "rome"),  # the Tyrrhenian
-    ("sardinia", "tunis"),  # the Sardinia channel
-    ("devon", "brittany"),  # the western Channel
-    ("crimea", "anatolia"),  # across the Black Sea, the Sultan's lake
-    ("naples", "sicily"),  # the Strait of Messina
-    ("seville", "morocco"),  # the Strait of Gibraltar
-    ("andalusia", "morocco"),  # the Alborán crossing
-    ("scania", "zealand"),  # the Øresund
-    ("zealand", "jutland"),  # the Great Belt
-    ("stockholm", "finland"),  # the Åland crossing
-    ("stockholm", "livonia"),  # across the Baltic
-    ("gotaland", "jutland"),  # the Kattegat
-    ("bosnia", "venice"),  # the Adriatic
+_SEA_CROSSINGS: list[tuple[str, str, Water]] = [
+    ("london", "flanders", Water.ATLANTIC),  # the Narrow Sea
+    ("london", "normandy", Water.ATLANTIC),  # the Channel
+    ("wales", "ireland", Water.ATLANTIC),  # the Irish Sea
+    ("scotland", "ulster", Water.ATLANTIC),  # the North Channel
+    ("sardinia", "genoa", Water.MEDITERRANEAN),  # the Ligurian Sea
+    ("sardinia", "rome", Water.MEDITERRANEAN),  # the Tyrrhenian
+    ("sardinia", "tunis", Water.MEDITERRANEAN),  # the Sardinia channel
+    ("devon", "brittany", Water.ATLANTIC),  # the western Channel
+    ("crimea", "anatolia", Water.MEDITERRANEAN),  # across the Black Sea, the Sultan's lake
+    ("naples", "sicily", Water.MEDITERRANEAN),  # the Strait of Messina
+    ("seville", "morocco", Water.MEDITERRANEAN),  # the Strait of Gibraltar
+    ("andalusia", "morocco", Water.MEDITERRANEAN),  # the Alborán crossing
+    ("scania", "zealand", Water.BALTIC),  # the Øresund
+    ("zealand", "jutland", Water.BALTIC),  # the Great Belt
+    ("stockholm", "finland", Water.BALTIC),  # the Åland crossing
+    ("stockholm", "livonia", Water.BALTIC),  # across the Baltic
+    ("gotaland", "jutland", Water.ATLANTIC),  # the Kattegat
+    ("bosnia", "venice", Water.MEDITERRANEAN),  # the Adriatic
 ]
+
+# The waters each coastal province looks onto (the Atlantic takes in the Channel and the North
+# Sea; the Mediterranean the Adriatic and the Black Sea).
+_A, _B, _M = Water.ATLANTIC, Water.BALTIC, Water.MEDITERRANEAN
+_ATLANTIC_COASTS = (
+    "london", "york", "wales", "scotland", "ireland", "ulster", "highlands", "east_anglia",
+    "devon", "lisbon", "porto", "galicia", "normandy", "brittany", "gascony", "flanders",
+    "holland", "norway", "trondelag",
+)  # fmt: skip
+_BALTIC_COASTS = (
+    "stockholm", "finland", "karelia", "norrland", "scania", "zealand", "pomerania", "prussia",
+    "livonia", "lithuania", "novgorod",
+)  # fmt: skip
+_MEDITERRANEAN_COASTS = (
+    "andalusia", "valencia", "catalonia", "algiers", "tunis", "languedoc", "provence", "genoa",
+    "florence", "rome", "naples", "apulia", "sardinia", "sicily", "venice", "styria", "croatia",
+    "bosnia", "albania", "greece", "morea", "constantinople", "anatolia", "karaman", "bulgaria",
+    "moldavia", "crimea",
+)  # fmt: skip
+COASTS: dict[str, tuple[Water, ...]] = {
+    **dict.fromkeys(_ATLANTIC_COASTS, (_A,)),
+    **dict.fromkeys(_BALTIC_COASTS, (_B,)),
+    **dict.fromkeys(_MEDITERRANEAN_COASTS, (_M,)),
+    "seville": (_A, _M),  # Cádiz on the ocean, and the strait
+    "morocco": (_A, _M),
+    "hamburg": (_A, _B),  # Hamburg on the North Sea, Lübeck on the Baltic
+    "jutland": (_A, _B),
+    "gotaland": (_A, _B),  # Älvsborg on the Kattegat, Kalmar on the Baltic
+}
+# The fleets of 1500, by water: the Sultan's galleys, the Catholic Kings' two seas, the Tudor
+# ships royal, the Swedish and Hanseatic Baltic.
+STARTING_FLEETS: dict[str, dict[Water, dict[Ship, int]]] = {
+    "ottomans": {_M: {Ship.GALLEY: 10, Ship.GALLEON: 1}},
+    "spain": {_M: {Ship.GALLEY: 6}, _A: {Ship.GALLEON: 3}},
+    "france": {_M: {Ship.GALLEY: 4}, _A: {Ship.GALLEON: 2}},
+    "england": {_A: {Ship.GALLEON: 4, Ship.GALLEY: 1}},
+    "sweden": {_B: {Ship.GALLEY: 3, Ship.GALLEON: 2}},
+    "brandenburg": {_B: {Ship.GALLEY: 1}},
+    "austria": {_M: {Ship.GALLEY: 1}},
+}
 
 # id, name, colour (for the viewer), capital
 _NATIONS: list[tuple[str, str, str, str]] = [
@@ -623,7 +665,7 @@ def europe_map() -> MapDef:
     for a, b in _LAND_BORDERS:
         land[a].append(b)
         land[b].append(a)
-    for a, b in _SEA_CROSSINGS:
+    for a, b, _water in _SEA_CROSSINGS:
         sea[a].append(b)
         sea[b].append(a)
     provinces = {
@@ -636,10 +678,12 @@ def europe_map() -> MapDef:
             lat=lat,
             neighbors=tuple(sorted(land[pid])),
             sea_neighbors=tuple(sorted(sea[pid])),
+            coasts=COASTS.get(pid, ()),
         )
         for pid, name, terrain, good, _dev, _owner, lon, lat in _PROVINCES
     }
-    return MapDef(name="Europe 1500", provinces=provinces)
+    straits = {"|".join(sorted((a, b))): water for a, b, water in _SEA_CROSSINGS}
+    return MapDef(name="Europe 1500", provinces=provinces, straits=straits)
 
 
 def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> GameState:
@@ -669,6 +713,7 @@ def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> Game
             stability=1,
             faith=FAITHS.get(nid, Faith.CATHOLIC),
             prestige=STARTING_PRESTIGE.get(nid, 10),
+            fleets={w: dict(ships) for w, ships in STARTING_FLEETS.get(nid, {}).items()},
         )
         for nid, name, color, capital in _NATIONS
     }

@@ -16,10 +16,12 @@ from pax_agentica.engine.model import (
     Resources,
     Rules,
     Settlement,
+    Ship,
     Tactic,
     TechBranch,
     Terrain,
     UnitKind,
+    Water,
 )
 from pax_agentica.engine.realm import advisor_salaries, modifiers
 
@@ -269,13 +271,75 @@ def province_output(state: GameState, province: ProvinceId) -> Resources:
     return _keep(out, faith_penalty(state, province))
 
 
+def naval_power(state: GameState, nation: NationId | None, water: Water) -> float:
+    """What a realm's ships in a water are worth: each kind by its strength there, times the
+    realm's own seamanship."""
+    if nation is None:
+        return 0.0
+    rules = state.rules
+    ships = state.nations[nation].ships(water)
+    base = sum(n * rules.ships[k].strength[water] for k, n in ships.items())
+    return base * (1 + modifiers(state, nation).navy) if base else 0.0
+
+
+def fleet_upkeep(rules: Rules, fleets: Mapping[Water, Mapping[Ship, int]]) -> int:
+    """What a realm's ships cost in ducats a year."""
+    pay = sum(n * rules.ships[k].pay for ships in fleets.values() for k, n in ships.items())
+    return math.ceil(pay - 1e-9)
+
+
+def sea_command(
+    state: GameState, attacker: NationId | None, defender: NationId | None, water: Water
+) -> str:
+    """Who holds a water for a crossing: "closed" when the defender's fleet is
+    rules.fleet_command times the attacker's (no army crosses), "ours" when the attacker's is
+    the stronger (the strait favours no one), else "contested" (it favours the defender)."""
+    mine, theirs = naval_power(state, attacker, water), naval_power(state, defender, water)
+    if theirs > 0 and theirs >= state.rules.fleet_command * mine:
+        return "closed"
+    return "ours" if mine > theirs else "contested"
+
+
+def blockaded(state: GameState, nation: NationId) -> set[Water]:
+    """The waters an enemy at war holds against this realm: a fleet of at least
+    rules.blockade_min, and rules.fleet_command times its own there."""
+    rules = state.rules
+    out: set[Water] = set()
+    for water in Water:
+        mine = naval_power(state, nation, water)
+        for enemy in state.enemies_of(nation):
+            theirs = naval_power(state, enemy, water)
+            if theirs >= rules.blockade_min and theirs >= rules.fleet_command * mine:
+                out.add(water)
+    return out
+
+
+def blockaded_ports(state: GameState, nation: NationId) -> list[ProvinceId]:
+    """The realm's provinces whose every coast an enemy fleet holds: their trade is choked."""
+    shut = blockaded(state, nation) if state.wars else set()
+    if not shut:
+        return []
+    return [
+        pid
+        for pid in state.provinces_of(nation)
+        if (coasts := state.map.provinces[pid].coasts) and set(coasts) <= shut
+    ]
+
+
 def nation_income(state: GameState, nation: NationId) -> Resources:
     """Total production per turn, with stability and the realm's modifiers (technology, ruler,
-    treasurer) applied to ducats, and economy technology to grain."""
+    treasurer) applied to ducats, and economy technology to grain. A blockaded port loses
+    rules.blockade_share of its ducats."""
     rules = state.rules
     total = Resources()
+    shut = set(blockaded_ports(state, nation))
     for province in state.provinces_of(nation):
-        total = total + province_output(state, province)
+        out = province_output(state, province)
+        if province in shut:
+            out = out.model_copy(
+                update={"ducats": math.floor(out.ducats * (1 - rules.blockade_share))}
+            )
+        total = total + out
     mods = modifiers(state, nation)
     stability = rules.stability_income_bonus * state.nations[nation].stability
     ducats = total.ducats * (1 + stability + mods.ducat_income)
@@ -537,8 +601,17 @@ def nation_upkeep(state: GameState, nation: NationId) -> Resources:
     """The army's food and pay, plus the advisors' salaries."""
     mods = modifiers(state, nation)
     army = army_upkeep(state.rules, army_of(state, nation), mods.grain_upkeep_factor)
-    salaries = advisor_salaries(state.rules, state.nations[nation].advisors)
-    return army + Resources(ducats=salaries)
+    me = state.nations[nation]
+    salaries = advisor_salaries(state.rules, me.advisors)
+    return army + Resources(ducats=salaries + fleet_pay(state, nation))
+
+
+def fleet_pay(state: GameState, nation: NationId) -> int:
+    """What the crews cost this year: in peace the ships lie up in port and cost nothing; at
+    war they are manned and paid."""
+    if not state.enemies_of(nation):
+        return 0
+    return fleet_upkeep(state.rules, state.nations[nation].fleets)
 
 
 def grain_upkeep(state: GameState, nation: NationId) -> int:
@@ -737,8 +810,11 @@ def defense_multiplier(
         bonus += 0.2 * level_factor(rules, target_state.level(BuildingKind.TRAINING_GROUNDS))
     if owner is not None and holder == owner and state.nations[owner].capital == target:
         bonus += rules.capital_bonus  # a capital's own people defend it, not its occupiers
-    if state.map.is_sea_crossing(origin, target) and not attacker.navy:
-        bonus += rules.sea_crossing_bonus
+    if state.map.is_sea_crossing(origin, target):  # unless the attacker holds the water
+        water = state.map.strait_water(origin, target)
+        crosser = state.provinces[origin].holder
+        if water is None or sea_command(state, crosser, holder, water) != "ours":
+            bonus += rules.sea_crossing_bonus
     return rules.defender_advantage * terrain * (1 + bonus)
 
 

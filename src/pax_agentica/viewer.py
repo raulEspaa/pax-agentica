@@ -186,6 +186,12 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                 "area": geo["provinces"][pid]["area"],
                 "land": [order.index(n) for n in d.neighbors],
                 "sea": [order.index(n) for n in d.sea_neighbors],
+                "coasts": [w.value for w in d.coasts],
+                "straits": {
+                    str(order.index(n)): w.value
+                    for n in d.sea_neighbors
+                    if (w := state.map.strait_water(pid, n)) is not None
+                },
             }
             for pid, d in state.map.provinces.items()
         ],
@@ -339,6 +345,23 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                 "perSettlement": rules.focus_per_settlement,
                 "cost": amounts(rules.focus_cost),
                 "years": rules.focus_years,
+            },
+            "ships": {
+                k.value: {
+                    "name": spec.name,
+                    "cost": amounts(spec.cost),
+                    "pay": spec.pay,
+                    "strength": {w.value: v for w, v in spec.strength.items()},
+                    "role": spec.role,
+                }
+                for k, spec in rules.ships.items()
+            },
+            "navy": {
+                "perPort": rules.ships_per_port,
+                "command": rules.fleet_command,
+                "blockadeShare": rules.blockade_share,
+                "blockadeMin": rules.blockade_min,
+                "loserLoss": rules.naval_loser_loss,
             },
             "tactics": {
                 "edge": rules.tactic_edge,

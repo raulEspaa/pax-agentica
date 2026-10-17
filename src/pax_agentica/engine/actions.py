@@ -21,10 +21,12 @@ from pax_agentica.engine.model import (
     Posture,
     ProvinceId,
     Resources,
+    Ship,
     Stance,
     Tactic,
     TechBranch,
     UnitKind,
+    Water,
 )
 
 MAX_ACTIONS_PER_TURN = 50
@@ -419,6 +421,49 @@ class SetPosture(_Action):
     posture: Posture
 
 
+class BuildShips(_Action):
+    """Launch ships from a port of yours: they join your fleet in the water the port looks onto
+    (name it if the port has two). Galleys are cheap and rule calm seas; galleons cost more and
+    rule the ocean (see rules.ships for costs, pay and strength in each water). A port launches
+    at most rules.ships_per_port ships a year, and one more for every 3 development."""
+
+    type: Literal["build_ships"] = "build_ships"
+    province: ProvinceId
+    ship: Ship
+    count: int = Field(ge=1, le=20)
+    water: Water | None = None
+
+
+class ScrapShips(_Action):
+    """Lay up ships of yours in a water, to save their pay."""
+
+    type: Literal["scrap_ships"] = "scrap_ships"
+    water: Water
+    ship: Ship
+    count: int = Field(ge=1, le=200)
+
+
+class SailFleet(_Action):
+    """Send ships from one water to another where you hold a port. They are at sea all year:
+    they arrive at its end, and neither fight nor hold either water meanwhile."""
+
+    type: Literal["sail_fleet"] = "sail_fleet"
+    origin: Water
+    target: Water
+    ships: dict[Ship, int]
+
+
+class SeekBattle(_Action):
+    """Send your fleet in a water to find the fleet of a realm you are at war with there, and
+    fight it, before the armies march. Strength is each ship's in that water, times a roll of
+    the dice and each realm's morale; the beaten fleet loses half its ships. The water's master
+    closes its straits to the other's armies (see sea_command) and blockades its ports."""
+
+    type: Literal["seek_battle"] = "seek_battle"
+    water: Water
+    enemy: NationId
+
+
 class UpgradeMonument(_Action):
     """Raise the monument of one of your provinces by a level (from a bare site to level 1, up
     to the rules' maximum). Its bonus grows with every level and serves whoever holds it."""
@@ -504,6 +549,10 @@ type Action = Annotated[
     | Improve
     | SetFocus
     | SetPosture
+    | BuildShips
+    | ScrapShips
+    | SailFleet
+    | SeekBattle
     | Convert
     | BoostStability
     | Research

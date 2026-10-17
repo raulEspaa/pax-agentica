@@ -23,6 +23,7 @@ from pax_agentica.engine.actions import (
     Attack,
     BoostStability,
     Build,
+    BuildShips,
     Buy,
     ChooseOption,
     Convert,
@@ -44,6 +45,7 @@ from pax_agentica.engine.actions import (
     Recruit,
     Research,
     Respond,
+    SeekBattle,
     Sell,
     SendMessage,
     SetFocus,
@@ -65,14 +67,16 @@ from pax_agentica.engine.model import (
     Posture,
     ProposalKind,
     ProvinceId,
+    Ship,
     Stance,
     Tactic,
     TechBranch,
     TreatyKind,
     UnitKind,
+    Water,
 )
 from pax_agentica.engine.view import ProposalView, ProvinceView
-from pax_agentica.tools import best_tactic
+from pax_agentica.tools import best_tactic, naval_power, sea_command
 
 CAPITAL_GUARD = 3
 type Army = dict[UnitKind, int]
@@ -145,6 +149,7 @@ class _Planner:
         self._maybe_declare_war()
         self._recruit()
         self._command()
+        self._sea_battles()
         self._attack()
         self._march_to_the_border()
         self._postures()
@@ -192,7 +197,7 @@ class _Planner:
         bonus = rules.fort_bonus_per_level * target.fort
         if target.is_capital:
             bonus += rules.capital_bonus
-        if target.id in self.provinces[origin].sea_neighbors and not self.me.modifiers.navy:
+        if sea_command(self.v, origin, target.id) == "contested":
             bonus += rules.sea_crossing_bonus
         return rules.defender_advantage * rules.terrain_defense[target.terrain] * (1 + bonus)
 
@@ -225,6 +230,8 @@ class _Planner:
                 if holder == self.me.id:
                     continue
                 ours = target.owner == self.me.id  # occupied by the enemy: win it back first
+                if sea_command(self.v, origin, t) == "closed":
+                    continue  # their fleet bars the strait
                 if holder is None or (
                     holder in self.enemies and holder not in self.suing_for_peace | self.mobilising
                 ):
@@ -768,6 +775,7 @@ class _Planner:
         self._research(reserve)
         self._council(reserve)
         self._focus(reserve)  # cheap and for good: before the works
+        self._navy(reserve)
         for _ in range(1 + (self.budget.ducats > 250) + (self.budget.ducats > 500)):
             self._build(reserve)  # a rich treasury raises more than one work a year
         self._improve(reserve)
@@ -793,6 +801,62 @@ class _Planner:
                 break
             self.actions.append(Develop(province=pid))
             self.budget = self.budget - cost
+
+    def _navy(self, reserve: int) -> None:
+        """Ships only for a war at sea: where an enemy's fleet could blockade our ports or
+        close our straits, build towards matching it, a few ships a year and never more pay
+        than a tenth of the ducats we earn. Each ship is the one that buys most strength there
+        per ducat."""
+        if not self.enemies:
+            return
+        rules = self.v.rules
+        pay = sum(
+            n * rules.ships[k].pay for ships in self.me.fleets.values() for k, n in ships.items()
+        )
+        room = self.me.income_per_turn.ducats / 10 - pay
+        for water in Water:
+            ports = sorted(
+                (p for p in self.owned if water in self.provinces[p].coasts),
+                key=lambda p: (-self.provinces[p].development, p),
+            )
+            if not ports or room <= 0:
+                continue
+            mine = naval_power(self.v, self.me.id, water)
+            rival = max((naval_power(self.v, n, water) for n in self.enemies), default=0.0)
+            if rival < rules.blockade_min or mine >= rival:
+                continue
+            ship = max(
+                Ship, key=lambda k: rules.ships[k].strength[water] / rules.ships[k].cost.ducats
+            )
+            spec = rules.ships[ship]
+            port = self.provinces[ports[0]]
+            n = min(
+                math.ceil((rival - mine) / spec.strength[water]),
+                3,
+                rules.ships_per_port + port.development // 3,
+                int(room / spec.pay),
+            )
+            while n > 0 and not self._afford(spec.cost.times(n), reserve):
+                n -= 1
+            if n > 0 and self.budget.covers(spec.cost.times(n)):  # goods are not for sale
+                self.actions.append(BuildShips(province=port.id, ship=ship, count=n, water=water))
+                self.budget = self.budget - spec.cost.times(n)
+                room -= n * spec.pay
+
+    def _fleet_of(self, nation: str, water: Water) -> dict[Ship, int]:
+        other = next((n for n in self.v.nations if n.id == nation), None)
+        return dict(other.fleets.get(water, {})) if other else {}
+
+    def _sea_battles(self) -> None:
+        """Seek out an enemy fleet we clearly outmatch: the sea is then ours."""
+        for water in Water:
+            mine = naval_power(self.v, self.me.id, water)
+            for enemy in sorted(self.enemies - self.mobilising):
+                theirs = naval_power(self.v, enemy, water)
+                ships = sum(n for n in self._fleet_of(enemy, water).values())
+                if ships >= 4 and mine >= 1.5 * theirs:  # a fleet worth sinking, and sure odds
+                    self.actions.append(SeekBattle(water=water, enemy=enemy))
+                    break
 
     def _afford(self, cost: Resources, reserve: int) -> bool:
         """Whether the budget covers `cost`, buying at the market whatever traded resource is
