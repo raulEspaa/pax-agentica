@@ -2192,7 +2192,12 @@
   $("guide").innerHTML = I("circle-help"); $("feedback").innerHTML = I("message-square-text");
   const soundIcon = () => { $("soundbtn").innerHTML = I(J.muted() ? "volume-x" : "volume-2"); $("soundbtn").setAttribute("aria-pressed", String(!J.muted())); };
   soundIcon();
-  $("soundbtn").onclick = () => { J.setMuted(!J.muted()); soundIcon(); J.play("click"); };
+  $("soundbtn").onclick = () => { J.setMuted(!J.muted()); soundIcon(); musicIcon(); J.play("click"); };
+  const musicIcon = () => { const on = J.music && J.music() && !J.muted(); $("musicbtn").innerHTML = I("music"); $("musicbtn").classList.toggle("off", !on); $("musicbtn").setAttribute("aria-pressed", String(on)); };
+  musicIcon();
+  $("musicbtn").onclick = () => {
+    if (J.muted()) { J.setMuted(false); soundIcon(); J.setMusic(true); } else J.setMusic(!J.music());
+    musicIcon(); };
   $("rail").addEventListener("click", () => J.play("click"));
   $("ordersbtn").onclick = () => $("ordersbtn").parentElement.classList.toggle("open");
   // the rich tooltip: any element with data-tip shows its HTML next to the pointer

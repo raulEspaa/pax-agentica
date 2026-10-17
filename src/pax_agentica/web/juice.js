@@ -55,7 +55,7 @@ window.PaxJuice = (() => {
     omen: () => { bell(130.81, 0, 0.35); bell(123.47, 0.9, 0.3); tone(65.4, {dur: 3, type: "sawtooth", gain: 0.05}); },
   };
   function play(name) { if (!muted && SOUNDS[name]) try { SOUNDS[name](); } catch {} }
-  function setMuted(m) { muted = m; try { localStorage.setItem(KEY, m ? "off" : "on"); } catch {} if (m && ctx) ctx.suspend(); }
+  function setMuted(m) { muted = m; try { localStorage.setItem(KEY, m ? "off" : "on"); } catch {} if (m && ctx) ctx.suspend(); if (!m && musicOn) setTimeout(() => startMusic(), 50); }
 
   // numbers that count up (or down) to their new value
   function countTo(el, to, ms = 900) {
@@ -121,5 +121,96 @@ window.PaxJuice = (() => {
     const v = document.createElement("div"); v.className = `vignette ${cls}`;
     document.body.appendChild(v); setTimeout(() => v.remove(), 1300);
   }
-  return {play, muted: () => muted, setMuted, countTo, floatText, celebrate, omen, yearCard, vignette, still};
+  // ------------------------------------------------------------------ music
+  // A lute and a bass, synthesised: the plucked string is the Karplus-Strong algorithm (a burst
+  // of noise fed through a short, decaying delay line), rendered once per pitch and cached.
+  // The tunes are of the age and in the public domain: "Greensleeves" (anonymous, c. 1580), and
+  // pavanes and galliards improvised, as players then did, over two grounds every lutenist
+  // knew, the passamezzo antico and the romanesca.
+  const MKEY = "pax-music";
+  let musicOn = (() => { try { return localStorage.getItem(MKEY) !== "off"; } catch { return true; } })();
+  let mbus = null, timer = 0, queueAt = 0, piece = 0;
+  const strings = new Map();
+  const midi = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  function pluck(freq) {
+    const a = ctx, key = Math.round(freq * 10);
+    if (strings.has(key)) return strings.get(key);
+    const rate = a.sampleRate, n = Math.floor(rate * 2.4), period = Math.max(2, Math.round(rate / freq));
+    const buf = a.createBuffer(1, n, rate), d = buf.getChannelData(0), line = new Float32Array(period);
+    for (let i = 0; i < period; i++) line[i] = Math.random() * 2 - 1;
+    let k = 0;
+    for (let i = 0; i < n; i++) { const next = (k + 1) % period, v = 0.4975 * (line[k] + line[next]); d[i] = line[k]; line[k] = v; k = next; }
+    strings.set(key, buf); return buf;
+  }
+  function note(m, at, gain = 0.5, pan = 0) {
+    if (!ctx || !mbus) return;
+    const src = ctx.createBufferSource(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+    src.buffer = pluck(midi(m)); f.type = "lowpass"; f.frequency.value = 2600; g.gain.value = gain;
+    let out = g;
+    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p); out = p; }
+    src.connect(f); f.connect(g); out.connect(mbus); src.start(at); src.stop(at + 2.4);
+  }
+  const N = {C3: 48, D3: 50, E3: 52, F3: 53, G3: 55, A3: 57, Bb3: 58, B3: 59, C4: 60, D4: 62, E4: 64, F4: 65, Fs4: 66, G4: 67, Gs4: 68, A4: 69, Bb4: 70, B4: 71,
+    C5: 72, D5: 74, E5: 76, F5: 77, Fs5: 78, G5: 79, A5: 81};
+  // Greensleeves in A minor, three beats a bar: [note, beats], with a bass note at each bar
+  const GREEN = [["A4", 1], ["C5", 2], ["D5", 1], ["E5", 1.5], ["F5", 0.5], ["E5", 1], ["D5", 2], ["B4", 1], ["G4", 1.5], ["A4", 0.5], ["B4", 1],
+    ["C5", 2], ["A4", 1], ["A4", 1.5], ["Gs4", 0.5], ["A4", 1], ["B4", 2], ["Gs4", 1], ["E4", 2], ["A4", 1], ["C5", 2], ["D5", 1],
+    ["E5", 1.5], ["F5", 0.5], ["E5", 1], ["D5", 2], ["B4", 1], ["G4", 1.5], ["A4", 0.5], ["B4", 1], ["C5", 1.5], ["B4", 0.5], ["A4", 1],
+    ["Gs4", 1.5], ["Fs4", 0.5], ["Gs4", 1], ["A4", 3], ["G5", 3], ["G5", 1.5], ["Fs5", 0.5], ["E5", 1], ["D5", 2], ["B4", 1],
+    ["G4", 1.5], ["A4", 0.5], ["B4", 1], ["C5", 2], ["A4", 1], ["A4", 1.5], ["Gs4", 0.5], ["A4", 1], ["B4", 2], ["Gs4", 1], ["E4", 3],
+    ["G5", 3], ["G5", 1.5], ["Fs5", 0.5], ["E5", 1], ["D5", 2], ["B4", 1], ["G4", 1.5], ["A4", 0.5], ["B4", 1], ["C5", 1.5], ["B4", 0.5], ["A4", 1],
+    ["Gs4", 1.5], ["Fs4", 0.5], ["Gs4", 1], ["A4", 3]];
+  const GREEN_BASS = ["A3", "A3", "F3", "G3", "C3", "A3", "E3", "E3", "A3", "A3", "F3", "G3", "A3", "E3", "A3",
+    "C4", "C4", "G3", "G3", "A3", "A3", "E3", "E3", "C4", "C4", "G3", "G3", "A3", "E3", "A3"];
+  function greensleeves(t0, beat = 0.42) {
+    let t = t0 + beat * 0; // the pickup note before the first bar
+    GREEN.forEach(([n, b], k) => { note(N[n], t, 0.42, 0.15 * Math.sin(k)); t += b * beat; });
+    GREEN_BASS.forEach((n, bar) => note(N[n], t0 + beat * (1 + bar * 3), 0.32, -0.3));
+    return t - t0 + 2.5;
+  }
+  // a ground: chords (root, third, fifth as MIDI) a bar each, improvised over with arpeggios
+  const GROUNDS = {
+    passamezzo: [[55, 58, 62], [53, 57, 60], [55, 58, 62], [50, 54, 57], [58, 62, 65], [53, 57, 60], [55, 58, 62], [50, 54, 57], [55, 58, 62]],
+    romanesca: [[58, 62, 65], [53, 57, 60], [55, 58, 62], [50, 54, 57], [58, 62, 65], [53, 57, 60], [55, 58, 62], [50, 54, 57], [55, 58, 62]],
+  };
+  function ground(t0, name, galliard) {
+    const chords = GROUNDS[name], beat = galliard ? 0.3 : 0.5, beats = galliard ? 6 : 4;
+    let t = t0;
+    for (let round = 0; round < 2; round++) chords.forEach(([r, th, fi], bar) => {
+      note(r - 12, t, 0.34, -0.3);
+      const tones = [r, th, fi, r + 12, fi, th, th + 12, fi + 12];
+      for (let b = 0; b < beats; b++) {
+        const up = (bar + b + round) % 3 === 0, pick = tones[(b * (galliard ? 2 : 3) + bar + round * 2) % tones.length] + (up ? 12 : 0);
+        note(pick, t + b * beat, b === 0 ? 0.36 : 0.22, 0.2);
+      }
+      t += beats * beat;
+    });
+    note(chords[chords.length - 1][0] - 12, t, 0.3, -0.3); note(chords[chords.length - 1][0], t, 0.28, 0.2);
+    return t - t0 + 3;
+  }
+  const PIECES = [(t) => greensleeves(t), (t) => ground(t, "passamezzo", false), (t) => ground(t, "romanesca", true), (t) => ground(t, "passamezzo", true)];
+  function schedule() {
+    if (!ctx || !musicOn || muted) return;
+    if (ctx.currentTime + 1 < queueAt) return; // the next piece is already waiting
+    const start = Math.max(ctx.currentTime + 0.2, queueAt);
+    const length = PIECES[piece % PIECES.length](start);
+    piece++; queueAt = start + length + 4; // a breath of silence between pieces
+  }
+  function startMusic() {
+    if (!musicOn || muted) return;
+    const a = audio(); if (!a) return;
+    if (!mbus) { mbus = a.createGain(); mbus.gain.value = 0.22; mbus.connect(master); }
+    mbus.gain.setTargetAtTime(0.22, a.currentTime, 0.5);
+    if (!timer) { schedule(); timer = setInterval(schedule, 1000); }
+  }
+  function stopMusic() {
+    clearInterval(timer); timer = 0; queueAt = 0;
+    if (mbus && ctx) { mbus.gain.setTargetAtTime(0, ctx.currentTime, 0.3); const old = mbus; mbus = null; setTimeout(() => old.disconnect(), 1500); }
+  }
+  function setMusic(on) { musicOn = on; try { localStorage.setItem(MKEY, on ? "on" : "off"); } catch {} if (on) startMusic(); else stopMusic(); }
+  // browsers allow sound only after a gesture: the first click on the page starts the music
+  document.addEventListener("pointerdown", function first() { document.removeEventListener("pointerdown", first); startMusic(); });
+
+  return {play, muted: () => muted, setMuted, countTo, floatText, celebrate, omen, yearCard, vignette, still,
+    music: () => musicOn, setMusic};
 })();

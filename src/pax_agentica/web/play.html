@@ -365,6 +365,7 @@
              color: var(--brass-hi); background: linear-gradient(#2c1f14, #170f08); border: 1px solid var(--brass-lo); border-radius: 5px; }
   .iconbtn .ico { width: 21px; height: 21px; }
   .iconbtn:hover, .iconbtn.on { border-color: var(--brass-hi); color: #fff3cf; }
+  .iconbtn.off { opacity: .55; }
   .iconbtn .count, .rail .count { position: absolute; top: -6px; right: -6px; }
   .topbar #endturn { height: 38px; padding: 0 16px; font-size: 15px; white-space: nowrap; }
   .topbar { min-width: 0; } .topbar > * { flex: none; } .topbar .treasury { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; } .topbar .stat { flex: none; }
@@ -600,6 +601,7 @@
     <div class="orderswrap"><button class="iconbtn" id="ordersbtn" type="button" data-tip="This year's orders"></button>
       <section class="ordersbox" id="orders"></section></div>
     <button class="btn primary" id="endturn" title="Send your orders and let the year pass">End the year</button>
+    <button class="iconbtn" id="musicbtn" type="button" data-tip="Music of the age: on or off"></button>
     <button class="iconbtn" id="soundbtn" type="button" data-tip="Sound on or off"></button>
     <button class="iconbtn" id="guide" type="button" data-tip="How to play"></button>
     <button class="iconbtn" id="feedback" type="button" data-tip="Send feedback to the makers"></button>
