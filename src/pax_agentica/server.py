@@ -404,6 +404,7 @@ def add_assets(app: FastAPI, static: dict[str, Any]) -> None:
             "play.js": "text/javascript",
             "icons.js": "text/javascript",
             "juice.js": "text/javascript",
+            "scenes.js": "text/javascript",
             "favicon.svg": "image/svg+xml",
         }
         if name not in types:

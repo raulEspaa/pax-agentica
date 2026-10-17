@@ -1830,6 +1830,39 @@
     if (far) return `Abroad, ${far.summary.replace(/\.$/, "")}`;
     return "A quiet year in the realm";
   }
+  // The deed of the year: one picture for what mattered most, as a chronicle's woodcut would.
+  function sceneOfYear(evs, won) {
+    const art = window.PaxScenes, year = V.year - 1;
+    if (!art) return "";
+    const color = (nid) => (nid && N[nIndex[nid]] ? N[nIndex[nid]].color : "#9a8f78");
+    const pname = (pid) => P[pIndex[pid]]?.name || pid;
+    const fig = (svg, caption) => `<section class="deedofyear"><figure>${svg}<figcaption>${esc(caption)}</figcaption></figure></section>`;
+    const age = evs.find((e) => e.kind === "crisis" && e.data.begins);
+    if (age && V.crisis) {
+      const pic = {plague: () => art.plague({color: color(G.human), seed: year}), ice_age: () => art.frost({seed: year}), price_revolution: () => art.galleon({seed: year})}[V.crisis.kind];
+      if (pic) return fig(pic(), `${V.crisis.title}, ${V.crisis.first_year}`);
+    }
+    if (won.length) { // the town that changed hands, under its new banner
+      const i = pIndex[won[0]], p = prov(i);
+      const pic = S.views[p.id] ? `<img src="/views/${p.id}.jpg" alt="">` : PaxMap.vista(S, i, {owner: me, built: p.buildings.map((b) => bIndex[b]), dev: p.development, fort: p.fort, isCapital: false, monument: p.monument || 0, unrest: 0});
+      return fig(pic, `${pname(won[0])} raises the banner of ${nameOf(G.human)}, ${year}`);
+    }
+    const battles = evs.filter((e) => e.kind === "battle" && e.nations.includes(G.human) && "attacker" in e.data)
+      .sort((x, y) => (y.data.attacker_regiments + y.data.defender_regiments) - (x.data.attacker_regiments + x.data.defender_regiments));
+    if (battles.length) { const b = battles[0], d = b.data;
+      return fig(art.battle({a: color(d.attacker), b: color(d.defender), terrain: P[pIndex[b.province]].terrain, attackerWon: !!d.attacker_won, seed: b.summary}),
+        `The battle of ${pname(b.province)}, ${year}: ${d.attacker_won ? nameOf(d.attacker) : d.defender ? nameOf(d.defender) : "the defenders"} carried the field`); }
+    const siege = evs.find((e) => e.kind === "siege" && e.nations.includes(G.human) && e.data.started);
+    if (siege) return fig(art.siege({by: color(siege.nations[0]), of: color(siege.nations[1]), terrain: P[pIndex[siege.province]].terrain, seed: siege.summary}),
+      `The siege of ${pname(siege.province)} begins, ${year}`);
+    const mission = evs.find((e) => e.kind === "mission_completed" && e.nations[0] === G.human);
+    if (mission) return fig(art.laurels({color: color(G.human)}), `${mission.summary.split(": ").slice(1).join(": ") || "An ambition fulfilled"}, ${year}`);
+    const peace = evs.find((e) => e.kind === "peace_signed" && e.nations.includes(G.human));
+    const signed = peace || evs.find((e) => e.kind === "treaty_signed" && e.nations.includes(G.human));
+    if (signed) { const other = signed.nations.find((n) => n !== G.human);
+      return fig(art.treaty({a: color(G.human), b: color(other)}), `${peace ? "The peace" : "A treaty"} of ${nameOf(G.human)} and ${nameOf(other)}, ${year}`); }
+    return "";
+  }
   // A new reign: the heir crowned, with what they bring to the throne.
   function coronation(r) {
     const color = N[me].color, ended = reignsOf(G.history || []).slice(-2, -1)[0];
@@ -1929,7 +1962,7 @@
     const deltas = tiles.length ? `<div class="deltas">${tiles.map(([label, now, was, lowIsGood]) => { const d = now - was, good = lowIsGood ? d < 0 : d > 0;
       return `<div><b class="num" data-to="${now}">${was}</b><small>${label}${d ? ` <span class="${good ? "up" : "down"}">${d > 0 ? "▲" : "▼"} ${Math.abs(d)}</span>` : ""}</small></div>`; }).join("")}</div>` : "";
     $("sheet").innerHTML = `<h2 id="modaltitle">${G.finished ? "The end of an age" : `The year ${V.year - 1}`}</h2>
-      ${before ? `<p class="headline">${esc(headline(V.last_turn_events, won, lost))}</p>` : ""}${deltas}${ending}${crowned}${discoveries}${works}${G.finished ? "" : danger}
+      ${before ? `<p class="headline">${esc(headline(V.last_turn_events, won, lost))}</p>` : ""}${before ? sceneOfYear(V.last_turn_events, won) : ""}${deltas}${ending}${crowned}${discoveries}${works}${G.finished ? "" : danger}
       ${unanswered().length ? `<section class="awaiting"><h3>📜 Letters awaiting your answer</h3><ul>${unanswered().map((p) => `<li>${PROPOSAL_ICON[p.kind] || "📜"} ${proposalText(p)}</li>`).join("")}</ul>
         <button class="btn" id="toletters">Answer them</button></section>` : ""}
       ${war ? `<section class="warlog"><h3>⚔ Your battles and sieges</h3>${war}</section>` : ""}

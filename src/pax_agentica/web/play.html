@@ -474,6 +474,7 @@
   .grudges li small { color: var(--ink-3); } .sub.warn { color: #ef8f7a; }
   .crisisbadge { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; flex: none; border-radius: 4px; cursor: help;
                  color: #ffd9cf; background: linear-gradient(#3a1410, #1d0907); border: 1px solid #8f3b2e; font: 600 13.5px var(--body); white-space: nowrap; }
+  .crisisbadge[hidden], .tablewrap[hidden] { display: none; }
   .crisisbadge .ic { font-size: 18px; } .crisisbadge small { display: block; font-size: 11px; color: #d9a79b; line-height: 1; }
   .crisisbadge > span:last-child { line-height: 1.1; }
   .triumph.omen { background: radial-gradient(ellipse at center, rgba(40, 6, 4, .78), rgba(0, 0, 0, .92)); }
@@ -490,6 +491,11 @@
   .ceremony .cstats { display: grid; gap: 2px; margin-top: 6px; font-size: 14px; } .ceremony .cpips { color: #7a5420; letter-spacing: 2px; margin-left: 6px; }
   .ceremony small.go { display: block; margin-top: 8px; color: #5a3f17; }
   .reigns li { display: flex; gap: 10px; align-items: center; } .reigns .gport { flex: none; }
+  .deedofyear { margin: 4px 0 12px; } .deedofyear figure { margin: 0; }
+  .deedofyear svg.scene, .deedofyear img, .deedofyear svg.vista { display: block; width: 100%; height: auto; max-height: 190px; object-fit: cover;
+    border: 1px solid #3a2414; box-shadow: 0 4px 12px rgba(0, 0, 0, .3); }
+  .deedofyear figcaption { margin-top: 4px; text-align: center; font: italic 15px var(--body); color: var(--sepia-2); }
+  .sheet.reveal .deedofyear { animation: linein .7s ease-out both; }
   .orderswrap { position: relative; }
   .orderswrap .ordersbox { position: absolute; right: 0; top: 46px; width: 400px; max-height: 65vh; overflow-y: auto; margin: 0; display: none; z-index: 9;
                            box-shadow: 0 12px 30px rgba(0, 0, 0, .7); }
@@ -647,6 +653,7 @@
 <script src="/static/icons.js"></script>
 <script src="/static/map.js"></script>
 <script src="/static/juice.js"></script>
+<script src="/static/scenes.js"></script>
 <script src="/static/play.js"></script>
 </body>
 </html>
