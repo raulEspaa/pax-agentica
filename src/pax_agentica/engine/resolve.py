@@ -84,6 +84,7 @@ from pax_agentica.engine.mechanics import (
     peace_cost,
     recruit_cost,
     research_cost,
+    settlement,
     siege_levels,
     siege_modifiers,
     siege_result,
@@ -1817,7 +1818,12 @@ class _Resolver:
         ):
             error = f"your realm already has {_article(spec.name)}: there can be only one"
         elif len(province.buildings) >= slots:
-            error = f"all {slots} building slots of {where} are taken: upgrade what stands there"
+            town = settlement(rules, province.development).name.lower()
+            error = (
+                f"{where} is a {town} with room for {slots} work{'s' if slots != 1 else ''} "
+                "and all are taken: "
+                "upgrade what stands there, or develop it into a larger town"
+            )
 
         else:
             error = self._pay(nation, building_cost(rules, a.building, mods.building_discount))

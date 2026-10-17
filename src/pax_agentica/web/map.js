@@ -758,7 +758,7 @@ const PaxMap = (() => {
   function deedInfo(S, i, d) {
     // d: {owner, isCapital, dev, maxDev, troops (null: hidden), fort, unrest, base[5], bonus[5], built[], queued[], general}
     const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, p = P[i];
-    const slots = d.slots ?? R.slots ?? 5;
+    const slots = Math.max(d.slots ?? 5, d.built.length + (d.queued || []).length); // a shrunken town keeps its works
     const defence = R.defender * R.terrain[p.terrain] * (1 + R.fort * d.fort + (d.isCapital ? R.capital : 0));
     const rows = RES.map(([, label, ic], k) => {
       const total = d.unrest ? 0 : d.base[k] + d.bonus[k];
@@ -774,7 +774,11 @@ const PaxMap = (() => {
     }
     const owner = d.owner >= 0 ? esc(N[d.owner].name) + (d.isCapital ? ", capital" : "") : "Independent";
     const maxDev = d.maxDev || R.maxDevelopment;
-    const kind = d.dev >= 10 ? "City" : d.dev >= 6 ? "Town" : d.dev >= 3 ? "Village" : "Hamlet";
+    // what the town is, and what it grows into: more room for works at each step
+    const steps = R.settlements || [], here = [...steps].reverse().find((s) => d.dev >= s.min_development) || steps[0];
+    const next = steps.find((s) => s.min_development > d.dev);
+    const kind = d.settlement || (here ? here.name : "Town");
+    const growth = next ? ` At ${next.min_development} it grows into a ${next.name.toLowerCase()}, with room for ${next.building_slots} works.` : " The greatest a town can grow.";
     return {
       slots,
       vista: vista(S, i, d),
@@ -784,7 +788,7 @@ const PaxMap = (() => {
           <div><h2 id="deedname">${esc(p.name)}</h2><div class="owner">${d.owner >= 0 ? `${kind} of ${owner}` : `Independent ${kind.toLowerCase()}`}</div></div></div>
         <button class="x" data-close aria-label="Close the province deed" title="Close (Esc)">×</button></header>`,
       facts: `<section class="strip num">
-        <div title="Development: output, score and building slots. ${d.dev} of ${maxDev}."><span>🏛</span><b>${d.dev}</b><i style="width:${Math.round(d.dev / maxDev * 100)}%"></i><small>development</small></div>
+        <div title="Development ${d.dev} of ${maxDev}: output and score. A ${esc(kind.toLowerCase())}, with room for ${here ? here.building_slots : slots} works.${growth}"><span>🏛</span><b>${d.dev}</b><i style="width:${Math.round(d.dev / maxDev * 100)}%"></i><small>${esc(kind.toLowerCase())}</small></div>
         <div title="Regiments in garrison"><span>⚔</span><b>${d.troops === null ? "?" : d.troops}</b><small>regiments</small></div>
         <div title="How much harder defenders fight here: terrain, forts, capital"><span>🛡</span><b>×${defence.toFixed(2)}</b><small>defence</small></div>
         ${d.fort ? `<div title="Levels of fortification: an attacker must besiege them, unless enough guns breach them; each level makes defenders 25% harder to beat"><span>🏰</span><b>${d.fort}</b><small>walls</small></div>` : ""}

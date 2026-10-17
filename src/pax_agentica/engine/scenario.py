@@ -41,13 +41,13 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     ("east_anglia", "East Anglia", P, CL, 3, "england", 1.0, 52.4),  # the Norwich worsteds
     ("devon", "Devon and Cornwall", H, IR, 2, "england", -4.2, 50.6),  # the stannaries
     # Iberia
-    ("lisbon", "Lisbon", P, GO, 4, None, -8.6, 39.0),
+    ("lisbon", "Lisbon", P, GO, 5, None, -8.6, 39.0),
     ("porto", "Porto", H, GR, 2, None, -8.3, 41.4),
     ("galicia", "Galicia", H, GR, 2, "spain", -7.6, 42.6),
     ("madrid", "Madrid", P, GR, 4, "spain", -3.7, 40.0),
-    ("castile", "Castile", P, GR, 3, "spain", -4.7, 41.7),  # Valladolid, Burgos, the Mesta
+    ("castile", "Castile", P, GR, 2, "spain", -4.7, 41.7),  # Valladolid, Burgos, the Mesta
     # Seville: the Casa de Contratación (1503) will take in all the gold of the Indies
-    ("seville", "Seville", P, GO, 4, "spain", -6.0, 37.4),
+    ("seville", "Seville", P, GO, 5, "spain", -6.0, 37.4),
     ("andalusia", "Granada", H, CL, 3, "spain", -3.6, 37.2),  # the silk of the Nasrids
     ("valencia", "Valencia", P, GR, 3, "spain", -0.8, 39.3),
     ("aragon", "Aragon", X, IR, 2, "spain", -0.9, 41.6),
@@ -58,17 +58,17 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     ("algiers", "Algiers", H, GO, 3, None, 3.0, 36.3),
     ("tunis", "Tunis", P, GO, 3, None, 10.2, 36.4),
     # France
-    ("paris", "Paris", P, GR, 5, "france", 2.4, 48.8),
+    ("paris", "Paris", P, GR, 7, "france", 2.4, 48.8),
     ("normandy", "Normandy", P, GR, 3, "france", 0.2, 49.3),
-    ("brittany", "Brittany", F, GO, 3, "france", -2.9, 48.1),
-    ("champagne", "Champagne", P, GR, 3, "france", 4.4, 49.0),
+    ("brittany", "Brittany", F, GO, 2, "france", -2.9, 48.1),
+    ("champagne", "Champagne", P, GR, 2, "france", 4.4, 49.0),
     ("lyon", "Lyon", H, CL, 3, "france", 4.8, 45.6),  # the silk looms
     ("burgundy", "Burgundy", H, GR, 3, "france", 5.0, 47.3),
     ("gascony", "Gascony", P, GO, 3, "france", -0.4, 44.6),
     ("languedoc", "Languedoc", P, GR, 3, "france", 2.2, 43.6),
     ("provence", "Provence", H, GR, 3, None, 6.0, 43.7),
     # Low Countries and the Empire
-    ("flanders", "Flanders", P, CL, 5, None, 3.6, 50.8),  # the cloth towns
+    ("flanders", "Flanders", P, CL, 6, None, 3.6, 50.8),  # the cloth towns
     ("holland", "Holland", M, CL, 4, None, 5.0, 52.3),
     ("rhineland", "Rhineland", H, IR, 4, None, 7.4, 50.0),
     ("westphalia", "Westphalia", P, CL, 3, None, 7.6, 51.9),
@@ -77,12 +77,12 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     ("brunswick", "Brunswick", H, IR, 3, None, 10.0, 52.4),  # the Harz silver
     ("thuringia", "Thuringia", H, CL, 3, None, 11.0, 50.9),  # the woad of Erfurt
     ("swabia", "Swabia", H, CL, 4, None, 9.4, 48.5),  # Augsburg of the Fuggers
-    ("brandenburg", "Brandenburg", F, TI, 6, "brandenburg", 13.4, 52.5),
-    ("pomerania", "Pomerania", P, GR, 4, "brandenburg", 14.2, 53.8),
+    ("brandenburg", "Brandenburg", F, TI, 4, "brandenburg", 13.4, 52.5),
+    ("pomerania", "Pomerania", P, GR, 5, "brandenburg", 14.2, 53.8),
     ("saxony", "Saxony", H, IR, 4, None, 12.6, 51.0),
     ("bavaria", "Bavaria", P, GR, 4, None, 11.2, 48.6),
     ("switzerland", "Switzerland", X, IR, 3, None, 8.2, 46.8),
-    ("prussia", "Prussia", P, GR, 4, "brandenburg", 19.4, 54.3),
+    ("prussia", "Prussia", P, GR, 5, "brandenburg", 19.4, 54.3),
     # Austria
     ("vienna", "Vienna", P, GO, 6, "austria", 16.4, 48.2),
     ("tyrol", "Tyrol", X, IR, 3, "austria", 11.4, 47.2),
@@ -90,20 +90,20 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     ("silesia", "Silesia", P, CL, 3, "austria", 17.0, 51.0),
     ("styria", "Styria", X, IR, 3, "austria", 15.2, 46.9),
     # Italy
-    ("milan", "Milan", P, GO, 5, None, 9.6, 45.5),
+    ("milan", "Milan", P, GO, 6, None, 9.6, 45.5),
     ("savoy", "Savoy", X, GR, 3, None, 7.5, 45.2),
-    ("genoa", "Genoa", H, GO, 4, None, 8.9, 44.4),
-    ("venice", "Venice", M, GO, 5, None, 12.3, 45.6),
-    ("florence", "Florence", H, CL, 4, None, 11.2, 43.5),  # the Arte della Lana
+    ("genoa", "Genoa", H, GO, 5, None, 8.9, 44.4),
+    ("venice", "Venice", M, GO, 6, None, 12.3, 45.6),
+    ("florence", "Florence", H, CL, 5, None, 11.2, 43.5),  # the Arte della Lana
     ("bologna", "Bologna", P, CL, 3, None, 11.4, 44.5),
     ("rome", "Rome", H, GR, 4, None, 12.8, 42.2),
-    ("naples", "Naples", H, GR, 4, None, 14.6, 40.9),
+    ("naples", "Naples", H, GR, 6, None, 14.6, 40.9),
     ("apulia", "Apulia", P, GR, 3, None, 16.7, 40.9),
     ("sardinia", "Sardinia", H, GO, 2, None, 9.0, 40.0),
     ("sicily", "Sicily", H, GR, 3, None, 14.2, 37.5),
     # Scandinavia
-    ("stockholm", "Stockholm", F, IR, 5, "sweden", 18.0, 59.4),
-    ("gotaland", "Götaland", P, GR, 3, "sweden", 14.0, 57.8),
+    ("stockholm", "Stockholm", F, IR, 4, "sweden", 18.0, 59.4),
+    ("gotaland", "Götaland", P, GR, 4, "sweden", 14.0, 57.8),
     ("finland", "Finland", F, TI, 3, "sweden", 24.0, 61.5),
     ("karelia", "Karelia", F, TI, 2, "sweden", 29.5, 62.0),  # Viborg's castle on the border
     ("norrland", "Norrland", F, IR, 2, "sweden", 17.0, 63.2),
@@ -121,8 +121,8 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     ("lithuania", "Lithuania", F, TI, 3, None, 25.3, 54.8),
     ("livonia", "Livonia", F, TI, 3, None, 24.6, 57.2),
     ("kiev", "Kiev", P, GR, 3, None, 30.5, 50.5),
-    ("moscow", "Moscow", F, GR, 5, "russia", 37.6, 55.6),
-    ("tver", "Tver", F, GR, 3, "russia", 35.3, 57.0),
+    ("moscow", "Moscow", F, GR, 6, "russia", 37.6, 55.6),
+    ("tver", "Tver", F, GR, 2, "russia", 35.3, 57.0),
     ("nizhny", "Nizhny Novgorod", F, TI, 2, "russia", 43.5, 56.2),  # the Volga trade
     ("pskov", "Pskov", F, GR, 2, None, 28.8, 57.6),  # a free republic, for now
     ("novgorod", "Novgorod", F, GO, 4, "russia", 31.3, 58.5),
@@ -136,13 +136,13 @@ _PROVINCES: list[tuple[str, str, Terrain, Good, int, str | None, float, float]] 
     ("wallachia", "Wallachia", P, GR, 3, None, 25.6, 44.6),
     ("moldavia", "Moldavia", P, GR, 3, None, 27.2, 47.2),  # Stephen the Great's
     ("crimea", "Crimea", P, GR, 2, None, 34.2, 45.0),  # the Giray khans
-    ("serbia", "Serbia", H, IR, 3, "ottomans", 20.6, 44.0),
+    ("serbia", "Serbia", H, IR, 2, "ottomans", 20.6, 44.0),
     ("bosnia", "Bosnia", X, IR, 2, None, 17.9, 44.1),
-    ("bulgaria", "Bulgaria", H, GR, 3, "ottomans", 24.4, 42.7),
+    ("bulgaria", "Bulgaria", H, GR, 2, "ottomans", 24.4, 42.7),
     ("greece", "Greece", H, GO, 3, "ottomans", 22.3, 39.6),
     ("morea", "Morea", H, GO, 2, "ottomans", 22.3, 37.6),
     ("albania", "Albania", X, GR, 2, "ottomans", 20.0, 41.0),
-    ("constantinople", "Constantinople", P, GO, 6, "ottomans", 29.0, 41.1),
+    ("constantinople", "Constantinople", P, GO, 8, "ottomans", 29.0, 41.1),
     ("anatolia", "Anatolia", H, GR, 3, "ottomans", 31.0, 39.9),
     ("karaman", "Karaman", H, GR, 2, "ottomans", 33.0, 37.8),
 ]

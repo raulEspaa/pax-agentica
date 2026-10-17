@@ -327,6 +327,27 @@ class BuildingCategory(StrEnum):
     MILITARY = "military"
 
 
+class Settlement(BaseModel):
+    """What a province's chief town has grown into: from a hamlet to a great city. Development
+    decides it, and it decides how many works the province has room for."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str  # "Market town"
+    min_development: int
+    building_slots: int
+
+
+def default_settlements() -> tuple[Settlement, ...]:
+    return (
+        Settlement(name="Hamlet", min_development=1, building_slots=4),
+        Settlement(name="Village", min_development=2, building_slots=5),
+        Settlement(name="Market town", min_development=4, building_slots=6),
+        Settlement(name="City", min_development=6, building_slots=7),
+        Settlement(name="Great city", min_development=9, building_slots=8),
+    )
+
+
 class BuildingSpec(BaseModel):
     """What a building costs and does. The effect text is for humans and prompts; the numbers
     behind it live in `Rules` and `mechanics.py`."""
@@ -948,8 +969,8 @@ class Rules(BaseModel):
     market_ceiling: float = 3.0
     max_trade_per_order: int = 200
     buildings: dict[BuildingKind, BuildingSpec] = Field(default_factory=default_buildings)
-    development_per_building_slot: int = 4  # no longer used: every province has the same slots
-    building_slots: int = 5  # in every province, whatever its development
+    # from a hamlet to a great city, by development: each step up gives room for one more work
+    settlements: tuple[Settlement, ...] = Field(default_factory=default_settlements)
     # what a building does and eats at each level, times its first level's
     building_level_factors: tuple[float, ...] = (1.0, 1.6, 2.2)
     # what reaching each level costs, times the building's own cost (level 1: building it)

@@ -13,6 +13,7 @@ from pax_agentica.engine.model import (
     ProvinceId,
     Resources,
     Rules,
+    Settlement,
     TechBranch,
     Terrain,
     UnitKind,
@@ -31,10 +32,16 @@ OUTPUT_BUILDINGS = {
 # ---------------------------------------------------------------- economy
 
 
+def settlement(rules: Rules, development: int) -> Settlement:
+    """What a province's development makes of its chief town: hamlet, village, market town,
+    city or great city."""
+    reached = [s for s in rules.settlements if development >= s.min_development]
+    return max(reached, key=lambda s: s.min_development) if reached else rules.settlements[0]
+
+
 def building_slots(rules: Rules, development: int = 0, extra: int = 0) -> int:
-    """Every province has the same room for buildings; some realms find a little more."""
-    del development
-    return rules.building_slots + extra
+    """Room for works: a hamlet has four, a great city eight; some realms find one more."""
+    return settlement(rules, development).building_slots + extra
 
 
 def level_factor(rules: Rules, level: int) -> float:

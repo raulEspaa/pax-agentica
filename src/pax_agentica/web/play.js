@@ -445,7 +445,7 @@
     const out = unbundle(p.output_per_turn), extra = unbundle(p.building_output_per_turn);
     const queued = orders.filter((x) => x.type === "build" && pIndex[x.province] === i).map((x) => bIndex[x.building]);
     const info = PaxMap.deedInfo(S, i, {owner: o, isCapital: p.is_capital, dev: p.development, troops: p.troops, monument: p.monument, view: S.views[p.id] ? {...S.views[p.id], src: `/views/${p.id}.jpg`} : null,
-      fort: p.fort, unrest: p.unrest, base: out.map((v, k) => v - extra[k]), bonus: extra, slots: p.building_slots,
+      fort: p.fort, unrest: p.unrest, base: out.map((v, k) => v - extra[k]), bonus: extra, slots: p.building_slots, settlement: p.settlement,
       faith: p.faith, heretic: !!(p.faith && p.owner && p.faith !== (p.owner === G.human ? V.me.faith : V.nations.find((n) => n.id === p.owner)?.faith)),
       maxDev: mine ? V.me.modifiers.max_development : R.maxDevelopment, general: p.general,
       built: p.buildings.map((b) => bIndex[b]), levels: p.buildings.map((b) => (p.building_levels || {})[b] || 1), queued: mine ? queued : []});
@@ -536,7 +536,7 @@
           ${shelf("built", "Built here")}${shelf("ordered", "Ordered this year")}
           ${free > 0 ? shelf("ready", "You can build") : `<p class="note">All ${info.slots} slots are taken: upgrade what stands here to get more from it.</p>`}
           ${rows.later.length ? `<details class="blater"><summary>Not yet <small>${rows.later.length}</small></summary><div class="blist">${rows.later.join("")}</div></details>` : ""}
-          <p class="note">Green: what a work yields here each year. Red: what it eats; unfed, it stands idle. Every province has ${info.slots} slots; most works can be raised to level 2 or 3, doing (and eating) more.</p></section>`;
+          <p class="note">Green: what a work yields here each year. Red: what it eats; unfed, it stands idle. A ${esc((p.settlement || "town").toLowerCase())} has room for ${p.building_slots} works; develop it into a larger town for more. Most works can be raised to level 2 or 3, doing (and eating) more.</p></section>`;
       } else {
         const now = armyAfter(i), ground = P[i].terrain;
         const comp = U.map((u) => `<div class="unit ${now[u.id] ? "" : "none"}" title="${esc(u.name)}: ${esc(u.role)}">
@@ -2460,7 +2460,7 @@
     }
     $("tip").innerHTML = `<b class="t">${esc(P[i].name)}</b><div class="kv">
       <span>Owner</span><b>${p.owner ? esc(nameOf(p.owner)) : "Independent"}</b>
-      <span>Development</span><b>${p.development}</b>${p.faith ? `<span>Faith</span><b>${PaxMap.FAITH_ICON[p.faith]} ${cap(p.faith)}</b>` : ""}<span>Regiments</span><b>${p.troops === null ? "hidden" : `${p.troops}${p.army && p.troops ? ` <small>${KINDS.filter((k) => p.army[k]).map((k) => `${UICON[k]}${p.army[k]}`).join(" ")}</small>` : ""}`}</b>
+      <span>Development</span><b>${p.development}${p.settlement ? ` <small>· ${esc(p.settlement.toLowerCase())}</small>` : ""}</b>${p.faith ? `<span>Faith</span><b>${PaxMap.FAITH_ICON[p.faith]} ${cap(p.faith)}</b>` : ""}<span>Regiments</span><b>${p.troops === null ? "hidden" : `${p.troops}${p.army && p.troops ? ` <small>${KINDS.filter((k) => p.army[k]).map((k) => `${UICON[k]}${p.army[k]}`).join(" ")}</small>` : ""}`}</b>
       ${M[p.id] && p.monument !== null ? `<span>Monument</span><b>${esc(M[p.id].name)} ${p.monument ? "★".repeat(p.monument) : "(a site)"}</b>` : ""}
       ${p.general ? `<span>General</span><b>${esc(p.general.name)} ${stars(p.general.skill)}</b>` : ""}
       ${p.fort ? `<span>Walls</span><b>🏰 ${p.fort} level${p.fort > 1 ? "s" : ""}: must be besieged</b>` : ""}

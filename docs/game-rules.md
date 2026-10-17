@@ -156,8 +156,20 @@ The view's `market` shows each realm its own prices.
 
 ### Buildings
 
-Every province has **5 building slots**, whatever its development (one more everywhere with
-Cameralism). Each building can stand once per province, and most can be **upgraded**
+A province's development makes its chief town a **settlement**, and the settlement decides how
+many buildings it has room for (one more everywhere with Cameralism):
+
+| Settlement | Development | Building slots |
+|---|---|---|
+| Hamlet | 1 | 4 |
+| Village | 2–3 | 5 |
+| Market town | 4–5 | 6 |
+| City | 6–8 | 7 |
+| Great city | 9 and more | 8 |
+
+In 1500 the great towns of the age (Paris, Constantinople, Venice, Naples, Milan, Flanders,
+London, Vienna, Moscow) are cities; most of Europe is villages. A town whose development falls
+keeps the works it has, but builds no more until it has room again. Each building can stand once per province, and most can be **upgraded**
 (`upgrade_building`, once a year per building) to level 2 or 3: a level does 1.6 and 2.2 times
 what the first does, and eats as much more (rounded up); reaching level 2 costs the building's
 own cost again, level 3 one and a half times it. A fort or citadel at level 2 counts as two levels

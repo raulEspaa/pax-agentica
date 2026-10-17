@@ -34,7 +34,7 @@ def test_cloth_provinces_weave_goods(state: GameState) -> None:
 def test_workshops_turn_iron_and_timber_into_goods(state: GameState, play: Play) -> None:
     state.nations["france"].resources = RICH
     new = play(state, france=[Build(province="paris", building=BuildingKind.WORKSHOP)])
-    assert province_output(new, "paris").goods == 2 + 5 // 3
+    assert province_output(new, "paris").goods == 2 + new.provinces["paris"].development // 3
     after = play(new)
     assert after.nations["france"].resources.goods > new.nations["france"].resources.goods
 

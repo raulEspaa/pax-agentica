@@ -36,6 +36,7 @@ from pax_agentica.engine.mechanics import (
     province_output,
     recruit_cost,
     research_cost,
+    settlement,
     siege_modifiers,
     war_score,
     workings_yield,
@@ -100,7 +101,8 @@ class ProvinceView(_View):
     idle: tuple[
         BuildingKind, ...
     ]  # buildings whose inputs went unpaid last year: they yield nothing
-    building_slots: int  # rules.building_slots, and one more with Cameralism
+    settlement: str  # what its development makes of it: "Hamlet" up to "Great city"
+    building_slots: int  # the settlement's room for works, and one more with Cameralism
     output_per_turn: Resources  # what it yields its owner each turn (nothing during unrest)
     building_output_per_turn: Resources  # the part of that output its buildings add
     unrest: int  # turns before a recently conquered province produces again
@@ -377,6 +379,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             buildings=tuple(ps.buildings),
             building_levels={b: ps.level(b) for b in ps.buildings},
             idle=tuple(ps.idle),
+            settlement=settlement(state.rules, ps.development).name,
             building_slots=building_slots(
                 state.rules, ps.development, _mods(state, ps.owner).extra_building_slots
             ),

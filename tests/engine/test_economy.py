@@ -21,8 +21,9 @@ from pax_agentica.engine.mechanics import (
     nation_income,
     province_output,
     recruit_cost,
+    settlement,
 )
-from pax_agentica.engine.model import BuildingKind, Good, Terrain, UnitKind
+from pax_agentica.engine.model import BuildingKind, Good, Settlement, Terrain, UnitKind
 from pax_agentica.engine.realm import modifiers
 
 type Play = Callable[..., GameState]
@@ -100,10 +101,41 @@ def test_development_raises_output_and_score(state: GameState, play: Play) -> No
     assert new.score("england") == state.score("england") + 1
 
 
-def test_every_province_has_five_building_slots(state: GameState) -> None:
-    assert building_slots(state.rules, 3) == 5
-    assert building_slots(state.rules, 12) == 5
-    assert building_slots(state.rules, 3, extra=1) == 6
+def test_a_province_has_more_room_for_works_as_its_town_grows(state: GameState) -> None:
+    assert [settlement(state.rules, d).name for d in (1, 3, 5, 7, 12)] == [
+        "Hamlet",
+        "Village",
+        "Market town",
+        "City",
+        "Great city",
+    ]
+    assert [building_slots(state.rules, d) for d in (1, 2, 4, 6, 9, 12)] == [4, 5, 6, 7, 8, 8]
+    assert building_slots(state.rules, 3, extra=1) == 6  # Cameralism
+
+
+def test_the_great_towns_of_1500_start_as_cities(state: GameState) -> None:
+    cities = {
+        pid
+        for pid, p in state.provinces.items()
+        if settlement(state.rules, p.development).name == "City"
+    }
+    assert {"paris", "constantinople", "venice", "naples", "london", "moscow"} <= cities
+    assert settlement(state.rules, state.provinces["stockholm"].development).name == "Market town"
+
+
+def test_a_town_that_shrinks_keeps_its_works_but_builds_no_more(
+    state: GameState, play: Play
+) -> None:
+    york = state.provinces["york"]
+    york.development = 1  # a hamlet: four slots
+    york.buildings = [BuildingKind.MARKETPLACE, BuildingKind.WORKSHOP, BuildingKind.FARM_ESTATES,
+                      BuildingKind.STABLES, BuildingKind.BARRACKS]  # fmt: skip
+    state.nations["england"].resources = Resources(
+        ducats=999, manpower=99, iron=99, grain=99, timber=99
+    )
+    new = play(state, england=[Build(province="york", building=BuildingKind.FORT)])
+    assert len(new.provinces["york"].buildings) == 5
+    assert any("hamlet with room for 4 works" in r for r in reasons(new))
 
 
 def test_a_marketplace_doubles_the_town_s_ducats(state: GameState, play: Play) -> None:
@@ -128,7 +160,9 @@ def test_a_small_bonus_still_adds_one(state: GameState) -> None:
 
 
 def test_slots_requirements_and_duplicates_are_enforced(state: GameState, play: Play) -> None:
-    state.rules = state.rules.model_copy(update={"building_slots": 1})
+    state.rules = state.rules.model_copy(
+        update={"settlements": (Settlement(name="Hamlet", min_development=1, building_slots=1),)}
+    )
     state.nations["england"].resources = Resources(
         ducats=999, manpower=99, iron=99, grain=99, timber=99
     )
@@ -145,7 +179,8 @@ def test_slots_requirements_and_duplicates_are_enforced(state: GameState, play: 
     assert reasons(new) == [
         "a citadel needs a fort",
         "Wales already has a fort",
-        "all 1 building slots of Wales are taken: upgrade what stands there",
+        "Wales is a hamlet with room for 1 work and all are taken: upgrade what stands there, "
+        "or develop it into a larger town",
     ]
 
 
