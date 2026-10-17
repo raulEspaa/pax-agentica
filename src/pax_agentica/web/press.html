@@ -33,8 +33,9 @@
 <body>
 <main>
   <h1>Pax Agentica · Store capsules</h1>
-  <p class="lead">Every image the store asks for, painted from the game's own map at the exact size. Pick the year of the map, then download each PNG.</p>
+  <p class="lead">Every image the store asks for, at the exact size: a painting of the age (public domain, fetched from Wikimedia Commons) or the game's own map behind the title. Pick one, then download each PNG.</p>
   <div class="controls">
+    <label for="art">Background</label> <select id="art"></select>
     <label for="year">Map of</label> <select id="year"></select>
     <button id="all" type="button" disabled>Download all</button>
     <span id="status">Playing a game of bots to paint from…</span>
@@ -61,8 +62,33 @@
     {id: "background", name: "Page background", w: 1438, h: 810, text: "none", zoom: .9, dim: .55, bare: true, note: "Behind the store page; kept quiet."},
     {id: "icon", name: "Community icon", w: 184, h: 184, text: "crest", zoom: 0, note: "The crest, for the community hub."},
   ];
+  // the key art: a painting of the age in the public domain, fetched at full size from Wikimedia
+  // Commons when this page needs it (nothing large is kept in the game). fx, fy: where to look.
+  const PAINTINGS = [
+    {id: "ambassadors", name: "Holbein, The Ambassadors (1533)", file: "Hans Holbein the Younger - The Ambassadors - Google Art Project.jpg", fx: .5, fy: .38},
+    {id: "orsha", name: "The Battle of Orsha (c. 1520)", file: "Autor nieznany (malarz z kręgu Lukasa Cranacha Starszego), Bitwa pod Orszą.jpg", fx: .5, fy: .6},
+    {id: "cloth", name: "The Field of the Cloth of Gold (c. 1545)", file: "British - Field of the Cloth of Gold - Google Art Project.jpg", fx: .45, fy: .5},
+    {id: "pavia", name: "The Battle of Pavia (c. 1528)", file: "Battle of Pavia, 1525 (by anonymous Flemish artist).jpg", fx: .5, fy: .55},
+  ];
+  const fetched = new Map();
+  async function painting(p) {
+    if (fetched.has(p.id)) return fetched.get(p.id);
+    const api = "https://commons.wikimedia.org/w/api.php?" + new URLSearchParams({action: "query", format: "json", origin: "*", prop: "imageinfo",
+      iiprop: "url", iiurlwidth: "3840", titles: `File:${p.file}`});
+    const info = await fetch(api).then((r) => r.json()), page = Object.values(info.query.pages)[0];
+    const img = new Image(); img.crossOrigin = "anonymous"; img.src = page.imageinfo[0].thumburl; await img.decode();
+    fetched.set(p.id, img); return img;
+  }
+  // a painting cut to a capsule's shape, centred on the place to look at
+  function cover(g, img, w, h, p, zoom = 1) {
+    const s = Math.max(w / img.width, h / img.height) / zoom, sw = w / s, sh = h / s;
+    const x = Math.min(Math.max(0, p.fx * img.width - sw / 2), img.width - sw), y = Math.min(Math.max(0, p.fy * img.height - sh / 2), img.height - sh);
+    g.drawImage(img, x, y, sw, sh, 0, 0, w, h);
+  }
   const K = await PaxPress.boot($("map"));
   const {S, R, map} = K;
+  [...PAINTINGS.map((p) => [p.id, `Painting: ${p.name}`]), ["map", "The map of a game"]].forEach(([v, label]) => {
+    const o = document.createElement("option"); o.value = v; o.textContent = label; $("art").appendChild(o); });
   R.years.forEach((y, i) => { const o = document.createElement("option"); o.value = i; o.textContent = y; $("year").appendChild(o); });
   $("year").value = Math.min(R.years.length - 1, 12); // a few years in: the borders have begun to move
 
@@ -134,14 +160,16 @@
     const g = cv.getContext("2d"), {w, h} = c;
     g.clearRect(0, 0, w, h);
     if (c.zoom) {
-      g.drawImage(await mapImage(w, h, c.zoom, c.bare), 0, 0, w, h);
+      const art = PAINTINGS.find((p) => p.id === $("art").value);
+      if (art) cover(g, await painting(art), w, h, art, c.id === "small" ? 1.15 : 1);
+      else g.drawImage(await mapImage(w, h, c.zoom, c.bare), 0, 0, w, h);
       if (c.dim) { g.fillStyle = `rgba(20,10,4,${c.dim})`; g.fillRect(0, 0, w, h); }
     }
     if (c.text === "title+tag") { shade(g, w, h, {bottom: .8}); rule(g, w, h);
       title(g, "PAX AGENTICA", w / 2, h * .6, Math.round(w * .088)); tagline(g, TAG, w / 2, h * .6 + w * .06, Math.round(w * .036)); }
     if (c.text === "title") { shade(g, w, h, {bottom: .75, edge: .7}); title(g, "PAX AGENTICA", w / 2, h * .64, Math.round(w * .095)); }
     if (c.text === "stacked") { shade(g, w, h, {bottom: .7}); rule(g, w, h);
-      await crest(g, w / 2, h * .2, w * .2);
+      if (!PAINTINGS.some((p) => p.id === $("art").value)) await crest(g, w / 2, h * .2, w * .2); // over a painting it would hide a face
       title(g, "PAX", w / 2, h * .42, Math.round(w * .19)); title(g, "AGENTICA", w / 2, h * .52, Math.round(w * .13));
       tagline(g, "Nine crowns.", w / 2, h * .86, Math.round(w * .055)); tagline(g, "Fifty years. One Europe.", w / 2, h * .86 + w * .07, Math.round(w * .055)); }
     if (c.text === "none") shade(g, w, h, {bottom: .35, edge: .45});
@@ -165,9 +193,13 @@
     $("all").disabled = true; $("status").textContent = "Painting…";
     map.paint(K.worldAt(+$("year").value));
     for (const {c, cv} of cards) await paint(c, cv);
-    $("all").disabled = false; $("status").textContent = `The map of ${R.years[+$("year").value]}, from a game of bots (seed ${new URLSearchParams(location.search).get("seed") || "default"}).`;
+    const art = PAINTINGS.find((p) => p.id === $("art").value);
+    $("all").disabled = false; $("status").textContent = art ? `${art.name}: public domain, from Wikimedia Commons.`
+      : `The map of ${R.years[+$("year").value]}, from a game of bots (seed ${new URLSearchParams(location.search).get("seed") || "default"}).`;
   }
   $("year").onchange = paintAll;
+  $("art").onchange = () => { $("year").disabled = $("art").value !== "map"; paintAll(); };
+  $("year").disabled = true;
   $("all").onclick = async () => { for (const {c, cv} of cards) { save(c, cv); await new Promise((r) => setTimeout(r, 350)); } };
   await paintAll();
 })();

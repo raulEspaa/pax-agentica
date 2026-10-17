@@ -111,8 +111,9 @@ gives the game a second launch (1.0) a year later.
     give it a community no other strategy game has.
 11. **More to play.** More crowns to choose from (the minors), a second start date (1550 or
     1600), more events of the age. These can arrive as free updates after launch.
-12. **Key art.** The capsules made by `pax press` are tidy. A commissioned painting in the
-    period style (EUR 300 to 1,000) is what makes people click on the small capsule in a list.
+12. **Key art.** The capsules now stand on Holbein's *The Ambassadors*, a real painting of the
+    age and free to use. A commissioned painting of the game's own scene (EUR 300 to 1,000) would
+    still set it apart from other games that use old masters.
 13. **Stability.** Crash reports, opt-in telemetry of where players give up, and the
     performance of a 50-year game on a modest laptop.
 

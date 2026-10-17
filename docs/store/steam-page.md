@@ -71,19 +71,22 @@ text). **Single-player, online multiplayer.**
 
 ## The images
 
-Made by `pax press` at the sizes Steamworks asks for (as of 2026; check the
+The key art is a painting of the age: Holbein's *The Ambassadors* (1533, public domain), two
+envoys of a crown among the instruments of their trade, which is what the game is about. `pax
+press` can also set the capsules on the Battle of Orsha, the Field of the Cloth of Gold, the Battle
+of Pavia or the game's own map. Made by `pax press` at the sizes Steamworks asks for (as of 2026; check the
 [graphical assets rules](https://partner.steamgames.com/doc/store/assets) before uploading):
 
 | Asset | Size | What it shows |
 |-------|------|---------------|
-| Header capsule | 920 × 430 | the map, the title and the tagline |
-| Small capsule | 462 × 174 | the title over the map, nothing else |
+| Header capsule | 920 × 430 | the painting, the title and the tagline |
+| Small capsule | 462 × 174 | the title over the painting, nothing else |
 | Main capsule | 1232 × 706 | as the header, larger |
-| Vertical capsule | 748 × 896 | central Europe, the crest, the title stacked |
+| Vertical capsule | 748 × 896 | the two envoys, the title stacked |
 | Library capsule | 600 × 900 | as the vertical one |
-| Library hero | 3840 × 1240 | the map alone: no title, no lettering |
+| Library hero | 3840 × 1240 | the painting alone: no title, no lettering |
 | Library logo | 1280 × 720 | the title alone on transparency |
-| Page background | 1438 × 810 | the map, darkened and without lettering |
+| Page background | 1438 × 810 | the painting, darkened |
 | Community icon | 184 × 184 | the crest |
 
 Steam's rules for the capsules: the title must be legible on each of them, and none may carry
@@ -154,6 +157,6 @@ uv run pax press                 # http://127.0.0.1:8090/press and /trailer, fro
 uv run pax press --seed 12       # another game: other wars, other borders
 ```
 
-The capsule page paints every size from the map of any year of that game (a few years in reads
-best: the borders have started to move) and downloads each as PNG. Only this machine sees it:
+The capsule page paints every size on the chosen painting (fetched at full size from Wikimedia
+Commons) or on the map of any year of that game, and downloads each as PNG. Only this machine sees it:
 `pax press` serves on 127.0.0.1 and is not part of the tables.
