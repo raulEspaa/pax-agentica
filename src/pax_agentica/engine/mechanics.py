@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from pax_agentica.engine.model import (
     BuildingKind,
+    Focus,
     GameState,
     Good,
     NationId,
@@ -30,6 +31,27 @@ OUTPUT_BUILDINGS = {
 }
 
 # ---------------------------------------------------------------- economy
+
+
+def focus_bonus(state: GameState, province: ProvinceId) -> float:
+    """What a province's focus adds to its side of the output: rules.focus_base in a hamlet,
+    focus_per_settlement more for each step its town has grown since."""
+    p = state.provinces[province]
+    if p.focus is None:
+        return 0.0
+    rules = state.rules
+    here = settlement(rules, p.development)
+    step = sorted(s.min_development for s in rules.settlements).index(here.min_development)
+    return rules.focus_base + rules.focus_per_settlement * step
+
+
+FOCUS_YIELDS: dict[Focus, tuple[str, ...]] = {
+    Focus.TRADE: ("ducats",),
+    Focus.FARMING: ("grain",),
+    Focus.MINING: ("iron", "timber"),
+    Focus.GARRISON: ("manpower",),
+    Focus.LEARNING: (),
+}
 
 
 def settlement(rules: Rules, development: int) -> Settlement:
@@ -238,6 +260,10 @@ def province_output(state: GameState, province: ProvinceId) -> Resources:
     if p.unrest or p.controller:
         return Resources()
     out = base_output(state, province) + building_output(state, province)
+    if p.focus is not None and (fields := FOCUS_YIELDS[p.focus]):
+        # a garrison town doubles its focus in men: soldiering is what it does
+        share = focus_bonus(state, province) * (2 if p.focus == Focus.GARRISON else 1)
+        out = out.model_copy(update={f: math.floor(getattr(out, f) * (1 + share)) for f in fields})
     return _keep(out, faith_penalty(state, province))
 
 
@@ -565,8 +591,12 @@ def develop_cost(
     buildings: Collection[BuildingKind] = (),
     discount: float = 0.0,
     terrain: Terrain | None = None,
+    focus: float = 0.0,
 ) -> Resources:
+    """What one more level of development costs. `focus`: a province of learning's bonus, which
+    takes that share off its ducats and timber."""
     ground = rules.terrain_develop_cost.get(terrain, 1.0) if terrain else 1.0
+    discount = min(0.8, discount + focus)
     ducats = math.ceil(
         (rules.develop_base_ducats + rules.develop_ducats_per_level * development) * ground
     )
@@ -623,6 +653,8 @@ def defense_multiplier(
     forts = max(0, target_state.fort - attacker.ignores_fort_levels - siege)
     # the walls fight for whoever holds them, with that realm's art of fortification
     bonus = modifiers(state, holder).fort_bonus_per_level * forts
+    if target_state.focus == Focus.GARRISON and holder == owner:  # its own people man the walls
+        bonus += focus_bonus(state, target) / 2
     if BuildingKind.TRAINING_GROUNDS in target_state.buildings:
         bonus += 0.2 * level_factor(rules, target_state.level(BuildingKind.TRAINING_GROUNDS))
     if owner is not None and holder == owner and state.nations[owner].capital == target:

@@ -133,6 +133,20 @@ lost. Barracks raise both. Disbanding a regiment sends its 2 manpower back to th
 | `build` | see below | a building in one of your provinces |
 | `boost_stability` | 50 ducats, less with a diplomatic ruler | +1 stability (max +3) |
 
+### A province's focus
+
+`set_focus` turns a province to what its people do best, for 30 ducats; it keeps that focus at
+least 5 years. The bonus is 15% in a hamlet and 5% more for each step its town has grown, up to
+35% in a great city:
+
+| Focus | Effect |
+|---|---|
+| Trade | its ducats +bonus |
+| Farming | its grain +bonus |
+| Mining | its iron and timber +bonus |
+| Garrison | its manpower +twice the bonus, and its own people defend it half the bonus harder |
+| Learning | developing it costs the bonus less (ducats and timber); each province of learning makes the realm's research 3% cheaper, up to 15% |
+
 ### Inputs and idle buildings
 
 Some buildings **consume** every year: marketplaces a bale of goods (they sell it), universities a

@@ -27,6 +27,7 @@ from pax_agentica.engine.mechanics import (
     convert_cost,
     develop_cost,
     faith_penalty,
+    focus_bonus,
     inputs_upkeep,
     manpower_cap,
     market_cut,
@@ -48,6 +49,7 @@ from pax_agentica.engine.model import (
     AdvisorRole,
     BuildingKind,
     Faith,
+    Focus,
     GameState,
     Good,
     Grudge,
@@ -102,6 +104,9 @@ class ProvinceView(_View):
         BuildingKind, ...
     ]  # buildings whose inputs went unpaid last year: they yield nothing
     settlement: str  # what its development makes of it: "Hamlet" up to "Great city"
+    focus: Focus | None  # what its people turn their hands to (yours and everyone's are public)
+    focus_bonus: float  # the share its focus adds to its side of the output
+    focus_locked_until: int | None  # the turn from which its focus may change
     building_slots: int  # the settlement's room for works, and one more with Cameralism
     output_per_turn: Resources  # what it yields its owner each turn (nothing during unrest)
     building_output_per_turn: Resources  # the part of that output its buildings add
@@ -396,7 +401,13 @@ def view_for(state: GameState, nation: NationId) -> NationView:
                 ps.buildings,
                 _mods(state, ps.owner).building_discount,
                 definition.terrain,
+                focus_bonus(state, pid) if ps.focus == Focus.LEARNING else 0.0,
             ),
+            focus=ps.focus,
+            focus_bonus=focus_bonus(state, pid),
+            focus_locked_until=(ps.focus_since + state.rules.focus_years)
+            if ps.focus_since is not None
+            else None,
             recruit_cost=recruit_cost(
                 state.rules,
                 1,

@@ -334,6 +334,12 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "maxGenerals": rules.max_generals,
             "generalBonus": rules.general_bonus_per_skill,
             "settlements": [s.model_dump() for s in rules.settlements],
+            "focus": {
+                "base": rules.focus_base,
+                "perSettlement": rules.focus_per_settlement,
+                "cost": amounts(rules.focus_cost),
+                "years": rules.focus_years,
+            },
             "levelFactors": list(rules.building_level_factors),
             "upgradeCosts": list(rules.building_upgrade_costs),
             "defender": rules.defender_advantage,

@@ -56,6 +56,7 @@ from pax_agentica.engine.actions import (
     Respond,
     Sell,
     SendMessage,
+    SetFocus,
     SetStance,
     SetTaxes,
     Terms,
@@ -77,6 +78,7 @@ from pax_agentica.engine.mechanics import (
     defense_multiplier,
     develop_cost,
     fight,
+    focus_bonus,
     manpower_cap,
     market_price,
     market_total,
@@ -99,6 +101,7 @@ from pax_agentica.engine.model import (
     BuildingKind,
     Crisis,
     Faith,
+    Focus,
     GameState,
     General,
     Grudge,
@@ -1265,6 +1268,8 @@ class _Resolver:
                         self._upgrade_monument(nation, action)
                     case Improve():
                         self._improve(nation, action)
+                    case SetFocus():
+                        self._set_focus(nation, action)
                     case Convert():
                         self._convert(nation, action)
                     case Research():
@@ -1539,6 +1544,34 @@ class _Resolver:
             level=level,
         )
 
+    def _set_focus(self, nation: NationId, a: SetFocus) -> None:
+        rules = self.s.rules
+        if error := self._own_error(nation, a.province):
+            self._reject(nation, a, error)
+            return
+        province = self.s.provinces[a.province]
+        where = self._pname(a.province)
+        if province.focus == a.focus:
+            self._reject(nation, a, f"{where} is already given to {a.focus.value}")
+            return
+        since = province.focus_since
+        if since is not None and self.turn < since + rules.focus_years:
+            until = rules.start_year + since + rules.focus_years - 1
+            self._reject(nation, a, f"{where} keeps its focus on {province.focus} until {until}")
+            return
+        if error := self._pay(nation, rules.focus_cost):
+            self._reject(nation, a, error)
+            return
+        province.focus, province.focus_since = a.focus, self.turn
+        self._emit(
+            EventKind.FOCUS_SET,
+            f"{self._name(nation)} turns {where} to {a.focus.value}",
+            nations=(nation,),
+            province=a.province,
+            audience=(nation,),
+            focus=a.focus.value,
+        )
+
     def _upgrade_monument(self, nation: NationId, a: UpgradeMonument) -> None:
         rules = self.s.rules
         if error := self._own_error(nation, a.province):
@@ -1780,6 +1813,7 @@ class _Resolver:
                 province.buildings,
                 mods.building_discount,
                 self.s.map.provinces[a.province].terrain,
+                focus_bonus(self.s, a.province) if province.focus == Focus.LEARNING else 0.0,
             ),
         ):
             self._reject(nation, a, error)

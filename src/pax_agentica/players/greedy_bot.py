@@ -46,6 +46,7 @@ from pax_agentica.engine.actions import (
     Respond,
     Sell,
     SendMessage,
+    SetFocus,
     SetStance,
     SetTaxes,
     Terms,
@@ -56,6 +57,7 @@ from pax_agentica.engine.fortune import EVENTS_BY_ID, Option
 from pax_agentica.engine.model import (
     AdvisorRole,
     BuildingKind,
+    Focus,
     Good,
     Personality,
     ProposalKind,
@@ -723,6 +725,7 @@ class _Planner:
         self._taxes()
         self._research(reserve)
         self._council(reserve)
+        self._focus(reserve)  # cheap and for good: before the works
         for _ in range(1 + (self.budget.ducats > 250) + (self.budget.ducats > 500)):
             self._build(reserve)  # a rich treasury raises more than one work a year
         self._improve(reserve)
@@ -870,6 +873,37 @@ class _Planner:
                 self.actions.append(Improve(province=pid))
                 self.budget = self.budget - cost
                 return
+
+    def _focus(self, reserve: int) -> None:
+        """Give one province a year the focus that pays best there: its richest side of output,
+        or a garrison on a threatened border, or learning in a great town with little else."""
+        rules = self.v.rules
+        if not self.budget.covers(rules.focus_cost + Resources(ducats=reserve)):
+            return
+        starving = self.me.income_per_turn.grain < self.me.army_upkeep_per_turn.grain
+        worth = {"ducats": 1.0, "grain": 1.6 if starving else 0.8, "iron": 2.0, "timber": 1.5,
+                 "manpower": 1.2 if self.enemies else 0.6}  # fmt: skip
+        fields = {Focus.TRADE: ("ducats",), Focus.FARMING: ("grain",),
+                  Focus.MINING: ("iron", "timber"), Focus.GARRISON: ("manpower",)}  # fmt: skip
+        best: tuple[float, ProvinceId, Focus] | None = None
+        for pid in self.owned:
+            p = self.provinces[pid]
+            if p.focus is not None or p.controller:
+                continue
+            out = p.output_per_turn
+            for focus, names in fields.items():
+                gain = sum(worth[n] * getattr(out, n) for n in names)
+                if focus == Focus.GARRISON:
+                    gain = gain * 2 + (5 if self._exposed(pid) and self.enemies else 0)
+                if best is None or gain > best[0]:
+                    best = (gain, pid, focus)
+            if p.development >= 6:  # a city builds itself up cheaper as a seat of learning
+                gain = 0.6 * p.develop_cost.ducats
+                if best is None or gain > best[0]:
+                    best = (gain, pid, Focus.LEARNING)
+        if best is not None and best[0] >= 4:
+            self.actions.append(SetFocus(province=best[1], focus=best[2]))
+            self.budget = self.budget - rules.focus_cost
 
     def _convert(self, reserve: int) -> None:
         """Preach to the richest province of another faith, when the treasury allows."""

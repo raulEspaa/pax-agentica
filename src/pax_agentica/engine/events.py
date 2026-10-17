@@ -45,6 +45,7 @@ class EventKind(StrEnum):
     DEVELOPED = "developed"
     BUILT = "built"
     IMPROVED = "improved"
+    FOCUS_SET = "focus_set"
     MISSION_COMPLETED = "mission_completed"
     TAXES_SET = "taxes_set"
     INFAMY = "infamy"

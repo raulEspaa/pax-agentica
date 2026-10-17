@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pax_agentica.engine.model import (
     AdvisorRole,
     BuildingKind,
+    Focus,
     NationId,
     ProvinceId,
     Resources,
@@ -383,6 +384,18 @@ class Improve(_Action):
     province: ProvinceId
 
 
+class SetFocus(_Action):
+    """Turn one of your provinces to a focus: trade (more ducats), farming (more grain), mining
+    (more iron and timber), garrison (more manpower, defended harder) or learning (cheaper to
+    develop; each province of learning makes the realm's research cheaper). The bonus is
+    rules.focus_base plus focus_per_settlement for each step its town has grown above a hamlet.
+    Costs rules.focus_cost; a province keeps its focus at least rules.focus_years years."""
+
+    type: Literal["set_focus"] = "set_focus"
+    province: ProvinceId
+    focus: Focus
+
+
 class UpgradeMonument(_Action):
     """Raise the monument of one of your provinces by a level (from a bare site to level 1, up
     to the rules' maximum). Its bonus grows with every level and serves whoever holds it."""
@@ -466,6 +479,7 @@ type Action = Annotated[
     | UpgradeBuilding
     | UpgradeMonument
     | Improve
+    | SetFocus
     | Convert
     | BoostStability
     | Research

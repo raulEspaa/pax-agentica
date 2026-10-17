@@ -276,6 +276,17 @@ class Personality(StrEnum):
     VISIONARY = "visionary"  # thinks in generations
 
 
+class Focus(StrEnum):
+    """What a province's people turn their hands to. A focus strengthens one side of its
+    output, the more the larger its town."""
+
+    TRADE = "trade"  # more ducats
+    FARMING = "farming"  # more grain
+    MINING = "mining"  # more iron and timber
+    GARRISON = "garrison"  # more manpower, defended harder
+    LEARNING = "learning"  # cheaper to develop, and the realm's research cheaper
+
+
 class Faith(StrEnum):
     CATHOLIC = "catholic"
     PROTESTANT = "protestant"
@@ -1061,6 +1072,13 @@ class Rules(BaseModel):
     develop_grain_base: int = 4  # grain to feed the new townsfolk: base + the development
     develop_grain_per_level: int = 1
     max_development: int = 12
+    # a province's focus: a share of its output, from a hamlet's to a great city's
+    focus_base: float = 0.15
+    focus_per_settlement: float = 0.05  # each step up from a hamlet
+    focus_cost: Resources = Resources(ducats=30)
+    focus_years: int = 5  # before a province can turn to another focus
+    learning_research_discount: float = 0.03  # each province of learning, up to the cap
+    learning_research_cap: float = 0.15
     develop_goods_from: int = 5  # from this development, developing also takes goods
     workshop_base_goods: int = 2
     workshop_goods_per_development: int = 3  # +1 bale for every this many levels
@@ -1313,6 +1331,8 @@ class ProvinceState(BaseModel):
     # buildings upgraded beyond their first level (a building not listed is at level 1)
     levels: dict[BuildingKind, NonNegativeInt] = Field(default_factory=dict)
     faith: Faith | None = None  # what its people believe; set for every province by the scenario
+    focus: Focus | None = None  # what its people turn their hands to
+    focus_since: int | None = None  # the turn the focus was set
 
     @property
     def holder(self) -> NationId | None:

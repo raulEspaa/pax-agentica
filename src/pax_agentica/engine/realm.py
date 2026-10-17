@@ -13,6 +13,7 @@ from pax_agentica.engine.model import (
     Advisor,
     AdvisorRole,
     BuildingKind,
+    Focus,
     GameState,
     NationId,
     Personality,
@@ -159,6 +160,13 @@ def holdings(
     return tuple(sorted(works)), tuple(sorted(monuments))
 
 
+def learning_towns(state: GameState, nation: NationId) -> int:
+    """How many of a nation's provinces are given to learning."""
+    return sum(
+        1 for p in state.provinces.values() if p.owner == nation and p.focus == Focus.LEARNING
+    )
+
+
 def market_towns(state: GameState, nation: NationId) -> int:
     """The levels of every marketplace a nation owns: its merchants' weight on the market."""
     return sum(
@@ -192,6 +200,7 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             tuple((r, a.name, a.skill) for r, a in sorted(me.advisors.items())),
             holdings(state, nation),  # type: ignore[arg-type]
             market_towns(state, nation),  # type: ignore[arg-type]
+            learning_towns(state, nation),  # type: ignore[arg-type]
             state.crisis_now(),
             tuple(me.flags),
             round(me.war_exhaustion, 1),
@@ -414,12 +423,18 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
     for branch, levels in rules.tech_tree.items():
         for level, step in enumerate(levels[: tech[branch]], start=1):
             lines.append(f"{step.name} ({branch.value} {level}): {step.unlocks}")
+    learned = min(
+        rules.learning_research_cap,
+        rules.learning_research_discount * learning_towns(state, nation),
+    )
+    if learned:
+        lines.append(f"provinces of learning: research {learned:.0%} cheaper")
     return Modifiers(
         ducat_income=ducats,
         grain_income=grain + grain_spirit,
         manpower_income=manpower,
         battle_power=power,
-        research_discount=min(0.8, research),
+        research_discount=min(0.8, research + learned),
         building_discount=min(0.8, building + building_spirit),
         stability_discount=stability,
         treaty_break_penalty=max(0, penalty),

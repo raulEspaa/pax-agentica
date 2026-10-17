@@ -196,6 +196,7 @@
     if (o.type === "buy") { const k = RES.findIndex(([key]) => key === o.resource); d[k] += o.amount; d[0] -= Math.ceil(o.amount * V.market[o.resource].buy); }
     if (o.type === "sell") { const k = RES.findIndex(([key]) => key === o.resource); d[k] -= o.amount; d[0] += Math.floor(o.amount * V.market[o.resource].sell); }
     if (o.type === "develop") sub(unbundle(prov(pIndex[o.province]).develop_cost));
+    if (o.type === "set_focus") sub(R.focus.cost);
     if (o.type === "improve" && prov(pIndex[o.province]).improve_cost) sub(unbundle(prov(pIndex[o.province]).improve_cost));
     if (o.type === "hire_mercenaries") d[0] -= o.regiments * R.mercenaryCost;
     if (o.type === "patronize") d[0] -= V.me.patronage_cost;
@@ -505,6 +506,7 @@
               <div class="gain">${imp ? gainText(preview.improve) || "<span>little at this development</span>" : ""}</div></div></div>
             <p class="note">${esc(P[i].name)} is known for its ${esc(good.name.toLowerCase())}: ${esc(PaxMap.yieldWords(good.yield))} per development. Each level adds half of it again, and grows as the province develops. No slot needed.</p>
             <div class="act"><button class="btn" data-act="improve" ${impWhy ? "disabled" : ""}>${impWhy ? cap(impWhy) : `Raise to level ${level + 1}`}</button>${imp ? `<span class="cost">${costText(imp)}</span>` : ""}</div></div></section>`;
+        body += focusCard(i, t);
         const best = B.filter((b) => !p.buildings.includes(b.id) && !queued.includes(bIndex[b.id]) && !(b.tech && V.me.technology[b.tech[0]] < b.tech[1])
             && !(b.requires >= 0 && !p.buildings.includes(B[b.requires].id)))
           .map((b) => [b, preview.buildings[b.id] || {}]).filter(([, gain]) => gain.ducats > 0)
@@ -655,6 +657,7 @@
       const id = P[i].id, act = b.dataset.act;
       if (act === "develop") queue({type: "develop", province: id});
       if (act === "improve") queue({type: "improve", province: id});
+      if (act.startsWith("focus:")) { orders = orders.filter((x) => !(x.type === "set_focus" && x.province === id)); queue({type: "set_focus", province: id, focus: act.slice(6)}); }
       if (act === "convert") queue({type: "convert", province: id});
       if (act === "disband") {
         const unit = box.dataset.disbandkind || null, most = unit ? armyAfter(i)[unit] : troopsAfter(i);
@@ -1753,6 +1756,7 @@
       case "upgrade_monument": return `🏛 Raise ${esc(M[o.province]?.name || "the monument")}`;
       case "disband": return `Disband ${o.regiments}${o.unit ? ` ${o.unit}` : ""} in ${pn(o.province)}`;
       case "develop": return `Develop ${pn(o.province)}`;
+      case "set_focus": { const f = FOCI.find(([k]) => k === o.focus); return `${f ? f[1] : "🎯"} Turn ${pn(o.province)} to ${f ? f[2].toLowerCase() : o.focus}`; }
       case "improve": return `${PaxMap.goodOf(S, P[pIndex[o.province]].good).icon} Raise the ${PaxMap.goodOf(S, P[pIndex[o.province]].good).workings.toLowerCase()} of ${pn(o.province)}`;
       case "build": return `Build ${B[bIndex[o.building]].name.toLowerCase()} in ${pn(o.province)}`;
       case "upgrade_building": return `⬆ Raise the ${B[bIndex[o.building]].name.toLowerCase()} of ${pn(o.province)} to level ${levelOf(pIndex[o.province], o.building) + 1}`;
@@ -2144,6 +2148,28 @@
     const all = [...view.nations.filter((n) => n.alive && n.id !== G.human).map((n) => n.standing), view.me.standing];
     return 1 + all.filter((s) => s > view.me.standing).length;
   }
+  // ------------------------------------------------------------------ a province's focus
+  // What its people turn their hands to: a share more of one side of its output, the larger the
+  // town the more; set for a price, and kept for some years.
+  const FOCI = [["trade", "💰", "Trade", "more ducats"], ["farming", "🌾", "Farming", "more grain"], ["mining", "⛏", "Mining", "more iron and timber"],
+    ["garrison", "🛡", "Garrison", "twice as much more manpower, and its own people defend it harder"], ["learning", "📚", "Learning", "cheaper to develop, and each one makes the realm's research cheaper"]];
+  function focusShare(p) { // what a focus would give this province, by its town
+    const steps = (R.settlements || []).map((s) => s.min_development).sort((a, b) => a - b);
+    const step = Math.max(0, steps.filter((m) => p.development >= m).length - 1);
+    return R.focus.base + R.focus.perSettlement * step;
+  }
+  function focusCard(i, t) {
+    const p = prov(i), id = P[i].id, now = FOCI.find(([k]) => k === p.focus), share = Math.round(focusShare(p) * 100);
+    const queued = orders.find((x) => x.type === "set_focus" && x.province === id);
+    const locked = p.focus_locked_until != null && V.turn < p.focus_locked_until;
+    const why = locked ? `kept until ${R.startYear + p.focus_locked_until - 1}` : !affordable(R.focus.cost, t) ? "too costly for now" : "";
+    return `<section><div class="card ${why ? "blocked" : "ready"}">
+      <div class="cardhead"><span class="ic">${now ? now[1] : "🎯"}</span><div><b>${now ? `Given to ${now[2].toLowerCase()}` : "No focus yet"}</b>
+        <div class="gain">${now ? `<span>+${share}%: ${esc(now[3])}</span>` : `<span>a focus gives +${share}% here, more as the town grows</span>`}</div></div></div>
+      <div class="foci">${FOCI.map(([k, ic, name, what]) => `<button class="btn ${p.focus === k ? "on" : ""} ${queued && queued.focus === k ? "queued" : ""}" data-act="focus:${k}"
+        ${why || p.focus === k ? "disabled" : ""}${tip(`<h5>${ic} ${name}</h5><div>+${share}%: ${esc(what)}</div>`)}>${ic} ${name}</button>`).join("")}</div>
+      <p class="note">${why ? cap(why) + ". " : ""}Costs ${costText(R.focus.cost)}; a province keeps its focus ${R.focus.years} years.</p></div></section>`;
+  }
   // ------------------------------------------------------------------ the epilogue: the whole game, once it is over
   // Every court's course year by year in one chart (pick the measure), what each did in the
   // field and at the treaty table, and Europe's map replayed a year at a time.
@@ -2486,7 +2512,8 @@
     }
     $("tip").innerHTML = `<b class="t">${esc(P[i].name)}</b><div class="kv">
       <span>Owner</span><b>${p.owner ? esc(nameOf(p.owner)) : "Independent"}</b>
-      <span>Development</span><b>${p.development}${p.settlement ? ` <small>· ${esc(p.settlement.toLowerCase())}</small>` : ""}</b>${p.faith ? `<span>Faith</span><b>${PaxMap.FAITH_ICON[p.faith]} ${cap(p.faith)}</b>` : ""}<span>Regiments</span><b>${p.troops === null ? "hidden" : `${p.troops}${p.army && p.troops ? ` <small>${KINDS.filter((k) => p.army[k]).map((k) => `${UICON[k]}${p.army[k]}`).join(" ")}</small>` : ""}`}</b>
+      <span>Development</span><b>${p.development}${p.settlement ? ` <small>· ${esc(p.settlement.toLowerCase())}</small>` : ""}</b>
+      ${p.focus ? `<span>Focus</span><b>${(FOCI.find(([k]) => k === p.focus) || [])[1] || ""} ${esc(cap(p.focus))} +${Math.round((p.focus_bonus || 0) * 100)}%</b>` : ""}${p.faith ? `<span>Faith</span><b>${PaxMap.FAITH_ICON[p.faith]} ${cap(p.faith)}</b>` : ""}<span>Regiments</span><b>${p.troops === null ? "hidden" : `${p.troops}${p.army && p.troops ? ` <small>${KINDS.filter((k) => p.army[k]).map((k) => `${UICON[k]}${p.army[k]}`).join(" ")}</small>` : ""}`}</b>
       ${M[p.id] && p.monument !== null ? `<span>Monument</span><b>${esc(M[p.id].name)} ${p.monument ? "★".repeat(p.monument) : "(a site)"}</b>` : ""}
       ${p.general ? `<span>General</span><b>${esc(p.general.name)} ${stars(p.general.skill)}</b>` : ""}
       ${p.fort ? `<span>Walls</span><b>🏰 ${p.fort} level${p.fort > 1 ? "s" : ""}: must be besieged</b>` : ""}
