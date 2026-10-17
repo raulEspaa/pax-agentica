@@ -100,3 +100,19 @@ def test_a_saved_game_resumes_exactly_where_it_stopped(tmp_path: Path) -> None:
     resumed = Session.resume(record, "france", session.rulers)
     assert resumed.state == session.state
     assert resumed.state.provinces["lyon"].development == 4
+
+
+def test_the_page_gets_the_reign_year_by_year_and_its_story() -> None:
+    session = default_session("france", seed=1, max_turns=5)
+    client = TestClient(create_app(session))
+    client.post("/api/turn", json={"actions": [{"type": "declare_war", "target": "spain"}]})
+    client.post("/api/turn", json={"actions": []})
+    game = client.get("/api/game").json()
+    history = game["history"]
+    assert [row["year"] for row in history] == [1500, 1501, 1502]
+    assert history[-1]["me"]["ruler"]
+    assert set(history[-1]["me"]) >= {"development", "provinces", "income", "standing"}
+    assert len(history[-1]["courts"]["spain"]) == 3  # others: only what Europe sees
+    story = game["story"]
+    assert any(m["kind"] == "war_declared" for m in story["milestones"])
+    assert story["bonds"]["spain"]["wars"] == 1

@@ -567,6 +567,15 @@ refuses or ignores it **dissolves the alliance**, in public.
 
 ## Playing it yourself
 
+Every year closes with its own moment: the new year written large, a headline for the year that
+passed, how your rank, standing, development, provinces and regiments moved, your ambitions
+within reach, and a sound and a flourish for what mattered (an ambition fulfilled, land won or
+lost, war on your borders). The **Your reign** window charts your standing against the leading
+courts and your realm's growth year by year, with the reigns of your rulers, your nemesis and
+firmest friend, and the milestones of your reign; the **Chronicle** gives every year a headline;
+and the end of the game writes the chronicle of your reign, to keep or share. The speaker button
+in the top bar mutes the sounds, all made in the browser.
+
 `uv run pax serve --nation france` opens the game in your browser. You see exactly the
 `NationView` an AI ruler gets, fog of war included, and you answer with the same `Orders`: the
 page is just a friendlier way to write them. The other thrones are held by bots (or, later, by

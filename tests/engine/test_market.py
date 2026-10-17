@@ -99,8 +99,8 @@ def test_buying_and_selling_at_a_cut(state: GameState, play: Play) -> None:
 
 
 def test_you_cannot_sell_what_you_lack(state: GameState, play: Play) -> None:
-    new = play(state, france=[Sell(resource="goods", amount=5)])
-    assert reasons(new) == ["you have only 0 goods"]
+    new = play(state, france=[Sell(resource="goods", amount=50)])
+    assert reasons(new) == ["you have only 8 goods"]
 
 
 def test_prices_follow_demand(state: GameState, play: Play) -> None:

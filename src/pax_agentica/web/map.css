@@ -154,7 +154,18 @@ svg .pick { fill: none; stroke: #fff6dc; stroke-width: 2.4; stroke-dasharray: 6 
 .battle { font-family: sans-serif; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .pulse { fill: none; stroke-width: 3; animation: pulse 1.6s ease-out infinite; pointer-events: none; }
 @keyframes pulse { from { r: 6; opacity: .95; } to { r: 30; opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .pulse { animation: none; opacity: .7; } .ready .prov { transition: none; } }
+.pulse.late { animation-delay: .5s; }
+.eventpop { animation: pop .7s cubic-bezier(.2, 1.8, .4, 1) both; transform-box: fill-box; transform-origin: center; }
+.eventpop.shake { animation: pop .7s cubic-bezier(.2, 1.8, .4, 1) both, shake .5s .7s ease-in-out 2; }
+.sparkle { animation: sparkle 1.8s ease-out both; transform-box: fill-box; transform-origin: center; }
+@keyframes pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes shake { 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+@keyframes sparkle { 0% { opacity: 0; transform: translateY(6px) scale(.5); } 30% { opacity: 1; transform: translateY(0) scale(1.15); } 100% { opacity: .85; transform: scale(1); } }
+.ping { font-family: var(--body); font-weight: 700; text-anchor: middle; fill: #fff3cf; stroke: #1a0f06; paint-order: stroke; pointer-events: none;
+        animation: pingup 1.5s ease-out forwards; transform-box: fill-box; }
+.ping.bad { fill: #ffb4a3; } .ping.war { fill: #ff9a86; }
+@keyframes pingup { 0% { opacity: 0; transform: translateY(8px) scale(.7); } 15% { opacity: 1; transform: translateY(0) scale(1.15); } 100% { opacity: 0; transform: translateY(-34px) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .pulse, .eventpop, .sparkle, .ping { animation: none !important; opacity: .8; } .ready .prov { transition: none; } }
 
 .zoom { position: absolute; right: 20px; top: 20px; display: flex; flex-direction: column; gap: 5px; z-index: 5; }
 .zoom .btn { width: 32px; padding: 0; font-size: 17px; }

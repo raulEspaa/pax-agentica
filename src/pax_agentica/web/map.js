@@ -157,7 +157,7 @@ const PaxMap = (() => {
     const plabels = P.map((p, i) => { const t = el("text", {x: p.x, y: p.y, class: "plabel"}, gPLabels);
       t.dataset.i = i; t.textContent = p.name; return t; });
     const gArrows = el("g", off, svg);
-    const gMarks = el("g", off, svg), gEvents = el("g", off, svg);
+    const gMarks = el("g", off, svg), gEvents = el("g", off, svg), gPings = el("g", off, svg);
     let arrows = [];
 
     const view = {x: 0, y: 0, w: W, h: H};
@@ -319,9 +319,24 @@ const PaxMap = (() => {
       for (const [kind, prov, nats] of world.events || []) {
         if (prov < 0) continue;
         const p = P[prov];
-        if (kind === "battle") el("text", {x: p.x + 16 * k, y: p.y - 12 * k, class: "battle", "font-size": 16 * k}, gEvents).textContent = "⚔";
-        if (kind === "province_captured" && nats.length) el("circle", {cx: p.x, cy: p.y, r: 8, class: "pulse", stroke: N[nats[0]].color}, gEvents);
+        if (kind === "battle") { // crossed swords that strike as the map opens on the new year
+          el("text", {x: p.x + 16 * k, y: p.y - 12 * k, class: "battle eventpop", "font-size": 16 * k}, gEvents).textContent = "⚔";
+        }
+        if (["province_captured", "province_occupied", "province_ceded", "province_liberated"].includes(kind) && nats.length) {
+          el("circle", {cx: p.x, cy: p.y, r: 8, class: "pulse", stroke: N[nats[0]].color}, gEvents);
+          el("circle", {cx: p.x, cy: p.y, r: 8, class: "pulse late", stroke: N[nats[0]].color}, gEvents);
+        }
+        if (kind === "siege") el("text", {x: p.x - 16 * k, y: p.y - 12 * k, class: "battle eventpop shake", "font-size": 13 * k}, gEvents).textContent = "🏰";
+        if (kind === "built" || kind === "developed") el("text", {x: p.x, y: p.y - 18 * k, class: "battle sparkle", "font-size": 12 * k}, gEvents).textContent = kind === "built" ? "🏗" : "✦";
       }
+    }
+    // a word that rises from a province and fades: what an order just set in motion there
+    function ping(i, text, cls = "") {
+      if (i < 0 || !P[i]) return;
+      const k = px(), p = P[i];
+      const t = el("text", {x: p.x, y: p.y - 10 * k, class: `ping ${cls}`, "font-size": 15 * k, "stroke-width": 3 * k}, gPings);
+      t.textContent = text;
+      setTimeout(() => t.remove(), 1500);
     }
 
     function paint(next) {
@@ -427,7 +442,7 @@ const PaxMap = (() => {
     window.addEventListener("pointerup", () => { drag = null; wrap.classList.remove("dragging"); });
     window.addEventListener("resize", () => { applyView(); refresh(); });
 
-    return {paint, pick, setTargets, setArrows, zoomAt, home, centerOn, refresh, view, maxW, px, get picked() { return picked; }};
+    return {paint, pick, setTargets, setArrows, zoomAt, home, centerOn, refresh, view, maxW, px, ping, get picked() { return picked; }};
   }
 
   // ------------------------------------------------------------------ the province vista

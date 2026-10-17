@@ -228,6 +228,84 @@ class Session:
             years.append({"turn": turn.turn, "year": turn.year, "events": _events(seen)})
         return years
 
+    def history(self, nation: NationId | None = None) -> list[dict[str, Any]]:
+        """Year by year: this human's realm in full, and of every court what all Europe can see
+        (development, provinces, standing). For the page's charts of a reign."""
+        nation = nation or self.human
+        rows = []
+        start = self.record.initial.rules.start_year
+        for year, snap in [(start, self.record.start)] + [
+            (t.year + 1, t.after) for t in self.record.turns
+        ]:
+            mine = snap.nations.get(nation)
+            if mine is None:
+                continue
+            rows.append(
+                {
+                    "year": year,
+                    "me": {
+                        "development": mine.score,
+                        "provinces": mine.provinces,
+                        "regiments": mine.regiments,
+                        "ducats": mine.resources.ducats,
+                        "income": mine.income,
+                        "prestige": mine.prestige,
+                        "standing": mine.standing,
+                        "stability": mine.stability,
+                        "ruler": mine.ruler,
+                    },
+                    "courts": {
+                        nid: [n.score, n.provinces, n.standing]
+                        for nid, n in snap.nations.items()
+                        if n.alive
+                    },
+                }
+            )
+        return rows
+
+    def story(self, nation: NationId | None = None) -> dict[str, Any]:
+        """The milestones of this human's whole reign, and what binds it to every court:
+        battles fought, wars, treaties, land taken. For the page's chronicle of the reign."""
+        nation = nation or self.human
+        keep = {
+            "province_captured", "province_ceded", "province_liberated", "province_occupied",
+            "mission_completed", "succession", "war_declared", "peace_signed", "treaty_signed",
+            "treaty_broken", "monument_raised", "nation_eliminated", "coalition_joined",
+        }  # fmt: skip
+        milestones: list[dict[str, Any]] = []
+        bonds: dict[str, dict[str, int]] = {}
+
+        def bond(other: str) -> dict[str, int]:
+            return bonds.setdefault(
+                other,
+                {"battles_won": 0, "battles_lost": 0, "wars": 0, "treaties": 0, "taken": 0,
+                 "lost": 0, "betrayals": 0},
+            )  # fmt: skip
+
+        for turn in self.record.turns:
+            for e in turn.events:
+                if nation not in e.nations or not e.visible_to(nation):
+                    continue
+                others = [n for n in e.nations if n != nation]
+                if e.kind.value == "battle" and others:
+                    won = (e.data.get("attacker") == nation) == bool(e.data.get("attacker_won"))
+                    bond(others[0])["battles_won" if won else "battles_lost"] += 1
+                if e.kind.value == "war_declared" and others:
+                    bond(others[0])["wars"] += 1
+                if e.kind.value == "treaty_signed" and others:
+                    bond(others[0])["treaties"] += 1
+                if e.kind.value == "treaty_broken" and others:
+                    bond(others[0])["betrayals"] += 1
+                if e.kind.value in ("province_captured", "province_ceded") and others:
+                    taker = e.nations[0] if e.kind.value == "province_captured" else e.nations[-1]
+                    bond(others[0])["taken" if taker == nation else "lost"] += 1
+                if e.kind.value in keep:
+                    milestones.append(
+                        {"year": turn.year, "kind": e.kind.value, "summary": e.summary,
+                         "nations": list(e.nations), "province": e.province}
+                    )  # fmt: skip
+        return {"milestones": milestones, "bonds": bonds}
+
     def previews(self, nation: NationId | None = None) -> dict[str, dict[str, Any]]:
         """For each of the human's provinces, what one more development or each building not
         yet standing would add to its yearly output, and what each standing one adds. Only for
@@ -273,6 +351,8 @@ class Session:
             "chronicle": self.chronicle(nation)[:CHRONICLE_YEARS],
             "rulers": self.record.players,
             "previews": self.previews(nation),
+            "history": self.history(nation),
+            "story": self.story(nation),
             "saved_to": str(self.save_to) if self.save_to else None,
             "humans": {h: self.names.get(h, "you") for h in self.humans},
             "submitted": nation in self.pending,
@@ -323,6 +403,7 @@ def add_assets(app: FastAPI, static: dict[str, Any]) -> None:
             "map.css": "text/css",
             "play.js": "text/javascript",
             "icons.js": "text/javascript",
+            "juice.js": "text/javascript",
             "favicon.svg": "image/svg+xml",
         }
         if name not in types:

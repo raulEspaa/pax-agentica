@@ -22,6 +22,7 @@
   if (TABLE && !SEAT) { location.href = `/?table=${TABLE}`; return; }
   const api = (path, opts = {}) => fetch(`${BASE}${path}`, {...opts, headers: {...(opts.headers || {}), ...(SEAT ? {"X-Seat": SEAT} : {})}});
   const REPLAY = TABLE ? `/t/${TABLE}/replay` : "/replay";
+  const J = window.PaxJuice || {play() {}, countTo() {}, floatText() {}, celebrate() {}, yearCard: async () => {}, vignette() {}, muted: () => true, setMuted() {}};
   const S = await (await api("/static")).json();
   const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, T = S.tech, U = S.units, M = S.monuments;
   const KINDS = U.map((u) => u.id);
@@ -58,6 +59,7 @@
       return flash(`${failing.size} of your orders cannot be paid and will fail (marked in red). End the year again to go on anyway.`);
     }
     endTurn.warned = false;
+    J.play("click");
     const button = $("endturn"); button.disabled = true; button.textContent = "The year passes…";
     try {
       const r = await api("/turn", {method: "POST", headers: {"Content-Type": "application/json"},
@@ -132,9 +134,22 @@
     render();
   }
   function flash(text) { const e = $("error"); e.textContent = text; e.style.display = "block"; clearTimeout(flash.t); flash.t = setTimeout(() => (e.style.display = "none"), 5000); }
+  // What an order sounds like, and the word it leaves rising over its province.
+  const ORDER_FEEL = {build: ["build", "🏗"], upgrade_building: ["build", "⬆"], develop: ["build", "+1"], improve: ["build", "⛏"],
+    upgrade_monument: ["build", "🏛"], recruit: ["order", (o) => `+${o.regiments} ⚔`], hire_mercenaries: ["coins", (o) => `+${o.regiments} ⚔`],
+    attack: ["order", "⚔"], move: ["order", "➜"], buy: ["coins", null], sell: ["coins", null], gift: ["coins", null], convert: ["order", "✝"],
+    lift_siege: ["unorder", "🏳"], declare_war: ["war", null], send_message: ["seal", null], respond: ["seal", null],
+    choose_option: ["seal", null], set_taxes: ["coins", null], boost_stability: ["coins", null], patronize: ["coins", null],
+    hire_general: ["order", "★"], assign_general: ["order", "★"]};
   function queue(order) {
     if (orders.length >= MAX_ORDERS) return flash(`A realm can give at most ${MAX_ORDERS} orders a year.`);
-    orders.push(order); render();
+    orders.push(order);
+    const [sound, mark] = ORDER_FEEL[order.type] || [order.type.startsWith("propose") ? "seal" : "order", null];
+    J.play(sound);
+    if (order.type === "declare_war") J.vignette("war");
+    const where = pIndex[order.province ?? (order.type === "attack" || order.type === "move" ? order.target : null)];
+    if (mark && where !== undefined) map.ping(where, typeof mark === "function" ? mark(order) : mark, order.type === "attack" ? "war" : "");
+    render();
   }
 
   // ------------------------------------------------------------------ what the orders cost and leave behind
@@ -660,7 +675,7 @@
     const stats = RES.map(([key, label], k) => {
       const head = `<h5>${I(RICON[key])} ${label}: ${now[k]}${t[k] !== now[k] ? ` → ${t[k]} after your orders` : ""}</h5>`;
       const extra = key === "manpower" ? `<div class="dim">The pool fills up to ${V.me.manpower_cap}.</div>` : "";
-      return `<div class="stat ${net[k] < 0 && now[k] + net[k] < 0 ? "alarm" : ""}"${tip(head + (lines[k].join("") || `<div class="dim">Nothing comes or goes.</div>`) + tline("A year", net[k]).replace('class="tl"', 'class="tl sum"') + extra)}>
+      return `<div class="stat ${net[k] < 0 && now[k] + net[k] < 0 ? "alarm" : ""}" data-res="${key}"${tip(head + (lines[k].join("") || `<div class="dim">Nothing comes or goes.</div>`) + tline("A year", net[k]).replace('class="tl"', 'class="tl sum"') + extra)}>
         ${I(RICON[key])}<span class="val"><b>${t[k]}</b><i class="${net[k] > 0 ? "pos" : net[k] < 0 ? "neg" : ""}">${sign(net[k])}</i></span></div>`; }).join("");
     const src = (words) => V.me.modifiers.sources.filter((l) => words.some((w) => l.includes(w)))
       .map((l) => `<div class="tl"><span>${esc(l)}</span></div>`).join("") || `<div class="dim">Nothing yet.</div>`;
@@ -1398,6 +1413,121 @@
   const CHRON_KINDS = {war: ["battle", "war_declared", "joined_war", "peace_signed", "province_captured", "province_occupied", "province_ceded", "province_liberated", "siege", "nation_eliminated", "capital_moved", "general_fell", "call_to_arms_ignored"],
     diplomacy: ["treaty_signed", "treaty_broken", "treaty_cancelled", "treaty_expired", "coalition_joined", "coalition_dissolved", "gift", "trade_completed", "message", "proclamation", "stance_changed", "infamy"],
     realm: ["built", "developed", "improved", "researched", "mission_completed", "succession", "event_decided", "stability_changed", "prestige_changed", "general_appointed", "monument_raised"]};
+  // ------------------------------------------------------------------ the reign: progress you can see
+  const ordinal = (n) => `${n}${["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th"}`;
+  const rankIn = (row) => 1 + Object.entries(row.courts).filter(([n, v]) => n !== G.human && v[2] > row.me.standing).length;
+  // A small line chart: thin lines, your own thicker, the latest value written at its end;
+  // a hover band per year tells every line's value.
+  function lineChart(years, series, {height = 120, invert = false, label = ""} = {}) {
+    const W = 320, H = height, L = 6, R = 40, T = 10, B = 18;
+    const all = series.flatMap((s) => s.values.filter((v) => v !== null && v !== undefined));
+    let lo = Math.min(...all), hi = Math.max(...all);
+    if (lo === hi) { lo -= 1; hi += 1; }
+    const x = (k) => L + (W - L - R) * (years.length > 1 ? k / (years.length - 1) : 0);
+    const y = (v) => { const f = (v - lo) / (hi - lo); return T + (H - T - B) * (invert ? f : 1 - f); };
+    const lines = series.map((s) => {
+      const pts = s.values.map((v, k) => (v === null || v === undefined ? null : `${x(k).toFixed(1)},${y(v).toFixed(1)}`)).filter(Boolean).join(" ");
+      const lastK = s.values.length - 1, last = s.values[lastK];
+      return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${s.mine ? 2.6 : 1.4}" stroke-linejoin="round" stroke-linecap="round" opacity="${s.mine ? 1 : 0.8}"/>
+        ${last !== null && last !== undefined ? `<circle cx="${x(lastK)}" cy="${y(last)}" r="${s.mine ? 3.2 : 2.2}" fill="${s.color}" stroke="var(--leather)" stroke-width="1.5"/>
+        ${s.mine ? `<text x="${x(lastK) + 6}" y="${y(last) + 4}" class="cval">${label}${last}</text>` : ""}` : ""}`; }).join("");
+    const bands = years.map((yr, k) => { const w = (W - L - R) / Math.max(1, years.length - 1);
+      const vals = series.map((s) => `${s.name}: ${s.values[k] ?? "—"}`).join("\n");
+      return `<rect x="${x(k) - w / 2}" y="${T}" width="${w}" height="${H - T - B}" class="band"><title>${yr}\n${vals}</title></rect>`; }).join("");
+    return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">
+      <line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" class="axis"/>
+      <text x="${L}" y="${H - 4}" class="tick">${years[0]}</text><text x="${W - R}" y="${H - 4}" class="tick" text-anchor="end">${years[years.length - 1]}</text>
+      ${lines}${bands}</svg>`;
+  }
+  // The reigns of your realm so far: who sat the throne, from when to when, and what became of it.
+  function reignsOf(H) {
+    const out = [];
+    H.forEach((r, k) => { const cur = out[out.length - 1], rank = rankIn(r);
+      if (!cur || cur.ruler !== r.me.ruler) out.push({ruler: r.me.ruler, from: r.year, to: r.year, a: r.me, b: r.me, ra: rank, rb: rank});
+      else { cur.to = r.year; cur.b = r.me; cur.rb = rank; } });
+    return out;
+  }
+  function reignLine(g) {
+    const years = g.to - g.from, dev = g.b.development - g.a.development, land = g.b.provinces - g.a.provinces;
+    const verdict = g.rb < g.ra ? "Europe looked up to the crown more than before" : g.rb > g.ra ? "the realm fell behind its rivals" : "the realm held its place";
+    return `${esc(g.ruler || "A regency")} reigned ${years || "less than a"} year${years === 1 ? "" : "s"}: ${land > 0 ? `${land} province${land > 1 ? "s" : ""} won` : land < 0 ? `${-land} province${land < -1 ? "s" : ""} lost` : "no land won or lost"}, development ${dev >= 0 ? "+" : ""}${dev}, and ${verdict} (${ordinal(g.ra)} to ${ordinal(g.rb)}).`;
+  }
+  // Which provinces a year's events gave you, or took from you.
+  function yearLand(evs) {
+    const won = [], lost = [];
+    for (const e of evs) {
+      if (!e.province) continue;
+      if (e.kind === "province_captured") (e.nations[0] === G.human ? won : e.nations[1] === G.human ? lost : []).push(e.province);
+      if (e.kind === "province_ceded") (e.nations[1] === G.human ? won : e.nations[0] === G.human ? lost : []).push(e.province);
+    }
+    return [won, lost];
+  }
+  // The chronicle of a whole reign, as a chronicler would write it at the end.
+  function chronicleOfReign() {
+    const H = G.history || [], story = G.story || {milestones: [], bonds: {}};
+    if (H.length < 2) return "";
+    const a = H[0].me, b = H[H.length - 1].me, ranks = H.map(rankIn), name = nameOf(G.human);
+    const miles = story.milestones || [], mine = (k) => miles.filter((m) => m.kind === k);
+    const wars = mine("war_declared").length, peaces = mine("peace_signed").length, ambitions = mine("mission_completed").filter((m) => m.nations[0] === G.human).length;
+    const conquests = miles.filter((m) => (m.kind === "province_captured" && m.nations[0] === G.human) || (m.kind === "province_ceded" && m.nations[1] === G.human));
+    const bonds = Object.entries(story.bonds || {});
+    const won = bonds.reduce((s, [, x]) => s + x.battles_won, 0), lost = bonds.reduce((s, [, x]) => s + x.battles_lost, 0);
+    const enemy = bonds.sort((x, y) => (y[1].battles_won + y[1].battles_lost + 3 * y[1].wars) - (x[1].battles_won + x[1].battles_lost + 3 * x[1].wars))[0];
+    const best = Math.min(...ranks), bestYear = H[ranks.indexOf(best)].year;
+    const reigns = reignsOf(H);
+    const WORD = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+    const say = (n, one, many = `${one}s`) => `${WORD[n] ?? n} ${n === 1 ? one : many}`;
+    const cap1 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    const parts = [
+      `${name} entered the age in ${H[0].year} with ${a.provinces} provinces and ${a.development} development, ${ordinal(ranks[0])} among the courts of Europe.`,
+      `${reigns.length > 1 ? `${cap1(say(reigns.length, "ruler"))} sat its throne: ${reigns.map((g) => `${g.ruler} (${g.from}–${g.to})`).join(", ")}.` : `${reigns[0].ruler} ruled it all those years.`}`,
+      wars || won || lost ? `It fought ${say(wars, "war")}${peaces ? ` and signed ${say(peaces, "peace")}` : ""}; its armies won ${say(won, "battle")} and lost ${WORD[lost] ?? lost}.`
+        : "It kept its swords sheathed: no war darkened its years.",
+      conquests.length ? `Its banners rose over ${conquests.slice(0, 6).map((m) => P[pIndex[m.province]]?.name).filter(Boolean).join(", ")}${conquests.length > 6 ? " and more" : ""}.` : "It won no land by the sword or the pen.",
+      enemy && (enemy[1].wars || enemy[1].battles_won + enemy[1].battles_lost) ? `Its great rival was ${nameOf(enemy[0])}.` : "",
+      ambitions ? `It fulfilled ${ambitions} of the crown's ambitions.` : "",
+      `At its height, in ${bestYear}, it stood ${ordinal(best)} in Europe. In ${H[H.length - 1].year} it held ${b.provinces} provinces and ${b.development} development, ${ordinal(ranks[ranks.length - 1])} of all.`,
+    ].filter(Boolean);
+    return parts.join(" ");
+  }
+  function reignTab() {
+    const H = G.history || [], story = G.story || {milestones: [], bonds: {}};
+    if (H.length < 2) return `<p class="muted pad">Your reign is young: end a year or two, and its story starts here.</p>`;
+    const years = H.map((r) => r.year), first = H[0].me, last = H[H.length - 1].me, color = N[me].color;
+    const ranks = H.map(rankIn), best = Math.min(...ranks), bestYear = years[ranks.indexOf(best)];
+    // the three courts ahead of you, or closest behind, at the end
+    const rivals = Object.entries(H[H.length - 1].courts).filter(([n]) => n !== G.human).sort((a, b) => b[1][2] - a[1][2]).slice(0, 3).map(([n]) => n);
+    const standing = lineChart(years, [{name: nameOf(G.human), color, mine: true, values: H.map((r) => r.me.standing)},
+      ...rivals.map((n) => ({name: nameOf(n), color: N[nIndex[n]].color, values: H.map((r) => r.courts[n]?.[2] ?? null)}))]);
+    const tile = (title, key, unit = "") => { const vals = H.map((r) => r.me[key]), d = vals[vals.length - 1] - vals[0];
+      return `<div class="rtile"><div class="rhead"><span>${title}</span><b>${vals[vals.length - 1]}${unit}</b><small class="${d > 0 ? "pos" : d < 0 ? "neg" : ""}">${d > 0 ? "▲" : d < 0 ? "▼" : ""}${d ? Math.abs(d) : "="} since ${years[0]}</small></div>
+        ${lineChart(years, [{name: title, color, mine: true, values: vals}], {height: 70})}</div>`; };
+    // reigns: who sat on the throne, and what the realm became under them
+    const reigns = reignsOf(H);
+    const reignRows = reigns.map((g) => `<li><b>${esc(g.ruler || "A regency")}</b> <small>${g.from}–${g.to}</small>
+      <span>development ${g.a.development} → ${g.b.development}, provinces ${g.a.provinces} → ${g.b.provinces}, ${ordinal(g.ra)} → ${ordinal(g.rb)} in Europe</span></li>`).join("");
+    // nemesis and friend, from what passed between the courts
+    const bonds = Object.entries(story.bonds || {}).filter(([n]) => N[nIndex[n]]);
+    const enmity = (b) => b.battles_won + b.battles_lost + 3 * b.wars + 2 * (b.taken + b.lost) + 4 * b.betrayals;
+    const nemesis = bonds.filter(([, b]) => enmity(b) > 0).sort((a, b) => enmity(b[1]) - enmity(a[1]))[0];
+    const friend = bonds.filter(([, b]) => b.treaties > 0 && !b.wars).sort((a, b) => b[1].treaties - a[1].treaties)[0];
+    const who = (n) => `<span class="who">${PaxMap.flag(n, N[nIndex[n]].color, 22, "flag inline")} <b>${esc(nameOf(n))}</b></span>`;
+    const MILE = {province_captured: "⚑", province_ceded: "📜", province_liberated: "🛡", province_occupied: "🏴", mission_completed: "🏆", succession: "👑",
+      war_declared: "⚔", peace_signed: "🕊", treaty_signed: "🤝", treaty_broken: "💔", monument_raised: "🏛", nation_eliminated: "☠", coalition_joined: "🛡"};
+    const miles = (story.milestones || []).slice().reverse().slice(0, 40).map((m) => `<li><span class="my">${m.year}</span><span class="ic">${MILE[m.kind] || "•"}</span><span>${esc(m.summary)}</span></li>`).join("");
+    return `<div class="pad reign">
+      <div class="rtop"><div><span class="sub">Standing in Europe</span><b class="big">${ordinal(ranks[ranks.length - 1])}</b><small>best: ${ordinal(best)}, in ${bestYear}</small></div>
+        <div><span class="sub">Years of your reign</span><b class="big">${years[years.length - 1] - years[0]}</b><small>of ${V.max_turns}</small></div>
+        <div><span class="sub">Standing</span><b class="big">${last.standing}</b><small class="${last.standing >= first.standing ? "pos" : "neg"}">${sign(last.standing - first.standing)} since ${years[0]}</small></div></div>
+      <h4>${I("trending-up")} Standing, against the leading courts</h4>${standing}
+      <div class="legend2">${[[G.human, color], ...rivals.map((n) => [n, N[nIndex[n]].color])].map(([n, c]) => `<span><i style="background:${c}"></i>${esc(nameOf(n))}</span>`).join("")}</div>
+      <div class="rtiles">${tile("Development", "development")}${tile("Provinces", "provinces")}${tile("Ducats a year", "income")}${tile("Regiments", "regiments")}${tile("Prestige", "prestige")}</div>
+      ${nemesis || friend ? `<h4>${I("swords")} Between the courts</h4><div class="bonds">
+        ${nemesis ? `<div><span class="sub">Your nemesis</span>${who(nemesis[0])}<small>${nemesis[1].wars} war${nemesis[1].wars === 1 ? "" : "s"}, battles ${nemesis[1].battles_won}–${nemesis[1].battles_lost}, land ${nemesis[1].taken} taken, ${nemesis[1].lost} lost${nemesis[1].betrayals ? `, ${nemesis[1].betrayals} betrayal${nemesis[1].betrayals > 1 ? "s" : ""}` : ""}</small></div>` : ""}
+        ${friend ? `<div><span class="sub">Your firmest friend</span>${who(friend[0])}<small>${friend[1].treaties} treat${friend[1].treaties === 1 ? "y" : "ies"} signed, never at war</small></div>` : ""}</div>` : ""}
+      <h4>${I("crown")} Reigns</h4><ul class="reigns">${reignRows}</ul>
+      <h4>${I("book-open")} Milestones</h4>${miles ? `<ol class="miles">${miles}</ol>` : `<p class="muted">Nothing worth the chronicler's ink yet.</p>`}</div>`;
+  }
   function chronicleTab() {
     if (!G.chronicle.length) return `<p class="muted pad">History begins when you end the first year.</p>`;
     const names = new RegExp(N.map((n) => n.name).join("|"), "g");
@@ -1407,11 +1537,12 @@
     const years = G.chronicle.map((y) => [y, y.events.filter(keep)]).filter(([, es]) => es.length);
     return `<div class="pad"><div class="filters"><select class="field" id="chroncourt" aria-label="Court"><option value="">All Europe</option>${N.map((n) => `<option value="${n.id}" ${chronCourt === n.id ? "selected" : ""}>${esc(n.name)}</option>`).join("")}</select>
       ${[["all", "All"], ["mine", "My realm"], ["war", "War"], ["diplomacy", "Diplomacy"], ["realm", "Works"]].map(([id, label]) => `<button class="btn ${chronKind === id ? "on" : ""}" data-chkind="${id}">${label}</button>`).join("")}</div></div>
-      <ol class="chron" style="max-height:none">${years.map(([y, es]) => `<li class="year">${y.year}</li>` + es
+      <ol class="chron" style="max-height:none">${years.map(([y, es]) => { const [won, lost] = yearLand(y.events);
+        return `<li class="year">${y.year} <em>${esc(headline(y.events, won, lost))}</em></li>`; }).map((head, k) => head + years[k][1]
       .map((e) => `<li class="${BAD.has(e.kind) ? "bad" : ""}"><span class="ic">${ICON[e.kind] || "•"}</span><span>${paint(told(e))}</span></li>`).join("")).join("") || `<li class="muted">Nothing of the kind.</li>`}</ol>`;
   }
   // ------------------------------------------------------------------ the rail of offices and its window
-  const OFFICES = [["realm", "landmark", "Economy"], ["crown", "crown", "The Crown"], ["missions", "target", "Missions"],
+  const OFFICES = [["realm", "landmark", "Economy"], ["crown", "crown", "The Crown"], ["reign", "trending-up", "Your reign"], ["missions", "target", "Missions"],
     ["army", "swords", "Army"], ["tech", "flask-conical", "Learning"], ["diplomacy", "handshake", "Diplomacy"],
     ["letters", "mail", "Correspondence"], ["ledger", "chart-column", "Ledger of Europe"], ["chronicle", "book-open", "Chronicle"]];
   let panelOpen = false, pinned = false, peekTimer = 0, leaveTimer = 0;
@@ -1450,7 +1581,7 @@
     const panel = $("office");
     if (!panelOpen) { panel.innerHTML = ""; return; }
     const keep = panel.scrollTop, same = panel.dataset.tab === tab;
-    panel.innerHTML = {realm: realmTab, crown: crownTab, missions: missionsTab, army: armyTab, tech: techTab, diplomacy: diplomacyTab, letters: lettersTab, ledger: ledgerTab, chronicle: chronicleTab}[tab]();
+    panel.innerHTML = {realm: realmTab, crown: crownTab, reign: reignTab, missions: missionsTab, army: armyTab, tech: techTab, diplomacy: diplomacyTab, letters: lettersTab, ledger: ledgerTab, chronicle: chronicleTab}[tab]();
     panel.dataset.tab = tab; if (same) panel.scrollTop = keep;
     const focusOn = (i) => { picked = i; send = Infinity; lead = true; if (!pinned) panelOpen = false; map.centerOn(i, 2.2, innerWidth > 960 ? 300 : 0); render(); };
     panel.querySelectorAll("tr.click").forEach((tr) => tr.onclick = () => focusOn(+tr.dataset.p));
@@ -1622,7 +1753,7 @@
     $("orders").innerHTML = `<h4>This year's orders <small>${orders.length} of ${MAX_ORDERS}</small></h4>` + (orders.length
       ? (() => { const short = shortfalls(); return orders.map((o, k) => `<div class="order ${short.has(k) ? "short" : ""}"><span>${describe(o)}${short.has(k) ? `<small>✗ not enough ${short.get(k).join(", ")}: it will fail</small>` : ""}</span><button data-drop="${k}" aria-label="Withdraw this order" title="Withdraw">✕</button></div>`).join(""); })()
       : `<p class="muted pad">No orders yet. Select a province on the map, or open an office above.</p>`);
-    $("orders").querySelectorAll("[data-drop]").forEach((b) => b.onclick = () => { orders.splice(+b.dataset.drop, 1); render(); });
+    $("orders").querySelectorAll("[data-drop]").forEach((b) => b.onclick = () => { orders.splice(+b.dataset.drop, 1); J.play("unorder"); render(); });
   }
 
   // ------------------------------------------------------------------ the year's report
@@ -1647,7 +1778,75 @@
       <small>die ${d.die}${mods ? `, ${mods}` : ""}: score ${d.score}</small>
       <div class="sbar"><i style="width:${d.progress}%"></i><span>${d.progress}%${d.progress >= 100 ? ": the walls fall" : ""}</span></div></div>`;
   }
-  function report(before) {
+  // The year's headline: the one thing a chronicler would write down first.
+  function headline(evs, won, lost) {
+    const mine = evs.filter((e) => e.nations.includes(G.human));
+    const pname = (pid) => P[pIndex[pid]]?.name || pid;
+    const mission = mine.find((e) => e.kind === "mission_completed" && e.nations[0] === G.human);
+    if (mission) return `The year ${nameOf(G.human)} ${mission.summary.split(": ").slice(1).join(": ") ? `fulfilled “${mission.summary.split(": ").slice(1).join(": ")}”` : "fulfilled an ambition"}`;
+    if (won.length) return `The year ${won.map(pname).join(" and ")} ${won.length > 1 ? "were" : "was"} won`;
+    if (lost.length) return `The year ${lost.map(pname).join(" and ")} ${lost.length > 1 ? "were" : "was"} lost`;
+    const fell = mine.filter((e) => e.kind === "province_occupied" && e.nations[1] === G.human);
+    if (fell.length) return `The year ${fell.map((e) => pname(e.province)).join(" and ")} fell to ${nameOf(fell[0].nations[0])}`;
+    const rose = mine.filter((e) => e.kind === "province_occupied" && e.nations[0] === G.human);
+    if (rose.length) return `The year your banners rose over ${rose.map((e) => pname(e.province)).join(" and ")}`;
+    const war = mine.find((e) => e.kind === "war_declared");
+    if (war) return `The year war came between ${nameOf(war.nations[0])} and ${nameOf(war.nations[1])}`;
+    const peace = mine.find((e) => e.kind === "peace_signed");
+    if (peace) return `The year of the peace with ${nameOf(peace.nations.find((n) => n !== G.human) || G.human)}`;
+    const battle = mine.find((e) => e.kind === "battle");
+    if (battle) return `The year of the battle of ${pname(battle.province)}`;
+    const reign = mine.find((e) => e.kind === "succession");
+    if (reign) return "The year of a new reign";
+    const wed = mine.find((e) => e.kind === "treaty_signed" && e.summary.includes("marriage"));
+    if (wed) return "The year of a royal wedding";
+    // a quiet year at home: the most striking news from abroad
+    const WEIGHT = {nation_eliminated: 6, war_declared: 5, peace_signed: 4, coalition_joined: 4, succession: 3, mission_completed: 3, province_ceded: 2, province_captured: 1};
+    const far = evs.filter((e) => WEIGHT[e.kind]).sort((a, b) => WEIGHT[b.kind] - WEIGHT[a.kind])[0];
+    if (far) return `Abroad, ${far.summary.replace(/\.$/, "")}`;
+    return "A quiet year in the realm";
+  }
+  // The ambitions closest to fulfilment: a next step always in sight.
+  function nextAmbitions() {
+    const share = (m) => m.goals.reduce((a, g) => a + Math.min(1, g.have / Math.max(1, g.need)), 0) / Math.max(1, m.goals.length);
+    const open = (V.me.missions || []).filter((m) => m.status === "open").sort((a, b) => share(b) - share(a)).slice(0, 2);
+    if (!open.length || G.finished) return "";
+    return `<section class="within"><h3>🎯 Within reach</h3>${open.map((m) => { const s = Math.round(share(m) * 100), todo = m.goals.filter((g) => g.have < g.need);
+      return `<div class="amb"><div class="amhead"><b>${esc(m.title)}</b><span>${s}%</span></div><i class="bar"><b style="width:${s}%"></b></i>
+        <small>${todo.length ? `Still to do: ${todo.map((g) => esc(g.text)).join("; ")}` : "Every goal holds: it is fulfilled at the end of this year."}</small>
+        <small class="rw">Reward: ${esc(m.reward)}</small></div>`; }).join("")}</section>`;
+  }
+  // Each year closes with the feeling it deserves: one sound, and a triumph when it earned one.
+  function feelYear(before, evs, won, lost) {
+    const mine = evs.filter((e) => e.nations.includes(G.human));
+    const missions = mine.filter((e) => e.kind === "mission_completed" && e.nations[0] === G.human);
+    const attacked = mine.some((e) => e.kind === "war_declared" && e.nations[0] !== G.human);
+    const fought = mine.some((e) => e.kind === "battle");
+    const peace = mine.some((e) => e.kind === "peace_signed");
+    setTimeout(() => {
+      if (missions.length) { J.play("triumph"); J.celebrate(missions[0].summary.split(": ").slice(1).join(": ") || "Ambition fulfilled", "An ambition of the crown is fulfilled"); }
+      else if (won.length) { J.play("triumph"); J.celebrate(`${won.map((x) => P[pIndex[x]].name).join(", ")} ${won.length > 1 ? "are" : "is"} ours`, "The realm grows", [N[me].color, "#ecd08c", "#fff3cf"]); }
+      else if (lost.length) { J.play("loss"); J.vignette("war"); }
+      else if (attacked) { J.play("war"); J.vignette("war"); }
+      else if (peace) J.play("peace");
+      else if (fought) J.play("battle");
+    }, 350);
+    // what the treasury gained or lost, rising over each resource
+    if (before) requestAnimationFrame(() => RES.forEach(([key], k) => {
+      const d = unbundle(V.me.resources)[k] - unbundle(before.me.resources)[k];
+      const el = document.querySelector(`.stat[data-res="${key}"]`);
+      if (!d || !el) return;
+      setTimeout(() => { J.floatText(el, `${d > 0 ? "+" : "−"}${Math.abs(d)}`, d > 0 ? (key === "ducats" ? "gold" : "") : "neg");
+        el.querySelector(".val b")?.classList.add("bump"); }, 200 + k * 90);
+    }));
+  }
+  function rankOf(view) {
+    const all = [...view.nations.filter((n) => n.alive && n.id !== G.human).map((n) => n.standing), view.me.standing];
+    return 1 + all.filter((s) => s > view.me.standing).length;
+  }
+  async function report(before) {
+    await J.yearCard(V.year, before ? headline(V.last_turn_events, V.me.provinces.filter((p) => !before.me.provinces.includes(p)), before.me.provinces.filter((p) => !V.me.provinces.includes(p))) : "");
+    J.play("year");
     const lost = before ? before.me.provinces.filter((p) => !V.me.provinces.includes(p)) : [];
     const won = before ? V.me.provinces.filter((p) => !before.me.provinces.includes(p)) : [];
     const noise = ["moved", "recruited", "proposal_made", "market_trade", "prestige_changed", "taxes_set"];
@@ -1665,8 +1864,9 @@
       return `<div class="discovery">⚙ <b>${esc(step.name)}</b>: ${esc(step.unlocks)}.</div>`; }).join("") : "";
     const works = V.last_turn_events.filter((e) => e.kind === "built" && e.nations[0] === G.human)
       .map((e) => `<div class="work">🏗 ${esc(e.summary.replace(/^\S+ builds /, "A new ").replace(" in ", " stands in "))}.</div>`).join("");
+    const ended = reignsOf(G.history || []).slice(-2, -1)[0];
     const crowned = V.last_turn_events.filter((e) => e.kind === "succession" && e.nations[0] === G.human)
-      .map((e) => `<div class="discovery">👑 ${esc(e.summary)}.</div>`).join("");
+      .map((e) => `<div class="discovery">👑 ${esc(e.summary)}.${ended ? `<div class="reignend">${reignLine(ended)}</div>` : ""}</div>`).join("");
     const danger = threats().filter((t) => !t.pact).map((t) => `<div class="threat">${threatText(t)}</div>`).join("");
     const ranking = [...V.nations.filter((n) => n.id !== G.human),
       {id: G.human, name: nameOf(G.human), score: V.me.score, provinces: V.me.provinces.length, alive: V.me.provinces.length > 0}]
@@ -1678,19 +1878,33 @@
         <p>${esc(V.last_turn_events.find((e) => e.kind === "game_over")?.summary || (fallen ? "Your last province has fallen" : "The game is over")).replace(/\.?$/, ".")}${place && !fallen ? ` You finish ${["first", "second", "third", "fourth", "fifth", "sixth", "seventh"][place - 1]}.` : ""}</p>
         <table class="grid num"><thead><tr><th></th><th>Nation</th><th>Score</th><th>Provinces</th></tr></thead><tbody>${ranking.map((n, k) =>
           `<tr class="${n.id === G.human ? "me" : ""}"><td>${k + 1}</td><td>${esc(n.name)}${n.alive ? "" : " †"}</td><td>${n.score}</td><td>${n.provinces}</td></tr>`).join("")}</tbody></table>
+        <div class="chronicle-end"><h3>The chronicle of your reign</h3><p id="reigntext">${esc(chronicleOfReign())}</p>
+          <button class="btn" id="copyreign" type="button">Copy the chronicle</button></div>
         <p><a href="${REPLAY}" target="_blank">Watch the whole game as a replay</a></p></div>` : "";
-    $("sheet").innerHTML = `<h2 id="modaltitle">${G.finished ? "The end of an age" : `The year ${V.year - 1}`}</h2>${ending}${crowned}${discoveries}${works}${G.finished ? "" : danger}
+    const tiles = before ? [["Rank", rankOf(V), rankOf(before), true], ["Standing", V.me.standing, before.me.standing], ["Development", V.me.score, before.me.score],
+      ["Provinces", V.me.provinces.length, before.me.provinces.length], ["Regiments", V.me.regiments, before.me.regiments]] : [];
+    const deltas = tiles.length ? `<div class="deltas">${tiles.map(([label, now, was, lowIsGood]) => { const d = now - was, good = lowIsGood ? d < 0 : d > 0;
+      return `<div><b class="num" data-to="${now}">${was}</b><small>${label}${d ? ` <span class="${good ? "up" : "down"}">${d > 0 ? "▲" : "▼"} ${Math.abs(d)}</span>` : ""}</small></div>`; }).join("")}</div>` : "";
+    $("sheet").innerHTML = `<h2 id="modaltitle">${G.finished ? "The end of an age" : `The year ${V.year - 1}`}</h2>
+      ${before ? `<p class="headline">${esc(headline(V.last_turn_events, won, lost))}</p>` : ""}${deltas}${ending}${crowned}${discoveries}${works}${G.finished ? "" : danger}
       ${unanswered().length ? `<section class="awaiting"><h3>📜 Letters awaiting your answer</h3><ul>${unanswered().map((p) => `<li>${PROPOSAL_ICON[p.kind] || "📜"} ${proposalText(p)}</li>`).join("")}</ul>
         <button class="btn" id="toletters">Answer them</button></section>` : ""}
       ${war ? `<section class="warlog"><h3>⚔ Your battles and sieges</h3>${war}</section>` : ""}
+      ${nextAmbitions()}
       <div class="yearcols"><section><h3>${PaxMap.flag(G.human, N[me].color, 22, "flag inline")} Your realm</h3>
         ${won.length ? `<p class="gain-line">Gained ${won.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
         ${lost.length ? `<p class="loss-line">Lost ${lost.map((p) => esc(P[pIndex[p]].name)).join(", ")}.</p>` : ""}
         <ul>${items || "<li>A quiet year for your realm.</li>"}</ul></section>
       <section><h3>🌍 Europe</h3><ul>${europe || "<li>Europe holds its breath.</li>"}</ul></section></div>
       <button class="btn" id="closemodal">Continue</button>`;
+    const sheet = $("sheet"); sheet.classList.add("reveal");
+    sheet.querySelectorAll(".sheet.reveal li, .battlecard, .siegeline, .discovery, .work, .deltas > div").forEach((x, k) => (x.style.animationDelay = `${Math.min(k, 24) * 45}ms`));
     $("modal").classList.add("open"); $("closemodal").focus();
-    $("closemodal").onclick = () => { $("modal").classList.remove("open"); eventSheet(); };
+    sheet.querySelectorAll(".deltas b[data-to]").forEach((b, k) => setTimeout(() => J.countTo(b, +b.dataset.to), 250 + k * 80));
+    feelYear(before, V.last_turn_events, won, lost);
+    $("closemodal").onclick = () => { $("modal").classList.remove("open"); sheet.classList.remove("reveal"); eventSheet(); };
+    const cr = $("copyreign");
+    if (cr) cr.onclick = () => { navigator.clipboard?.writeText(`${$("reigntext").textContent}\n— Pax Agentica`); cr.textContent = "Copied"; };
     const tl = $("toletters");
     if (tl) tl.onclick = () => { $("modal").classList.remove("open"); pinned = true; openOffice("letters"); };
   }
@@ -1882,9 +2096,13 @@
     box.querySelectorAll("[data-putoff]").forEach((b) => b.onclick = () => { open.forEach((p) => putOff.add(p.id)); notices(); });
     const letters = document.querySelector('#rail [data-tab="letters"]');
     if (letters) letters.classList.toggle("urgent", unanswered().length > 0);
+    const count = unanswered().length;
+    if (count > (notices.seen ?? count)) J.play("letter");
+    notices.seen = count;
   }
   function render() {
     draft();
+    $("endturn").classList.toggle("ready", orders.length > 0 && !G.submitted && !G.finished);
     notices();
     $("myshield").innerHTML = PaxMap.flag(N[me].id, N[me].color, 34);
     $("myname").textContent = N[me].name;
@@ -1937,6 +2155,10 @@
   };
   $("zin").innerHTML = I("zoom-in"); $("zout").innerHTML = I("zoom-out"); $("zhome").innerHTML = I("house");
   $("guide").innerHTML = I("circle-help"); $("feedback").innerHTML = I("message-square-text");
+  const soundIcon = () => { $("soundbtn").innerHTML = I(J.muted() ? "volume-x" : "volume-2"); $("soundbtn").setAttribute("aria-pressed", String(!J.muted())); };
+  soundIcon();
+  $("soundbtn").onclick = () => { J.setMuted(!J.muted()); soundIcon(); J.play("click"); };
+  $("rail").addEventListener("click", () => J.play("click"));
   $("ordersbtn").onclick = () => $("ordersbtn").parentElement.classList.toggle("open");
   // the rich tooltip: any element with data-tip shows its HTML next to the pointer
   const RT = $("richtip");

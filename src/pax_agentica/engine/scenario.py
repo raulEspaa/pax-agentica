@@ -537,7 +537,7 @@ STARTING_OPINIONS: dict[tuple[str, str], int] = {
     ("sweden", "russia"): -15,  # the war of 1495 over Karelia
 }
 STARTING_PRESTIGE = {"france": 15, "spain": 15, "austria": 15, "ottomans": 20}  # the great crowns
-STARTING_RESOURCES = Resources(ducats=60, manpower=10, iron=10, grain=20, timber=15)
+STARTING_RESOURCES = Resources(ducats=60, manpower=10, iron=10, grain=20, timber=15, goods=8)
 CAPITAL_GARRISON = 6
 PROVINCE_GARRISON = 2
 # Balance, measured over many bot games: without these the Ottomans walk through the east and

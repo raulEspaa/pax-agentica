@@ -390,6 +390,81 @@
   @keyframes letterpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(236, 208, 140, .0); } 50% { box-shadow: 0 0 0 6px rgba(236, 208, 140, .45); } }
   .rail button.urgent { border-color: var(--brass-hi); animation: letterpulse 1.6s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { .rail button.urgent { animation: none; } }
+  /* ================================================================ juice */
+  .floater { position: fixed; z-index: 70; transform: translate(-50%, 0); pointer-events: none; font: 700 16px var(--body); color: #c8f0b6;
+             text-shadow: 0 1px 0 #000, 0 0 6px rgba(0, 0, 0, .9); animation: floatup 1.6s ease-out forwards; white-space: nowrap; }
+  .floater.neg { color: #ffb4a3; } .floater.gold { color: var(--brass-hi); font-size: 18px; }
+  @keyframes floatup { 0% { opacity: 0; transform: translate(-50%, 6px) scale(.8); } 15% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+                       100% { opacity: 0; transform: translate(-50%, -46px) scale(1); } }
+  .triumph { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; pointer-events: auto; overflow: hidden;
+             background: radial-gradient(ellipse at center, rgba(42, 25, 6, .55), rgba(0, 0, 0, 0) 70%); animation: fadein .3s ease-out; cursor: pointer; }
+  .triumph.out { animation: fadeout .45s ease-in forwards; }
+  .triumph .tcard { text-align: center; padding: 18px 40px; background: var(--brass-face); border: 2px solid #4a3312; color: var(--engraved);
+                    box-shadow: 0 0 0 4px rgba(42, 25, 6, .6), 0 20px 60px rgba(0, 0, 0, .8); animation: stamp .55s cubic-bezier(.2, 1.6, .4, 1); }
+  .triumph .tbig { font: 700 34px var(--display); letter-spacing: .04em; text-shadow: 0 1px 0 rgba(255, 240, 200, .7); }
+  .triumph .tsub { font: italic 18px var(--body); margin-top: 4px; color: #3a2408; }
+  .triumph i { position: absolute; top: -12px; width: 9px; height: 14px; border-radius: 2px; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translate(var(--drift), 105vh) rotate(var(--spin)); opacity: .9; } }
+  @keyframes stamp { 0% { transform: scale(2.2) rotate(-6deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+  @keyframes fadein { from { opacity: 0; } } @keyframes fadeout { to { opacity: 0; } }
+  .yearcard { position: fixed; inset: 0; z-index: 65; display: grid; place-items: center; cursor: pointer;
+              background: radial-gradient(ellipse at center, rgba(20, 12, 5, .78), rgba(10, 6, 2, .92)); animation: fadein .35s ease-out; }
+  .yearcard.out { animation: fadeout .38s ease-in forwards; }
+  .yearcard > div { text-align: center; color: var(--brass-hi); animation: rise 1.2s ease-out; }
+  .yearcard small { display: block; font: italic 18px var(--body); color: var(--ink-3); letter-spacing: .2em; }
+  .yearcard b { display: block; font: 700 92px/1 var(--display); letter-spacing: .08em; text-shadow: 0 0 30px rgba(236, 208, 140, .35); }
+  .yearcard span { display: block; margin-top: 8px; font: italic 20px var(--body); color: var(--ink-2); }
+  @keyframes rise { from { transform: translateY(14px); opacity: 0; letter-spacing: .3em; } }
+  .vignette { position: fixed; inset: 0; z-index: 55; pointer-events: none; animation: vignette 1.3s ease-out forwards; }
+  .vignette.war { box-shadow: inset 0 0 160px 40px rgba(170, 30, 20, .75); } .vignette.gold { box-shadow: inset 0 0 160px 40px rgba(236, 208, 140, .55); }
+  @keyframes vignette { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
+  /* the year's report reveals itself line by line */
+  .sheet.reveal li, .sheet.reveal .battlecard, .sheet.reveal .siegeline, .sheet.reveal .discovery, .sheet.reveal .work, .sheet.reveal .deltas > div {
+    animation: linein .4s ease-out both; }
+  @keyframes linein { from { opacity: 0; transform: translateY(6px); } }
+  .deltas { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 4px 0 12px; }
+  .deltas > div { flex: 1 1 110px; padding: 6px 10px; text-align: center; background: rgba(255, 250, 235, .45); border: 1px solid rgba(107, 86, 56, .4); }
+  .deltas b { display: block; font: 700 24px var(--display); color: var(--sepia); font-variant-numeric: tabular-nums; }
+  .deltas small { display: block; font-size: 12.5px; color: var(--sepia-2); }
+  .deltas .up { color: #2f6a3e; font-weight: 700; } .deltas .down { color: #8f2f22; font-weight: 700; }
+  .headline { margin: -2px 0 10px; font: italic 19px var(--body); color: var(--sepia-2); }
+  #endturn.ready { animation: glow 1.4s ease-in-out infinite alternate; }
+  .stat .val b.bump { animation: bump .5s ease-out; }
+  @keyframes bump { 30% { transform: scale(1.25); color: #fff3cf; } }
+  @media (prefers-reduced-motion: reduce) { .sheet.reveal * { animation: none !important; } #endturn.ready { animation: none; } }
+  /* the reign */
+  .reign .rtop { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+  .reign .rtop > div { padding: 8px 10px; background: var(--walnut-lo); border: 1px solid var(--brass-lo); }
+  .reign .rtop .big { display: block; font: 700 26px var(--display); color: var(--brass-hi); } .reign .rtop small { color: var(--ink-3); }
+  .chart { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart .axis { stroke: var(--brass-lo); stroke-width: 1; } .chart .tick { font: 11px var(--body); fill: var(--ink-3); }
+  .chart .cval { font: 700 12px var(--body); fill: var(--ink); }
+  .chart .band { fill: transparent; } .chart .band:hover { fill: rgba(236, 208, 140, .1); }
+  .legend2 { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--ink-2); margin: 2px 0 10px; }
+  .legend2 i { display: inline-block; width: 12px; height: 3px; margin-right: 5px; vertical-align: middle; border-radius: 2px; }
+  .rtiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .rtile { padding: 6px 8px 2px; background: var(--walnut-lo); border: 1px solid var(--brass-lo); }
+  .rtile .rhead { display: grid; grid-template-columns: 1fr auto; align-items: baseline; font-size: 13px; color: var(--ink-3); }
+  .rtile .rhead b { font: 700 18px var(--body); color: var(--ink); } .rtile .rhead small { grid-column: 1 / -1; font-size: 12px; }
+  .bonds { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .bonds > div { padding: 8px 10px; background: var(--walnut-lo); border: 1px solid var(--brass-lo); display: flex; flex-direction: column; gap: 3px; }
+  .bonds small { color: var(--ink-3); font-size: 13px; }
+  .reigns { list-style: none; margin: 0 0 10px; padding: 0; } .reigns li { padding: 5px 0; border-bottom: 1px dotted var(--brass-lo); font-size: 14px; }
+  .reigns li span { display: block; color: var(--ink-3); font-size: 13px; } .reigns small { color: var(--ink-3); }
+  .miles { list-style: none; margin: 0; padding: 0; font-size: 14px; } .miles li { display: grid; grid-template-columns: 42px 22px 1fr; gap: 4px; padding: 3px 0; }
+  .miles .my { color: var(--brass-hi); font-variant-numeric: tabular-nums; }
+  @media (max-width: 700px) { .reign .rtop, .bonds { grid-template-columns: 1fr; } }
+  .bonds .who { display: flex; align-items: center; gap: 6px; }
+  .reignend { margin-top: 4px; font-style: italic; color: var(--sepia-2); font-size: 14.5px; }
+  .chronicle-end { margin: 12px 0; padding: 10px 14px; border: 1px solid #8a6a3a; background: rgba(255, 250, 235, .5); }
+  .chronicle-end h3 { margin: 0 0 6px; } .chronicle-end p { font: italic 16px/1.55 var(--body); color: var(--sepia); }
+  .chron .year em { font: italic 14px var(--body); color: var(--ink-3); margin-left: 8px; letter-spacing: 0; text-transform: none; }
+  .sheet .within { margin: 6px 0 12px; } .sheet .within h3 { margin: 0 0 6px; }
+  .sheet .amb { margin: 0 0 8px; padding: 6px 10px; border: 1px solid rgba(107, 86, 56, .4); background: rgba(255, 250, 235, .45); }
+  .sheet .amhead { display: flex; justify-content: space-between; font-size: 15px; color: var(--sepia); }
+  .sheet .amb .bar { display: block; height: 7px; margin: 4px 0; background: rgba(43, 29, 15, .15); border-radius: 4px; overflow: hidden; }
+  .sheet .amb .bar b { display: block; height: 100%; background: linear-gradient(90deg, #c49a52, #ecd08c); }
+  .sheet .amb small { display: block; font-size: 13px; color: var(--sepia-2); } .sheet .amb small.rw { color: #2f6a3e; }
   .orderswrap { position: relative; }
   .orderswrap .ordersbox { position: absolute; right: 0; top: 46px; width: 400px; max-height: 65vh; overflow-y: auto; margin: 0; display: none; z-index: 9;
                            box-shadow: 0 12px 30px rgba(0, 0, 0, .7); }
@@ -510,6 +585,7 @@
     <div class="orderswrap"><button class="iconbtn" id="ordersbtn" type="button" data-tip="This year's orders"></button>
       <section class="ordersbox" id="orders"></section></div>
     <button class="btn primary" id="endturn" title="Send your orders and let the year pass">End the year</button>
+    <button class="iconbtn" id="soundbtn" type="button" data-tip="Sound on or off"></button>
     <button class="iconbtn" id="guide" type="button" data-tip="How to play"></button>
     <button class="iconbtn" id="feedback" type="button" data-tip="Send feedback to the makers"></button>
   </header>
@@ -543,6 +619,7 @@
 <div class="error" id="error" role="alert"></div>
 <script src="/static/icons.js"></script>
 <script src="/static/map.js"></script>
+<script src="/static/juice.js"></script>
 <script src="/static/play.js"></script>
 </body>
 </html>

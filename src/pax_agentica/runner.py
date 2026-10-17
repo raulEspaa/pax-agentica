@@ -20,7 +20,7 @@ from pax_agentica.engine import (
     resolve_turn,
     view_for,
 )
-from pax_agentica.engine.mechanics import province_output
+from pax_agentica.engine.mechanics import nation_income, province_output
 from pax_agentica.engine.model import TreatyKind
 from pax_agentica.players import Player
 
@@ -48,6 +48,9 @@ class NationSnapshot(BaseModel):
     allies: list[NationId]
     technology: dict[str, int]
     ruler: str = ""  # "King Louis XII"
+    prestige: int = 0
+    standing: int = 0  # what wins when time runs out: development and half the prestige
+    income: int = 0  # ducats a year, as the realm's modifiers leave them
     stances: dict[NationId, str] = Field(default_factory=dict)  # declared friends and rivals
 
 
@@ -113,6 +116,9 @@ def snapshot(state: GameState) -> Snapshot:
                 allies=state.partners(nid, TreatyKind.ALLIANCE),
                 technology={b.value: level for b, level in n.technology.items()},
                 ruler=f"{n.ruler.title} {n.ruler.name}" if n.ruler else "",
+                prestige=n.prestige,
+                standing=state.standing(nid),
+                income=nation_income(state, nid).ducats if n.alive else 0,
                 stances={k: v.value for k, v in n.stances.items()},
             )
             for nid, n in state.nations.items()
