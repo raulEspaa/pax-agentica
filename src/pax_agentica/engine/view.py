@@ -398,10 +398,16 @@ def view_for(state: GameState, nation: NationId) -> NationView:
                 definition.terrain,
             ),
             recruit_cost=recruit_cost(
-                state.rules, 1, ps.buildings, arms=_mods(state, ps.owner).arms_manufactory
+                state.rules,
+                1,
+                ps.buildings,
+                arms=_mods(state, ps.owner).arms_manufactory,
+                nation=ps.owner,
             ),
             recruit_costs={
-                kind: recruit_cost(state.rules, 1, ps.buildings, kind, mods.arms_manufactory)
+                kind: recruit_cost(
+                    state.rules, 1, ps.buildings, kind, mods.arms_manufactory, ps.owner
+                )
                 for kind, spec in state.rules.units.items()
                 if spec.requires is None or spec.requires in ps.buildings
             }

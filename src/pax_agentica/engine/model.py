@@ -571,6 +571,108 @@ class UnitSpec(BaseModel):
     role: str  # one line, for humans and prompts
 
 
+class NationalUnit(BaseModel):
+    """The regiments a crown was famed for: one kind of its army fights under its own name, and
+    better (and sometimes for less) than anyone else's of that kind."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: UnitKind
+    name: str  # "Tercios"
+    attack: float = 1.0  # times the kind's
+    defence: float = 1.0
+    terrain: dict[Terrain, float] = Field(
+        default_factory=dict
+    )  # replaces the kind's on that ground
+    cost: float = 1.0  # times the kind's price
+    lore: str
+
+
+def default_national_units() -> dict[str, NationalUnit]:
+    return {
+        "spain": NationalUnit(
+            kind=UnitKind.INFANTRY,
+            name="Tercios",
+            attack=1.15,
+            defence=1.15,
+            lore=(
+                "Pike, sword and shot in one square: for a century no field army could break them."
+            ),
+        ),
+        "austria": NationalUnit(
+            kind=UnitKind.INFANTRY,
+            name="Landsknechte",
+            attack=1.15,
+            cost=0.85,
+            lore=(
+                "Maximilian's hired pikemen in slashed doublets, paid by the month and feared "
+                "everywhere."
+            ),
+        ),
+        "france": NationalUnit(
+            kind=UnitKind.CAVALRY,
+            name="Gendarmes",
+            attack=1.3,
+            defence=1.15,
+            lore="The heavy lances of the French nobility, the best armoured horse in Christendom.",
+        ),
+        "england": NationalUnit(
+            kind=UnitKind.ARCHERS,
+            name="Longbowmen",
+            defence=1.25,
+            cost=0.8,
+            lore=(
+                "Yeomen who have practised at the butts since boyhood, cheap to raise and deadly "
+                "in line."
+            ),
+        ),
+        "ottomans": NationalUnit(
+            kind=UnitKind.ARCHERS,
+            name="Janissaries",
+            attack=1.35,
+            defence=1.15,
+            lore=(
+                "The Sultan's standing infantry, raised from childhood, the first in Europe to "
+                "fight with guns."
+            ),
+        ),
+        "poland": NationalUnit(
+            kind=UnitKind.CAVALRY,
+            name="Winged Hussars",
+            attack=1.35,
+            terrain={Terrain.PLAINS: 1.45},
+            lore="Lances and feathered wings: on open ground nothing stands before their charge.",
+        ),
+        "russia": NationalUnit(
+            kind=UnitKind.ARCHERS,
+            name="Streltsy",
+            defence=1.2,
+            cost=0.85,
+            lore=(
+                "Musketeers with bardiches, settled in their own quarters of every town, loyal to"
+                " the Tsar."
+            ),
+        ),
+        "sweden": NationalUnit(
+            kind=UnitKind.INFANTRY,
+            name="Dalecarlians",
+            defence=1.2,
+            terrain={Terrain.FOREST: 1.15, Terrain.HILLS: 1.15},
+            lore="Peasant pikemen of the mining valleys, who made and unmade the kings of Sweden.",
+        ),
+        "brandenburg": NationalUnit(
+            kind=UnitKind.CAVALRY,
+            name="Reiters",
+            attack=1.2,
+            terrain={Terrain.FOREST: 1.0},
+            lore=(
+                "German horse with wheel-lock pistols, who fire in ranks and turn away: at home "
+                "in any ground."
+            ),
+        ),
+    }
+
+
 def default_units() -> dict[UnitKind, UnitSpec]:
     return {
         UnitKind.INFANTRY: UnitSpec(
@@ -982,6 +1084,8 @@ class Rules(BaseModel):
     market_ceiling: float = 3.0
     max_trade_per_order: int = 200
     buildings: dict[BuildingKind, BuildingSpec] = Field(default_factory=default_buildings)
+    # the regiments each crown was famed for: one kind of its army, under its own name
+    national_units: dict[str, NationalUnit] = Field(default_factory=default_national_units)
     # from a hamlet to a great city, by development: each step up gives room for one more work
     settlements: tuple[Settlement, ...] = Field(default_factory=default_settlements)
     # what a building does and eats at each level, times its first level's

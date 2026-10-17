@@ -40,6 +40,7 @@ class Modifiers(BaseModel):
 
     ducat_income: float = 0.0  # added to the income multiplier (stability is separate)
     grain_income: float = 0.0
+    manpower_income: float = 0.0  # added to the multiplier of the realm's yearly manpower
     battle_power: float = 0.0  # added to 1, attacking and defending, before generals
     research_discount: float = 0.0
     building_discount: float = 0.0  # ducats and timber of buildings and development
@@ -60,29 +61,71 @@ class Modifiers(BaseModel):
     sources: tuple[str, ...] = ()  # one line per bonus, for humans and prompts
 
 
-# What made some powers formidable, or lets them out of their corner of the map: the small
-# electorate with the drilled army, and the two kingdoms whose fleets carry their armies across.
-TRADITIONS: dict[NationId, tuple[str, str, dict[str, float]]] = {
-    "brandenburg": (
-        "Prussian drill",
-        "+10% battle power, and the army eats 15% less grain",
-        {"battle_power": 0.10, "grain_upkeep": -0.15},
+# What made each crown itself: two spirits a realm, whose effects the realm keeps all game. The
+# crowns that win least often by the bots' tournaments get a little more; the strong a little less.
+# Effects: ducat_income, grain_income, manpower, battle_power, stability (discount), building
+# (discount), grain_upkeep, navy, tolerance, trade.
+TRADITIONS: dict[NationId, tuple[tuple[str, str, dict[str, float]], ...]] = {
+    "spain": (
+        ("The Catholic Kings", "stability 10% cheaper", {"stability": 0.10}),
+        ("The Mesta", "+10% grain", {"grain_income": 0.10}),
+    ),
+    "austria": (
+        ("The imperial crown", "+5% ducats", {"ducat_income": 0.05}),
+        ("Let others wage war", "stability 10% cheaper", {"stability": 0.10}),
+    ),
+    "france": (
+        ("The Most Christian King", "+10% ducats", {"ducat_income": 0.10}),
+        ("The first army of Christendom", "+8% battle power", {"battle_power": 0.08}),
     ),
     "england": (
-        "The Navy Royal",
-        "attacks across a strait face no sea-crossing bonus, and the Merchant Adventurers waive "
-        "a fifth of the merchants' cut",
-        {"navy": 1.0, "trade": 0.2},
+        (
+            "The Navy Royal",
+            "attacks across a strait face no sea-crossing bonus, and the Merchant Adventurers "
+            "waive a fifth of the merchants' cut",
+            {"navy": 1.0, "trade": 0.2},
+        ),
+        ("The wool staple", "+10% ducats", {"ducat_income": 0.10}),
     ),
     "ottomans": (
-        "The millet system",
-        "provinces of another faith lose only half as much: each community keeps its own law",
-        {"tolerance": 0.5},
+        (
+            "The millet system",
+            "provinces of another faith lose only half as much: each community keeps its own law",
+            {"tolerance": 0.5},
+        ),
+        (
+            "The devshirme",
+            "+5% battle power and 10% more manpower",
+            {"battle_power": 0.05, "manpower": 0.10},
+        ),
+    ),
+    "poland": (
+        ("The granary of Europe", "+20% grain", {"grain_income": 0.20}),
+        ("Golden liberty", "stability 10% cheaper", {"stability": 0.10}),
+    ),
+    "russia": (
+        ("The lands of Rus'", "+25% manpower", {"manpower": 0.25}),
+        ("The Third Rome", "buildings and development 10% cheaper", {"building": 0.10}),
     ),
     "sweden": (
-        "Baltic fleets and peasant pikes",
-        "attacks across a strait face no sea-crossing bonus, and +5% battle power",
-        {"navy": 1.0, "battle_power": 0.05},
+        (
+            "Baltic fleets and peasant pikes",
+            "attacks across a strait face no sea-crossing bonus, and +5% battle power",
+            {"navy": 1.0, "battle_power": 0.05},
+        ),
+        ("The copper of Falun", "+10% ducats", {"ducat_income": 0.10}),
+    ),
+    "brandenburg": (
+        (
+            "Prussian drill",
+            "+10% battle power, and the army eats 15% less grain",
+            {"battle_power": 0.10, "grain_upkeep": -0.15},
+        ),
+        (
+            "A refuge for the persecuted",
+            "buildings and development 10% cheaper",
+            {"building": 0.10},
+        ),
     ),
 }
 
@@ -189,17 +232,21 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
     trait_forts = 0.0
     penalty = rules.treaty_break_stability_penalty
     navy, grain_upkeep, tolerance = False, 1.0, 0.0
+    grain_spirit, manpower, building_spirit = 0.0, 0.0, 0.0
     trade = rules.trade_bonus_per_economy_level * tech[TechBranch.ECONOMY]
     if trade:
         lines.append(f"economy technology: the merchants' cut {trade:.0%} lower")
-    if nation in TRADITIONS:
-        title, words, effects = TRADITIONS[nation]
+    for title, words, effects in TRADITIONS.get(nation, ()):
         trade += effects.get("trade", 0.0)
         ducats += effects.get("ducat_income", 0.0)
+        grain_spirit += effects.get("grain_income", 0.0)
+        manpower += effects.get("manpower", 0.0)
         power += effects.get("battle_power", 0.0)
+        stability += effects.get("stability", 0.0)
+        building_spirit += effects.get("building", 0.0)
         grain_upkeep += effects.get("grain_upkeep", 0.0)
-        navy = bool(effects.get("navy"))
-        tolerance = effects.get("tolerance", 0.0)
+        navy = navy or bool(effects.get("navy"))
+        tolerance += effects.get("tolerance", 0.0)
         lines.append(f"{title}: {words}")
     if tech[TechBranch.ECONOMY]:
         lines.append(f"economy technology: +{grain:.0%} ducats and grain")
@@ -369,10 +416,11 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             lines.append(f"{step.name} ({branch.value} {level}): {step.unlocks}")
     return Modifiers(
         ducat_income=ducats,
-        grain_income=grain,
+        grain_income=grain + grain_spirit,
+        manpower_income=manpower,
         battle_power=power,
         research_discount=min(0.8, research),
-        building_discount=building,
+        building_discount=min(0.8, building + building_spirit),
         stability_discount=stability,
         treaty_break_penalty=max(0, penalty),
         extra_building_slots=1 if milestones["cameralism"] else 0,

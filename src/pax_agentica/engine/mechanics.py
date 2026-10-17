@@ -252,7 +252,11 @@ def nation_income(state: GameState, nation: NationId) -> Resources:
     stability = rules.stability_income_bonus * state.nations[nation].stability
     ducats = total.ducats * (1 + stability + mods.ducat_income)
     grain = total.grain * (1 + mods.grain_income)
-    men = total.manpower * (1 - rules.tax_manpower_step * state.nations[nation].tax)
+    men = (
+        total.manpower
+        * (1 - rules.tax_manpower_step * state.nations[nation].tax)
+        * (1 + mods.manpower_income)
+    )
     return total.model_copy(
         update={
             "ducats": max(0, math.floor(ducats)),
@@ -291,22 +295,50 @@ def research_cost(
     )
 
 
-def unit_cost(rules: Rules, kind: UnitKind) -> Resources:
-    return rules.units[kind].cost or rules.recruit_cost
+def unit_cost(rules: Rules, kind: UnitKind, nation: NationId | None = None) -> Resources:
+    """What one regiment of a kind costs; a crown's own regiments may cost it less."""
+    cost = rules.units[kind].cost or rules.recruit_cost
+    own = rules.national_units.get(nation or "")
+    if own is None or own.kind != kind or own.cost == 1.0:
+        return cost
+    return Resources(**{k: math.ceil(v * own.cost) for k, v in cost.amounts().items()})
+
+
+def unit_strength(
+    rules: Rules,
+    kind: UnitKind,
+    terrain: Terrain,
+    *,
+    attacking: bool,
+    nation: NationId | None = None,
+) -> float:
+    """One regiment of a kind on this ground, as its crown fields it."""
+    spec = rules.units[kind]
+    base = spec.attack if attacking else spec.defence
+    ground = spec.terrain.get(terrain, 1.0)
+    own = rules.national_units.get(nation or "")
+    if own is not None and own.kind == kind:
+        base *= own.attack if attacking else own.defence
+        ground = own.terrain.get(terrain, ground)
+    return base * ground
 
 
 def army_strength(
-    rules: Rules, army: Mapping[UnitKind, int], terrain: Terrain, *, attacking: bool
+    rules: Rules,
+    army: Mapping[UnitKind, int],
+    terrain: Terrain,
+    *,
+    attacking: bool,
+    nation: NationId | None = None,
 ) -> float:
-    """What a mix of regiments is worth in battle on this ground, combined arms included. A
-    pikeman on plains is worth 1."""
+    """What a mix of regiments is worth in battle on this ground, combined arms and the crown's
+    own regiments included. A pikeman on plains is worth 1."""
     total = sum(army.values())
     if total == 0:
         return 0.0
     power = 0.0
     for kind, n in army.items():
-        spec = rules.units[kind]
-        power += n * (spec.attack if attacking else spec.defence) * spec.terrain.get(terrain, 1.0)
+        power += n * unit_strength(rules, kind, terrain, attacking=attacking, nation=nation)
     kinds = sum(1 for n in army.values() if n and n / total >= rules.combined_arms_share)
     bonus = max((b for k, b in rules.combined_arms_bonus.items() if kinds >= k), default=0.0)
     return power * (1 + bonus)
@@ -558,10 +590,11 @@ def recruit_cost(
     buildings: Collection[BuildingKind] = (),
     kind: UnitKind = UnitKind.INFANTRY,
     arms: bool = False,
+    nation: NationId | None = None,
 ) -> Resources:
     """What raising regiments costs here: an armory in the province halves the iron, and an
     arms manufactory in the realm (`arms`) halves it too and spares the goods."""
-    cost = unit_cost(rules, kind).times(regiments)
+    cost = unit_cost(rules, kind, nation).times(regiments)
     if arms:
         cost = cost.model_copy(update={"iron": math.ceil(cost.iron / 2), "goods": 0})
     if BuildingKind.ARMORY in buildings:

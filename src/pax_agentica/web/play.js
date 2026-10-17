@@ -30,6 +30,15 @@
   const S = await (await api("/static")).json();
   const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, T = S.tech, U = S.units, M = S.monuments;
   const KINDS = U.map((u) => u.id);
+  // each crown's own regiments: one kind fights under its own name, harder (and maybe cheaper)
+  const NU = S.nationalUnits || {}, U0 = U.map((u) => ({...u, terrain: {...u.terrain}}));
+  function fielded(u, nid) {
+    const own = NU[nid];
+    if (!own || own.kind !== u.id) return u;
+    const cost = own.cost === 1 ? u.cost : u.cost.map((v) => Math.ceil(v * own.cost));
+    return {...u, name: own.name, attack: +(u.attack * own.attack).toFixed(2), defence: +(u.defence * own.defence).toFixed(2),
+      terrain: {...u.terrain, ...own.terrain}, cost, lore: own.lore, national: true};
+  }
   PaxMap.usePortraits(S.portraits, "/portraits/"); PaxMap.useFaces(S.faces, "/faces/"); window.PaxScenes?.use(S.scenes);
   const pIndex = Object.fromEntries(P.map((p, i) => [p.id, i]));
   const nIndex = Object.fromEntries(N.map((n, i) => [n.id, i]));
@@ -132,6 +141,7 @@
   }
   function afterLoad() {
     V = G.view; me = nIndex[G.human];
+    if (!afterLoad.units) { afterLoad.units = true; U.forEach((u, k) => Object.assign(u, fielded(U0[k], G.human))); } // my regiments, as my crown fields them
     // the music follows the realm: a crisis raging, a war, or peace
     J.setMood?.(V.crisis && V.crisis.raging ? "crisis" : V.me.at_war_with.length ? "war" : "peace");
     if (!afterLoad.done) { afterLoad.done = true;
@@ -260,11 +270,11 @@
     }
     return a;
   }
-  function strength(army, terrain, attacking) {
+  function strength(army, terrain, attacking, nid = G.human) {
     const total = KINDS.reduce((t, k) => t + (army[k] || 0), 0);
     if (!total) return 0;
     let power = 0, kinds = 0;
-    U.forEach((u) => { const n = army[u.id] || 0; power += n * (attacking ? u.attack : u.defence) * (u.terrain[terrain] || 1);
+    U0.forEach((u0) => { const u = fielded(u0, nid), n = army[u.id] || 0; power += n * (attacking ? u.attack : u.defence) * (u.terrain[terrain] || 1);
       if (n && n / total >= R.combinedShare) kinds++; });
     const bonus = Math.max(0, ...Object.entries(R.combinedBonus).filter(([k]) => kinds >= +k).map(([, b]) => b));
     return power * (1 + bonus);
@@ -350,7 +360,7 @@
     if (p.troops === null || !n) return null;
     if (!p.troops) return 1;
     const mine = strength(army, ground, true) * myFactor(g) * coordination; // joint armies coordinate poorly
-    const theirs = p.army ? strength(p.army, ground, false) : p.troops;
+    const theirs = p.army ? strength(p.army, ground, false, p.controller || p.owner) : p.troops;
     return winChance(mine, theirs, defence(from, to, siege(army)));
   }
 
@@ -828,7 +838,7 @@
     const rows = U.map((u) => { const price = costs[u.id], n = recruitN[u.id] || 0;
       if (price && n) total = total.map((v, k) => v + unbundle(price)[k] * n);
       const why = price ? "" : u.requires >= 0 ? `needs ${B[u.requires].name.toLowerCase()}` : "not here";
-      return `<div class="rrow ${price ? "" : "off"}"${tip(`<h5>${UICON[u.id]} ${esc(u.name)}</h5><div class="dim">${esc(u.role)}</div>${tline("Attack", u.attack)}${tline("Defence", u.defence)}<div class="dim">A year: ${u.pay} ducats, ${u.rations} grain</div>`)}>
+      return `<div class="rrow ${price ? "" : "off"}"${tip(`<h5>${UICON[u.id]} ${esc(u.name)}</h5><div class="dim">${esc(u.lore || u.role)}</div>${tline("Attack", u.attack)}${tline("Defence", u.defence)}<div class="dim">A year: ${u.pay} ducats, ${u.rations} grain</div>`)}>
         <span class="uic">${UICON[u.id]}</span><b>${esc(u.name)}</b><small>${price ? costText(unbundle(price)) : why}</small>
         ${price ? `<span class="stepper"><button type="button" data-recruitkind="${u.id}" data-d="-1">−</button><b class="num">${n}</b><button type="button" data-recruitkind="${u.id}" data-d="1">+</button></span>` : ""}</div>`; }).join("");
     const hired = orders.filter((o) => o.type === "hire_mercenaries").reduce((a, o) => a + o.regiments, 0), left = R.mercenaryLimit - hired, m = Math.min(recruitN.mercs || 0, left);
@@ -1034,7 +1044,12 @@
         <div class="gain"><span>+${R.patronagePrestige} prestige</span></div></div></div>
       <p class="note">Painters, chapels, feasts and alms. Prestige ${V.me.prestige}: +${(V.me.prestige * 0.1).toFixed(1)}% ducats, and half of it counts in the final standing. Dearer the more you have; once a year.</p>
       <div class="act"><button class="btn" id="patronize" ${patronWhy ? "disabled" : ""}>${patronWhy ? cap(patronWhy) : "Patronise the arts"}</button><span class="cost">${V.me.patronage_cost} ducats</span></div></div>`;
-    return `<div class="pad"><h4>Glory</h4>${patronage}
+    const spirits = (S.traditions || {})[G.human] || [], own = NU[G.human];
+    const spirit = spirits.length || own ? `<h4>The spirit of the nation</h4><div class="spirits">
+      ${spirits.map(([title, words]) => `<div class="spirit"><b>${esc(title)}</b><small>${esc(words)}</small></div>`).join("")}
+      ${own ? `<div class="spirit unit"><b>${UICON[own.kind]} ${esc(own.name)}</b><small>${esc(own.lore)} ${[own.attack !== 1 && `attack ×${own.attack}`, own.defence !== 1 && `defence ×${own.defence}`,
+        ...Object.entries(own.terrain).map(([g, v]) => `×${v} on ${g}`), own.cost !== 1 && `${Math.round((1 - own.cost) * 100)}% cheaper`].filter(Boolean).join(", ")}.</small></div>` : ""}</div>` : "";
+    return `<div class="pad"><h4>Glory</h4>${patronage}${spirit}
       <h4>The crown</h4>${rulerHtml}
       <h4>The council speaks</h4>${counsel.length ? counsel.map(([who, role, text]) => `<div class="counsel">${portrait(who, mix(color, "#efe2c2", .5), 34)}
         <div><b>${esc(who.name)}</b>, your ${role}: <q>${esc(text)}</q></div></div>`).join("") : `<p class="muted">An empty council gives no counsel. Hire advisors below.</p>`}

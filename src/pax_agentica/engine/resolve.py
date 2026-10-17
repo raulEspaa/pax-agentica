@@ -1357,7 +1357,7 @@ class _Resolver:
             self._reject(nation, a, error)
             return
         arms = modifiers(self.s, nation).arms_manufactory
-        cost = recruit_cost(rules, a.regiments, province.buildings, a.unit, arms)
+        cost = recruit_cost(rules, a.regiments, province.buildings, a.unit, arms, nation)
         if error := self._pay(nation, cost):
             self._reject(nation, a, error)
             return
@@ -2115,8 +2115,10 @@ class _Resolver:
             * self._coordination(nation, a.target),
             defence_factor=battle_factor(self.s, defender, guard.skill if guard else 0)
             * self._rivalry(defender, nation),
-            attack_quality=army_strength(rules, force, ground, attacking=True) / committed,
-            defence_quality=army_strength(rules, held, ground, attacking=False) / target.troops,
+            attack_quality=army_strength(rules, force, ground, attacking=True, nation=nation)
+            / committed,
+            defence_quality=army_strength(rules, held, ground, attacking=False, nation=defender)
+            / target.troops,
         )
         then = (
             ("the walls still stand: a siege begins" if walls else "the province is taken")
@@ -2245,8 +2247,10 @@ class _Resolver:
             * self._rivalry(nation, besieger)
             * self._coordination(nation, a.target),
             defence_factor=battle_factor(self.s, besieger) * self._rivalry(besieger, nation),
-            attack_quality=army_strength(rules, force, ground, attacking=True) / committed,
-            defence_quality=army_strength(rules, lines, ground, attacking=False) / dug_in,
+            attack_quality=army_strength(rules, force, ground, attacking=True, nation=nation)
+            / committed,
+            defence_quality=army_strength(rules, lines, ground, attacking=False, nation=besieger)
+            / dug_in,
         )
         name = self._name(nation) + (f" under {general.name}" if general else "")
         then = "the siege is broken" if result.attacker_won else "the siege goes on"

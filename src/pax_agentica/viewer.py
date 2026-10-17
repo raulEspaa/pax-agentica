@@ -22,6 +22,7 @@ from pax_agentica.engine.model import (
     Terrain,
     UnitKind,
 )
+from pax_agentica.engine.realm import TRADITIONS
 from pax_agentica.runner import GameRecord, Snapshot
 
 KINDS = list(BuildingKind)
@@ -241,6 +242,20 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             }
             for kind, spec in rules.units.items()
         ],
+        # each crown's own regiments and its spirits, which every court knows of
+        "nationalUnits": {
+            nid: {
+                "kind": u.kind.value,
+                "name": u.name,
+                "attack": u.attack,
+                "defence": u.defence,
+                "terrain": {t.value: v for t, v in u.terrain.items()},
+                "cost": u.cost,
+                "lore": u.lore,
+            }
+            for nid, u in rules.national_units.items()
+        },
+        "traditions": {nid: [[t, w] for t, w, _ in spirits] for nid, spirits in TRADITIONS.items()},
         "monuments": {
             pid: {
                 "name": m.name,

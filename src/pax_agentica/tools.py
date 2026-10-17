@@ -78,12 +78,14 @@ def battle_odds(
     if there.troops == 0:
         return 1.0
     ground = there.terrain
-    mine = army_strength(rules, army, ground, attacking=True)
+    mine = army_strength(rules, army, ground, attacking=True, nation=view.me.id)
     mine *= 1 + view.me.modifiers.battle_power
     if with_general and here.general is not None and here.general.nation == view.me.id:
         mine *= 1 + rules.general_bonus_per_skill * here.general.skill
     theirs = (
-        army_strength(rules, there.army, ground, attacking=False)
+        army_strength(
+            rules, there.army, ground, attacking=False, nation=there.controller or there.owner
+        )
         if there.army
         else float(there.troops)
     )

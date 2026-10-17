@@ -292,6 +292,22 @@ history never knew whatever fortune deals.
 | Cruel | +3% battle power, but every court cools: −1 opinion a year |
 | Ambitious, Melancholic | no effect on the numbers: who they are, for whoever plays them |
 
+**The spirit of the nation.** Every crown has two spirits it keeps all game, and one kind of
+regiment it was famed for, which fights under its own name. The crowns that win least often in the
+bots' tournaments get a little more.
+
+| Crown | Its own regiments | Spirits |
+|---|---|---|
+| Spain | Tercios (pikemen, attack and defence ×1.15) | The Catholic Kings: stability 10% cheaper · The Mesta: +10% grain |
+| Austria | Landsknechte (pikemen, attack ×1.15, 15% cheaper) | The imperial crown: +5% ducats · Let others wage war: stability 10% cheaper |
+| France | Gendarmes (cavalry, attack ×1.3, defence ×1.15) | The Most Christian King: +10% ducats · The first army of Christendom: +8% battle power |
+| England | Longbowmen (archers, defence ×1.25, 20% cheaper) | The Navy Royal: no sea-crossing bonus against its attacks, a fifth of the merchants' cut waived · The wool staple: +10% ducats |
+| Ottomans | Janissaries (archers, attack ×1.35, defence ×1.15) | The millet system: other faiths cost half · The devshirme: +5% battle power, +10% manpower |
+| Poland-Lithuania | Winged Hussars (cavalry, attack ×1.35, ×1.45 on plains) | The granary of Europe: +20% grain · Golden liberty: stability 10% cheaper |
+| Russia | Streltsy (archers, defence ×1.2, 15% cheaper) | The lands of Rus': +25% manpower · The Third Rome: buildings and development 10% cheaper |
+| Sweden | Dalecarlians (pikemen, defence ×1.2, ×1.15 in forests and hills) | Baltic fleets and peasant pikes: no sea-crossing bonus against its attacks, +5% battle power · The copper of Falun: +10% ducats |
+| Brandenburg-Prussia | Reiters (cavalry, attack ×1.2, no penalty in forests) | Prussian drill: +10% battle power, 15% less grain · A refuge for the persecuted: buildings and development 10% cheaper |
+
 **The council.** Three seats, each filled by an advisor of skill 1 to 3, and of a temper (hawk,
 dove, schemer, loyal, frugal or visionary) that has no effect on the numbers but tells an AI
 advisor how to counsel:
