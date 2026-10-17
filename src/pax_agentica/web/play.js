@@ -131,6 +131,8 @@
   }
   function afterLoad() {
     V = G.view; me = nIndex[G.human];
+    // the music follows the realm: a crisis raging, a war, or peace
+    J.setMood?.(V.crisis && V.crisis.raging ? "crisis" : V.me.at_war_with.length ? "war" : "peace");
     if (!afterLoad.done) { afterLoad.done = true;
       let seen = false; try { seen = !!localStorage.getItem("pax-guided"); localStorage.setItem("pax-guided", "1"); } catch {}
       setTimeout(() => (seen || V.turn > 1 ? eventSheet() : guide(0)), 400); }
@@ -2201,7 +2203,7 @@
     $("banner").style.visibility = "hidden";
     let stop = false;
     bar.querySelector("button").onclick = () => { stop = true; };
-    const pace = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 700 : 330;
+    const pace = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 700 : 330 * O.speed();
     for (let i = 0; i < E.years.length && !stop; i++) {
       const owner = new Array(P.length).fill(-1);
       E.owners[i].forEach((nid, k) => { if (order[k] !== undefined) owner[order[k]] = nid && nid in nIndex ? nIndex[nid] : -1; });
@@ -2265,6 +2267,10 @@
     const discoveries = before ? T.filter((b) => V.me.technology[b.id] > before.me.technology[b.id]).map((b) => {
       const step = b.levels[V.me.technology[b.id] - 1];
       return `<div class="discovery">⚙ <b>${esc(step.name)}</b>: ${esc(step.unlocks)}.</div>`; }).join("") : "";
+    // a town of yours that grew into a larger one this year: a step anyone feels
+    const grown = before ? V.provinces.filter((p) => p.owner === G.human && p.settlement).map((p) => [p, before.provinces.find((q) => q.id === p.id)])
+      .filter(([p, q]) => q && q.settlement && q.settlement !== p.settlement && p.development > q.development)
+      .map(([p]) => `<div class="discovery">🏙 <b>${esc(p.name)}</b> has grown into a ${esc(p.settlement.toLowerCase())}: room for ${p.building_slots} works.</div>`).join("") : "";
     const works = V.last_turn_events.filter((e) => e.kind === "built" && e.nations[0] === G.human)
       .map((e) => `<div class="work">🏗 ${esc(e.summary.replace(/^\S+ builds /, "A new ").replace(" in ", " stands in "))}.</div>`).join("");
     const ended = reignsOf(G.history || []).slice(-2, -1)[0];
@@ -2290,7 +2296,7 @@
     const deltas = tiles.length ? `<div class="deltas">${tiles.map(([label, now, was, lowIsGood]) => { const d = now - was, good = lowIsGood ? d < 0 : d > 0;
       return `<div><b class="num" data-to="${now}">${was}</b><small>${label}${d ? ` <span class="${good ? "up" : "down"}">${d > 0 ? "▲" : "▼"} ${Math.abs(d)}</span>` : ""}</small></div>`; }).join("")}</div>` : "";
     $("sheet").innerHTML = `<h2 id="modaltitle">${G.finished ? "The end of an age" : `The year ${V.year - 1}`}</h2>
-      ${before ? `<p class="headline">${esc(headline(V.last_turn_events, won, lost))}</p>` : ""}${before ? sceneOfYear(V.last_turn_events, won) : ""}${deltas}${ending}${crowned}${discoveries}${works}${G.finished ? "" : danger}
+      ${before ? `<p class="headline">${esc(headline(V.last_turn_events, won, lost))}</p>` : ""}${before ? sceneOfYear(V.last_turn_events, won) : ""}${deltas}${ending}${crowned}${grown}${discoveries}${works}${G.finished ? "" : danger}
       ${unanswered().length ? `<section class="awaiting"><h3>📜 Letters awaiting your answer</h3><ul>${unanswered().map((p) => `<li>${PROPOSAL_ICON[p.kind] || "📜"} ${proposalText(p)}</li>`).join("")}</ul>
         <button class="btn" id="toletters">Answer them</button></section>` : ""}
       ${war ? `<section class="warlog"><h3>⚔ Your battles and sieges</h3>${war}</section>` : ""}
@@ -2581,6 +2587,51 @@
   $("musicbtn").onclick = () => {
     if (J.muted()) { J.setMuted(false); soundIcon(); J.setMusic(true); } else J.setMusic(!J.music());
     musicIcon(); };
+  // ------------------------------------------------------------------ options
+  // Sound and music with their volumes, the size of the interface, how much the years animate,
+  // and the guides: kept by this browser.
+  const O = window.PaxOptions || {get: () => null, set() {}, speed: () => 1};
+  const applyScale = () => { const s = +O.get("scale") || 1; document.documentElement.style.zoom = s === 1 ? "" : String(s); };
+  applyScale();
+  function optionsSheet() {
+    const vol = J.volumes ? J.volumes() : {music: .7, sfx: .8}, scale = +O.get("scale") || 1, anim = O.get("anim") || "full";
+    const seg = (name, value, choices) => `<div class="seg" role="radiogroup" data-opt="${name}">${choices.map(([v, label]) =>
+      `<button type="button" role="radio" aria-checked="${String(v) === String(value)}" class="${String(v) === String(value) ? "on" : ""}" data-v="${v}">${label}</button>`).join("")}</div>`;
+    $("sheet").innerHTML = `<h2 id="modaltitle">${I("settings")} Options</h2>
+      <section class="opts">
+        <h3>Sound</h3>
+        <div class="orow"><label><input type="checkbox" id="o-music" ${J.music && J.music() ? "checked" : ""}> Music of the age</label>
+          <input type="range" id="o-mvol" min="0" max="100" value="${Math.round(vol.music * 100)}" aria-label="Music volume"></div>
+        <div class="orow"><label><input type="checkbox" id="o-sfx" ${J.muted() ? "" : "checked"}> Sounds</label>
+          <input type="range" id="o-svol" min="0" max="100" value="${Math.round(vol.sfx * 100)}" aria-label="Sound volume"></div>
+        <p class="sub">The music is improvised anew each time over the grounds of the age; it turns grave in war and in a crisis.</p>
+        <h3>Display</h3>
+        <div class="orow"><span>Size of the interface</span>${seg("scale", scale, [[0.85, "Small"], [1, "Normal"], [1.15, "Large"], [1.3, "Larger"]])}</div>
+        <div class="orow"><span>Animations</span>${seg("anim", anim, [["full", "Full"], ["quick", "Quick"], ["off", "Off"]])}</div>
+        <p class="sub">Quick halves the year's marches and cards; Off skips them, for a faster game.</p>
+        <h3>Help</h3>
+        <div class="orow"><label><input type="checkbox" id="o-steps" ${stepsKept().hidden ? "" : "checked"}> Show the "First steps" guide</label>
+          <button class="btn" type="button" id="o-guide">How to play</button></div>
+      </section>
+      <button class="btn" id="closemodal">Done</button>`;
+    $("modal").classList.add("open");
+    $("o-music").onchange = (e) => { if (e.target.checked && J.muted()) J.setMuted(false); J.setMusic(e.target.checked); musicIcon(); soundIcon(); };
+    $("o-sfx").onchange = (e) => { J.setMuted(!e.target.checked); soundIcon(); musicIcon(); };
+    $("o-mvol").oninput = (e) => J.setVolumes?.({music: e.target.value / 100});
+    $("o-svol").oninput = (e) => J.setVolumes?.({sfx: e.target.value / 100});
+    $("o-svol").onchange = () => J.play("coins");
+    document.querySelectorAll("#sheet .seg").forEach((g) => g.onclick = (e) => {
+      const b = e.target.closest("button[data-v]"); if (!b) return;
+      const v = g.dataset.opt === "scale" ? +b.dataset.v : b.dataset.v;
+      O.set(g.dataset.opt, v); if (g.dataset.opt === "scale") applyScale();
+      g.querySelectorAll("button").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", String(x === b)); });
+    });
+    $("o-steps").onchange = (e) => { const s = stepsKept(); s.hidden = !e.target.checked; if (e.target.checked) s.finished = false; stepsSave(s); firstSteps(); };
+    $("o-guide").onclick = () => { $("modal").classList.remove("open"); guide(0); };
+    $("closemodal").onclick = () => $("modal").classList.remove("open");
+  }
+  $("optionsbtn").innerHTML = I("settings");
+  $("optionsbtn").onclick = optionsSheet;
   $("rail").addEventListener("click", () => J.play("click"));
   $("ordersbtn").onclick = () => $("ordersbtn").parentElement.classList.toggle("open");
   // the rich tooltip: any element with data-tip shows its HTML next to the pointer

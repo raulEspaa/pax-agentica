@@ -631,6 +631,12 @@
   .ending.won { border-color: #b58a3e; box-shadow: 0 0 0 1px #ecd08c, 0 0 18px rgba(236, 208, 140, .6); }
   .ending h3 { margin: 0 0 4px; font: 700 19px var(--display); }
   .ending table { width: 100%; margin: 6px 0; }
+  .opts h3 { margin: 12px 0 6px; font: 700 15px var(--display); } .opts h3:first-child { margin-top: 2px; }
+  .opts .orow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 6px 0; }
+  .opts input[type=range] { flex: 1; min-width: 140px; max-width: 260px; accent-color: #8a5a20; }
+  .opts .seg { display: inline-flex; border: 1px solid #8a6a3a; } .opts .seg button { font: inherit; font-size: 14px; padding: 3px 10px; background: transparent; border: none; border-left: 1px solid #8a6a3a; cursor: pointer; color: inherit; }
+  .opts .seg button:first-child { border-left: none; } .opts .seg button.on { background: #6a4a22; color: #f6e7c4; }
+  .opts .sub { margin: 2px 0 4px; }
   .ending tr.me td { font-weight: 700; background: rgba(196, 154, 82, .3); }
   .epilogue { margin: 12px 0 6px; } .epilogue h3 { margin: 0 0 6px; font: 700 16px var(--display); }
   .epitabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; } .epitabs .btn { padding: 3px 9px; font-size: 13px; }
@@ -669,6 +675,7 @@
     <button class="btn primary" id="endturn" title="Send your orders and let the year pass">End the year</button>
     <button class="iconbtn" id="musicbtn" type="button" data-tip="Music of the age: on or off"></button>
     <button class="iconbtn" id="soundbtn" type="button" data-tip="Sound on or off"></button>
+    <button class="iconbtn" id="optionsbtn" type="button" data-tip="Options" aria-label="Options"></button>
     <button class="iconbtn" id="guide" type="button" data-tip="How to play"></button>
     <button class="iconbtn" id="feedback" type="button" data-tip="Send feedback to the makers"></button>
   </header>

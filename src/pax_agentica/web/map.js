@@ -331,9 +331,10 @@ const PaxMap = (() => {
     // a click skips it. items: [{from, to, color, fight, won, took, takerColor}]
     function motion(items, {scale = 1} = {}) {
       return new Promise((done) => {
-        if (!items.length || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return done();
+        const O = window.PaxOptions;
+        if (!items.length || (O && O.get("anim") === "off") || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return done();
         const k = px() * 1.35 * scale, layer = el("g", {class: "motion"}, gPings), t0 = performance.now();
-        const TRAVEL = 1150, TOTAL = 2100;
+        const pace = O ? O.speed() : 1, TRAVEL = 1150 * pace, TOTAL = 2100 * pace;
         const runs = items.slice(0, 30).map((m, n) => {
           const p = P[m.from], q = P[m.to], dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy) || 1;
           const cx = (p.x + q.x) / 2 - dy / len * len * 0.18, cy = (p.y + q.y) / 2 + dx / len * len * 0.18;
