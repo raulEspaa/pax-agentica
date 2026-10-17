@@ -1911,6 +1911,7 @@ class _Resolver:
                     province=a.target,
                     audience=(nation,),
                     regiments=a.regiments,
+                    origin=a.origin,
                 )
 
     def _composition_error(
@@ -2473,7 +2474,7 @@ class _Resolver:
         if general is not None and self.s.general_in(province) is None:
             general.province = province
         if previous is not None:
-            self._occupy(nation, province, troops)
+            self._occupy(nation, province, troops, origin)
             return
         state.owner = nation
         state.set_army(troops)
@@ -2489,6 +2490,7 @@ class _Resolver:
             f"{self._name(nation)} takes {self._pname(province)} from {loser}",
             nations=(nation, previous) if previous else (nation,),
             province=province,
+            origin=origin or "",
         )
 
     def _after_loss(self, loser: NationId, province: ProvinceId, to: NationId) -> None:
@@ -2509,7 +2511,13 @@ class _Resolver:
             )
             self._change_stability(loser, -1, "lost its capital")
 
-    def _occupy(self, nation: NationId, province: ProvinceId, troops: dict[UnitKind, int]) -> None:
+    def _occupy(
+        self,
+        nation: NationId,
+        province: ProvinceId,
+        troops: dict[UnitKind, int],
+        origin: ProvinceId | None = None,
+    ) -> None:
         state = self.s.provinces[province]
         owner = state.owner
         assert owner is not None  # noqa: S101 (only great powers' land is occupied)
@@ -2522,6 +2530,7 @@ class _Resolver:
             f"a province of {self._name(owner)}",
             nations=(nation, owner),
             province=province,
+            origin=origin or "",
         )
         if self.s.nations[owner].capital == province:
             self._change_stability(owner, -1, "its capital is occupied")
@@ -2552,6 +2561,7 @@ class _Resolver:
             + (f" for {self._name(owner)}" if owner and owner != nation else ""),
             nations=(nation, owner) if owner and owner != nation else (nation,),
             province=province,
+            origin=origin or "",
         )
 
     def _general_falls(self, general: General, province: ProvinceId) -> None:

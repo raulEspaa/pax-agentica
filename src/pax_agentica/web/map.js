@@ -330,6 +330,48 @@ const PaxMap = (() => {
         if (kind === "built" || kind === "developed") el("text", {x: p.x, y: p.y - 18 * k, class: "battle sparkle", "font-size": 12 * k}, gEvents).textContent = kind === "built" ? "🏗" : "✦";
       }
     }
+    // The year in motion: banners marching from province to province, a clash where they
+    // fought, a flash of the conqueror's colour where land changed hands. Resolves when done;
+    // a click skips it. items: [{from, to, color, fight, won, took, takerColor}]
+    function motion(items) {
+      return new Promise((done) => {
+        if (!items.length || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return done();
+        const k = px() * 1.35, layer = el("g", {class: "motion"}, gPings), t0 = performance.now();
+        const TRAVEL = 1150, TOTAL = 2100;
+        const runs = items.slice(0, 30).map((m, n) => {
+          const p = P[m.from], q = P[m.to], dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy) || 1;
+          const cx = (p.x + q.x) / 2 - dy / len * len * 0.18, cy = (p.y + q.y) / 2 + dx / len * len * 0.18;
+          const trail = el("path", {d: `M${p.x} ${p.y} Q${cx} ${cy} ${q.x} ${q.y}`, class: "trail", stroke: m.color, "stroke-width": 2.4 * k, "stroke-dasharray": `${5 * k} ${4 * k}`}, layer);
+          const token = el("g", {class: "token"}, layer);
+          el("line", {x1: 0, y1: 0, x2: 0, y2: -15 * k, stroke: "#2a1b0c", "stroke-width": 1.4 * k}, token);
+          el("path", {d: `M0 ${-15 * k} l${11 * k} ${3 * k} l${-11 * k} ${4 * k} z`, fill: m.color, stroke: "#2a1b0c", "stroke-width": .8 * k}, token);
+          el("circle", {r: 5 * k, fill: m.color, stroke: "#2a1b0c", "stroke-width": 1.2 * k}, token);
+          return {m, p, q, cx, cy, token, trail, delay: (n % 6) * 70, landed: false};
+        });
+        let stop = false;
+        const finish = () => { if (stop) return; stop = true; layer.remove(); window.removeEventListener("pointerdown", finish, true); done(); };
+        window.addEventListener("pointerdown", finish, true);
+        const frame = (now) => {
+          if (stop) return;
+          const t = now - t0;
+          for (const r of runs) {
+            const f = Math.max(0, Math.min(1, (t - r.delay) / TRAVEL)), e = f < .5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
+            const x = (1 - e) * (1 - e) * r.p.x + 2 * (1 - e) * e * r.cx + e * e * r.q.x, y = (1 - e) * (1 - e) * r.p.y + 2 * (1 - e) * e * r.cy + e * e * r.q.y;
+            r.token.setAttribute("transform", `translate(${x} ${y})`);
+            r.trail.setAttribute("opacity", String(Math.max(0, 1 - Math.max(0, t - TRAVEL - r.delay) / 600)));
+            if (f >= 1 && !r.landed) {
+              r.landed = true;
+              if (r.m.fight) { el("circle", {cx: r.q.x, cy: r.q.y, r: 4 * k, class: "puff"}, layer); el("circle", {cx: r.q.x + 6 * k, cy: r.q.y - 4 * k, r: 3 * k, class: "puff late"}, layer);
+                el("text", {x: r.q.x, y: r.q.y - 12 * k, class: `clash ${r.m.won ? "won" : "lost"}`, "font-size": 18 * k}, layer).textContent = "⚔"; }
+              if (r.m.took) el("path", {d: P[r.m.to].d, class: "capflash", fill: r.m.takerColor || r.m.color}, layer);
+              if (r.m.fight && !r.m.won) r.token.setAttribute("class", "token routed");
+            }
+          }
+          if (t < TOTAL + 120 * Math.min(6, runs.length)) requestAnimationFrame(frame); else finish();
+        };
+        requestAnimationFrame(frame);
+      });
+    }
     // a word that rises from a province and fades: what an order just set in motion there
     function ping(i, text, cls = "") {
       if (i < 0 || !P[i]) return;
@@ -442,7 +484,7 @@ const PaxMap = (() => {
     window.addEventListener("pointerup", () => { drag = null; wrap.classList.remove("dragging"); });
     window.addEventListener("resize", () => { applyView(); refresh(); });
 
-    return {paint, pick, setTargets, setArrows, zoomAt, home, centerOn, refresh, view, maxW, px, ping, get picked() { return picked; }};
+    return {paint, pick, setTargets, setArrows, zoomAt, home, centerOn, refresh, view, maxW, px, ping, motion, get picked() { return picked; }};
   }
 
   // ------------------------------------------------------------------ the province vista

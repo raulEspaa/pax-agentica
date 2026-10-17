@@ -2115,8 +2115,37 @@
     const all = [...view.nations.filter((n) => n.alive && n.id !== G.human).map((n) => n.standing), view.me.standing];
     return 1 + all.filter((s) => s > view.me.standing).length;
   }
+  // The year's marches, for the map to play before the report: your own moves, every battle and
+  // conquest you can see on screen, each drawn from where the army set out to where it arrived.
+  function marches(events) {
+    const v = map.view, seen = (i) => P[i].x >= v.x && P[i].x <= v.x + v.w && P[i].y >= v.y && P[i].y <= v.y + v.h;
+    const colorOf = (id) => (id in nIndex ? N[nIndex[id]].color : "#9a8f78");
+    const took = new Map(events.filter((e) => ["province_captured", "province_occupied", "province_liberated"].includes(e.kind) && e.province)
+      .map((e) => [e.province, e.nations[0]]));
+    const out = [];
+    for (const e of events) {
+      const to = pIndex[e.province];
+      if (to === undefined) continue;
+      const mine = e.nations.includes(G.human);
+      if (e.kind === "moved" && mine && e.data.origin in pIndex) out.push({from: pIndex[e.data.origin], to, color: colorOf(e.nations[0])});
+      if (e.kind === "battle" && "attacker" in e.data) {
+        const won = e.summary.includes(`${e.data.attacker_name} wins.`);
+        for (const o of String(e.data.origins || e.data.origin || "").split(", ").filter((x) => x in pIndex)) {
+          if (!mine && !seen(to) && !seen(pIndex[o])) continue;
+          out.push({from: pIndex[o], to, color: colorOf(e.data.attacker), fight: true, won,
+            took: took.has(e.province), takerColor: colorOf(took.get(e.province))});
+        }
+      }
+      if (["province_captured", "province_occupied", "province_liberated"].includes(e.kind) && e.data.origin in pIndex
+          && !events.some((b) => b.kind === "battle" && b.province === e.province && "attacker" in b.data)
+          && (mine || seen(to))) out.push({from: pIndex[e.data.origin], to, color: colorOf(e.nations[0]), took: true});
+    }
+    // yours first, so a crowded year never hides your own armies
+    return out.sort((a, b) => (b.color === colorOf(G.human)) - (a.color === colorOf(G.human))).slice(0, 26);
+  }
   async function report(before) {
     await J.yearCard(V.year, before ? headline(V.last_turn_events, V.me.provinces.filter((p) => !before.me.provinces.includes(p)), before.me.provinces.filter((p) => !V.me.provinces.includes(p))) : "");
+    if (before) await map.motion(marches(V.last_turn_events || []));
     J.play("year");
     const lost = before ? before.me.provinces.filter((p) => !V.me.provinces.includes(p)) : [];
     const won = before ? V.me.provinces.filter((p) => !before.me.provinces.includes(p)) : [];
