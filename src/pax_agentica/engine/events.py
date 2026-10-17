@@ -29,6 +29,8 @@ class EventKind(StrEnum):
     JOINED_WAR = "joined_war"  # an ally answered a call to arms
     CALL_TO_ARMS_IGNORED = "call_to_arms_ignored"  # an ally refused: alliance dissolved
     GRUDGE = "grudge"  # a court will not forget a wrong
+    CRISIS = "crisis"  # a great trouble of the age begins or passes
+    PLAGUE = "plague"  # the Great Plague carries off a realm's people
     PEACE_SIGNED = "peace_signed"
     PROVINCE_CEDED = "province_ceded"
     TRIBUTE_PAID = "tribute_paid"

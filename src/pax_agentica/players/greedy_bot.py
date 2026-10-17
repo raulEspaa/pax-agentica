@@ -435,6 +435,9 @@ class _Planner:
         if o.loan:
             yearly, years = o.loan
             total -= 0.9 * yearly * years
+        if o.flag == "quarantine":  # three years of plague: the towns it may save, at 45 each
+            towns = sum(1 for p in self.owned if self.provinces[p].development >= 2)
+            total += 45 * 3 * (0.18 - 0.06) * towns - 0.15 * 3 * self.me.income_per_turn.ducats
         return total
 
     def _fears(self, nation: str) -> bool:

@@ -149,6 +149,8 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             tuple((r, a.name, a.skill) for r, a in sorted(me.advisors.items())),
             holdings(state, nation),  # type: ignore[arg-type]
             market_towns(state, nation),  # type: ignore[arg-type]
+            state.crisis_now(),
+            tuple(me.flags),
             round(me.war_exhaustion, 1),
             me.prestige,
             tuple(me.missions_done),
@@ -282,6 +284,17 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         weary = rules.exhaustion_income_penalty * me.war_exhaustion
         ducats -= weary
         lines.append(f"war exhaustion {me.war_exhaustion:.1f}: -{weary:.0%} ducats")
+    crisis = state.crisis_now()
+    if crisis == "ice_age":
+        grain -= 0.35
+        lines.append("the Little Ice Age: grain -35%")
+    if crisis == "price_revolution":
+        ducats += 0.10
+        building -= 0.20
+        lines.append("the Price Revolution: ducats +10%, buildings and development 20% dearer")
+    if crisis == "plague" and "quarantine" in me.flags:
+        ducats -= 0.15
+        lines.append("towns closed against the plague: ducats -15%")
     works, monuments = holdings(state, nation)
     fort_extra = trait_forts
     extra_generals = 0

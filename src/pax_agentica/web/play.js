@@ -22,7 +22,10 @@
   if (TABLE && !SEAT) { location.href = `/?table=${TABLE}`; return; }
   const api = (path, opts = {}) => fetch(`${BASE}${path}`, {...opts, headers: {...(opts.headers || {}), ...(SEAT ? {"X-Seat": SEAT} : {})}});
   const REPLAY = TABLE ? `/t/${TABLE}/replay` : "/replay";
-  const J = window.PaxJuice || {play() {}, countTo() {}, floatText() {}, celebrate() {}, yearCard: async () => {}, vignette() {}, muted: () => true, setMuted() {}};
+  const J = window.PaxJuice || {play() {}, countTo() {}, floatText() {}, celebrate() {}, omen() {}, yearCard: async () => {}, vignette() {}, muted: () => true, setMuted() {}};
+  const CRISIS_ICON = {plague: "☠", ice_age: "❄", price_revolution: "⚖"};
+  const CRISIS_EFFECT = {plague: "Every town may lose a level of development each year; closed towns far less often, at a price.",
+    ice_age: "Grain from every field −35%; bread dearer on the market.", price_revolution: "Market prices +40%, works and development 20% dearer, ducats +10%."};
   const S = await (await api("/static")).json();
   const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, T = S.tech, U = S.units, M = S.monuments;
   const KINDS = U.map((u) => u.id);
@@ -1799,6 +1802,8 @@
   function headline(evs, won, lost) {
     const mine = evs.filter((e) => e.nations.includes(G.human));
     const pname = (pid) => P[pIndex[pid]]?.name || pid;
+    const age = evs.find((e) => e.kind === "crisis" && e.data.begins);
+    if (age) return `The year ${age.summary.split(",")[0]} fell on Europe`;
     const mission = mine.find((e) => e.kind === "mission_completed" && e.nations[0] === G.human);
     if (mission) return `The year ${nameOf(G.human)} ${mission.summary.split(": ").slice(1).join(": ") ? `fulfilled “${mission.summary.split(": ").slice(1).join(": ")}”` : "fulfilled an ambition"}`;
     if (won.length) return `The year ${won.map(pname).join(" and ")} ${won.length > 1 ? "were" : "was"} won`;
@@ -1841,6 +1846,11 @@
     const attacked = mine.some((e) => e.kind === "war_declared" && e.nations[0] !== G.human);
     const fought = mine.some((e) => e.kind === "battle");
     const peace = mine.some((e) => e.kind === "peace_signed");
+    const age = evs.find((e) => e.kind === "crisis" && e.data.begins);
+    if (age && V.crisis) {
+      setTimeout(() => { J.play("omen"); J.vignette("war"); J.omen(CRISIS_ICON[V.crisis.kind] || "☠", V.crisis.title, `${V.crisis.text} (${V.crisis.first_year} to ${V.crisis.last_year})`); }, 350);
+      return;
+    }
     setTimeout(() => {
       if (missions.length) { J.play("triumph"); J.celebrate(missions[0].summary.split(": ").slice(1).join(": ") || "Ambition fulfilled", "An ambition of the crown is fulfilled"); }
       else if (won.length) { J.play("triumph"); J.celebrate(`${won.map((x) => P[pIndex[x]].name).join(", ")} ${won.length > 1 ? "are" : "is"} ours`, "The realm grows", [N[me].color, "#ecd08c", "#fff3cf"]); }
@@ -1928,7 +1938,9 @@
   }
   // ------------------------------------------------------------------ the crown's decisions
   const EVENT_ICON = {reformation: "✝", plague: "☠", harvest: "🌾", fuggers: "💰", artist: "🎨", revolt: "🔥",
-    silver: "🥈", comet: "☄", reformer: "⚔", nobles: "👑", fair: "🎪", mine: "⛏"};
+    silver: "🥈", comet: "☄", reformer: "⚔", nobles: "👑", fair: "🎪", mine: "⛏",
+    great_plague: "☠", frozen_harvests: "❄", silver_flood: "⚖"};
+  const GRAVE = new Set(["great_plague", "frozen_harvests", "silver_flood"]); // the age's crises come first
   const chosen = (id) => orders.find((o) => o.type === "choose_option" && o.event_id === id);
   const colourEffects = (text) => esc(text).replace(/([+−-]\d+(?:\.\d+)?%?)\s([a-z ]+?)(?=,|$)/g, (m, n, what) =>
     `<span class="${n.startsWith("+") ? "pos" : "neg"}">${n} ${what}</span>`).replace(/(repay [^,]+|[\d]+ regiments lost[^,]*|\d+ years of unrest[^,]*)/g, '<span class="neg">$1</span>');
@@ -1968,7 +1980,8 @@
     queue({type: "choose_option", event_id: eventId, option});
   }
   function eventSheet() {
-    const e = V.me.pending_events.find((x) => !chosen(x.id));
+    const open = V.me.pending_events.filter((x) => !chosen(x.id));
+    const e = open.find((x) => GRAVE.has(x.event)) || open[0];
     if (!e || G.finished) return;
     $("sheet").innerHTML = `<h2 id="modaltitle">For the crown to decide</h2>${eventCard(e, true)}
       <button class="btn" id="closemodal">Decide later</button>`;
@@ -2121,6 +2134,10 @@
   function render() {
     draft();
     $("endturn").classList.toggle("ready", orders.length > 0 && !G.submitted && !G.finished);
+    const cb = $("crisisbadge"), c = V.crisis;
+    cb.hidden = !c;
+    if (c) { cb.innerHTML = `<span class="ic">${CRISIS_ICON[c.kind] || "☠"}</span><span>${esc(c.title)}<small>${c.first_year}–${c.last_year}</small></span>`;
+      cb.setAttribute("data-tip", `<h5>${CRISIS_ICON[c.kind] || ""} ${esc(c.title)}, ${c.first_year} to ${c.last_year}</h5><div>${esc(c.text)}</div><div class="dim">${esc(CRISIS_EFFECT[c.kind] || "")}</div>`); }
     notices();
     $("myshield").innerHTML = PaxMap.flag(N[me].id, N[me].color, 34);
     $("myname").textContent = N[me].name;

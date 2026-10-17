@@ -471,6 +471,14 @@
   .destiny .bar b { display: block; height: 100%; background: linear-gradient(90deg, #c49a52, #ecd08c); }
   .sheet .within h3 small { font: 14px var(--body); color: var(--sepia-2); margin-left: 6px; }
   .grudges li small { color: var(--ink-3); } .sub.warn { color: #ef8f7a; }
+  .crisisbadge { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; flex: none; border-radius: 4px; cursor: help;
+                 color: #ffd9cf; background: linear-gradient(#3a1410, #1d0907); border: 1px solid #8f3b2e; font: 600 13.5px var(--body); white-space: nowrap; }
+  .crisisbadge .ic { font-size: 18px; } .crisisbadge small { display: block; font-size: 11px; color: #d9a79b; line-height: 1; }
+  .crisisbadge > span:last-child { line-height: 1.1; }
+  .triumph.omen { background: radial-gradient(ellipse at center, rgba(40, 6, 4, .78), rgba(0, 0, 0, .92)); }
+  .triumph.omen .tcard { max-width: 520px; background: linear-gradient(#2a120c, #120604); color: #f2d9cc; border-color: #8f3b2e; animation: rise 1.2s ease-out; }
+  .triumph.omen .oic { font-size: 46px; } .triumph.omen .tbig { color: #ffcfbf; text-shadow: 0 0 18px rgba(200, 40, 20, .5); }
+  .triumph.omen .tsub { color: #e6c3b6; font-size: 17px; line-height: 1.45; } .triumph.omen small { display: block; margin-top: 10px; color: #a5776b; }
   .orderswrap { position: relative; }
   .orderswrap .ordersbox { position: absolute; right: 0; top: 46px; width: 400px; max-height: 65vh; overflow-y: auto; margin: 0; display: none; z-index: 9;
                            box-shadow: 0 12px 30px rgba(0, 0, 0, .7); }
@@ -586,6 +594,7 @@
     <button class="realmbtn" id="realmbtn" data-tip="Your realm: open the Crown" type="button"><span class="shield" id="myshield"></span><b id="myname"></b></button>
     <div class="treasury num" id="treasury"></div>
     <div class="spacer"></div>
+    <div class="crisisbadge" id="crisisbadge" hidden></div>
     <div class="tablewrap" id="tablestatus" hidden></div>
     <div class="date" aria-live="polite"><b id="year" class="num"></b><small id="turnlabel"></small></div>
     <div class="orderswrap"><button class="iconbtn" id="ordersbtn" type="button" data-tip="This year's orders"></button>

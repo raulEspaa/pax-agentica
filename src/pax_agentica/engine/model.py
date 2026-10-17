@@ -1146,6 +1146,7 @@ class Rules(BaseModel):
 
     # victory
     domination_share: float = 0.5  # own this share of all provinces to win outright
+    crisis_window: tuple[int, int] = (18, 28)  # turns between which the age's crisis begins
     ambition_victory: bool = True  # fulfilling every mission of one's crown wins the game
     start_year: int = 1500
 
@@ -1246,6 +1247,15 @@ def share(army: dict[UnitKind, int], regiments: int) -> dict[UnitKind, int]:
     return out
 
 
+class Crisis(BaseModel):
+    """A great trouble of the age that falls on all Europe for some years, once a game: drawn
+    by the seed when the game begins (see `Rules.crisis_window` and `fortune.CRISES`)."""
+
+    kind: str  # "plague", "ice_age", "price_revolution"
+    start: int  # the turn it begins
+    end: int  # the turn it is over
+
+
 class Grudge(BaseModel):
     """A wrong a court will not forget: it weighs on its opinion of the wrongdoer every year
     until it fades, and while it is heavy the court will not bind itself to them."""
@@ -1279,6 +1289,7 @@ class NationState(BaseModel):
     tax: int = Field(default=0, ge=-2, le=2)  # -2 very low ... +2 very high, see Rules.tax_*
     infamy: float = 0.0  # aggressive expansion: grows with every province taken, fades yearly
     grudges: list[Grudge] = Field(default_factory=list)  # wrongs it will not forget
+    flags: list[str] = Field(default_factory=list)  # choices that last, e.g. "quarantine"
 
 
 class PendingEvent(BaseModel):
@@ -1384,6 +1395,12 @@ class GameState(BaseModel):
     diplomacy: list[Event] = Field(default_factory=list)
     finished: bool = False
     winner: NationId | None = None
+    crisis: Crisis | None = None  # the age's great trouble, drawn on the first turn
+
+    def crisis_now(self) -> str | None:
+        """The crisis raging this turn, if any."""
+        c = self.crisis
+        return c.kind if c is not None and c.start <= self.turn < c.end else None
 
     # ------------------------------------------------------------ queries
 

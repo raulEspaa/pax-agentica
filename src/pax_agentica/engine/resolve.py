@@ -96,6 +96,7 @@ from pax_agentica.engine.model import (
     RESOURCE_NAMES,
     TRADED,
     BuildingKind,
+    Crisis,
     Faith,
     GameState,
     General,
@@ -533,6 +534,8 @@ class _Resolver:
         if o.loan:
             yearly, years = o.loan
             me.loans.append(Loan(yearly=yearly, until=self.turn + years))
+        if o.flag and o.flag not in me.flags:
+            me.flags.append(o.flag)
         if o.general_skill and (generals := self.s.generals_of(nation)):
             best = max(generals, key=lambda g: (g.skill, -g.id))
             best.skill = min(3, best.skill + o.general_skill)
@@ -1318,8 +1321,9 @@ class _Resolver:
         """What all Europe bought and sold this year moves the prices; they drift back
         towards their usual level."""
         rules = self.s.rules
+        dearer = {"ice_age": {"grain": 1.6}, "price_revolution": dict.fromkeys(TRADED, 1.4)}
         for res in TRADED:
-            base = rules.market_prices[res]
+            base = rules.market_prices[res] * dearer.get(self.s.crisis_now() or "", {}).get(res, 1)
             price = market_price(self.s, res)
             price *= 1 + rules.market_elasticity * self.flow[res] / rules.market_depth
             price += (base - price) * rules.market_reversion
@@ -2595,6 +2599,7 @@ class _Resolver:
         self._drift_opinions()
         self._weary()
         self._fortune()
+        self._crisis()
         self._move_prices()
         self._sieges()
         for province in self.s.provinces.values():
@@ -2650,6 +2655,77 @@ class _Resolver:
                 audience=(nation,),
                 event=spec.id,
             )
+
+    def _crisis(self) -> None:
+        """The age's great trouble: drawn on the first year, announced the year before it
+        falls, raging for its years (the plague takes towns), and then passing."""
+        rules = self.s.rules
+        if self.s.crisis is None:
+            dice = random.Random(f"{self.s.seed}:crisis")  # noqa: S311 (game dice)
+            lo, hi = rules.crisis_window
+            hi = min(hi, self.s.max_turns - 2)
+            kind = dice.choice(sorted(fortune.CRISES))
+            start = dice.randint(lo, hi) if hi >= lo else 10**6
+            self.s.crisis = Crisis(kind=kind, start=start, end=start + fortune.CRISES[kind].years)
+        c, spec = self.s.crisis, fortune.CRISES.get(self.s.crisis.kind)
+        if spec is None:
+            return
+        first, last = self.s.rules.start_year - 1 + c.start, self.s.rules.start_year - 1 + c.end - 1
+        if self.turn + 1 == c.start:  # it falls on Europe next year: every crown must answer
+            self._emit(
+                EventKind.CRISIS,
+                f"{spec.title}, {first} to {last}: {spec.text}",
+                crisis=spec.id,
+                begins=True,
+                first=first,
+                last=last,
+            )
+            event = fortune.EVENTS_BY_ID[spec.event]
+            for nation in self.s.alive_nations():
+                me = self.s.nations[nation]
+                me.pending_events.append(
+                    PendingEvent(id=self.s.next_event_id, event=event.id, turn=self.turn)
+                )
+                self.s.next_event_id += 1
+        if c.kind == "plague" and c.start <= self.turn < c.end:
+            self._plague()
+        if self.turn + 1 == c.end:
+            self._emit(
+                EventKind.CRISIS,
+                f"{spec.title} passes: Europe counts what it lost",
+                crisis=spec.id,
+                begins=False,
+                first=first,
+                last=last,
+            )
+            for realm in self.s.nations.values():
+                realm.flags = [f for f in realm.flags if f != "quarantine"]
+
+    def _plague(self) -> None:
+        """A year of the Great Plague: each town may lose people, fewer behind closed gates."""
+        for nation in self.s.alive_nations():
+            closed = "quarantine" in self.s.nations[nation].flags
+            chance = 0.06 if closed else 0.18
+            struck = [
+                pid
+                for pid in self.s.provinces_of(nation)
+                if self.s.provinces[pid].development >= 2
+                and not self.s.provinces[pid].controller
+                and self.rng.random() < chance
+            ]
+            for pid in struck:
+                self.s.provinces[pid].development -= 1
+            if struck:
+                names = ", ".join(self._pname(p) for p in struck)
+                self._emit(
+                    EventKind.PLAGUE,
+                    f"The plague carries off the people of {names} ({self._name(nation)}): "
+                    f"-1 development each",
+                    nations=(nation,),
+                    province=struck[0],
+                    towns=len(struck),
+                    closed=closed,
+                )
 
     def _prestige(self, nation: NationId, delta: int, reason: str) -> None:
         me = self.s.nations[nation]

@@ -442,6 +442,18 @@ whoever rules them.
   Christian and Muslim courts by 3. The greedy bot will not ally with or marry into another
   faith unless it thinks well of that court (opinion 40 or more).
 
+**The crisis of the age.** Once a game, between its 18th and 28th year (the seed decides
+which and when), a great trouble falls on all Europe, announced the year it begins, and every
+crown must answer it:
+
+| Crisis | Years | What it does | The choice |
+|---|---|---|---|
+| The Great Plague | 3 | each year every town of development 2 or more has an 18% chance to lose a level | close the towns and ports (30 ducats, −1 stability, ducats −15% while it lasts, and only a 6% chance), or keep the markets open |
+| The Little Ice Age | 5 | grain from every field −35%; the market's grain dearer (×1.6) | open the royal granaries (−30 grain, +1 stability) or requisition for the army (+25 grain, −1 stability) |
+| The Price Revolution | 6 | market prices ×1.4, buildings and development 20% dearer, ducats +10% | strike new coin (+80 ducats, −1 stability) or hold the currency (+1 stability, +2 prestige) |
+
+The view shows the crisis (`crisis`) from the year it is announced, never before.
+
 **Fortune.** Every year each nation has a 30% chance of an event of the age, a decision for the
 crown, which waits in `me.pending_events` until answered with `choose_option`; unanswered by the
 end of the next year, it takes its first option.

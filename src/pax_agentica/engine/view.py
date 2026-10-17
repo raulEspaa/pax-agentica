@@ -290,6 +290,18 @@ class ProposalView(_View):
     reply_to: int | None  # the proposal of yours this one counters
 
 
+class CrisisView(_View):
+    """The age's great trouble, once it is announced (the year before it falls) and while it
+    rages. Its effects are in the realm's modifiers and the market."""
+
+    kind: str  # "plague", "ice_age", "price_revolution"
+    title: str
+    text: str
+    first_year: int
+    last_year: int
+    raging: bool  # false the year it is announced
+
+
 class NationView(_View):
     turn: int
     year: int
@@ -301,6 +313,7 @@ class NationView(_View):
     proposals_sent: tuple[ProposalView, ...]
     last_turn_events: tuple[Event, ...]
     market: dict[str, PriceView]  # the European market today: trade with `buy` and `sell`
+    crisis: CrisisView | None  # the age's great trouble, from the year it is announced
     rules: Rules
 
 
@@ -311,6 +324,21 @@ def visible_provinces(state: GameState, nation: NationId) -> set[ProvinceId]:
     for province in state.held_by(nation):
         seen.update(state.map.all_neighbors(province))
     return seen
+
+
+def _crisis(state: GameState) -> CrisisView | None:
+    c = state.crisis
+    if c is None or c.kind not in fortune.CRISES or not c.start - 1 <= state.turn < c.end:
+        return None
+    spec, start = fortune.CRISES[c.kind], state.rules.start_year - 1
+    return CrisisView(
+        kind=c.kind,
+        title=spec.title,
+        text=spec.text,
+        first_year=start + c.start,
+        last_year=start + c.end - 1,
+        raging=c.start <= state.turn,
+    )
 
 
 def _grudge(state: GameState, g: Grudge) -> GrudgeView:
@@ -530,6 +558,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             if p.sender == nation
         ),
         last_turn_events=tuple(e for e in state.last_events if e.visible_to(nation)),
+        crisis=_crisis(state),
         market={
             res: PriceView(
                 price=round(price, 2),

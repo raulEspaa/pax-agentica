@@ -52,6 +52,7 @@ window.PaxJuice = (() => {
     peace: () => { noise({dur: 0.12, freq: 400, gain: 0.7}); bell(659.25, 0.12, 0.2); bell(880, 0.3, 0.14); },
     letter: () => { tone(880, {dur: 0.18, gain: 0.18}); tone(1174.7, {at: 0.12, dur: 0.3, gain: 0.16}); },
     seal: () => { noise({dur: 0.1, freq: 500, gain: 0.8}); tone(196, {dur: 0.25, gain: 0.3, slide: 0.8}); },
+    omen: () => { bell(130.81, 0, 0.35); bell(123.47, 0.9, 0.3); tone(65.4, {dur: 3, type: "sawtooth", gain: 0.05}); },
   };
   function play(name) { if (!muted && SOUNDS[name]) try { SOUNDS[name](); } catch {} }
   function setMuted(m) { muted = m; try { localStorage.setItem(KEY, m ? "off" : "on"); } catch {} if (m && ctx) ctx.suspend(); }
@@ -104,11 +105,21 @@ window.PaxJuice = (() => {
       card.onclick = () => { card.classList.add("out"); setTimeout(() => { card.remove(); done(); }, 200); };
     });
   }
+  // an omen: a dark card for a great trouble falling on the age, slower and graver than a triumph
+  function omen(icon, title, text) {
+    const box = document.createElement("div");
+    box.className = "triumph omen";
+    box.innerHTML = `<div class="tcard"><div class="oic"></div><div class="tbig"></div><div class="tsub"></div><small>Click to go on</small></div>`;
+    box.querySelector(".oic").textContent = icon; box.querySelector(".tbig").textContent = title; box.querySelector(".tsub").textContent = text;
+    document.body.appendChild(box);
+    const go = () => { box.classList.add("out"); setTimeout(() => box.remove(), 450); };
+    box.onclick = go; setTimeout(go, 9000);
+  }
   // a red (or gold) breath at the edges of the screen
   function vignette(cls = "war") {
     if (still()) return;
     const v = document.createElement("div"); v.className = `vignette ${cls}`;
     document.body.appendChild(v); setTimeout(() => v.remove(), 1300);
   }
-  return {play, muted: () => muted, setMuted, countTo, floatText, celebrate, yearCard, vignette, still};
+  return {play, muted: () => muted, setMuted, countTo, floatText, celebrate, omen, yearCard, vignette, still};
 })();

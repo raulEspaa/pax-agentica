@@ -44,6 +44,8 @@ class Option(BaseModel):
     faith: Faith | None = None  # the realm turns to this faith
     loan: tuple[int, int] | None = None  # (ducats a year, years) to repay
     general_skill: int = 0  # for the realm's best general, up to 3
+    flag: str | None = None  # a choice that lasts while the crisis does (e.g. "quarantine")
+    note: str = ""  # what the flag does, in words
 
 
 class EventSpec(BaseModel):
@@ -234,7 +236,90 @@ EVENTS: tuple[EventSpec, ...] = (
         ),
     ),
 )
-EVENTS_BY_ID = {e.id: e for e in EVENTS}
+
+
+# The great troubles of the age: one falls on all Europe once a game, and every crown must
+# answer it (the answers are events like the others, never drawn by chance).
+class CrisisSpec(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    title: str
+    text: str
+    years: int
+    event: str  # the decision every crown faces when it begins
+
+
+CRISES: dict[str, CrisisSpec] = {
+    "plague": CrisisSpec(
+        id="plague",
+        title="The Great Plague",
+        text="The pestilence is back, worse than any since the Black Death: for three years "
+        "every town of Europe may lose its people.",
+        years=3,
+        event="great_plague",
+    ),
+    "ice_age": CrisisSpec(
+        id="ice_age",
+        title="The Little Ice Age",
+        text="Rivers freeze in May and the harvests fail: for five years every field yields "
+        "a third less, and bread is dear across Europe.",
+        years=5,
+        event="frozen_harvests",
+    ),
+    "price_revolution": CrisisSpec(
+        id="price_revolution",
+        title="The Price Revolution",
+        text="Silver from the Indies floods Europe: for six years everything bought on the "
+        "market costs two fifths more, works cost a fifth more, and coin comes easier.",
+        years=6,
+        event="silver_flood",
+    ),
+}
+
+CRISIS_EVENTS: tuple[EventSpec, ...] = (
+    EventSpec(
+        id="great_plague",
+        title="The plague is at the gates",
+        text="Carts of the dead in the ports, bells tolling in every parish. {ruler} must "
+        "choose: close the towns and starve the trade, or keep the markets open and pray.",
+        options=(
+            Option(
+                label="Close the towns and the ports",
+                ducats=-30,
+                stability=-1,
+                flag="quarantine",
+                note="towns are a third as likely to lose people; ducats -15% while it lasts",
+            ),
+            Option(label="Keep the markets open, and pray"),
+        ),
+        weight=0,
+    ),
+    EventSpec(
+        id="frozen_harvests",
+        title="The harvest has failed",
+        text="Frost in June, rain in August: the granaries of {nation} are half empty and the "
+        "price of bread doubles in the towns.",
+        options=(
+            Option(label="Open the royal granaries to the people", grain=-30, stability=1),
+            Option(label="Requisition grain for the army", grain=25, stability=-1),
+        ),
+        weight=0,
+    ),
+    EventSpec(
+        id="silver_flood",
+        title="The silver of the Indies",
+        text="Every merchant of {nation} counts more coin and buys less with it. The mint "
+        "masters ask {ruler} whether to strike new money.",
+        options=(
+            Option(label="Strike new coin", ducats=80, stability=-1),
+            Option(label="Hold the currency sound", stability=1, prestige=2),
+        ),
+        weight=0,
+    ),
+)
+
+EVENTS_BY_ID = {e.id: e for e in (*EVENTS, *CRISIS_EVENTS)}
 
 
 def roll(
@@ -244,7 +329,11 @@ def roll(
     if rng.random() >= chance:
         return None
     me = state.nations[nation]
-    pool = [e for e in EVENTS if not (e.once and e.id in me.events_seen) and e.check(state, nation)]
+    pool = [
+        e
+        for e in EVENTS
+        if e.weight > 0 and not (e.once and e.id in me.events_seen) and e.check(state, nation)
+    ]
     if not pool:
         return None
     event = rng.choices(pool, weights=[e.weight for e in pool])[0]
@@ -305,4 +394,6 @@ def effects_text(option: Option) -> str:
     if option.loan:
         yearly, years = option.loan
         parts.append(f"repay {yearly} ducats a year for {years} years")
+    if option.note:
+        parts.append(option.note)
     return ", ".join(parts) or "nothing changes"
