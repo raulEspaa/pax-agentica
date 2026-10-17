@@ -684,15 +684,27 @@ const PaxMap = (() => {
   // greying with age, and crowned, turbaned or capped as their title demands.
   let PAINTED = {}, PAINTED_AT = "";
   function usePortraits(index, base) { PAINTED = index || {}; PAINTED_AT = base; }
-  function portrait(person, color, size = 64) {
+  // anonymous portraits of the age, for everyone with no painting of their own: pools by sitter
+  let FACES = {}, FACES_AT = "";
+  function useFaces(index, base) {
+    FACES = {}; FACES_AT = base;
+    for (const [id, f] of Object.entries(index || {})) (FACES[f.label] ||= []).push(id);
+  }
+  function portrait(person, color, size = 64, culture = "") {
     const seed = person.name || "?";
-    if (PAINTED[seed]) // a period painting, framed in the court's colour
-      return `<img class="portrait painted" src="${PAINTED_AT}${PAINTED[seed]}.jpg" width="${size}" height="${Math.round(size * 1.25)}"
+    const framed = (src) => `<img class="portrait painted" src="${src}" width="${size}" height="${Math.round(size * 1.25)}"
         alt="${esc(seed)}" loading="lazy" style="border-color:${color}">`;
+    if (PAINTED[seed]) return framed(`${PAINTED_AT}${PAINTED[seed]}.jpg`); // their own portrait, framed in the court's colour
     let h = 2166136261;
     for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+    // else a stranger of the period who could pass for them: the same one every time
+    const title = (person.title || "").toLowerCase();
+    const want = title === "queen" ? "woman" : title === "sultan" || culture === "ottoman" ? "ottoman"
+      : title === "tsar" || title === "grand prince" || culture === "russian" ? "russian" : (person.age || 40) > 60 ? "old" : "man";
+    const pool = FACES[want] || FACES[want === "woman" ? "" : "man"];
+    if (pool && pool.length) return framed(`${FACES_AT}${pool[h % pool.length]}.jpg`);
     const pick = (k, n) => ((h >>> k) ^ (h >>> (k + 7))) % n;
-    const title = (person.title || "").toLowerCase(), age = person.age || 40, queen = title === "queen";
+    const age = person.age || 40, queen = title === "queen";
     const skin = ["#f1d2b0", "#e6bf98", "#d9ab82", "#c99a72"][pick(1, 4)];
     const shade = mix(skin, "#5a3a22", .28);
     let hair = ["#2b1a0e", "#4a2e16", "#6e4a26", "#9a7444", "#c8a46a", "#3a2a1c"][pick(3, 6)];
@@ -790,5 +802,5 @@ const PaxMap = (() => {
   }
 
   const yieldWords = (y) => Object.entries(y).map(([k, v]) => `+${v} ${k}`).join(", ") || "nothing";
-  return {FAITH_ICON, FAITH_COLOR, flag, create, deedInfo, goodOf, yieldWords, GOOD_COLOR, OPINION, vista, portrait, usePortraits, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
+  return {FAITH_ICON, FAITH_COLOR, flag, create, deedInfo, goodOf, yieldWords, GOOD_COLOR, OPINION, vista, portrait, usePortraits, useFaces, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
 })();

@@ -131,6 +131,16 @@ def province_views() -> dict[str, dict[str, str]]:
     return result
 
 
+def period_art(folder: str) -> dict[str, dict[str, str]]:
+    """The period paintings of a folder (web/scenes, web/faces; public domain, see their
+    CREDITS.md): file id -> what it shows and who made it. Empty if none were fetched."""
+    path = files("pax_agentica").joinpath(f"web/{folder}/index.json")
+    if not path.is_file():
+        return {}
+    result: dict[str, dict[str, str]] = json.loads(path.read_text(encoding="utf-8"))
+    return result
+
+
 def europe_map() -> dict[str, Any]:
     """The projected map: province paths, wasteland, coastline, rivers, seas and borders."""
     text = files("pax_agentica").joinpath("data/europe_1500.json").read_text(encoding="utf-8")
@@ -243,6 +253,8 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
         },
         "portraits": portraits(),
         "views": province_views(),
+        "scenes": period_art("scenes"),
+        "faces": period_art("faces"),
         "traits": TRAIT_WORDS,
         "terrainEffects": {t.value: _terrain_words(rules, t) for t in rules.terrain_defense},
         "terrains": {

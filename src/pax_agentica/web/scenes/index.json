@@ -1,0 +1,74 @@
+{
+ "battle-pavia": {
+  "label": "The Battle of Pavia",
+  "by": "UnknownUnknown : Flemish artist"
+ },
+ "battle-orsha": {
+  "label": "The Battle of Orsha",
+  "by": "Attributed to Hans Krell"
+ },
+ "siege": {
+  "label": "The Siege of Malta",
+  "by": "Matteo Perez d'Aleccio"
+ },
+ "treaty": {
+  "label": "The Ratification of the Treaty of Münster",
+  "by": "After Gerard ter Borch"
+ },
+ "triumph": {
+  "label": "Emperor Charles V at Mühlberg",
+  "by": "Titian"
+ },
+ "plague": {
+  "label": "The Triumph of Death",
+  "by": "Pieter Brueghel the Elder"
+ },
+ "frost": {
+  "label": "The Hunters in the Snow",
+  "by": "Pieter Brueghel the Elder"
+ },
+ "fleet": {
+  "label": "The Return of the Second Expedition",
+  "by": "Andries van Eertvelt / After Hendrick Cornelisz Vroom"
+ },
+ "reformation": {
+  "label": "Luther posts his theses",
+  "by": "Ferdinand Pauwels"
+ },
+ "harvest": {
+  "label": "The Harvesters",
+  "by": "Pieter Brueghel the Elder"
+ },
+ "money": {
+  "label": "The Moneylender and his Wife",
+  "by": "Quinten Metsys"
+ },
+ "painter": {
+  "label": "The Art of Painting",
+  "by": "Johannes Vermeer"
+ },
+ "revolt": {
+  "label": "Peasants' band, 1525",
+  "by": "Rudolf Schiestl"
+ },
+ "comet": {
+  "label": "The Great Comet of 1577",
+  "by": "Georgium Jacobum von Datschitz"
+ },
+ "drill": {
+  "label": "The Night Watch",
+  "by": "Rembrandt"
+ },
+ "court": {
+  "label": "The Field of the Cloth of Gold",
+  "by": "British School. Previously attributed to Hans Holbein the Younger (c. 1497-1543)"
+ },
+ "fair": {
+  "label": "Fair with a theatrical presentation",
+  "by": "Pieter Brueghel the Younger"
+ },
+ "mine": {
+  "label": "The Annaberg miners' altar",
+  "by": "Hans Hesse"
+ }
+}

@@ -54,6 +54,12 @@ provinces, with real rivers and the land outside play shown as wasteland. The re
 is one self-contained HTML file: political, terrain, development and diplomacy map modes, zoom,
 a ledger, a chronicle, and a deed for every province with its production and its buildings.
 
+The pictures are of the period too: the rulers' portraits, a town view for every province, and
+the scenes of the age (Bruegel's *Triumph of Death* for the plague, Ter Borch's *Treaty of
+Münster* for a peace) are paintings and engravings in the public domain from Wikimedia Commons,
+fetched and credited by [`scripts/fetch_art.py`](scripts/fetch_art.py) (see the `CREDITS.md`
+beside each folder in `src/pax_agentica/web/`).
+
 **You can play it.** `pax serve` puts you on one throne against the others: you see your
 nation exactly as an AI ruler does (fog of war included), recruit, build, march, and treat with
 the other courts: alliances, pacts, trade, tribute, letters, calls to arms and peace with

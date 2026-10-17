@@ -33,7 +33,7 @@
   .card.on { opacity: 1; }
   .card figure { margin: 0; width: min(78vw, 140vh); transform: scale(.96); transition: transform 4s ease-out; }
   .card.on figure { transform: scale(1.03); }
-  .card svg { display: block; width: 100%; height: auto; border: .3vh solid #c9963e; box-shadow: 0 2vh 6vh rgba(0, 0, 0, .7); }
+  .card .scene { border: .3vh solid #c9963e; box-shadow: 0 2vh 6vh rgba(0, 0, 0, .7); } .card .scene .pennants svg { width: 4vh; height: auto; }
   .card figcaption { margin-top: 3vh; text-align: center; font: italic 400 4.6vh "EB Garamond", serif; color: #fbf0d6; text-shadow: 0 .3vh 1vh #000; }
   .start { position: fixed; inset: 0; display: grid; place-items: center; background: #0d0905; color: #e8d6ae; font: 400 22px "EB Garamond", serif; z-index: 9; text-align: center; }
   .start b { display: block; font: 700 34px Cinzel, serif; color: #f3dfa4; margin-bottom: 10px; }
@@ -63,6 +63,7 @@
 (async () => {
   const $ = (id) => document.getElementById(id), q = new URLSearchParams(location.search);
   const K = await PaxPress.boot($("map")), {R, P, map, worldAt, marchesAt, color, name, frame, pIndex} = K, J = window.PaxJuice, A = window.PaxScenes;
+  A.use(K.S.scenes);
   const CTA = q.get("cta") || "Wishlist on Steam";
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   let stopped = false;
@@ -140,7 +141,7 @@
     const [a, b] = peace.nations;
     await card(A.treaty({a: color(a), b: color(b || "")}), `${name(a)} and ${name(b || "")} make peace`);
   }
-  if (!stopped) await card(ageAt >= 0 ? A.plague({color: "#7a5a3a", seed: "age"}) : A.comet({seed: "age"}), "And the age has plans of its own.", 2800);
+  if (!stopped) await card(ageAt >= 0 ? A.plague() : A.comet(), "And the age has plans of its own.", 2800);
   // 4. fifty years in a breath
   await glide(all, 1400);
   sayOn("Fifty years.");

@@ -93,7 +93,7 @@ library lays the logo over it.
 **Screenshots** (at least five, 1920 × 1080, of the game as it is played; none of them art):
 
 1. The map in the first year, France's court open beside it, a march and an attack ordered.
-2. The year's report: the headline, the woodcut of the year, the battles with their odds.
+2. The year's report: the headline, the painting of the year, the battles with their odds.
 3. A siege on the map, the province window showing the walls and the besiegers.
 4. The peace window, with provinces picked as the price of peace.
 5. An event card: the comet, the fair or the Reformation, with its scene.
@@ -104,7 +104,7 @@ library lays the logo over it.
 
 `pax press` plays it at `/trailer`: about seventy seconds, from a game of bots chosen by its seed.
 Black, the premise, Europe coming up out of the dark, the first years with their armies marching
-and fighting, a battle, a peace and a plague as woodcuts, fifty years in a breath, the winner,
+and fighting, a battle, a peace and a plague as period paintings, fifty years in a breath, the winner,
 the title and the call to action. Record it full screen at 1920 × 1080 (OBS, 60 fps), then cut
 in a few seconds of real play (orders being given, the report opening), which the store's
 reviewers and players both look for. Upload as MP4 (H.264, 1920 × 1080, 5000 kbps or more).
@@ -116,11 +116,11 @@ browser; `?music=0` records it silent, to score it in the editor instead.
 
 **AI-generated content** (Steamworks' content survey asks for it):
 
-- *Pre-generated:* none. The portraits and the town views are paintings and engravings of the
-  period in the public domain, from Wikimedia Commons (credited in
-  `src/pax_agentica/web/portraits/CREDITS.md` and `src/pax_agentica/web/views/CREDITS.md`). The map
-  is drawn from Natural Earth (public domain). The woodcut scenes, icons and music are made by
-  the game's own code.
+- *Pre-generated:* none. The portraits, the town views and the scenes of the age are paintings
+  and engravings of the period in the public domain, from Wikimedia Commons (credited in the
+  `CREDITS.md` of `src/pax_agentica/web/portraits`, `faces`, `views` and `scenes`). The map is
+  drawn from Natural Earth (public domain). The icons and the music are made by the game's own
+  code.
 - *Live-generated:* the rival courts are programs. The ones the game ships with are written by
   hand and use no language model. A player may plug in a ruler of their own that calls a
   language model; its words reach other players only as in-game letters and proclamations, which
@@ -128,9 +128,12 @@ browser; `?music=0` records it silent, to score it in the editor instead.
   Before the store page goes up, decide whether those player-written rulers ship in the Steam
   build, and say so here.
 
-**Mature content:** none. War is shown as woodcuts and numbers; nobody is depicted dying.
+**Mature content:** none. War and plague appear only as Renaissance paintings that hang in
+museums (battle scenes, Bruegel's *Triumph of Death*); declare it as mild, non-graphic violence.
 
 ## Before the page can go up
+
+The full list, with the dates of the plan, is in [launch-plan.md](launch-plan.md).
 
 - [ ] A Steamworks partner account and the app fee (USD 100 per game, recouped after USD 1,000 of
   sales).
@@ -138,7 +141,8 @@ browser; `?music=0` records it silent, to score it in the editor instead.
   server inside) so it installs and starts from the Steam client, offline.
 - [ ] Steam achievements: the deeds of renown map onto them almost one to one.
 - [ ] Cloud saves: the saves are one JSON file per game, which Steam Cloud can sync as they are.
-- [ ] The price. Comparable small strategy games sell for 10 to 20 USD.
+- [ ] The price: USD 14.99 with a 10 % launch discount (the reasons, the plan and everything
+  else still missing are in [launch-plan.md](launch-plan.md)).
 - [ ] The "Coming soon" page live at least two weeks before release, to gather wishlists.
 - [ ] Check every text and image once more: the store page and the capsules must name no other
   game or studio.

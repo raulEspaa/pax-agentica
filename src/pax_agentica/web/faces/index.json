@@ -1,0 +1,106 @@
+{
+ "man-1": {
+  "label": "man",
+  "by": "Hans Holbein the Younger"
+ },
+ "man-2": {
+  "label": "man",
+  "by": "Hans Holbein the Elder"
+ },
+ "man-3": {
+  "label": "man",
+  "by": "Ambrosius Holbein"
+ },
+ "man-4": {
+  "label": "man",
+  "by": "Lorenzo Lotto"
+ },
+ "man-5": {
+  "label": "man",
+  "by": "Hans Memling"
+ },
+ "man-6": {
+  "label": "man",
+  "by": "Hans Memling"
+ },
+ "man-7": {
+  "label": "man",
+  "by": "Giovanni Battista Moroni"
+ },
+ "man-8": {
+  "label": "man",
+  "by": "Giovanni Battista Moroni"
+ },
+ "man-9": {
+  "label": "man",
+  "by": "Domenico Ghirlandaio"
+ },
+ "old-1": {
+  "label": "old",
+  "by": "Hans Memling"
+ },
+ "old-2": {
+  "label": "old",
+  "by": "Ridolfo del Ghirlandaio"
+ },
+ "woman-1": {
+  "label": "woman",
+  "by": "Lucas Cranach the Elder"
+ },
+ "woman-2": {
+  "label": "woman",
+  "by": "Hans Holbein the Younger"
+ },
+ "woman-3": {
+  "label": "woman",
+  "by": "Hans Holbein the Younger"
+ },
+ "man-10": {
+  "label": "man",
+  "by": "Titian"
+ },
+ "man-11": {
+  "label": "man",
+  "by": "Albrecht Dürer"
+ },
+ "man-12": {
+  "label": "man",
+  "by": "Lucas Cranach the Elder"
+ },
+ "man-13": {
+  "label": "man",
+  "by": "Unknown authorUnknown author"
+ },
+ "man-14": {
+  "label": "man",
+  "by": "Albrecht Dürer"
+ },
+ "old-3": {
+  "label": "old",
+  "by": "Lucas Cranach the Younger"
+ },
+ "ottoman-1": {
+  "label": "ottoman",
+  "by": "1521-1552"
+ },
+ "ottoman-2": {
+  "label": "ottoman",
+  "by": "Unknown authorUnknown author"
+ },
+ "ottoman-3": {
+  "label": "ottoman",
+  "by": "Costanzo da Ferrara / Gentile Bellini"
+ },
+ "russian-1": {
+  "label": "russian",
+  "by": "Unknown authorUnknown author"
+ },
+ "russian-2": {
+  "label": "russian",
+  "by": "Неизвестен"
+ },
+ "russian-3": {
+  "label": "russian",
+  "by": "Unknown painterUnknown painter"
+ }
+}

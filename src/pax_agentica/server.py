@@ -476,6 +476,22 @@ def add_assets(app: FastAPI, static: dict[str, Any]) -> None:
         image = web.joinpath("views", name).read_bytes()
         return Response(image, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
 
+    painted = {folder: {f"{key}.jpg" for key in static[folder]} for folder in ("scenes", "faces")}
+
+    @app.get("/scenes/{name}")
+    def scene(name: str) -> Response:
+        return period_art(painted["scenes"], "scenes", name)
+
+    @app.get("/faces/{name}")
+    def face(name: str) -> Response:
+        return period_art(painted["faces"], "faces", name)
+
+    def period_art(shipped: set[str], folder: str, name: str) -> Response:
+        if name not in shipped:  # only the paintings we ship, never a path
+            raise HTTPException(404)
+        image = web.joinpath(folder, name).read_bytes()
+        return Response(image, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
+
     @app.get("/portraits/{name}")
     def portrait(name: str) -> Response:
         if name not in paintings:  # only the files we ship, never a path

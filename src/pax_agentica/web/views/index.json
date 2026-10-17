@@ -186,5 +186,233 @@
  "brandenburg": {
   "city": "Berlin",
   "by": "Matthäus Merian"
+ },
+ "york": {
+  "city": "York",
+  "by": "unknown"
+ },
+ "ireland": {
+  "city": "Lindau",
+  "by": "Braun and Hogenberg"
+ },
+ "ulster": {
+  "city": "Stade",
+  "by": "Braun and Hogenberg"
+ },
+ "highlands": {
+  "city": "Sion",
+  "by": "Braun and Hogenberg"
+ },
+ "east_anglia": {
+  "city": "Norwich",
+  "by": "Valesio, Francesco (1560?-164.?). Graveur"
+ },
+ "devon": {
+  "city": "Exeter",
+  "by": "Braun and Hogenberg"
+ },
+ "porto": {
+  "city": "Coimbra",
+  "by": "Braun and Hogenberg"
+ },
+ "galicia": {
+  "city": "San Sebastián",
+  "by": "Braun and Hogenberg"
+ },
+ "castile": {
+  "city": "Burgos",
+  "by": "Braun and Hogenberg"
+ },
+ "valencia": {
+  "city": "Cádiz",
+  "by": "Braun and Hogenberg"
+ },
+ "aragon": {
+  "city": "Écija",
+  "by": "Braun and Hogenberg"
+ },
+ "catalonia": {
+  "city": "Barcelona",
+  "by": "Braun and Hogenberg"
+ },
+ "navarre": {
+  "city": "Bilbao",
+  "by": "en:User:Deibid"
+ },
+ "brittany": {
+  "city": "Tours",
+  "by": "Braun and Hogenberg"
+ },
+ "champagne": {
+  "city": "Strasbourg",
+  "by": "Braun and Hogenberg"
+ },
+ "burgundy": {
+  "city": "Poitiers",
+  "by": "Braun and Hogenberg"
+ },
+ "savoy": {
+  "city": "Lucerne",
+  "by": "Braun and Hogenberg"
+ },
+ "westphalia": {
+  "city": "Münster",
+  "by": "Braun and Hogenberg"
+ },
+ "hesse": {
+  "city": "Kassel",
+  "by": "Braun and Hogenberg"
+ },
+ "brunswick": {
+  "city": "Braunschweig",
+  "by": "Braun and Hogenberg"
+ },
+ "thuringia": {
+  "city": "Erfurt",
+  "by": "Braun and Hogenberg"
+ },
+ "swabia": {
+  "city": "Ulm",
+  "by": "Braun and Hogenberg"
+ },
+ "silesia": {
+  "city": "Frankfurt an der Oder",
+  "by": "Braun and Hogenberg"
+ },
+ "styria": {
+  "city": "Salzburg",
+  "by": "Braun and Hogenberg"
+ },
+ "genoa": {
+  "city": "Genoa",
+  "by": "Braun and Hogenberg"
+ },
+ "bologna": {
+  "city": "Parma",
+  "by": "Braun and Hogenberg"
+ },
+ "apulia": {
+  "city": "Messina",
+  "by": "Braun and Hogenberg"
+ },
+ "sardinia": {
+  "city": "Cagliari",
+  "by": "Braun and Hogenberg"
+ },
+ "gotaland": {
+  "city": "Lübeck",
+  "by": "Braun and Hogenberg"
+ },
+ "finland": {
+  "city": "Wismar",
+  "by": "Braun and Hogenberg"
+ },
+ "karelia": {
+  "city": "Rostock",
+  "by": "Braun and Hogenberg"
+ },
+ "trondelag": {
+  "city": "Lüneburg",
+  "by": "Braun and Hogenberg"
+ },
+ "jutland": {
+  "city": "Odense",
+  "by": "Braun and Hogenberg"
+ },
+ "greater_poland": {
+  "city": "Poznań",
+  "by": "Braun and Hogenberg"
+ },
+ "red_ruthenia": {
+  "city": "Lviv",
+  "by": "Braun and Hogenberg"
+ },
+ "polotsk": {
+  "city": "Biecz",
+  "by": "Braun and Hogenberg"
+ },
+ "kiev": {
+  "city": "Lublin",
+  "by": "Braun and Hogenberg"
+ },
+ "upper_hungary": {
+  "city": "Košice",
+  "by": "Of"
+ },
+ "croatia": {
+  "city": "Castelnuovo",
+  "by": "Hoefnagel, Joris (1542-1600). Dessinateur"
+ },
+ "transylvania": {
+  "city": "Kolozsvár",
+  "by": "Joris Hoefnagel"
+ },
+ "wallachia": {
+  "city": "Esztergom",
+  "by": "Jacob Hoefnagel"
+ },
+ "moldavia": {
+  "city": "Sandomierz",
+  "by": "Braun and Hogenberg"
+ },
+ "serbia": {
+  "city": "Pressburg",
+  "by": "Braun and Hogenberg"
+ },
+ "bosnia": {
+  "city": "Corfu",
+  "by": "Braun and Hogenberg"
+ },
+ "bulgaria": {
+  "city": "Rhodes",
+  "by": "Jacob Peeters"
+ },
+ "crimea": {
+  "city": "Famagusta",
+  "by": "Braun and Hogenberg"
+ },
+ "greece": {
+  "city": "Chios",
+  "by": "Jacob Peeters"
+ },
+ "morea": {
+  "city": "Modon",
+  "by": "Braun and Hogenberg"
+ },
+ "albania": {
+  "city": "Malta",
+  "by": "Braun and Hogenberg"
+ },
+ "anatolia": {
+  "city": "Cairo",
+  "by": "Braun and Hogenberg"
+ },
+ "karaman": {
+  "city": "Jerusalem",
+  "by": "Braun and Hogenberg"
+ },
+ "novgorod": {
+  "city": "Novgorod",
+  "by": "Olearius, Adam, 1603-1671."
+ },
+ "nizhny": {
+  "city": "Nizhny Novgorod",
+  "by": "Olearius, Adam, 1603-1671."
+ },
+ "pskov": {
+  "city": "Novgorod",
+  "by": "Адам Олеарий / Adam Olearius"
+ },
+ "tver": {
+  "city": "Muscovy",
+  "by": "Sigismund von Herberstein"
+ },
+ "smolensk": {
+  "city": "Reval",
+  "by": "Olearius, Adam, 1603-1671."
+ },
+ "ryazan": {
+  "city": "Nizhny Novgorod",
+  "by": "Adam Olearius"
  }
 }

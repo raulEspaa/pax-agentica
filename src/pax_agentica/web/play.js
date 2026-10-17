@@ -29,7 +29,7 @@
   const S = await (await api("/static")).json();
   const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, T = S.tech, U = S.units, M = S.monuments;
   const KINDS = U.map((u) => u.id);
-  PaxMap.usePortraits(S.portraits, "/portraits/");
+  PaxMap.usePortraits(S.portraits, "/portraits/"); PaxMap.useFaces(S.faces, "/faces/"); window.PaxScenes?.use(S.scenes);
   const pIndex = Object.fromEntries(P.map((p, i) => [p.id, i]));
   const nIndex = Object.fromEntries(N.map((n, i) => [n.id, i]));
   const bIndex = Object.fromEntries(B.map((b, i) => [b.id, i]));
@@ -928,7 +928,9 @@
       <h4>The race of learning</h4><div class="races">${race}</div>
       <h4>The tree</h4><div class="tree">${columns}</div></div>`;
   }
-  const portrait = (person, color, size) => PaxMap.portrait(person, color, size);
+  // the court a sitter belongs to, from its colour (a council's own colour is mixed: then it is yours)
+  const CULTURE = {ottomans: "ottoman", russia: "russian"};
+  const portrait = (person, color, size) => PaxMap.portrait(person, color, size, CULTURE[N.find((n) => n.color === color)?.id ?? G.human] || "");
   const traitChips = (traits) => (traits || []).length ? `<div class="chips">${traits.map((t) =>
     `<span class="chip trait" title="${esc(S.traits[t] || "")}">${esc(t)}</span>`).join("")}</div>` : "";
   const temperChip = (p) => p ? `<span class="chip temper ${p}" title="${esc(S.personalities[p] || "")}">${esc(p)}</span>` : "";
@@ -2322,8 +2324,8 @@
     `<span class="${n.startsWith("+") ? "pos" : "neg"}">${n} ${what}</span>`).replace(/(repay [^,]+|[\d]+ regiments lost[^,]*|\d+ years of unrest[^,]*)/g, '<span class="neg">$1</span>');
   function eventCard(e, big = false) {
     const pick = chosen(e.id);
-    const drawn = window.PaxScenes?.ofEvent(e.event, {color: N[me].color, seed: `${e.event}${e.id}`});
-    const scene = drawn ? `<div class="escene">${drawn.replace("xMidYMid slice", "xMidYMax slice")}</div>`
+    const drawn = window.PaxScenes?.ofEvent(e.event);
+    const scene = drawn ? `<div class="escene">${drawn}</div>`
       : e.province && S.views[e.province] ? `<img class="escene" src="/views/${e.province}.jpg" alt="">`
       : V.me.ruler ? `<div class="eruler">${portrait(V.me.ruler, N[me].color, big ? 72 : 48)}</div>` : "";
     return `<div class="eventcard ${big ? "big" : ""}">${big ? scene : ""}<div class="ehead"><span class="eic">${EVENT_ICON[e.event] || "📜"}</span>

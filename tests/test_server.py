@@ -155,3 +155,20 @@ def test_the_press_kit_reel_follows_every_army_of_a_game_of_bots() -> None:
     assert marches  # six years of bots never stay home
     assert all(m["from"] in reel["provinces"] and m["to"] in reel["provinces"] for m in marches)
     assert press.get("/api/reel", params={"turns": 200}).status_code == 422
+
+
+def test_the_period_paintings_are_served_and_nothing_else(client: TestClient) -> None:
+    static = client.get("/api/static").json()
+    assert {"battle-pavia", "plague", "fair"} <= set(static["scenes"])
+    assert {f["label"] for f in static["faces"].values()} >= {
+        "man",
+        "woman",
+        "old",
+        "ottoman",
+        "russian",
+    }
+    assert client.get("/scenes/plague.jpg").headers["content-type"] == "image/jpeg"
+    assert client.get("/faces/man-1.jpg").status_code == 200
+    assert client.get("/scenes/index.json").status_code == 404
+    assert client.get("/faces/CREDITS.md").status_code == 404
+    assert len(static["views"]) == 104  # every province has a town view of the period

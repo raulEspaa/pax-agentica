@@ -1,0 +1,296 @@
+[
+ {
+  "id": "york",
+  "file": "Yorke (BM Q,8.213).jpg",
+  "label": "York"
+ },
+ {
+  "id": "ireland",
+  "file": "Braun Lindau UBHD.jpg",
+  "label": "Lindau"
+ },
+ {
+  "id": "ulster",
+  "file": "Braun Stade UBHD.jpg",
+  "label": "Stade"
+ },
+ {
+  "id": "highlands",
+  "file": "Braun Sion UBHD.jpg",
+  "label": "Sion"
+ },
+ {
+  "id": "east_anglia",
+  "file": "Vues et plans de villes - estampe - Fr. Valesio f. - btv1b8452405h (083 of 232).jpg",
+  "label": "Norwich"
+ },
+ {
+  "id": "devon",
+  "file": "FloyerHayes LysonsMagnaBritannia MapOfExeter..png",
+  "label": "Exeter"
+ },
+ {
+  "id": "porto",
+  "file": "Coimbra (Braun – Hogenberg, 1598).jpg",
+  "label": "Coimbra"
+ },
+ {
+  "id": "galicia",
+  "file": "Braun Donostia-San Sebastián UBHD.jpg",
+  "label": "San Sebastián"
+ },
+ {
+  "id": "castile",
+  "file": "Braun Burgos 1572.jpg",
+  "label": "Burgos"
+ },
+ {
+  "id": "valencia",
+  "file": "Cadiz - 1578 views of Sevilla, Cadiz and Malaga (cropped).jpg",
+  "label": "Cádiz"
+ },
+ {
+  "id": "aragon",
+  "file": "Braun Ecija UBHD.jpg",
+  "label": "Écija"
+ },
+ {
+  "id": "catalonia",
+  "file": "Braun Barcelona UBHD.jpg",
+  "label": "Barcelona"
+ },
+ {
+  "id": "navarre",
+  "file": "Bilbao1575.jpg",
+  "label": "Bilbao"
+ },
+ {
+  "id": "brittany",
+  "file": "Braun Tours UBHD.jpg",
+  "label": "Tours"
+ },
+ {
+  "id": "champagne",
+  "file": "Braun Strasbourg UBHD.jpg",
+  "label": "Strasbourg"
+ },
+ {
+  "id": "burgundy",
+  "file": "Braun Poitiers UBHD.jpg",
+  "label": "Poitiers"
+ },
+ {
+  "id": "savoy",
+  "file": "Braun Dreizehn Orte Luzern UBHD.jpg",
+  "label": "Lucerne"
+ },
+ {
+  "id": "westphalia",
+  "file": "MuensterRemiusHogenberg1570.jpg",
+  "label": "Münster"
+ },
+ {
+  "id": "hesse",
+  "file": "Ansicht Kassel (Braun Hogenberg) 1572.jpg",
+  "label": "Kassel"
+ },
+ {
+  "id": "brunswick",
+  "file": "Braun Braunschweig UBHD.jpg",
+  "label": "Braunschweig"
+ },
+ {
+  "id": "thuringia",
+  "file": "Braun Erfurt UBHD.jpg",
+  "label": "Erfurt"
+ },
+ {
+  "id": "swabia",
+  "file": "Braun Ulm UBHD.jpg",
+  "label": "Ulm"
+ },
+ {
+  "id": "silesia",
+  "file": "Braun Frankfurt an der Oder UBHD.jpg",
+  "label": "Frankfurt an der Oder"
+ },
+ {
+  "id": "styria",
+  "file": "Braun Salzburg UBHD.jpg",
+  "label": "Salzburg"
+ },
+ {
+  "id": "genoa",
+  "file": "Georg Braun-Frans Hogenberg -Genua Ligurum domina (cropped-Genua).jpg",
+  "label": "Genoa"
+ },
+ {
+  "id": "bologna",
+  "file": "Braun Parma UBHD.jpg",
+  "label": "Parma"
+ },
+ {
+  "id": "apulia",
+  "file": "Braun Messina UBHD.jpg",
+  "label": "Messina"
+ },
+ {
+  "id": "sardinia",
+  "file": "Braun hogenberg Cagliari 1572.jpg",
+  "label": "Cagliari"
+ },
+ {
+  "id": "gotaland",
+  "file": "Braun Lübeck UBHD.jpg",
+  "label": "Lübeck"
+ },
+ {
+  "id": "finland",
+  "file": "Braun Wismar UBHD.jpg",
+  "label": "Wismar"
+ },
+ {
+  "id": "karelia",
+  "file": "Braun Rostock UBHD.jpg",
+  "label": "Rostock"
+ },
+ {
+  "id": "trondelag",
+  "file": "Braun Lüneburg UBHD.jpg",
+  "label": "Lüneburg"
+ },
+ {
+  "id": "jutland",
+  "file": "Braunius Odense.jpg",
+  "label": "Odense"
+ },
+ {
+  "id": "greater_poland",
+  "file": "Poznan Braun Hohenberg.jpg",
+  "label": "Poznań"
+ },
+ {
+  "id": "red_ruthenia",
+  "file": "Lwow 1.jpg",
+  "label": "Lviv"
+ },
+ {
+  "id": "polotsk",
+  "file": "Biecs 1618.jpg",
+  "label": "Biecz"
+ },
+ {
+  "id": "kiev",
+  "file": "Tipvs civitatis Lvblinesi in regno Poloniae.jpg",
+  "label": "Lublin"
+ },
+ {
+  "id": "upper_hungary",
+  "file": "Cassovia 1617.jpg",
+  "label": "Košice"
+ },
+ {
+  "id": "croatia",
+  "file": "Castel Novo - depingebat Georgius Hoefnaglius anno 1577 - btv1b531654100 (2 of 3).jpg",
+  "label": "Castelnuovo"
+ },
+ {
+  "id": "transylvania",
+  "file": "Claudiopolis Koloszwar.jpg",
+  "label": "Kolozsvár"
+ },
+ {
+  "id": "wallachia",
+  "file": "Hoefnagel Esztergom Párkány 1595.jpg",
+  "label": "Esztergom"
+ },
+ {
+  "id": "moldavia",
+  "file": "Sendomiria 1618.jpg",
+  "label": "Sandomierz"
+ },
+ {
+  "id": "serbia",
+  "file": "Posonium-Hogenberg-1588.jpg",
+  "label": "Pressburg"
+ },
+ {
+  "id": "bosnia",
+  "file": "1575. La cita de Corphu.jpg",
+  "label": "Corfu"
+ },
+ {
+  "id": "bulgaria",
+  "file": "Rhode - Peeters Jacob - 1690.jpg",
+  "label": "Rhodes"
+ },
+ {
+  "id": "crimea",
+  "file": "Braun Famagusta UBHD.jpg",
+  "label": "Famagusta"
+ },
+ {
+  "id": "greece",
+  "file": "Chios - Peeters Jacob - 1690.jpg",
+  "label": "Chios"
+ },
+ {
+  "id": "morea",
+  "file": "Modon, sive Modona, quondam Methone, civitas est littoralis Pelopponesi, in Morea - btv1b53194588f (2 of 3).jpg",
+  "label": "Modon"
+ },
+ {
+  "id": "albania",
+  "file": "Braun Malta UBHD.jpg",
+  "label": "Malta"
+ },
+ {
+  "id": "anatolia",
+  "file": "Braun Cairo HAAB.jpg",
+  "label": "Cairo"
+ },
+ {
+  "id": "karaman",
+  "file": "Braun Jerusalem UBHD.jpg",
+  "label": "Jerusalem"
+ },
+ {
+  "id": "novgorod",
+  "file": "Weliki Novogord Od.er Gros-Navgard. (to accompany) Adam Olearius, Ausfuhrliche Beschreibung Der kundbaren Reyse Nach Muscow und (IA dr weliki-novogord-oder-gros-navgard-to-accompany-adam-olearius-ausfuhrli-13423096).jpg",
+  "label": "Novgorod",
+  "zoom": 0.6,
+  "fx": 0.5,
+  "fy": 0.55
+ },
+ {
+  "id": "nizhny",
+  "file": "Nisen Navgorod (to accompany) Adam Olearius, Ausfuhrliche Beschreibung Der kundbaren Reyse Nach Muscow und Persien (IA dr nisen-navgorod-to-accompany-adam-olearius-ausfuhrliche-beschreibung-der-13423216).jpg",
+  "label": "Nizhny Novgorod",
+  "zoom": 0.6,
+  "fx": 0.5,
+  "fy": 0.55
+ },
+ {
+  "id": "pskov",
+  "file": "Olearius Novgorod.jpg",
+  "label": "Novgorod"
+ },
+ {
+  "id": "tver",
+  "file": "Traveling by sleigh, Muscovy, 16th c (cropped).jpg",
+  "label": "Muscovy"
+ },
+ {
+  "id": "smolensk",
+  "file": "Reualia in Liuonia (to accompany) Adam Olearius, Ausfuhrliche Beschreibung Der kundbaren Reyse Nach Muscow und Persien (IA dr reualia-in-liuonia-to-accompany-adam-olearius-ausfuhrliche-beschreibung-13423082).jpg",
+  "label": "Reval",
+  "zoom": 0.6,
+  "fx": 0.5,
+  "fy": 0.55
+ },
+ {
+  "id": "ryazan",
+  "file": "Nizh novs.gif",
+  "label": "Nizhny Novgorod"
+ }
+]
