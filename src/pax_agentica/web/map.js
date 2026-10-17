@@ -108,10 +108,10 @@ const PaxMap = (() => {
         <path d="M5 1.5 L8 7.5 L2 7.5 Z" fill="rgba(25,45,15,.55)"/><line x1="5" y1="7.5" x2="5" y2="9.5" stroke="rgba(40,25,10,.5)"/></pattern>
       <pattern id="t-marsh" width="12" height="8" patternUnits="userSpaceOnUse">
         <path d="M1 3 H6 M5 6 H11" stroke="rgba(30,60,55,.6)" stroke-width="1"/></pattern>
-      <marker id="arrow-move" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-        <path d="M0 0 L10 5 L0 10 z" fill="#3f8f55"/></marker>
-      <marker id="arrow-attack" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-        <path d="M0 0 L10 5 L0 10 z" fill="#b8392b"/></marker>
+      <marker id="arrow-move" viewBox="0 0 12 12" refX="7" refY="6" markerWidth="4.4" markerHeight="4.4" orient="auto-start-reverse">
+        <path d="M0 1 L11 6 L0 11 L3.5 6 Z" fill="#2f6b3e" stroke="#13240f" stroke-width=".8" stroke-linejoin="round"/></marker>
+      <marker id="arrow-attack" viewBox="0 0 16 10" refX="11" refY="5" markerWidth="5.6" markerHeight="3.5" orient="auto-start-reverse">
+        <path d="M0 3.4 L4 3.4 L5 1 L15.5 5 L5 9 L4 6.6 L0 6.6 Z" fill="#b8392b" stroke="#3a0d07" stroke-width=".9" stroke-linejoin="round"/></marker>
       <clipPath id="landclip"></clipPath>`;
 
     const off = {"pointer-events": "none"};
@@ -264,11 +264,8 @@ const PaxMap = (() => {
         }
         const troops = world.troops[i], hidden = troops === null, plan = (world.planned || [])[i] || 0;
         if ((troops > 0 || plan > 0 || (hidden && close)) && (o >= 0 || close)) {
-          const label = hidden ? "?" : String(troops), w = 9 + label.length * 6;
-          const g = el("g", {class: "badge" + (hidden ? " fog" : ""), transform: `translate(${p.x} ${p.y + 2 * k}) scale(${1.15 * k})`}, gMarks);
-          el("rect", {class: "box", x: -w / 2, y: -7, width: w, height: 14, rx: 2,
-            stroke: o >= 0 ? N[o].color : "#8a7d60", opacity: o >= 0 && !hidden ? 1 : .75}, g);
-          el("text", {}, g).textContent = label;
+          const label = hidden ? "?" : String(troops);
+          const {g, w} = shield(gMarks, label, o >= 0 ? N[o].color : "#8a7d60", {fog: hidden || o < 0, x: p.x, y: p.y + 2 * k, scale: 1.15 * k});
           if (plan) { // this year's orders: raised here (+) or marching away (−), shown before the year ends
             el("title", {}, g).textContent = `${troops} regiments now, ${troops + plan} once your orders are carried out`;
             el("text", {x: w / 2 + 2, y: 0.5, class: "plan " + (plan > 0 ? "up" : "down")}, g).textContent = `${plan > 0 ? "+" : "−"}${Math.abs(plan)}`;
@@ -292,7 +289,7 @@ const PaxMap = (() => {
         }
         const general = world.generals && world.generals.get(i);
         if (general) { // one mark for a led army: a gilt helmet on its court's colour, beside the regiments, a pip per point of skill
-          const label = troops === null ? "?" : String(troops), off = (9 + label.length * 6) / 2 + 8;
+          const label = troops === null ? "?" : String(troops), off = Math.max(14, 8 + label.length * 6.2) / 2 + 8;
           const g = el("g", {class: "general", transform: `translate(${p.x - off * 1.15 * k} ${p.y + 2 * k}) scale(${1.15 * k})`}, gMarks);
           el("title", {}, g).textContent = `Led by ${general.name}, skill ${general.skill} of 3`;
           el("circle", {r: 7, fill: N[general.nation].color, class: "gbg"}, g);
@@ -405,6 +402,18 @@ const PaxMap = (() => {
     }
 
     function setArrows(list) { arrows = list; drawArrows(); } // [[from, to, kind, count]]
+    // a shield, as heralds drew them: the court's colour across the top, the number below
+    const SHIELD = (w) => `M${-w / 2} -8 H${w / 2} V1 Q${w / 2} 6.5 0 9.4 Q${-w / 2} 6.5 ${-w / 2} 1 Z`;
+    function shield(parent, label, color, {fog = false, x = 0, y = 0, scale = 1} = {}) {
+      const w = Math.max(14, 8 + String(label).length * 6.2);
+      const g = el("g", {class: "badge" + (fog ? " fog" : ""), transform: `translate(${x} ${y}) scale(${scale})`}, parent);
+      el("path", {class: "box", d: SHIELD(w), stroke: color, opacity: fog ? .8 : 1}, g);
+      el("path", {class: "chief", d: `M${-w / 2 + .7} -7.3 H${w / 2 - .7} V-4.4 H${-w / 2 + .7} Z`, fill: color, opacity: fog ? .45 : .95}, g);
+      el("text", {y: 1.6}, g).textContent = label;
+      return {g, w};
+    }
+    // the year's marches, drawn as a campaign map draws them: a dotted route with chevrons for a
+    // march, a heavy line with a lance head for an attack, the regiments on a shield
     function drawArrows() {
       gArrows.textContent = "";
       const k = px();
@@ -412,11 +421,21 @@ const PaxMap = (() => {
         const p = P[a], q = P[b], mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
         const dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy) || 1;
         const cx = mx - dy / len * len * 0.18, cy = my + dx / len * len * 0.18; // a gentle bow
-        el("path", {d: `M${p.x} ${p.y} Q${cx} ${cy} ${q.x} ${q.y}`, class: `arrow ${kind}`,
-          "stroke-width": 4.5 * k, "marker-end": `url(#arrow-${kind})`}, gArrows);
-        const t = el("text", {x: (p.x + 2 * cx + q.x) / 4, y: (p.y + 2 * cy + q.y) / 4, class: `arrowcount ${kind}`,
-          "font-size": 12 * k, "stroke-width": 3 * k}, gArrows);
-        t.textContent = count;
+        const d = `M${p.x} ${p.y} Q${cx} ${cy} ${q.x} ${q.y}`;
+        const at = (s) => [(1 - s) * (1 - s) * p.x + 2 * (1 - s) * s * cx + s * s * q.x, (1 - s) * (1 - s) * p.y + 2 * (1 - s) * s * cy + s * s * q.y];
+        const dir = (s) => Math.atan2(2 * (1 - s) * (cy - p.y) + 2 * s * (q.y - cy), 2 * (1 - s) * (cx - p.x) + 2 * s * (q.x - cx)) * 180 / Math.PI;
+        if (kind === "attack") {
+          el("path", {d, class: "arrow edge", "stroke-width": 7 * k}, gArrows);
+          el("path", {d, class: "arrow attack", "stroke-width": 4.6 * k, "marker-end": "url(#arrow-attack)"}, gArrows);
+        } else {
+          el("path", {d, class: "arrow road", "stroke-width": 6 * k}, gArrows); // a pale road under the route
+          el("path", {d, class: "arrow move", "stroke-width": 3.2 * k, "stroke-dasharray": `${.1 * k} ${5.2 * k}`, "marker-end": "url(#arrow-move)"}, gArrows);
+          const curve = len * 1.05, n = Math.max(1, Math.floor(curve / (34 * k)));
+          for (let c = 1; c <= n; c++) { const s = c / (n + 1); if (s > .82) continue; const [x, y] = at(s);
+            el("path", {d: "M-3 -3.4 L1.6 0 L-3 3.4", class: "chevron", transform: `translate(${x} ${y}) rotate(${dir(s)}) scale(${1.25 * k})`}, gArrows); }
+        }
+        const [lx, ly] = at(.5);
+        shield(gArrows, count, kind === "attack" ? "#b8392b" : "#2f6b3e", {x: lx, y: ly - 3 * k, scale: 1.05 * k});
       }
     }
 
