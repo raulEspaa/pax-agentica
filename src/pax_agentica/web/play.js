@@ -1864,6 +1864,10 @@
     const signed = peace || evs.find((e) => e.kind === "treaty_signed" && e.nations.includes(G.human));
     if (signed) { const other = signed.nations.find((n) => n !== G.human);
       return fig(art.treaty({a: color(G.human), b: color(other)}), `${peace ? "The peace" : "A treaty"} of ${nameOf(G.human)} and ${nameOf(other)}, ${year}`); }
+    // else the news of the age the crown answered this year: a fair, a comet, a master at court
+    const decided = evs.find((e) => e.kind === "event_decided" && e.nations[0] === G.human && art.ofEvent(e.data.event));
+    if (decided) return fig(art.ofEvent(decided.data.event, {color: color(G.human), seed: `${decided.data.event}${year}`}),
+      `${decided.summary.replace(/^[^,]+, /, "").replace(/^./, (c) => c.toUpperCase())}, ${year}`);
     return "";
   }
   // ------------------------------------------------------------------ first steps: a guided first game
@@ -2199,7 +2203,7 @@
       <button class="btn" id="closemodal">Continue</button>`;
     const sheet = $("sheet"); sheet.classList.add("reveal");
     sheet.querySelectorAll(".sheet.reveal li, .battlecard, .siegeline, .discovery, .work, .deltas > div").forEach((x, k) => (x.style.animationDelay = `${Math.min(k, 24) * 45}ms`));
-    $("modal").classList.add("open"); $("closemodal").focus();
+    $("modal").classList.add("open"); $("closemodal").focus({preventScroll: true}); sheet.scrollTop = 0;
     sheet.querySelectorAll(".deltas b[data-to]").forEach((b, k) => setTimeout(() => J.countTo(b, +b.dataset.to), 250 + k * 80));
     feelYear(before, V.last_turn_events, won, lost);
     $("closemodal").onclick = () => { $("modal").classList.remove("open"); sheet.classList.remove("reveal"); eventSheet(); };
@@ -2219,7 +2223,9 @@
     `<span class="${n.startsWith("+") ? "pos" : "neg"}">${n} ${what}</span>`).replace(/(repay [^,]+|[\d]+ regiments lost[^,]*|\d+ years of unrest[^,]*)/g, '<span class="neg">$1</span>');
   function eventCard(e, big = false) {
     const pick = chosen(e.id);
-    const scene = e.province && S.views[e.province] ? `<img class="escene" src="/views/${e.province}.jpg" alt="">`
+    const drawn = window.PaxScenes?.ofEvent(e.event, {color: N[me].color, seed: `${e.event}${e.id}`});
+    const scene = drawn ? `<div class="escene">${drawn.replace("xMidYMid slice", "xMidYMax slice")}</div>`
+      : e.province && S.views[e.province] ? `<img class="escene" src="/views/${e.province}.jpg" alt="">`
       : V.me.ruler ? `<div class="eruler">${portrait(V.me.ruler, N[me].color, big ? 72 : 48)}</div>` : "";
     return `<div class="eventcard ${big ? "big" : ""}">${big ? scene : ""}<div class="ehead"><span class="eic">${EVENT_ICON[e.event] || "📜"}</span>
         <div><b>${esc(e.title)}</b>${e.province ? `<small>${esc(P[pIndex[e.province]].name)}</small>` : ""}</div></div>
