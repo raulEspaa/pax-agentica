@@ -138,17 +138,15 @@ svg .pick { fill: none; stroke: #fff6dc; stroke-width: 2.4; stroke-dasharray: 6 
 .fortmark .tower { fill: #ddd0ac; stroke: #2a1b0c; stroke-width: 1.1; stroke-linejoin: round; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .7)); }
 .fortmark .gate { fill: #3a2414; }
 .fortmark .lvl { font: 700 8px var(--body); fill: #fff3cf; stroke: #120a04; stroke-width: 2px; paint-order: stroke; }
-.genmark circle { fill: #e6c27e; stroke-width: 1.6; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .7)); }
-.genmark text { font: 700 9px var(--body); fill: #4a3010; text-anchor: middle; dominant-baseline: central; }
 .badge text.plan { text-anchor: start; font-size: 9.5px; stroke: #120a04; stroke-width: 2.6px; paint-order: stroke; }
 .badge text.plan.up { fill: #9fe08f; } .badge text.plan.down { fill: #f39a84; }
 .siegemark .sbg { fill: #17110b; stroke-width: 1.2; }
 .siegemark .sfill { opacity: .75; }
 .siegemark .stxt { font: 700 8px var(--body); fill: #fff6dc; text-anchor: middle; stroke: #120a04; stroke-width: 2px; paint-order: stroke; }
-.general .pole { stroke: #2a1c08; stroke-width: 1.4; }
-.general .pennant { stroke: #1b1209; stroke-width: .7; }
-.general .skill { font-family: var(--body); font-weight: 700; font-size: 6.5px; fill: #fff; text-anchor: middle;
-                  dominant-baseline: central; paint-order: stroke; stroke: rgba(0, 0, 0, .55); stroke-width: 1.5px; }
+.general { filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .75)); }
+.general .gbg { stroke: #e6c27e; stroke-width: 1.4; }
+.general .helm { fill: #f1d48a; stroke: #4a3010; stroke-width: .55; stroke-linejoin: round; }
+.general .gpip { fill: #f1d48a; stroke: #2a1c08; stroke-width: .5; }
 .bpip { stroke: #17110b; stroke-width: .6; }
 .capital { fill: var(--brass-hi); stroke: #2a1c08; stroke-width: 1; }
 .battle { font-family: sans-serif; text-anchor: middle; dominant-baseline: central; pointer-events: none; }

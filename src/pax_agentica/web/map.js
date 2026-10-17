@@ -291,17 +291,13 @@ const PaxMap = (() => {
           el("text", {class: "stxt", y: 3}, g).textContent = `⚒ ${sg.progress}%`;
         }
         const general = world.generals && world.generals.get(i);
-        if (general) { // a pennant in the general's colours, his skill on the flag
-          const g = el("g", {class: "general", transform: `translate(${p.x - 20 * k} ${p.y + 2 * k}) scale(${1.15 * k})`}, gMarks);
-          el("title", {}, g).textContent = `${general.name}, skill ${general.skill}`;
-          el("line", {x1: 0, y1: 8, x2: 0, y2: -10, class: "pole"}, g);
-          el("path", {d: "M0.5 -10 L11 -6.5 L0.5 -3 Z", fill: N[general.nation].color, class: "pennant"}, g);
-          el("text", {x: 4.6, y: -6.3, class: "skill"}, g).textContent = general.skill;
-          // and a gold star over the regiments he leads, so a led army stands out at a glance
-          const s = el("g", {class: "genmark", transform: `translate(${p.x + 11 * k} ${p.y - 6 * k}) scale(${1.15 * k})`}, gMarks);
-          el("title", {}, s).textContent = `Led by ${general.name} (${"★".repeat(general.skill)})`;
-          el("circle", {r: 6.5, stroke: N[general.nation].color}, s);
-          el("text", {y: 0.5}, s).textContent = "★";
+        if (general) { // one mark for a led army: a gilt helmet on its court's colour, beside the regiments, a pip per point of skill
+          const label = troops === null ? "?" : String(troops), off = (9 + label.length * 6) / 2 + 8;
+          const g = el("g", {class: "general", transform: `translate(${p.x - off * 1.15 * k} ${p.y + 2 * k}) scale(${1.15 * k})`}, gMarks);
+          el("title", {}, g).textContent = `Led by ${general.name}, skill ${general.skill} of 3`;
+          el("circle", {r: 7, fill: N[general.nation].color, class: "gbg"}, g);
+          el("path", {class: "helm", d: "M-3.6 0.9 Q-3.9 -3.9 0 -4.2 Q3.9 -3.9 3.6 0.9 Z M-6.6 -1.4 Q-5.2 2.9 0 3.1 Q5.2 2.9 6.6 -1.4 Q4.2 1.1 0 1.2 Q-4.2 1.1 -6.6 -1.4 Z M-3.2 -3.3 Q0 -8.2 3.2 -3.3 Q0 -4.7 -3.2 -3.3 Z"}, g);
+          for (let s = 0; s < general.skill; s++) el("circle", {class: "gpip", cx: (s - (general.skill - 1) / 2) * 3.4, cy: 9.6, r: 1.25}, g);
         }
         const bs = world.buildings[i];
         if (close && bs.length) {
