@@ -460,6 +460,7 @@ def add_assets(app: FastAPI, static: dict[str, Any]) -> None:
             "juice.js": "text/javascript",
             "scenes.js": "text/javascript",
             "press.js": "text/javascript",
+            "i18n.js": "text/javascript",
             "favicon.svg": "image/svg+xml",
         }
         if name not in types:
@@ -477,6 +478,15 @@ def add_assets(app: FastAPI, static: dict[str, Any]) -> None:
         return Response(image, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
 
     painted = {folder: {f"{key}.jpg" for key in static[folder]} for folder in ("scenes", "faces")}
+
+    languages = {f"{lang}.json" for lang in ("es",)}
+
+    @app.get("/i18n/{name}")
+    def dictionary(name: str) -> Response:
+        if name not in languages:  # only the dictionaries we ship
+            raise HTTPException(404)
+        text = web.joinpath("i18n", name).read_text(encoding="utf-8")
+        return Response(text, media_type="application/json", headers={"Cache-Control": "no-cache"})
 
     @app.get("/scenes/{name}")
     def scene(name: str) -> Response:

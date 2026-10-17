@@ -61,6 +61,7 @@
   .note { color: var(--ink-3); font-size: 14px; }
   a { color: var(--brass-hi); }
   [hidden] { display: none !important; }
+  .hero > div { position: relative; } .langpick { position: absolute; top: 4px; right: 0; font: inherit; font-size: 14px; background: transparent; color: var(--ink-2, #e8d6ae); border: 1px solid #6a5030; padding: 2px 6px; }
   @media (max-height: 820px), (max-width: 1100px) { body { font-size: 15.5px; } main { padding-top: 14px; } .hero img { width: 52px; height: 52px; } h1 { font-size: 30px; } .panel { padding: 12px 14px; } .power { padding: 5px 6px; font-size: 14px; } .bigbtn { height: 42px; } }
   @media (max-width: 800px) { .who, .choice, .opts { grid-template-columns: 1fr; } .powers { grid-template-columns: 1fr 1fr; } h1 { font-size: 28px; } }
 </style>
@@ -68,7 +69,7 @@
 <body>
 <main>
   <header class="hero"><img src="/static/favicon.svg" alt=""><div>
-    <h1>Pax Agentica</h1>
+    <h1>Pax Agentica</h1><select id="lang" class="langpick" aria-label="Language" translate="no"></select>
     <p class="lead">Europe, 1500. Take a throne and rule it: your friends take others, bots rule the rest. A year passes once every player has ended it, or when the table's clock runs out. A table closes when everyone leaves it, or after three days without play.</p></div></header>
 
   <section class="panel" id="step1">
@@ -104,10 +105,15 @@
   <div id="closed" style="margin-top:16px"></div>
   <p class="note">Your seats are remembered by this browser. To play from another device, open the seat link a table gives you there.</p>
 </main>
+<script src="/static/i18n.js"></script>
 <script src="/static/map.js"></script>
 <script>
 "use strict";
 (async () => {
+  await window.PaxI18n?.ready; window.PaxI18n?.watch(); // the page in the player's language
+  if (window.PaxI18n) { const pick = document.getElementById("lang");
+    pick.innerHTML = Object.entries(PaxI18n.LANGS).map(([k, v]) => `<option value="${k}" ${k === PaxI18n.lang ? "selected" : ""}>${v}</option>`).join("");
+    pick.onchange = () => PaxI18n.setLang(pick.value); } else document.getElementById("lang").remove();
   const $ = (id) => document.getElementById(id);
   const esc = PaxMap.esc;
   const store = {

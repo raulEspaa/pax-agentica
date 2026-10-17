@@ -26,6 +26,7 @@
   const CRISIS_ICON = {plague: "☠", ice_age: "❄", price_revolution: "⚖"};
   const CRISIS_EFFECT = {plague: "Every town may lose a level of development each year; closed towns far less often, at a price.",
     ice_age: "Grain from every field −35%; bread dearer on the market.", price_revolution: "Market prices +40%, works and development 20% dearer, ducats +10%."};
+  await window.PaxI18n?.ready; window.PaxI18n?.watch(); // the page in the player's language
   const S = await (await api("/static")).json();
   const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, T = S.tech, U = S.units, M = S.monuments;
   const KINDS = U.map((u) => u.id);
@@ -86,7 +87,7 @@
           orders = []; draftSent = "[]"; picked = -1; afterLoad(); report(before);
           if (unsent) flash(kept ? "The year ended before you pressed “End the year”: the orders you had prepared were carried out."
             : "The year ended before your last orders reached the court: some were not carried out.");
-          if (document.hidden) document.title = `⚑ ${V.year}: your turn · Pax Agentica`;
+          if (document.hidden) document.title = window.PaxI18n ? PaxI18n.t(`⚑ ${V.year}: your turn · Pax Agentica`) : `⚑ ${V.year}: your turn · Pax Agentica`;
         } else { G.waiting_for = st.waiting_for; G.submitted = st.submitted; G.seconds_left = st.seconds_left; G.force_in = st.force_in;
           if (st.closed && G.table) G.table.closed = st.closed; banner(); }
       } catch {}
@@ -1559,8 +1560,10 @@
   }
   function chronicleTab() {
     if (!G.chronicle.length) return `<p class="muted pad">History begins when you end the first year.</p>`;
-    const names = new RegExp(N.map((n) => n.name).join("|"), "g");
-    const paint = (text) => esc(text).replace(names, (m) => `<span class="nn" style="color:${mix(N.find((n) => n.name === m).color, "#ffffff", .35)}">${m}</span>`);
+    // each line in the reader's language first, then the crowns' names in their colours
+    const L = window.PaxI18n || {t: (s) => s, name: (s) => s}, shown = new Map(N.map((n) => [L.name(n.name), n]));
+    const names = new RegExp([...shown.keys()].sort((a, b) => b.length - a.length).join("|"), "g");
+    const paint = (text) => esc(L.t(text)).replace(names, (m) => `<span class="nn" style="color:${mix(shown.get(m).color, "#ffffff", .35)}">${m}</span>`);
     const keep = (e) => !["moved", "proposal_made", "market_trade", "recruited"].includes(e.kind) && (!chronCourt || e.nations.includes(chronCourt))
       && (chronKind === "all" || (chronKind === "mine" ? e.nations.includes(G.human) : (CHRON_KINDS[chronKind] || []).includes(e.kind)));
     const years = G.chronicle.map((y) => [y, y.events.filter(keep)]).filter(([, es]) => es.length);
@@ -1966,6 +1969,8 @@
     g.strokeStyle = "#3a2414"; g.lineWidth = 2; g.strokeRect(mx, my, mw, mh);
     // the title
     g.fillStyle = "#2b1d0f"; g.font = "700 46px Cinzel, Georgia, serif"; g.textBaseline = "alphabetic";
+    const fillText = g.fillText.bind(g); // the card speaks the reader's language too
+    g.fillText = (s, ...at) => fillText(window.PaxI18n ? PaxI18n.t(String(s)) : s, ...at);
     g.fillText(nameOf(G.human), 40, 78);
     g.font = "italic 22px 'EB Garamond', Georgia, serif"; g.fillStyle = "#6b5638";
     g.fillText(`${H.length ? H[0].year : R.startYear} to ${V.year - (G.finished ? 1 : 0)}${V.me.ruler ? `, under ${V.me.ruler.title} ${V.me.ruler.name}` : ""}`, 42, 106);
@@ -1981,7 +1986,7 @@
       g.fillStyle = "#6b5638"; g.font = "15px 'EB Garamond', Georgia, serif"; g.fillText(`standing ${vals[0]} → ${vals[vals.length - 1]}`, px + pw - 170, py + 30);
     }
     // the opening of the chronicle, wrapped
-    const words = chronicleOfReign().split(" "), lines = [];
+    const words = (window.PaxI18n ? PaxI18n.t(chronicleOfReign()) : chronicleOfReign()).split(" "), lines = [];
     g.font = "italic 21px 'EB Garamond', Georgia, serif";
     let line = "";
     for (const w of words) { const tryLine = line ? `${line} ${w}` : w; if (g.measureText(tryLine).width > pw - 20) { lines.push(line); line = w; } else line = tryLine; if (lines.length >= 7) break; }
@@ -2608,6 +2613,8 @@
         <h3>Display</h3>
         <div class="orow"><span>Size of the interface</span>${seg("scale", scale, [[0.85, "Small"], [1, "Normal"], [1.15, "Large"], [1.3, "Larger"]])}</div>
         <div class="orow"><span>Animations</span>${seg("anim", anim, [["full", "Full"], ["quick", "Quick"], ["off", "Off"]])}</div>
+        ${window.PaxI18n ? `<div class="orow"><span>Language</span><select class="field" id="o-lang" aria-label="Language" translate="no">${Object.entries(PaxI18n.LANGS).map(([k, v]) =>
+          `<option value="${k}" ${k === PaxI18n.lang ? "selected" : ""}>${v}</option>`).join("")}</select></div>` : ""}
         <p class="sub">Quick halves the year's marches and cards; Off skips them, for a faster game.</p>
         <h3>Help</h3>
         <div class="orow"><label><input type="checkbox" id="o-steps" ${stepsKept().hidden ? "" : "checked"}> Show the "First steps" guide</label>
@@ -2628,6 +2635,7 @@
     });
     $("o-steps").onchange = (e) => { const s = stepsKept(); s.hidden = !e.target.checked; if (e.target.checked) s.finished = false; stepsSave(s); firstSteps(); };
     $("o-guide").onclick = () => { $("modal").classList.remove("open"); guide(0); };
+    if ($("o-lang")) $("o-lang").onchange = (e) => PaxI18n.setLang(e.target.value); // the page reloads in the new language
     $("closemodal").onclick = () => $("modal").classList.remove("open");
   }
   $("optionsbtn").innerHTML = I("settings");

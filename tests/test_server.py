@@ -172,3 +172,18 @@ def test_the_period_paintings_are_served_and_nothing_else(client: TestClient) ->
     assert client.get("/scenes/index.json").status_code == 404
     assert client.get("/faces/CREDITS.md").status_code == 404
     assert len(static["views"]) == 104  # every province has a town view of the period
+
+
+def test_the_spanish_dictionary_is_served_and_every_pattern_keeps_its_holes(
+    client: TestClient,
+) -> None:
+    import re
+
+    spanish = client.get("/i18n/es.json").json()
+    assert spanish["End the year"] == "Terminar el año"
+    assert spanish["France"] == "Francia"
+    for english, translated in spanish.items():
+        holes = sorted(set(re.findall(r"\{\d+\}", english)))
+        assert holes == sorted(set(re.findall(r"\{\d+\}", translated))), english
+    assert client.get("/i18n/de.json").status_code == 404  # only the languages we ship
+    assert client.get("/static/i18n.js").status_code == 200

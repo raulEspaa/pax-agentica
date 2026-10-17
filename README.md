@@ -60,6 +60,9 @@ Münster* for a peace) are paintings and engravings in the public domain from Wi
 fetched and credited by [`scripts/fetch_art.py`](scripts/fetch_art.py) (see the `CREDITS.md`
 beside each folder in `src/pax_agentica/web/`).
 
+The page speaks English and Spanish (more languages are a dictionary away: see
+[`docs/translations.md`](docs/translations.md)); the engine and the AI rulers stay in English.
+
 **You can play it.** `pax serve` puts you on one throne against the others: you see your
 nation exactly as an AI ruler does (fog of war included), recruit, build, march, and treat with
 the other courts: alliances, pacts, trade, tribute, letters, calls to arms and peace with
