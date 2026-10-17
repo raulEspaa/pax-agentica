@@ -270,7 +270,7 @@ class Session:
         keep = {
             "province_captured", "province_ceded", "province_liberated", "province_occupied",
             "mission_completed", "succession", "war_declared", "peace_signed", "treaty_signed",
-            "treaty_broken", "monument_raised", "nation_eliminated", "coalition_joined",
+            "treaty_broken", "monument_raised", "nation_eliminated", "coalition_joined", "grudge",
         }  # fmt: skip
         milestones: list[dict[str, Any]] = []
         bonds: dict[str, dict[str, int]] = {}

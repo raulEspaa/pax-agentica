@@ -173,11 +173,14 @@ def test_breaking_a_treaty_shocks_every_court(state: GameState, play: Play) -> N
     assert broken.opinion("france", "england") <= -40
 
 
-def test_grudges_fade(state: GameState, play: Play) -> None:
+def test_hard_feelings_fade_once_the_grudge_does(state: GameState, play: Play) -> None:
     war = play(state, england=[DeclareWar(target="france")])
     first = war.opinion("france", "england")
-    later = play(war)
-    assert first < later.opinion("france", "england") < 0
+    held = play(war)
+    assert held.opinion("france", "england") <= first  # the grudge holds the wound open
+    held.turn += held.rules.grudge_war[0]  # ten years on, the grudge is gone
+    later = play(held)
+    assert held.opinion("france", "england") < later.opinion("france", "england") < 0
 
 
 def test_each_court_sees_what_the_others_think_of_it(state: GameState, play: Play) -> None:

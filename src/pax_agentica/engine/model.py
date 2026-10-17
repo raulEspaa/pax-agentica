@@ -1135,6 +1135,12 @@ class Rules(BaseModel):
     max_rivals: int = 3
     max_friends: int = 3
     rival_battle_bonus: float = 0.05  # against a declared rival
+    # grudges: (years, opinion lost each year) for each wrong a court remembers
+    grudge_land: tuple[int, int] = (20, 2)  # a province taken from it by treaty
+    grudge_betrayal: tuple[int, int] = (30, 3)  # a treaty broken to make war on it
+    grudge_war: tuple[int, int] = (10, 1)  # war declared on it
+    grudge_abandoned: tuple[int, int] = (15, 2)  # an ally that left it alone in a war
+    grudge_refuses: int = 2  # from this weight of grudges, no alliance, pact or marriage
     joint_attack_penalty: float = 0.1  # battle power lost for each army that joins another
     joint_attack_penalty_max: float = 0.2
 
@@ -1240,6 +1246,17 @@ def share(army: dict[UnitKind, int], regiments: int) -> dict[UnitKind, int]:
     return out
 
 
+class Grudge(BaseModel):
+    """A wrong a court will not forget: it weighs on its opinion of the wrongdoer every year
+    until it fades, and while it is heavy the court will not bind itself to them."""
+
+    against: NationId
+    reason: str  # what they did, as the court tells it: "took Navarre"
+    since: int  # the turn of the wrong
+    until: int  # the turn it fades
+    weight: NonNegativeInt  # opinion lost each year while it lasts
+
+
 class NationState(BaseModel):
     id: NationId
     name: str
@@ -1261,6 +1278,7 @@ class NationState(BaseModel):
     missions_done: list[str] = Field(default_factory=list)  # see engine/missions.py
     tax: int = Field(default=0, ge=-2, le=2)  # -2 very low ... +2 very high, see Rules.tax_*
     infamy: float = 0.0  # aggressive expansion: grows with every province taken, fades yearly
+    grudges: list[Grudge] = Field(default_factory=list)  # wrongs it will not forget
 
 
 class PendingEvent(BaseModel):

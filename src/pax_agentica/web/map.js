@@ -61,7 +61,7 @@ const PaxMap = (() => {
                  military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭", workshop: "🔨",
                  arms_manufactory: "🗡", powder_mill: "🧨"};
   const UICON = {infantry: "⚔", archers: "🏹", cavalry: "🐎", artillery: "💣"};
-  const ICON = {siege: "🏰", proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
+  const ICON = {grudge: "💢", siege: "🏰", proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
     war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
     treaty_broken: "💔", treaty_cancelled: "✂", treaty_expired: "⌛", peace_signed: "🕊", trade_completed: "⚖",
     trade_failed: "✗", gift: "🎁", battle: "⚔", province_captured: "⚑", capital_moved: "♛", nation_eliminated: "☠",

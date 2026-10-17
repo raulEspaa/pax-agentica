@@ -1044,6 +1044,7 @@
     if (r.truce) out.push(`<span class="chip truce">truce until ${year(r.truce.until_turn)}</span>`);
     if (r.marriage) out.push(`<span class="chip ally" title="A royal marriage: both courts warm every year">💍 married</span>`);
     r.leagues.forEach((x) => out.push(`<span class="chip league" title="A defensive league: attack one, fight both">⚔ leagued against ${esc(nameOf(x))}</span>`));
+    if (theirGrudges(nid).length) out.push(`<span class="chip war" title="${esc(theirGrudges(nid).map((g) => `${g.reason} (${g.since_year}), until ${g.until_year}`).join("; "))}">💢 remembers</span>`);
     return out.join("");
   }
   // ------------------------------------------------------------------ diplomacy: the courts of Europe
@@ -1129,7 +1130,19 @@
     return `<div class="composer"><textarea id="letter" maxlength="500" placeholder="Write to ${esc(nameOf(nid))}. With a proposal attached, your words go with it as its note."></textarea>
       <div class="row"><select class="field" id="attach" aria-label="Attach a proposal">${options.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("")}</select>
       <button class="btn" data-dip="compose">Seal and send</button></div>
+      ${grudgeWeight(nid) >= R.grudgeRefuses ? `<p class="sub warn">💢 ${esc(nameOf(nid))} has not forgotten what you did (see the Dossier): it will refuse an alliance, pact or marriage.</p>` : ""}
       <p class="sub">Words do not change the rules; rulers read them. A proposal must be answered next year or it lapses.</p></div>`;
+  }
+  // What one court will not forget of the other, both ways.
+  const theirGrudges = (nid) => (V.nations.find((x) => x.id === nid)?.remembers || []);
+  const myGrudges = (nid) => (V.me.grudges || []).filter((g) => g.against === nid);
+  const grudgeWeight = (nid) => theirGrudges(nid).reduce((a, g) => a + g.weight, 0);
+  function memories(nid) {
+    const them = theirGrudges(nid), mine = myGrudges(nid), name = esc(nameOf(nid));
+    if (!them.length && !mine.length) return "";
+    const line = (g, who) => `<li><span class="yr">${g.since_year}</span> ${who} ${esc(g.reason.replace(/ it\b/, who === "You" ? " them" : " you"))} <small>· remembered until ${g.until_year}, −${g.weight} a year</small></li>`;
+    return `<h4>💢 What is not forgotten</h4><ul class="history grudges">${them.map((g) => line(g, "You")).join("")}${mine.map((g) => line(g, name)).join("")}</ul>
+      ${grudgeWeight(nid) >= R.grudgeRefuses ? `<p class="sub warn">${name} will sign no alliance, pact or marriage with you while this weighs on it.</p>` : ""}`;
   }
   function dossier(nid) {
     const n = V.nations.find((x) => x.id === nid), name = esc(n.name);
@@ -1151,6 +1164,7 @@
       <p class="sub">${name} is at war with ${n.at_war_with.map((x) => esc(nameOf(x))).join(", ") || "no one"}; allied with ${n.allies.map((x) => esc(nameOf(x))).join(", ") || "no one"}${n.leagued_against.length ? `; leagued against ${n.leagued_against.map((x) => esc(nameOf(x))).join(", ")}` : ""}.
         It counts as friends ${listOf(n.stances, "friend")}, as rivals ${listOf(n.stances, "rival")}.</p>
       ${bound.map((b) => `<p class="sub">⚖ ${b}.</p>`).join("")}
+      ${memories(nid)}
       ${history ? `<h4>Between your courts</h4><ul class="history">${history}</ul>` : ""}`;
   }
   function treatiesDesk(nid) {
@@ -1414,7 +1428,7 @@
     : e.kind === "proclamation" ? `${e.summary}: “${e.data.text}”` : e.summary;
   let chronCourt = "", chronKind = "all";
   const CHRON_KINDS = {war: ["battle", "war_declared", "joined_war", "peace_signed", "province_captured", "province_occupied", "province_ceded", "province_liberated", "siege", "nation_eliminated", "capital_moved", "general_fell", "call_to_arms_ignored"],
-    diplomacy: ["treaty_signed", "treaty_broken", "treaty_cancelled", "treaty_expired", "coalition_joined", "coalition_dissolved", "gift", "trade_completed", "message", "proclamation", "stance_changed", "infamy"],
+    diplomacy: ["grudge", "treaty_signed", "treaty_broken", "treaty_cancelled", "treaty_expired", "coalition_joined", "coalition_dissolved", "gift", "trade_completed", "message", "proclamation", "stance_changed", "infamy"],
     realm: ["built", "developed", "improved", "researched", "mission_completed", "succession", "event_decided", "stability_changed", "prestige_changed", "general_appointed", "monument_raised"]};
   // ------------------------------------------------------------------ the reign: progress you can see
   const ordinal = (n) => `${n}${["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th"}`;

@@ -260,6 +260,14 @@ class _Planner:
         """A refusal in a sentence, so a human (or an agent) across the table knows why."""
         them = self._nation_name(p.sender)
         opinion = self.me.opinions.get(p.sender, 0)
+        wrongs = [g for g in self.me.grudges if g.against == p.sender]
+        bound = (ProposalKind.ALLIANCE, ProposalKind.MARRIAGE, ProposalKind.NON_AGGRESSION)
+        if p.kind in bound and wrongs and self._grudge(p.sender) >= self.v.rules.grudge_refuses:
+            worst = max(wrongs, key=lambda g: g.weight)
+            return (
+                f"We have not forgotten that you {worst.reason.replace(' it', ' us')} in "
+                f"{worst.since_year}. Ask again when that is forgotten, in {worst.until_year}."
+            )
         match p.kind:
             case ProposalKind.ALLIANCE | ProposalKind.MARRIAGE if self._infidel(p.sender):
                 return "Our faiths are not the same, and our court will not bind itself to yours."
@@ -433,7 +441,16 @@ class _Planner:
         their = next((n for n in self.v.nations if n.id == nation), None)
         return their is not None and their.score >= self.me.score * 0.9
 
+    def _grudge(self, nation: str) -> int:
+        """How heavily this court holds wrongs against `nation`."""
+        return sum(g.weight for g in self.me.grudges if g.against == nation)
+
     def _wants(self, p: ProposalView) -> bool:
+        bound = (ProposalKind.ALLIANCE, ProposalKind.MARRIAGE, ProposalKind.NON_AGGRESSION)
+        if p.kind in bound and self._grudge(p.sender) >= self.v.rules.grudge_refuses:
+            return False  # not with a court that wronged us, not yet
+        if p.kind == ProposalKind.COALITION and p.enemy and self._grudge(p.enemy):
+            return True  # a league against the court that wronged us: gladly
         match p.kind:
             case ProposalKind.PEACE:
                 overstretched = len(self.old_enemies) >= 2
@@ -501,7 +518,7 @@ class _Planner:
                 if facing:
                     ours += self.troops[pid]
                     theirs += sum(self.provinces[n].troops or 0 for n in facing)
-            ratio = ours / max(1, theirs)
+            ratio = ours / max(1, theirs) * (1.3 if self._grudge(nation) >= 2 else 1.0)
             if ratio > best_ratio:
                 best, best_ratio = nation, ratio
         if best is not None:
@@ -510,6 +527,19 @@ class _Planner:
             self.mobilising.add(best)
             self.declared = best
             name = self._nation_name(best)
+            wrong = max(
+                (g for g in self.me.grudges if g.against == best),
+                key=lambda g: g.weight,
+                default=None,
+            )
+            if wrong is not None:  # a war of vengeance says so
+                self.actions.append(
+                    Proclaim(
+                        text=f"{name} {wrong.reason.replace(' it', ' us')} in {wrong.since_year}. "
+                        f"{self.me.name} has not forgotten, and now it answers."
+                    )
+                )
+                return
             self.actions.append(
                 Proclaim(
                     text=self.rng.choice(

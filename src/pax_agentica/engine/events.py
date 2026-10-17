@@ -28,6 +28,7 @@ class EventKind(StrEnum):
     WAR_DECLARED = "war_declared"
     JOINED_WAR = "joined_war"  # an ally answered a call to arms
     CALL_TO_ARMS_IGNORED = "call_to_arms_ignored"  # an ally refused: alliance dissolved
+    GRUDGE = "grudge"  # a court will not forget a wrong
     PEACE_SIGNED = "peace_signed"
     PROVINCE_CEDED = "province_ceded"
     TRIBUTE_PAID = "tribute_paid"

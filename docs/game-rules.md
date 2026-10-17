@@ -546,6 +546,15 @@ under truce. That breaks the treaty in front of everyone and costs **2 stability
 can also call an ally into a war you started. An ally who accepts joins the war. An ally who
 refuses or ignores it **dissolves the alliance**, in public.
 
+**Grudges.** Some wrongs a court does not forget. A province taken from it by treaty is
+remembered for 20 years, a treaty broken to make war on it for 30, a war declared on it for 10,
+an ally that left it alone in a war for 15. While a grudge lasts it costs the wrongdoer 1 to 3
+opinion every year, the wound does not heal by itself (a shared faith or a common enemy does
+not warm it either), and once grudges weigh 2 or more the court signs no alliance, pact or
+marriage with the wrongdoer. Each court sees what the others hold against it (`remembers` in
+the view; your own in `me.grudges`). The greedy bot names the grudge when it refuses, joins
+leagues against those who wronged it, and is readier to make war on them.
+
 ## What you can see (fog of war)
 
 - Your own nation, completely: treasury, income, upkeep, treaties, wars.

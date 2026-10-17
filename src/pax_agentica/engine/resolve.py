@@ -99,6 +99,7 @@ from pax_agentica.engine.model import (
     Faith,
     GameState,
     General,
+    Grudge,
     Loan,
     NationId,
     PendingEvent,
@@ -145,6 +146,7 @@ DIPLOMATIC = frozenset(
         EventKind.WAR_DECLARED,
         EventKind.JOINED_WAR,
         EventKind.CALL_TO_ARMS_IGNORED,
+        EventKind.GRUDGE,
         EventKind.PEACE_SIGNED,
         EventKind.GIFT,
         EventKind.TRADE_COMPLETED,
@@ -311,6 +313,25 @@ class _Resolver:
             nations=(nation,),
             stability=new,
             delta=delta,
+        )
+
+    def _remember(
+        self, holder: NationId, against: NationId, reason: str, grudge: tuple[int, int]
+    ) -> None:
+        """`holder` will not forget what `against` did, for `grudge` = (years, weight)."""
+        if holder == against or not self.s.nations[holder].alive:
+            return
+        years, weight = grudge
+        self.s.nations[holder].grudges.append(
+            Grudge(against=against, reason=reason, since=self.turn, until=self.turn + years,
+                   weight=weight)
+        )  # fmt: skip
+        self._emit(
+            EventKind.GRUDGE,
+            f"{self._name(holder)} will not forget that {self._name(against)} {reason}",
+            nations=(holder, against),
+            reason=reason,
+            years=years,
         )
 
     def _opine(self, of: NationId, about: NationId, delta: int) -> None:
@@ -761,6 +782,9 @@ class _Resolver:
             return
         self.s.treaties.remove(alliance)
         self._opine(p.sender, p.recipient, self.s.rules.opinion_call_ignored)
+        self._remember(
+            p.sender, p.recipient, "left it alone in a war", self.s.rules.grudge_abandoned
+        )
         self._prestige(p.recipient, self.s.rules.prestige_call_ignored, "abandoned an ally")
         self._emit(
             EventKind.CALL_TO_ARMS_IGNORED,
@@ -880,6 +904,7 @@ class _Resolver:
         if state.faith is not None and state.faith != self.s.nations[to].faith:
             state.unrest += self.s.rules.faith_conquest_unrest
         self._opine(frm, to, self.s.rules.opinion_province_taken // 2)
+        self._remember(frm, to, f"took {self._pname(province)}", self.s.rules.grudge_land)
         self._emit(
             EventKind.PROVINCE_CEDED,
             f"{self._name(frm)} cedes {self._pname(province)} to {self._name(to)}",
@@ -933,6 +958,13 @@ class _Resolver:
                 treaty=treaty.kind.value,
             )
         rules = self.s.rules
+        if broken:
+            kinds = " and the ".join(t.kind.value.replace("_", " ") for t in broken)
+            self._remember(
+                defender, attacker, f"broke the {kinds} to make war", rules.grudge_betrayal
+            )
+        elif joined_for is None:
+            self._remember(defender, attacker, "declared war on it", rules.grudge_war)
         if broken:
             penalty = modifiers(self.s, attacker).treaty_break_penalty
             self._change_stability(attacker, -penalty, "broke a treaty")
@@ -2705,15 +2737,24 @@ class _Resolver:
     def _drift_opinions(self) -> None:
         """Grudges and friendships fade; a common enemy brings courts together."""
         rules = self.s.rules
-        for opinions in self.s.opinions.values():
+        unforgiven = set()
+        for nation in self.s.nations.values():  # what a court will not forget keeps weighing
+            nation.grudges = [g for g in nation.grudges if g.until > self.turn]
+            for g in nation.grudges:
+                if self.s.nations[g.against].alive:
+                    self._opine(nation.id, g.against, -g.weight)
+                    unforgiven.add((nation.id, g.against))
+        for holder, opinions in self.s.opinions.items():
             for other, value in list(opinions.items()):
+                if (holder, other) in unforgiven and value < 0:
+                    continue  # a wound that does not heal while the grudge lasts
                 fade = max(1, round(abs(value) * rules.opinion_decay)) if value else 0
                 opinions[other] = value - fade if value > 0 else value + fade
         alive = self.s.alive_nations()
         for a in alive:
             enemies = set(self.s.enemies_of(a))
             for b in alive:
-                if a != b and enemies & set(self.s.enemies_of(b)):
+                if a != b and enemies & set(self.s.enemies_of(b)) and (a, b) not in unforgiven:
                     self._opine(a, b, rules.opinion_shared_enemy)
             for b in alive:
                 if a != b:
@@ -2726,7 +2767,8 @@ class _Resolver:
                         if infidel
                         else rules.opinion_other_faith
                     )
-                    self._opine(a, b, drift)
+                    if drift < 0 or (a, b) not in unforgiven:  # a shared faith heals no wrong
+                        self._opine(a, b, drift)
             feared = self.s.nations[a].infamy
             if feared >= rules.coalition_infamy / 2:  # a conqueror cools every court
                 for other in alive:

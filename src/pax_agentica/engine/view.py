@@ -49,6 +49,7 @@ from pax_agentica.engine.model import (
     Faith,
     GameState,
     Good,
+    Grudge,
     Loan,
     NationId,
     PendingEvent,
@@ -193,6 +194,16 @@ class LedgerLine(_View):
     amount: dict[str, int]  # by resource; a modifier line can be negative
 
 
+class GrudgeView(_View):
+    """A wrong one court holds against another, and how long it will weigh."""
+
+    against: NationId
+    reason: str  # "took Navarre"
+    since_year: int
+    until_year: int
+    weight: int  # opinion lost each year while it lasts; from rules.grudge_refuses, no treaties
+
+
 class MyNation(_View):
     id: NationId
     name: str
@@ -219,6 +230,7 @@ class MyNation(_View):
     patronage_cost: int  # ducats for patronize (+rules.patronage_prestige prestige), once a year
     tax: int  # -2 very low ... +2 very high; change it with set_taxes
     infamy: float  # your conquests' weight on Europe; past rules.coalition_infamy, leagues form
+    grudges: tuple[GrudgeView, ...]  # the wrongs your court will not forget
     ledger: tuple[LedgerLine, ...]  # where this year's resources come from and go, line by line
     score: int
     at_war_with: tuple[NationId, ...]
@@ -256,6 +268,7 @@ class NationSummary(_View):
     stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
     infamy: float  # its conquests' weight on Europe; from rules.coalition_infamy, a league may form
     leagued_against: tuple[NationId, ...]  # the conquerors this court has leagued against
+    remembers: tuple[GrudgeView, ...]  # the wrongs this court holds against you
     correspondence: tuple[Event, ...]  # what last passed between this court and you, oldest first
 
 
@@ -298,6 +311,17 @@ def visible_provinces(state: GameState, nation: NationId) -> set[ProvinceId]:
     for province in state.held_by(nation):
         seen.update(state.map.all_neighbors(province))
     return seen
+
+
+def _grudge(state: GameState, g: Grudge) -> GrudgeView:
+    start = state.rules.start_year - 1
+    return GrudgeView(
+        against=g.against,
+        reason=g.reason,
+        since_year=start + g.since,
+        until_year=start + g.until,
+        weight=g.weight,
+    )
 
 
 def view_for(state: GameState, nation: NationId) -> NationView:
@@ -404,6 +428,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         missions=_missions(state, nation),
         tax=me.tax,
         infamy=round(me.infamy, 1),
+        grudges=tuple(_grudge(state, g) for g in me.grudges),
         ledger=_ledger(state, nation),
         patronage_cost=state.rules.patronage_base
         + state.rules.patronage_per_prestige * me.prestige,
@@ -471,6 +496,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             standing=state.standing(nid),
             faith=ns.faith,
             infamy=round(ns.infamy, 1),
+            remembers=tuple(_grudge(state, g) for g in ns.grudges if g.against == nation),
             leagued_against=tuple(
                 sorted(
                     {
