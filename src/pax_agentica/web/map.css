@@ -249,7 +249,9 @@ svg .pick { fill: none; stroke: #fff6dc; stroke-width: 2.4; stroke-dasharray: 6 
 .ribbon h2 { color: var(--engraved); text-shadow: 0 1px 0 rgba(255, 240, 200, .6); }
 .ribbon .owner { color: #4a3010; }
 .deed header.deedhead .x { position: absolute; top: 6px; right: 6px; background: rgba(239, 226, 194, .85); border: 1px solid #7a5c2c; }
-.strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.strip { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; }
+.landline { display: flex; flex-wrap: nowrap; justify-content: center; gap: 4px 14px; margin: 6px 0 0; font-size: 13.5px; color: var(--sepia); white-space: nowrap; overflow: hidden; }
+.landline span { overflow: hidden; text-overflow: ellipsis; } .landline .heretic { color: #8a3a2a; }
 .strip > div { position: relative; text-align: center; padding: 4px 2px 3px; border: 1px solid rgba(107, 86, 56, .35); background: rgba(255, 250, 235, .4); overflow: hidden; }
 .strip span { display: block; font-size: 16px; line-height: 1.1; }
 .strip b { display: block; font: 600 15px var(--body); }
@@ -276,10 +278,10 @@ table.prod { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .prod td.plus { color: #2f6a3e; }
 .prod td.total { font-weight: 700; }
 .note { font-size: 13px; color: var(--sepia-2); font-style: italic; margin: 6px 0 0; }
-.slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
-.slot { min-height: 54px; padding: 4px 3px; text-align: center; font-size: 12.5px; line-height: 1.15;
+.slots { display: grid; grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); gap: 5px; margin-bottom: 8px; max-width: calc(var(--n, 5) * 64px); }
+.slot { min-height: 44px; padding: 4px 2px 3px; text-align: center; font-size: 12.5px; line-height: 1.15; display: flex; flex-direction: column; align-items: center; justify-content: center;
         border: 1px solid rgba(107, 86, 56, .45); background: rgba(255, 250, 235, .45); }
-.slot .ic { display: block; font-size: 19px; line-height: 1.2; }
+.slot .ic { display: block; font-size: 20px; line-height: 1.2; } .slot .lvl { font-size: 9.5px; letter-spacing: 0; white-space: nowrap; }
 .slot.civil { border-color: var(--civil); box-shadow: inset 0 -3px 0 var(--civil); }
 .slot.military { border-color: var(--military); box-shadow: inset 0 -3px 0 var(--military); }
 .slot.free { border-style: dashed; color: var(--sepia-2); }
@@ -505,3 +507,5 @@ kbd { font: 12px var(--body); border: 1px solid var(--brass-lo); padding: 0 4px;
 /* the icon set (play page) */
 .ico { display: inline-block; vertical-align: middle; flex: none; width: 1.25em; height: 1.25em; }
 .ico.res { width: 1.2em; height: 1.2em; vertical-align: -.25em; }
+
+.helmmark { vertical-align: -3px; }

@@ -752,6 +752,9 @@ const PaxMap = (() => {
       <rect x=".5" y=".5" width="63" height="63" fill="none" stroke="#3a2a18"/></svg>`;
   }
 
+  // the general's mark, as on the map: a gilt morion on a court's colour
+  const HELM = (color, size = 15) => `<svg class="helmmark" viewBox="-8 -8 16 16" width="${size}" height="${size}" aria-hidden="true"><circle r="7" fill="${color}" stroke="#e6c27e" stroke-width="1.4"/>
+    <path fill="#f1d48a" stroke="#4a3010" stroke-width=".55" d="M-3.6 0.9 Q-3.9 -3.9 0 -4.2 Q3.9 -3.9 3.6 0.9 Z M-6.6 -1.4 Q-5.2 2.9 0 3.1 Q5.2 2.9 6.6 -1.4 Q4.2 1.1 0 1.2 Q-4.2 1.1 -6.6 -1.4 Z M-3.2 -3.3 Q0 -8.2 3.2 -3.3 Q0 -4.7 -3.2 -3.3 Z"/></svg>`;
   function deedInfo(S, i, d) {
     // d: {owner, isCapital, dev, maxDev, troops (null: hidden), fort, unrest, base[5], bonus[5], built[], queued[], general}
     const P = S.provinces, N = S.nations, B = S.buildings, R = S.rules, p = P[i];
@@ -764,10 +767,10 @@ const PaxMap = (() => {
     const tiles = [], queued = d.queued || [];
     for (let s = 0; s < slots; s++) {
       if (s < d.built.length) { const b = B[d.built[s]], lvl = (d.levels || [])[s] || 1;
-        tiles.push(`<div class="slot ${b.category}" title="${esc(b.name)}, level ${lvl}: ${esc(b.effect)}"><span class="ic">${BICON[b.id]}</span>${esc(b.name)}${b.maxLevel > 1 ? `<small class="lvl">${"★".repeat(lvl)}${"☆".repeat(b.maxLevel - lvl)}</small>` : ""}</div>`); }
+        tiles.push(`<div class="slot ${b.category}" title="${esc(b.name)}, level ${lvl}: ${esc(b.effect)}" aria-label="${esc(b.name)}, level ${lvl}"><span class="ic">${BICON[b.id]}</span>${b.maxLevel > 1 ? `<small class="lvl">${"★".repeat(lvl)}${"☆".repeat(b.maxLevel - lvl)}</small>` : ""}</div>`); }
       else if (s < d.built.length + queued.length) { const b = B[queued[s - d.built.length]];
-        tiles.push(`<div class="slot queued" title="Ordered this year"><span class="ic">${BICON[b.id]}</span>${esc(b.name)}<br><small>ordered</small></div>`); }
-      else tiles.push(`<div class="slot free" data-slot><span class="ic">＋</span>Free slot</div>`);
+        tiles.push(`<div class="slot queued" title="${esc(b.name)}: ordered this year" aria-label="${esc(b.name)}, ordered"><span class="ic">${BICON[b.id]}</span><small class="lvl">ordered</small></div>`); }
+      else tiles.push(`<div class="slot free" data-slot title="A free slot" aria-label="A free slot"><span class="ic">＋</span></div>`);
     }
     const owner = d.owner >= 0 ? esc(N[d.owner].name) + (d.isCapital ? ", capital" : "") : "Independent";
     const maxDev = d.maxDev || R.maxDevelopment;
@@ -785,18 +788,20 @@ const PaxMap = (() => {
         <div title="Regiments in garrison"><span>⚔</span><b>${d.troops === null ? "?" : d.troops}</b><small>regiments</small></div>
         <div title="How much harder defenders fight here: terrain, forts, capital"><span>🛡</span><b>×${defence.toFixed(2)}</b><small>defence</small></div>
         ${d.fort ? `<div title="Levels of fortification: an attacker must besiege them, unless enough guns breach them; each level makes defenders 25% harder to beat"><span>🏰</span><b>${d.fort}</b><small>walls</small></div>` : ""}
-        <div title="${esc(cap(p.terrain))}: ${esc((S.terrainEffects || {})[p.terrain] || "")}"><span>${{plains: "🏞", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"}[p.terrain]}</span><b>${cap(p.terrain)}</b><small>terrain</small></div>
-        <div title="${esc(goodOf(S, p.good).name)}: ${esc(yieldWords(goodOf(S, p.good).yield))} per development"><span>${goodOf(S, p.good).icon}</span><b>${esc(goodOf(S, p.good).name)}</b><small>trade good</small></div>
-        ${d.faith ? `<div class="${d.heretic ? "heretic" : ""}" title="${d.heretic ? `Its people keep another faith than their ruler's: it yields less until they convert` : `Its people share their ruler's faith`}"><span>${FAITH_ICON[d.faith] || "✝"}</span><b>${cap(d.faith)}</b><small>${d.heretic ? "another faith" : "faith"}</small></div>` : ""}
       </section>
+      <p class="landline">
+        <span title="${esc(cap(p.terrain))}: ${esc((S.terrainEffects || {})[p.terrain] || "")}">${{plains: "🏞", forest: "🌲", hills: "⛰", marsh: "🌿", mountains: "🏔"}[p.terrain]} ${cap(p.terrain)}</span>
+        <span title="${esc(goodOf(S, p.good).name)}: ${esc(yieldWords(goodOf(S, p.good).yield))} per development">${goodOf(S, p.good).icon} ${esc(goodOf(S, p.good).name)}</span>
+        ${d.faith ? `<span class="${d.heretic ? "heretic" : ""}" title="${d.heretic ? `Its people keep another faith than their ruler's: it yields less until they convert` : `Its people share their ruler's faith`}">${FAITH_ICON[d.faith] || "✝"} ${cap(d.faith)}${d.heretic ? " (another faith)" : ""}</span>` : ""}
+      </p>
       ${d.unrest ? `<p class="note unrest">🔥 In unrest for ${d.unrest} more ${d.unrest === 1 ? "year" : "years"}: it produces nothing until then.</p>` : ""}
-      ${d.general ? `<p class="note" style="font-style:normal">⚑ ${esc(d.general.name)} <span class="stars">${"★".repeat(d.general.skill)}${"☆".repeat(3 - d.general.skill)}</span> commands here.</p>` : ""}`,
+      ${d.general ? `<p class="note" style="font-style:normal">${HELM(d.owner >= 0 ? N[d.owner].color : "#7a5a3a")} ${esc(d.general.name)} <span class="stars">${"★".repeat(d.general.skill)}${"☆".repeat(3 - d.general.skill)}</span> commands here.</p>` : ""}`,
       production: `<section><h4>Production per year</h4>
         <table class="prod num"><thead><tr><th></th><th>Land</th><th>Buildings</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table></section>`,
-      slotsHtml: `<h4>Buildings, ${d.built.length} of ${slots} slots</h4><div class="slots">${tiles.join("")}</div>`,
+      slotsHtml: `<h4>Buildings, ${d.built.length} of ${slots} slots</h4><div class="slots" style="--n:${slots}">${tiles.join("")}</div>`,
     };
   }
 
   const yieldWords = (y) => Object.entries(y).map(([k, v]) => `+${v} ${k}`).join(", ") || "nothing";
-  return {FAITH_ICON, FAITH_COLOR, flag, create, deedInfo, goodOf, yieldWords, GOOD_COLOR, OPINION, vista, portrait, usePortraits, useFaces, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
+  return {FAITH_ICON, FAITH_COLOR, flag, create, deedInfo, goodOf, yieldWords, GOOD_COLOR, OPINION, vista, portrait, usePortraits, useFaces, HELM, terrainLines, TERRAIN_ICON, TERRAIN_LORE, el, esc, mix, devColor, cap, costText, TERRAIN, RES, GOOD, BICON, UICON, ICON, MAJOR, MINOR, BAD};
 })();

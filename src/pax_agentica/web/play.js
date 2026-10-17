@@ -532,7 +532,7 @@
             <div class="bside">${right}</div></div>`);
         });
         const shelf = (key, title) => rows[key].length ? `<h5 class="bshelf">${title} <small>${rows[key].length}</small></h5><div class="blist">${rows[key].join("")}</div>` : "";
-        body += `${S.views[p.id] ? `<section class="town"><h4>The town today</h4>${info.vista}</section>` : ""}<section>${info.slotsHtml}
+        body += `<section>${info.slotsHtml}
           ${shelf("built", "Built here")}${shelf("ordered", "Ordered this year")}
           ${free > 0 ? shelf("ready", "You can build") : `<p class="note">All ${info.slots} slots are taken: upgrade what stands here to get more from it.</p>`}
           ${rows.later.length ? `<details class="blater"><summary>Not yet <small>${rows.later.length}</small></summary><div class="blist">${rows.later.join("")}</div></details>` : ""}
@@ -2444,7 +2444,7 @@
       $("dipback").onclick = () => { focus = -1; picked = -1; render(); };
     }
     else L.innerHTML = `<div class="row"><i style="background:var(--free)"></i>Independent minor</div><div class="row">? Hidden by the fog of war</div>
-      <div class="row"><span style="color:#8a6420">★</span> Capital <svg viewBox="-8 -8 16 20" width="14" height="17" style="margin-left:8px;vertical-align:-4px"><circle r="7" fill="#7a5a3a" stroke="#e6c27e" stroke-width="1.4"/><path fill="#f1d48a" stroke="#4a3010" stroke-width=".55" d="M-3.6 0.9 Q-3.9 -3.9 0 -4.2 Q3.9 -3.9 3.6 0.9 Z M-6.6 -1.4 Q-5.2 2.9 0 3.1 Q5.2 2.9 6.6 -1.4 Q4.2 1.1 0 1.2 Q-4.2 1.1 -6.6 -1.4 Z M-3.2 -3.3 Q0 -8.2 3.2 -3.3 Q0 -4.7 -3.2 -3.3 Z"/></svg> General (a pip per point of skill)</div>
+      <div class="row"><span style="color:#8a6420">★</span> Capital <span style="margin-left:8px">${PaxMap.HELM("#7a5a3a", 14)}</span> General (a pip per point of skill)</div>
       <div class="row"><i style="border:2px solid #3f8f55"></i>March <i style="border:2px solid #b8392b"></i>Attack</div>`;
   }
   function tooltip(i, evt) {
