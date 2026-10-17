@@ -1,5 +1,6 @@
 """Production, upkeep and spending."""
 
+import json
 from collections.abc import Callable
 
 from pax_agentica.engine import EventKind, GameState, Resources, view_for
@@ -295,3 +296,11 @@ def test_an_arms_manufactory_equips_every_levy(state: GameState) -> None:
     armed = recruit_cost(state.rules, 1, kind=UnitKind.ARCHERS, arms=True)
     assert armed.goods == 0 < plain.goods
     assert armed.iron <= plain.iron
+
+
+def test_a_game_saved_with_fixed_slots_still_loads(state: GameState) -> None:
+    saved = json.loads(state.model_dump_json())
+    saved["rules"]["building_slots"] = 5  # as games saved before the settlements carry
+    saved["rules"]["development_per_building_slot"] = 4
+    loaded = GameState.model_validate(saved)
+    assert building_slots(loaded.rules, 7) == 7

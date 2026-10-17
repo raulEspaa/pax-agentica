@@ -11,9 +11,9 @@ Small value objects (resources, map definitions, rules) are frozen outright.
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Self
+from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt
+from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, model_validator
 
 from pax_agentica.engine.events import Event
 
@@ -859,10 +859,23 @@ class MapDef(BaseModel):
 # ---------------------------------------------------------------- the rules (tunable)
 
 
+# rules that games saved by older versions still carry, and that no longer mean anything
+RETIRED_RULES = ("building_slots", "development_per_building_slot")
+
+
 class Rules(BaseModel):
     """Every number the engine uses. Part of the state so a tournament can vary them."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _forget_retired(cls, data: Any) -> Any:
+        """A game saved before a rule was retired still loads: the rule is dropped (the
+        settlements took the fixed building slots' place)."""
+        if isinstance(data, dict) and any(k in data for k in RETIRED_RULES):
+            return {k: v for k, v in data.items() if k not in RETIRED_RULES}
+        return data
 
     # economy
     base_grain_per_province: int = 3
