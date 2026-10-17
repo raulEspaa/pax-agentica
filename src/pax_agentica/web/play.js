@@ -1541,6 +1541,7 @@
       <div class="rtop"><div><span class="sub">Standing in Europe</span><b class="big">${ordinal(ranks[ranks.length - 1])}</b><small>best: ${ordinal(best)}, in ${bestYear}</small></div>
         <div><span class="sub">Years of your reign</span><b class="big">${years[years.length - 1] - years[0]}</b><small>of ${V.max_turns}</small></div>
         <div><span class="sub">Standing</span><b class="big">${last.standing}</b><small class="${last.standing >= first.standing ? "pos" : "neg"}">${sign(last.standing - first.standing)} since ${years[0]}</small></div></div>
+      <div class="row"><button class="btn" id="sharereign" type="button">🖼 A picture of your reign, to keep or share</button></div>
       <h4>${I("trending-up")} Standing, against the leading courts</h4>${standing}
       <div class="legend2">${[[G.human, color], ...rivals.map((n) => [n, N[nIndex[n]].color])].map(([n, c]) => `<span><i style="background:${c}"></i>${esc(nameOf(n))}</span>`).join("")}</div>
       <div class="rtiles">${tile("Development", "development")}${tile("Provinces", "provinces")}${tile("Ducats a year", "income")}${tile("Regiments", "regiments")}${tile("Prestige", "prestige")}</div>
@@ -1701,6 +1702,7 @@
       update();
     }
     panel.querySelectorAll("[data-desk]").forEach((b) => b.onclick = () => { deskTab = b.dataset.desk; render(); });
+    const sr = panel.querySelector("#sharereign"); if (sr) sr.onclick = () => shareReign(sr);
     panel.querySelectorAll("[data-stance]").forEach((b) => b.onclick = () => {
       orders = orders.filter((o) => !(o.type === "set_stance" && o.target === nid));
       queue({type: "set_stance", target: nid, stance: b.dataset.stance});
@@ -1864,6 +1866,79 @@
       return fig(art.treaty({a: color(G.human), b: color(other)}), `${peace ? "The peace" : "A treaty"} of ${nameOf(G.human)} and ${nameOf(other)}, ${year}`); }
     return "";
   }
+  // ------------------------------------------------------------------ the card of a reign, to share
+  // A 1200 by 630 picture: the map with the realm in its colour, the standing over the years,
+  // the opening of the chronicle and the deeds won. Drawn on a canvas from the province paths.
+  async function reignCard() {
+    try { await document.fonts.ready; } catch {}
+    const Wc = 1200, Hc = 630, cv = document.createElement("canvas"), dpr = 1;
+    cv.width = Wc * dpr; cv.height = Hc * dpr;
+    const g = cv.getContext("2d"), color = N[me].color, H = G.history || [], ranks = H.map(rankIn);
+    // parchment and frame
+    const bg = g.createLinearGradient(0, 0, 0, Hc); bg.addColorStop(0, "#f3e6c4"); bg.addColorStop(1, "#e1cfa5");
+    g.fillStyle = bg; g.fillRect(0, 0, Wc, Hc);
+    g.strokeStyle = "#3a2414"; g.lineWidth = 10; g.strokeRect(5, 5, Wc - 10, Hc - 10);
+    g.strokeStyle = "#c49a52"; g.lineWidth = 2; g.strokeRect(16, 16, Wc - 32, Hc - 32);
+    // the map: the realm and its holdings bright, the rest of Europe muted
+    const mine = new Set(V.me.provinces.map((x) => pIndex[x]));
+    const box = [...mine].reduce((b, i) => { const q = P[i]; return [Math.min(b[0], q.x), Math.min(b[1], q.y), Math.max(b[2], q.x), Math.max(b[3], q.y)]; }, [1e9, 1e9, -1e9, -1e9]);
+    const cx = (box[0] + box[2]) / 2 || S.map.width / 2, cy = (box[1] + box[3]) / 2 || S.map.height / 2;
+    const span = Math.max(700, (box[2] - box[0]) * 2.2, (box[3] - box[1]) * 2.2 * 1.2);
+    const mx = 40, my = 120, mw = 600, mh = 470, k = Math.min(mw / span, mh / (span / 1.25));
+    g.save(); g.beginPath(); g.rect(mx, my, mw, mh); g.clip();
+    g.fillStyle = "#8fb3c4"; g.fillRect(mx, my, mw, mh);
+    g.translate(mx + mw / 2 - cx * k, my + mh / 2 - cy * k); g.scale(k, k);
+    if (S.map.wasteland) { g.fillStyle = "#b8ab90"; g.fill(new Path2D(S.map.wasteland)); }
+    P.forEach((q, i) => { const owner = V.provinces[i].owner, path = new Path2D(q.d);
+      g.fillStyle = mine.has(i) ? color : owner ? mix(N[nIndex[owner]].color, "#efe2c2", 0.62) : "#ddd2b4";
+      g.fill(path); g.strokeStyle = "rgba(58,42,24,.45)"; g.lineWidth = 1.2 / k; g.stroke(path); });
+    g.restore();
+    g.strokeStyle = "#3a2414"; g.lineWidth = 2; g.strokeRect(mx, my, mw, mh);
+    // the title
+    g.fillStyle = "#2b1d0f"; g.font = "700 46px Cinzel, Georgia, serif"; g.textBaseline = "alphabetic";
+    g.fillText(nameOf(G.human), 40, 78);
+    g.font = "italic 22px 'EB Garamond', Georgia, serif"; g.fillStyle = "#6b5638";
+    g.fillText(`${H.length ? H[0].year : R.startYear} to ${V.year - (G.finished ? 1 : 0)}${V.me.ruler ? `, under ${V.me.ruler.title} ${V.me.ruler.name}` : ""}`, 42, 106);
+    // the standing, as a line over the years
+    const px = 670, py = 120, pw = 490, ph = 170;
+    g.fillStyle = "rgba(255,250,235,.55)"; g.fillRect(px, py, pw, ph); g.strokeStyle = "#8a6a3a"; g.lineWidth = 1; g.strokeRect(px, py, pw, ph);
+    g.fillStyle = "#2b1d0f"; g.font = "700 20px Cinzel, Georgia, serif";
+    g.fillText(G.finished && G.winner === G.human ? "Victor of the age" : `${ordinal(ranks[ranks.length - 1] || rankOf(V))} in Europe`, px + 14, py + 30);
+    const vals = H.map((r) => r.me.standing);
+    if (vals.length > 1) {
+      const lo = Math.min(...vals), hi = Math.max(...vals) || 1, X = (i) => px + 14 + (pw - 28) * i / (vals.length - 1), Y = (v) => py + ph - 16 - (ph - 64) * (v - lo) / Math.max(1, hi - lo);
+      g.strokeStyle = color; g.lineWidth = 4; g.lineJoin = "round"; g.beginPath(); vals.forEach((v, i) => (i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)))); g.stroke();
+      g.fillStyle = "#6b5638"; g.font = "15px 'EB Garamond', Georgia, serif"; g.fillText(`standing ${vals[0]} → ${vals[vals.length - 1]}`, px + pw - 170, py + 30);
+    }
+    // the opening of the chronicle, wrapped
+    const words = chronicleOfReign().split(" "), lines = [];
+    g.font = "italic 21px 'EB Garamond', Georgia, serif";
+    let line = "";
+    for (const w of words) { const tryLine = line ? `${line} ${w}` : w; if (g.measureText(tryLine).width > pw - 20) { lines.push(line); line = w; } else line = tryLine; if (lines.length >= 7) break; }
+    if (line && lines.length < 7) lines.push(line);
+    g.fillStyle = "#2b1d0f"; lines.forEach((l, i) => g.fillText(l + (i === 6 ? "…" : ""), px + 4, py + ph + 40 + i * 27));
+    // deeds and signature
+    const kept = deedsKept(), won = DEEDS.filter(([id]) => kept[id]);
+    g.font = "22px 'EB Garamond', Georgia, serif"; g.fillStyle = "#6b5638";
+    g.fillText(`${won.length} deeds of renown  ${won.slice(0, 10).map((d) => d[1]).join(" ")}`, px + 4, Hc - 42);
+    g.font = "700 18px Cinzel, Georgia, serif"; g.fillStyle = "#8a6430"; g.textAlign = "right"; g.fillText("Pax Agentica", Wc - 40, Hc - 42); g.textAlign = "left";
+    return cv;
+  }
+  async function shareReign(button) {
+    const label = button.textContent; button.disabled = true; button.textContent = "Drawing…";
+    let cv;
+    try { cv = await reignCard(); } catch { button.disabled = false; button.textContent = label; return flash("The picture could not be drawn."); }
+    button.disabled = false; button.textContent = label;
+    const blob = await new Promise((ok) => cv.toBlob(ok, "image/png"));
+    const name = `pax-agentica-${G.human}-${V.year}.png`, file = new File([blob], name, {type: "image/png"}), url = URL.createObjectURL(blob);
+    const canShare = !!(navigator.canShare && navigator.canShare({files: [file]}));
+    $("sheet").innerHTML = `<h2 id="modaltitle">A picture of your reign</h2><img class="reigncard" src="${url}" alt="The map of ${esc(nameOf(G.human))}, its standing over the years and its chronicle">
+      <div class="row"><a class="btn" href="${url}" download="${name}">Save the picture</a>${canShare ? `<button class="btn" id="sharenow">Share…</button>` : ""}<button class="btn" id="cardback">Close</button></div>`;
+    $("modal").classList.add("open");
+    const back = () => { URL.revokeObjectURL(url); $("modal").classList.remove("open"); };
+    $("cardback").onclick = back;
+    const sn = $("sharenow"); if (sn) sn.onclick = () => navigator.share({files: [file], title: `${nameOf(G.human)}: the chronicle of a reign`}).catch(() => {});
+  }
   // ------------------------------------------------------------------ deeds of renown
   // Achievements kept by this browser across games: each a test on the year just played.
   // ctx: {evs: this year's events, won/lost provinces, H: history, story, finished, winner}
@@ -2014,7 +2089,7 @@
         <table class="grid num"><thead><tr><th></th><th>Nation</th><th>Score</th><th>Provinces</th></tr></thead><tbody>${ranking.map((n, k) =>
           `<tr class="${n.id === G.human ? "me" : ""}"><td>${k + 1}</td><td>${esc(n.name)}${n.alive ? "" : " †"}</td><td>${n.score}</td><td>${n.provinces}</td></tr>`).join("")}</tbody></table>
         <div class="chronicle-end"><h3>The chronicle of your reign</h3><p id="reigntext">${esc(chronicleOfReign())}</p>
-          <button class="btn" id="copyreign" type="button">Copy the chronicle</button></div>
+          <button class="btn" id="copyreign" type="button">Copy the chronicle</button> <button class="btn" id="sharereign2" type="button">🖼 A picture of your reign</button></div>
         <p><a href="${REPLAY}" target="_blank">Watch the whole game as a replay</a></p></div>` : "";
     const tiles = before ? [["Rank", rankOf(V), rankOf(before), true], ["Standing", V.me.standing, before.me.standing], ["Development", V.me.score, before.me.score],
       ["Provinces", V.me.provinces.length, before.me.provinces.length], ["Regiments", V.me.regiments, before.me.regiments]] : [];
@@ -2038,6 +2113,7 @@
     sheet.querySelectorAll(".deltas b[data-to]").forEach((b, k) => setTimeout(() => J.countTo(b, +b.dataset.to), 250 + k * 80));
     feelYear(before, V.last_turn_events, won, lost);
     $("closemodal").onclick = () => { $("modal").classList.remove("open"); sheet.classList.remove("reveal"); eventSheet(); };
+    const sr2 = $("sharereign2"); if (sr2) sr2.onclick = () => shareReign(sr2);
     const cr = $("copyreign");
     if (cr) cr.onclick = () => { navigator.clipboard?.writeText(`${$("reigntext").textContent}\n— Pax Agentica`); cr.textContent = "Copied"; };
     const tl = $("toletters");
