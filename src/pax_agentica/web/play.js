@@ -1866,6 +1866,67 @@
       return fig(art.treaty({a: color(G.human), b: color(other)}), `${peace ? "The peace" : "A treaty"} of ${nameOf(G.human)} and ${nameOf(other)}, ${year}`); }
     return "";
   }
+  // ------------------------------------------------------------------ first steps: a guided first game
+  // Eight things every ruler does in the first years, each with a "Show me" that opens the
+  // right window, crossed out by itself when done. Kept by the browser; it can be hidden, and
+  // brought back from the guide.
+  const STEPS_KEY = "pax-steps";
+  const stepsKept = () => { try { return JSON.parse(localStorage.getItem(STEPS_KEY) || "{}"); } catch { return {}; } };
+  const stepsSave = (s) => { try { localStorage.setItem(STEPS_KEY, JSON.stringify(s)); } catch {} };
+  const queued = (type, test = () => true) => orders.some((o) => o.type === type && test(o));
+  const happened = (kind, test = () => true) => (V.last_turn_events || []).some((e) => e.kind === kind && e.nations[0] === G.human && test(e));
+  const capital = () => pIndex[V.me.capital];
+  function showProvince(i, tabName) { // the deed opens on the left: keep the province in sight to its right
+    if (i === undefined || i < 0) return; closeOffice(); picked = i; ownTab = tabName; deedMin = false; map.centerOn(i, 3, 220); render(); }
+  function weakestMinor() { // the independent province next door with the fewest defenders
+    const near = [];
+    V.me.provinces.forEach((pid) => { const i = pIndex[pid]; [...P[i].land, ...P[i].sea].forEach((j) => { const q = prov(j);
+      if (q.owner === null && q.troops !== null) near.push([q.troops, j, i]); }); });
+    return near.sort((a, b) => a[0] - b[0])[0];
+  }
+  const STEPS = [
+    ["develop", "🏛", "Develop your capital", "More development: more of everything, and more score.",
+      () => queued("develop") || happened("developed"), () => showProvince(capital(), "economy")],
+    ["build", "🏗", "Raise a building", "A marketplace doubles a town's ducats; farm estates its grain.",
+      () => queued("build") || queued("upgrade_building") || happened("built"), () => showProvince(capital(), "buildings")],
+    ["recruit", "⚔", "Raise regiments", "New regiments can march this very year.",
+      () => queued("recruit") || queued("hire_mercenaries"), () => showProvince(capital(), "army")],
+    ["research", "📜", "Study a technology", "Each branch opens new works and makes the realm stronger.",
+      () => queued("research") || happened("researched"), () => { pinned = true; openOffice("tech"); }],
+    ["envoy", "✉", "Write to a court", "Propose an alliance, a pact or a royal marriage.",
+      () => ["propose_alliance", "propose_marriage", "propose_non_aggression"].some((k) => queued(k)) || V.proposals_sent.length > 0, () => { pinned = true; openOffice("diplomacy"); }],
+    ["ambitions", "🎯", "Read your ambitions", "Five goals from your history: fulfil them all and you win.",
+      (s) => !!s.sawMissions, () => { const s = stepsKept(); s.sawMissions = true; stepsSave(s); pinned = true; openOffice("missions"); }],
+    ["conquer", "⚑", "Take a province", "Attack an independent province next door: no war needed.",
+      () => queued("attack", (o) => prov(pIndex[o.target]).owner === null) || happened("province_captured"), () => {
+        const w = weakestMinor(); if (!w) return flash("No independent province borders your realm.");
+        showProvince(w[2], "army"); deedMin = true; deed(); hint(`Right-click ${P[w[1]].name} (${w[0]} defenders) to attack it with the regiments of ${P[w[2]].name}.`); }],
+    ["endyear", "⏳", "End the year", "Your orders are carried out together, with everyone else's.",
+      () => V.turn > 1, () => { $("endturn").classList.add("ready"); $("endturn").focus(); }],
+  ];
+  function firstSteps() {
+    const box = $("steps"), kept = stepsKept();
+    if (kept.hidden || kept.finished || G.finished) { box.hidden = true; return; }
+    const fresh = [];
+    for (const [id, icon, title, , test] of STEPS) {
+      if (kept[id]) continue;
+      let ok = false; try { ok = !!test(kept); } catch {}
+      if (ok) { kept[id] = true; fresh.push([icon, title]); }
+    }
+    const done = STEPS.filter(([id]) => kept[id]).length;
+    if (done === STEPS.length) { kept.finished = true; stepsSave(kept); box.hidden = true;
+      J.play("triumph"); J.celebrate("Your first steps are done", "Now the age is yours: fulfil your ambitions, or rule half of Europe"); return; }
+    stepsSave(kept);
+    fresh.forEach(([icon, title], k) => setTimeout(() => { J.play("coins"); J.floatText(box, `✓ ${title}`, "gold"); }, k * 500));
+    const next = STEPS.find(([id]) => !kept[id]);
+    box.hidden = false;
+    box.innerHTML = `<div class="shead"><b>First steps</b><span>${done} of ${STEPS.length}</span><button class="sx" data-hide title="Hide the first steps (bring them back from the guide)">×</button></div>
+      <i class="bar"><b style="width:${Math.round(100 * done / STEPS.length)}%"></b></i>
+      <ol>${STEPS.map(([id, icon, title, help]) => `<li class="${kept[id] ? "done" : id === next[0] ? "now" : ""}"><span class="ic">${kept[id] ? "✓" : icon}</span>
+        <div><b>${esc(title)}</b>${id === next[0] ? `<small>${esc(help)}</small><button class="btn" data-show="${id}">Show me</button>` : ""}</div></li>`).join("")}</ol>`;
+    box.querySelector("[data-hide]").onclick = () => { const s = stepsKept(); s.hidden = true; stepsSave(s); box.hidden = true; };
+    box.querySelectorAll("[data-show]").forEach((b) => b.onclick = () => { J.play("click"); STEPS.find(([id]) => id === b.dataset.show)[5](); firstSteps(); });
+  }
   // ------------------------------------------------------------------ the card of a reign, to share
   // A 1200 by 630 picture: the map with the realm in its colour, the standing over the years,
   // the opening of the chronicle and the deeds won. Drawn on a canvas from the province paths.
@@ -2316,6 +2377,7 @@
   }
   function render() {
     draft();
+    firstSteps();
     $("endturn").classList.toggle("ready", orders.length > 0 && !G.submitted && !G.finished);
     const cb = $("crisisbadge"), c = V.crisis;
     cb.hidden = !c;
@@ -2351,9 +2413,11 @@
     $("sheet").innerHTML = `<h2 id="modaltitle">${title}</h2><p>${text}</p>
       <div class="row"><span class="sub">${step + 1} of ${GUIDE.length}</span>
       ${step > 0 ? `<button class="btn" id="gprev">Back</button>` : ""}
-      <button class="btn" id="gnext">${step + 1 < GUIDE.length ? "Next" : "To the throne"}</button></div>`;
+      <button class="btn" id="gnext">${step + 1 < GUIDE.length ? "Next" : "To the throne"}</button>
+      <button class="btn quiet" id="gsteps" title="The guided first steps, from the beginning">First steps again</button></div>`;
     $("modal").classList.add("open");
     if (step > 0) $("gprev").onclick = () => guide(step - 1);
+    $("gsteps").onclick = () => { stepsSave({}); $("modal").classList.remove("open"); firstSteps(); };
     $("gnext").onclick = () => { if (step + 1 < GUIDE.length) guide(step + 1); else { $("modal").classList.remove("open"); eventSheet(); } };
   }
   $("guide").onclick = () => guide(0);

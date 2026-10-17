@@ -596,8 +596,17 @@ within reach, and a sound and a flourish for what mattered (an ambition fulfille
 lost, war on your borders). The **Your reign** window charts your standing against the leading
 courts and your realm's growth year by year, with the reigns of your rulers, your nemesis and
 firmest friend, and the milestones of your reign; the **Chronicle** gives every year a headline;
-and the end of the game writes the chronicle of your reign, to keep or share. The speaker button
-in the top bar mutes the sounds, all made in the browser.
+and the end of the game writes the chronicle of your reign, to keep or share, with a picture
+of it (the map of your realm, your standing over the years, the chronicle and your deeds) to
+save or share.
+
+The year's report opens on the **deed of the year**, drawn: the greatest battle, a town won, a
+siege, a peace, an ambition, the crisis of the age. A new ruler is **crowned** on screen.
+**Deeds of renown** (22 achievements, from first blood to victory with Brandenburg-Prussia) are
+kept by your browser across games. A first game is **guided**: eight first steps, each with a
+"Show me", crossed out by themselves (bring them back from the guide). The top bar has a switch
+for the **music** (a lute playing Greensleeves and pavanes and galliards over the grounds of the
+age, synthesised in the browser) and one for all **sound**.
 
 `uv run pax serve --nation france` opens the game in your browser. You see exactly the
 `NationView` an AI ruler gets, fog of war included, and you answer with the same `Orders`: the

@@ -509,6 +509,21 @@
   .deedtoast .ic { font-size: 30px; } .deedtoast small { display: block; font-style: italic; } .deedtoast b { font: 700 18px var(--display); }
   @keyframes toastin { from { transform: translateX(120%); } }
   .reigncard { display: block; width: 100%; height: auto; margin: 6px 0 10px; border: 1px solid #3a2414; box-shadow: 0 6px 18px rgba(0, 0, 0, .35); }
+  .steps { position: absolute; right: 12px; top: 10px; z-index: 5; width: 280px; padding: 8px 10px; font-size: 14px;
+           background: rgba(31, 21, 13, .96); border: 1px solid var(--brass); box-shadow: 0 10px 26px rgba(0, 0, 0, .6); }
+  .steps[hidden] { display: none; }
+  .steps .shead { display: flex; align-items: center; gap: 8px; } .steps .shead b { font: 700 15px var(--display); color: var(--brass-hi); flex: 1; }
+  .steps .shead span { color: var(--ink-3); font-size: 13px; }
+  .steps .sx { background: none; border: none; color: var(--ink-3); cursor: pointer; font-size: 18px; line-height: 1; }
+  .steps .bar { display: block; height: 5px; margin: 6px 0; background: var(--walnut-lo); border-radius: 3px; overflow: hidden; }
+  .steps .bar b { display: block; height: 100%; background: linear-gradient(90deg, #c49a52, #ecd08c); transition: width .4s; }
+  .steps ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .steps li { display: grid; grid-template-columns: 22px 1fr; gap: 6px; align-items: start; padding: 2px 0; color: var(--ink-3); }
+  .steps li.done { color: #9fd08f; } .steps li.done b { text-decoration: line-through; font-weight: 400; }
+  .steps li.now { color: var(--ink); } .steps li.now b { color: var(--brass-hi); }
+  .steps li small { display: block; color: var(--ink-2); font-size: 13px; margin: 1px 0 4px; } .steps li .btn { height: 26px; padding: 0 10px; font-size: 13px; }
+  .stage.paneled .steps { display: none; }
+  @media (max-height: 700px) { .steps li:not(.now) { display: none; } }
   .orderswrap { position: relative; }
   .orderswrap .ordersbox { position: absolute; right: 0; top: 46px; width: 400px; max-height: 65vh; overflow-y: auto; margin: 0; display: none; z-index: 9;
                            box-shadow: 0 12px 30px rgba(0, 0, 0, .7); }
@@ -658,6 +673,7 @@
     </section>
     <div id="banner" class="toasts"></div>
     <div id="notices" class="notices" aria-live="polite"></div>
+    <section class="steps" id="steps" hidden aria-label="First steps"></section>
   </div>
 </div>
 <div class="richtip" id="richtip" role="tooltip"></div>
