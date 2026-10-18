@@ -297,6 +297,9 @@ class MyNation(_View):
     policies: dict[PolicyAxis, int]  # the side taken on each axis (rules.policies)
     policy_locked_until: dict[PolicyAxis, int]  # the turn from which each may change again
     authority: int  # the crown's to spend on royal acts (rules.royal_acts)
+    heir: Ruler | None  # who takes the throne next; educate_heir to teach them
+    regency: bool  # the ruler is a minor: authority gathers at half the pace
+    claims: tuple[NationId, ...]  # thrones your crown may press a claim to (press_claim)
     authority_per_year: int  # gathered every year: the ruler's three skills
     agenda: AgendaView | None  # the reign's ambition, if it has one
     agenda_offers: tuple[AgendaView, ...]  # the ambitions it may take (choose_agenda)
@@ -325,6 +328,7 @@ class NationSummary(_View):
     policies: dict[PolicyAxis, int]  # its policies, public
     generals: int
     ruler: Ruler | None  # public too: every court knows who reigns where
+    heir: Ruler | None  # and who comes next
     opinion_of_you: int  # what this court thinks of you, from -100 to 100
     war_exhaustion: float
     prestige: int
@@ -669,6 +673,9 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         doctrines={b: list(c) for b, c in me.doctrines.items()},
         policies=dict(me.policies),
         authority=me.authority,
+        heir=me.heir,
+        regency=me.regency,
+        claims=tuple(me.claims),
         authority_per_year=authority_per_year(state, nation),
         agenda=_agenda(state, nation, me.ruler.agenda) if me.ruler and me.ruler.agenda else None,
         agenda_offers=tuple(_agenda(state, nation, a) for a in agenda_offers(state, nation)),
@@ -715,6 +722,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             policies=dict(ns.policies),
             generals=len(state.generals_of(nid)),
             ruler=ns.ruler,
+            heir=ns.heir,
             fleets={w: dict(ships) for w, ships in ns.fleets.items()},
             naval_power=_naval(state, nid),
             colonies=dict(ns.colonies),

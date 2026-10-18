@@ -30,12 +30,14 @@ from pax_agentica.engine.actions import (
     Convert,
     DeclareWar,
     Develop,
+    EducateHeir,
     HireAdvisor,
     HireGeneral,
     HireMercenaries,
     Improve,
     Move,
     Patronize,
+    PressClaim,
     Proclaim,
     ProposeAlliance,
     ProposeCoalition,
@@ -808,6 +810,7 @@ class _Planner:
         self._council(reserve)
         self._policies()
         self._crown()
+        self._dynasty()
         self._focus(reserve)  # cheap and for good: before the works
         self._navy(reserve)
         self._colonize(reserve)
@@ -1139,6 +1142,24 @@ class _Planner:
             if have >= acts[act].cost:
                 self.actions.append(RoyalAction(act=act))
                 return
+
+    def _dynasty(self) -> None:
+        """Tutors for the heir in their weakest art when the crown can spare them; a claim
+        pressed when the realm is the stronger, renounced otherwise."""
+        rules, heir = self.v.rules, self.me.heir
+        if (
+            heir is not None
+            and self.me.authority >= rules.education_authority + 30
+            and self.budget.covers(rules.education_cost + Resources(ducats=80))
+        ):
+            skill = min(("administration", "diplomacy", "military"), key=lambda k: getattr(heir, k))
+            if getattr(heir, skill) < 6:
+                self.actions.append(EducateHeir(skill=skill))  # type: ignore[arg-type]
+                self.budget = self.budget - rules.education_cost
+        for claim in self.me.claims:
+            other = next((n for n in self.v.nations if n.id == claim), None)
+            press = other is not None and len(self.mine) > other.provinces and not self.enemies
+            self.actions.append(PressClaim(nation=claim, press=press))
 
     def _policies(self) -> None:
         """Take a side on each great choice once, as the realm is: a professional army for a

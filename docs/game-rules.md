@@ -346,6 +346,15 @@ provinces five levels, bring two provinces to the realm's faith, or sign two all
 marriages. Fulfilled, it brings 10 prestige and 30 authority, and the ruler may take another; a
 new reign starts with none.
 
+**The dynasty.** Every crown has a public heir, who takes the throne when the ruler dies. Tutors
+(`educate_heir`: 30 ducats and 15 authority, once a year) raise one of the heir's skills by one,
+up to 6. A ruler crowned before 16 reigns under a regency (−1 stability more, and authority
+gathers at half the pace) until they come of age. A crown without an heir sees one born with a
+chance of 1 in 5 a year. Should a ruler die without one, a cousin with a skill less in each art
+takes a contested throne (−2 stability), and every crown married into the house holds a claim to
+it (`press_claim`): pressed, it is a war (+3 prestige); renounced, the house's court thinks 20
+better of you (+2 prestige).
+
 | Skill | Effect |
 |---|---|
 | Administration | +2% ducat income per point |

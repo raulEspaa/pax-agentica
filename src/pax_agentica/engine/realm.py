@@ -1018,6 +1018,19 @@ def make_ruler(nation: NationId, reign: int, turn: int, rng: random.Random, *, a
     )
 
 
+def make_heir(nation: NationId, reign: int, turn: int, rng: random.Random, *, age: int) -> Ruler:
+    """The next of the line, a child or a youth: their skills grow with their tutors."""
+    heir = make_ruler(nation, reign, turn, rng, age=age)
+    young = max(1, 3 - age // 8)  # a child's gifts are not yet known
+    return heir.model_copy(
+        update={
+            "administration": max(1, heir.administration - young),
+            "diplomacy": max(1, heir.diplomacy - young),
+            "military": max(1, heir.military - young),
+        }
+    )
+
+
 def death_chance(ruler: Ruler) -> float:
     """Rulers past forty grow mortal: about 1% more each year."""
     return max(0.0, (ruler.age - 40) * 0.012)

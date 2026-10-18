@@ -1953,6 +1953,13 @@ class Rules(BaseModel):
     agenda_offers: int = 3
     agenda_prestige: int = 10
     agenda_authority: int = 30
+    # the dynasty
+    heir_birth_chance: float = 0.2  # a year, while a crown has no heir
+    majority: int = 16  # the age a ruler rules alone; younger, a regency
+    education_cost: Resources = Resources(ducats=30)
+    education_authority: int = 15
+    regency_stability: int = 1  # lost when a regency begins
+    crisis_stability: int = 2  # lost when the line fails and a cousin takes the throne
     learning_research_discount: float = 0.03  # each province of learning, up to the cap
     learning_research_cap: float = 0.15
     develop_goods_from: int = 5  # from this development, developing also takes goods
@@ -2398,6 +2405,9 @@ class NationState(BaseModel):
     policies: dict[PolicyAxis, int] = Field(default_factory=dict)  # the side taken on each axis
     policy_since: dict[PolicyAxis, int] = Field(default_factory=dict)  # the turn it was taken
     authority: int = Field(default=20, ge=0)  # the crown's to spend on royal acts
+    heir: Ruler | None = None  # who takes the throne next (public, as heirs are)
+    regency: bool = False  # the ruler is a minor: a council rules for them
+    claims: list[NationId] = Field(default_factory=list)  # thrones this crown may press a claim to
     deeds: dict[str, int] = Field(default_factory=dict)  # counts of what the realm has done
     fleets: dict[SeaId, dict[Ship, int]] = Field(default_factory=dict)  # by sea zone; public
     colonies: dict[Region, int] = Field(default_factory=dict)  # public: every crown's empire

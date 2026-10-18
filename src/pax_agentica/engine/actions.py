@@ -503,6 +503,24 @@ class RoyalAction(_Action):
     target: NationId | None = Field(default=None, description="The court an embassy goes to.")
 
 
+class EducateHeir(_Action):
+    """Give the heir tutors in one of the three arts of rule: +1 to that skill (up to 6), for
+    rules.education_cost and rules.education_authority authority. Once a year."""
+
+    type: Literal["educate_heir"] = "educate_heir"
+    skill: Literal["administration", "diplomacy", "military"]
+
+
+class PressClaim(_Action):
+    """A throne's line has failed and your crown, married into it, holds a claim (see `claims`
+    in your view): press it by war, or renounce it for the goodwill of its court. The claim is
+    spent either way."""
+
+    type: Literal["press_claim"] = "press_claim"
+    nation: NationId
+    press: bool = True
+
+
 class ChooseAgenda(_Action):
     """Give the reign an ambition, one of the agendas offered in your view (`agenda_offers`).
     Fulfilled, it brings rules.agenda_prestige prestige and rules.agenda_authority authority,
@@ -620,6 +638,8 @@ type Action = Annotated[
     | SetPolicy
     | RoyalAction
     | ChooseAgenda
+    | EducateHeir
+    | PressClaim
     | BuildShips
     | ScrapShips
     | SailFleet

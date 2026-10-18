@@ -36,6 +36,7 @@ from pax_agentica.engine.actions import (
     Develop,
     Disband,
     DismissAdvisor,
+    EducateHeir,
     Gift,
     HireAdvisor,
     HireGeneral,
@@ -45,6 +46,7 @@ from pax_agentica.engine.actions import (
     Move,
     Orders,
     Patronize,
+    PressClaim,
     Proclaim,
     ProposeAlliance,
     ProposeCoalition,
@@ -141,6 +143,7 @@ from pax_agentica.engine.model import (
     ProvinceState,
     Resources,
     RoyalAct,
+    Ruler,
     SeaId,
     Ship,
     Stance,
@@ -160,6 +163,7 @@ from pax_agentica.engine.realm import (
     authority_per_year,
     death_chance,
     designation,
+    make_heir,
     make_ruler,
     modifiers,
 )
@@ -220,6 +224,7 @@ class _Resolver:
         self.order = list(alive)
         self.rng.shuffle(self.order)
         self.researched: set[NationId] = set()
+        self.educated: set[NationId] = set()  # heirs taught this year
         self.upgraded: set[tuple[ProvinceId, BuildingKind]] = set()  # one level a year each
         # joint attacks: the provinces each one's armies came from, for the battle's tale
         self.joined: dict[tuple[NationId, ProvinceId], list[ProvinceId]] = {}
@@ -1489,6 +1494,10 @@ class _Resolver:
                         self._royal(nation, action)
                     case ChooseAgenda():
                         self._choose_agenda(nation, action)
+                    case EducateHeir():
+                        self._educate(nation, action)
+                    case PressClaim():
+                        self._press_claim(nation, action)
                     case BuildShips():
                         self._build_ships(nation, action)
                     case SendExpedition():
@@ -2013,7 +2022,7 @@ class _Resolver:
         rules = self.s.rules
         for nation in self.s.alive_nations():
             me = self.s.nations[nation]
-            gain = authority_per_year(self.s, nation)
+            gain = authority_per_year(self.s, nation) // (2 if me.regency else 1)
             me.authority = min(rules.authority_max, me.authority + gain)
             if "royal_presence" in me.flags:
                 me.flags.remove("royal_presence")
@@ -2326,19 +2335,44 @@ class _Resolver:
         me.advisors.clear()
 
     def _age_rulers(self) -> None:
-        """Every ruler grows a year older; the oldest may die and pass the crown on."""
+        """Every ruler and heir grows a year older; the oldest rulers may die and pass the
+        crown on: to the heir (a regency, if a child), or, the line failed, to a cousin, and
+        every crown married into the house holds a claim. A crown without an heir may see one
+        born; a regency ends when the ruler comes of age."""
+        rules = self.s.rules
         for nation in self.s.alive_nations():
             me = self.s.nations[nation]
             ruler = me.ruler
             if ruler is None:
                 continue
             ruler.age += 1
+            if me.heir is not None:
+                me.heir.age += 1
+            elif self.rng.random() < rules.heir_birth_chance:
+                me.heir = make_heir(nation, ruler.reign + 1, self.turn + 1, self.rng, age=0)
+                self._emit(
+                    EventKind.HEIR,
+                    f"An heir is born to {ruler.title} {ruler.name} of {me.name}: {me.heir.name}",
+                    nations=(nation,),
+                )
+            if me.regency and ruler.age >= rules.majority:
+                me.regency = False
+                self._emit(
+                    EventKind.HEIR,
+                    f"{ruler.title} {ruler.name} of {me.name} comes of age: the regency ends",
+                    nations=(nation,),
+                )
             if self.rng.random() >= death_chance(ruler):
                 continue
-            heir = make_ruler(
-                nation, ruler.reign + 1, self.turn + 1, self.rng, age=self.rng.randint(16, 32)
-            )
-            me.ruler = heir
+            self._succession(nation, ruler)
+
+    def _succession(self, nation: NationId, ruler: Ruler) -> None:
+        rules, me = self.s.rules, self.s.nations[nation]
+        heir = me.heir
+        if heir is not None:
+            heir.since, heir.reign = self.turn + 1, ruler.reign + 1
+            heir.agenda, heir.agenda_start, heir.agendas_done = None, 0, 0
+            me.ruler, me.heir = heir, None
             self._emit(
                 EventKind.SUCCESSION,
                 f"{ruler.title} {ruler.name} of {me.name} dies at {ruler.age}; "
@@ -2349,6 +2383,104 @@ class _Resolver:
                 military=heir.military,
             )
             self._change_stability(nation, -1, "a new reign")
+            if heir.age < rules.majority:
+                me.regency = True
+                self._change_stability(nation, -rules.regency_stability, "a regency")
+                self._emit(
+                    EventKind.HEIR,
+                    f"{heir.title} {heir.name} of {me.name} is {heir.age}: a council of regency "
+                    "rules until they come of age",
+                    nations=(nation,),
+                )
+            return
+        cousin = make_ruler(
+            nation, ruler.reign + 1, self.turn + 1, self.rng, age=self.rng.randint(30, 50)
+        )
+        cousin = cousin.model_copy(
+            update={
+                k: max(1, getattr(cousin, k) - 1)
+                for k in ("administration", "diplomacy", "military")
+            }
+        )
+        me.ruler = cousin
+        married = self.s.partners(nation, TreatyKind.MARRIAGE)
+        for other in married:
+            claims = self.s.nations[other].claims
+            if nation not in claims:
+                claims.append(nation)
+        self._emit(
+            EventKind.SUCCESSION,
+            f"{ruler.title} {ruler.name} of {me.name} dies at {ruler.age} without an heir: a "
+            f"cousin, {cousin.name}, takes a contested throne"
+            + (
+                f"; {', '.join(self._name(o) for o in married)} may press a claim"
+                if married
+                else ""
+            ),
+            nations=(nation, *married),
+            administration=cousin.administration,
+            diplomacy=cousin.diplomacy,
+            military=cousin.military,
+            crisis=True,
+        )
+        self._change_stability(nation, -rules.crisis_stability, "a succession crisis")
+
+    def _educate(self, nation: NationId, a: EducateHeir) -> None:
+        rules, me = self.s.rules, self.s.nations[nation]
+        heir = me.heir
+        if heir is None:
+            self._reject(nation, a, "the crown has no heir to educate")
+            return
+        if nation in self.educated:
+            self._reject(nation, a, "the heir has tutors enough this year")
+            return
+        if getattr(heir, a.skill) >= 6:
+            self._reject(nation, a, f"{heir.name} has learned all of {a.skill} there is")
+            return
+        if me.authority < rules.education_authority:
+            need = rules.education_authority
+            self._reject(nation, a, f"tutors need {need} authority; you have {me.authority}")
+            return
+        if error := self._pay(nation, rules.education_cost):
+            self._reject(nation, a, error)
+            return
+        me.authority -= rules.education_authority
+        self.educated.add(nation)
+        setattr(heir, a.skill, getattr(heir, a.skill) + 1)
+        self._emit(
+            EventKind.HEIR,
+            f"{heir.name}, heir of {me.name}, is taught {a.skill}",
+            nations=(nation,),
+            audience=(nation,),
+            skill=a.skill,
+        )
+
+    def _press_claim(self, nation: NationId, a: PressClaim) -> None:
+        me = self.s.nations[nation]
+        if a.nation not in me.claims:
+            self._reject(nation, a, f"you hold no claim to the throne of {self._name(a.nation)}")
+            return
+        me.claims.remove(a.nation)
+        if not self.s.nations[a.nation].alive:
+            return
+        if a.press:
+            if not self.s.at_war(nation, a.nation):
+                self._start_war(nation, a.nation)
+            self._prestige(nation, 3, "a claim pressed")
+            self._emit(
+                EventKind.WAR_DECLARED,
+                f"{self._name(nation)} presses its claim to the throne of {self._name(a.nation)}",
+                nations=(nation, a.nation),
+                claim=True,
+            )
+        else:
+            self._opine(a.nation, nation, 20)
+            self._prestige(nation, 2, "a claim renounced")
+            self._emit(
+                EventKind.HEIR,
+                f"{self._name(nation)} renounces its claim to the throne of {self._name(a.nation)}",
+                nations=(nation, a.nation),
+            )
 
     def _leader(self, nation: NationId, action: Move | Attack) -> tuple[General | None, str | None]:
         """The general an order asks for, if he can lead it."""

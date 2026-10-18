@@ -1280,7 +1280,7 @@
         <div class="stat"><span>Administration</span>${pips(ruler.administration)}<small>+${Math.round(R.rulerIncome * 100 * ruler.administration)}% ducats</small></div>
         <div class="stat"><span>Diplomacy</span>${pips(ruler.diplomacy)}<small>stability ${Math.round(Math.min(.8, R.rulerStability * ruler.diplomacy) * 100)}% cheaper${ruler.diplomacy >= 5 ? ", betrayal costs less" : ""}</small></div>
         <div class="stat"><span>Military</span>${pips(ruler.military)}<small>+${Math.round(R.rulerBattle * 100 * ruler.military)}% battle power</small></div></div></div>
-      <p class="sub">Rulers age a year each turn; past forty, death draws nearer. The heir's talents are a gamble, and a new reign costs a point of stability.</p>`
+      <p class="sub">Rulers age a year each turn; past forty, death draws nearer. A new reign costs a point of stability.</p>${heirHtml()}`
       : `<p class="muted">An empty throne.</p>`;
     const hiring = new Set(orders.filter((o) => o.type === "hire_advisor").map((o) => V.me.advisor_candidates.find((c) => c.id === o.candidate)?.role));
     const seats = S.advisors.map((role) => {
@@ -1345,6 +1345,20 @@
       ${proclaimed ? `<p class="sub">This year you proclaim: <q>${esc(proclaimed.text)}</q></p>` : `<textarea id="proclamation" maxlength="400" placeholder="A proclamation every court will read: a claim, a warning, a promise."></textarea>
       <div class="row"><button class="btn" id="proclaim">Proclaim</button></div>`}
       <h4>What your realm enjoys</h4><ul class="enjoys">${enjoys || "<li>Nothing yet: research, a council and a gifted ruler all add here.</li>"}</ul></div>`;
+  }
+  // the next of the line: their tutors, a regency, and the claims a failed line leaves
+  function heirHtml() {
+    const h = V.me.heir, taught = orders.find((o) => o.type === "educate_heir");
+    const regency = V.me.regency ? `<p class="note war">👶 A council of regency rules until the ruler comes of age at ${R.majority}: authority gathers at half the pace.</p>` : "";
+    const can = h && V.me.authority >= R.educationAuthority && affordable(R.educationCost) && !taught;
+    const skills = [["administration", "Administration"], ["diplomacy", "Diplomacy"], ["military", "Military"]];
+    const heir = h ? `<div class="heir"><div><b>${esc(h.name)}</b>, heir to the throne <span class="sub">(aged ${h.age})</span></div>
+        ${skills.map(([k, label]) => `<div class="stat"><span>${label}</span>${pips(h[k])}<button class="btn mini" data-educate="${k}" ${can && h[k] < 6 ? "" : "disabled"} title="Tutors in ${label.toLowerCase()}: ${costText(R.educationCost)} and ${R.educationAuthority} authority">${taught && taught.skill === k ? "✓" : "+"}</button></div>`).join("")}
+        <p class="sub">Tutors: ${costText(R.educationCost)} and ${R.educationAuthority} authority, once a year. ${h.age < R.majority ? `Crowned before ${R.majority}, they would reign under a regency.` : ""}</p></div>`
+      : `<p class="note">No heir: the line hangs on the ruler's life. Should they die childless, a cousin takes a contested throne, and the crowns married into the house may press a claim.</p>`;
+    const claims = (V.me.claims || []).map((n) => `<div class="row"><span>⚖ A claim to the throne of <b>${esc(nameOf(n))}</b></span>
+      <button class="btn" data-claim="${n}:1">Press it by war</button><button class="btn" data-claim="${n}:0">Renounce it</button></div>`).join("");
+    return `<h5 class="bshelf">The heir</h5>${regency}${heir}${claims}`;
   }
   function chipsFor(nid) {
     const r = relation(nid), year = (turn) => R.startYear + turn - 1, out = [];
@@ -1954,6 +1968,8 @@
       orders = orders.filter((o) => o.type !== "set_taxes");
       if (level !== V.me.tax) queue({type: "set_taxes", level}); else render(); };
     const patronize = panel.querySelector("#patronize"); if (patronize) patronize.onclick = () => queue({type: "patronize"});
+    panel.querySelectorAll("[data-educate]").forEach((b) => b.onclick = () => queue({type: "educate_heir", skill: b.dataset.educate}));
+    panel.querySelectorAll("[data-claim]").forEach((b) => b.onclick = () => { const [n, press] = b.dataset.claim.split(":"); queue({type: "press_claim", nation: n, press: press === "1"}); });
     panel.querySelectorAll("[data-royal]").forEach((b) => b.onclick = () => { const act = b.dataset.royal;
       const target = act === "embassy" ? b.parentElement.querySelector("[data-embassy]").value : null;
       queue(target ? {type: "royal_action", act, target} : {type: "royal_action", act}); });
@@ -2055,6 +2071,8 @@
       case "scrap_ships": return `⚓ Lay up ${o.count} ${o.ship}${o.count > 1 ? "s" : ""} in the ${esc(seaName(o.sea))}`;
       case "sail_fleet": { const n = Object.values(o.ships).reduce((a, b) => a + b, 0); return `⛵ Sail ${n} ships from the ${esc(seaName(o.origin))} to the ${esc(seaName(o.target))}`; }
       case "seek_battle": return `⚔ Seek out the fleet of ${nn(o.enemy)} in the ${esc(seaName(o.sea))}`;
+      case "educate_heir": return `🎓 Tutors in ${o.skill} for the heir`;
+      case "press_claim": return `⚖ ${o.press ? "Press" : "Renounce"} the claim to the throne of ${nn(o.nation)}`;
       case "royal_action": return `👑 ${esc(R.royalActs[o.act].name)}${o.target ? ` to ${nn(o.target)}` : ""}`;
       case "choose_agenda": { const a = (V.me.agenda_offers || []).find((x) => x.id === o.agenda); return `👑 Resolve: ${esc(a ? a.name : o.agenda)}`; }
       case "set_policy": return `🏛 Adopt ${esc(R.policies[o.axis][o.side].name)}`;

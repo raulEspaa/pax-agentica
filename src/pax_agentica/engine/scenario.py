@@ -27,7 +27,7 @@ from pax_agentica.engine.model import (
     UnitKind,
     Water,
 )
-from pax_agentica.engine.realm import make_ruler
+from pax_agentica.engine.realm import make_heir, make_ruler
 
 P, F, H, M, X = Terrain.PLAINS, Terrain.FOREST, Terrain.HILLS, Terrain.MARSH, Terrain.MOUNTAINS
 GR, IR, TI, GO, CL = Good.GRAIN, Good.IRON, Good.TIMBER, Good.GOLD, Good.CLOTH
@@ -748,6 +748,7 @@ def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> Game
     rng = random.Random(f"{seed}:rulers")  # noqa: S311 (game dice)
     for nation in nations.values():
         nation.ruler = make_ruler(nation.id, 0, 1, rng, age=rng.randint(28, 48))
+        nation.heir = make_heir(nation.id, 1, 1, rng, age=rng.randint(2, 18))
     generals = [
         General(id=k + 1, name=general_name(nid, 0), nation=nid, skill=2, province=capital)
         for k, (nid, _name, _color, capital) in enumerate(_NATIONS)

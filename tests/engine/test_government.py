@@ -62,6 +62,9 @@ def test_an_old_ruler_dies_and_his_heir_takes_the_throne(state: GameState, play:
     old = state.nations["france"].ruler
     assert old is not None
     old.age = 200  # certain death
+    heir = state.nations["france"].heir
+    assert heir is not None
+    heir.age = 25  # of age: no regency
     stability = state.nations["france"].stability
     new = play(state)
     heir = new.nations["france"].ruler

@@ -49,6 +49,7 @@ class EventKind(StrEnum):
     POLICY_SET = "policy_set"
     ROYAL_ACT = "royal_act"
     AGENDA = "agenda"
+    HEIR = "heir"
     SHIPS_BUILT = "ships_built"
     FLEET_SAILED = "fleet_sailed"
     EXPEDITION_SENT = "expedition_sent"
