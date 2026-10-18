@@ -173,6 +173,16 @@
   .subtabs button { position: relative; }
   .panel .office .bshelf { color: var(--brass); } .panel .office .bshelf small { color: var(--ink-3); }
   .subtabs .dot { position: absolute; top: 3px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #e0a43a; box-shadow: 0 0 0 2px rgba(224, 164, 58, .3); }
+  .pubtreaties { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 3px; font-size: 12.5px; color: var(--ink-2); }
+  /* national decisions */
+  .decisions { display: grid; gap: 8px; }
+  .decision { padding: 9px 11px; background: var(--walnut-lo); border: 1px solid rgba(196, 154, 82, .3); border-radius: 4px; }
+  .decision.ready { border-color: #7fb36a; box-shadow: inset 3px 0 0 #7fb36a; } .decision.queued { border: 1px dashed var(--brass-hi); }
+  .decision.done { opacity: .75; } .decision.locked .dhead b { color: var(--ink-2); }
+  .decision .dhead { display: flex; gap: 8px; align-items: baseline; } .decision .dhead b { flex: 1; font: 600 15.5px var(--display); color: var(--brass-hi); }
+  .decision .goals { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 2px; font-size: 13.5px; color: var(--ink-2); }
+  .decision .goals li { display: flex; gap: 8px; } .decision .goals li.met { color: #9fd08f; }
+  .decision .dreward { margin: 4px 0; font-size: 13.5px; } .decision .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   /* the realm's policies: two sides of an axis */
   .axis { padding: 6px 0 10px; border-bottom: 1px solid rgba(107, 86, 56, .3); }
   .axhead { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-bottom: 6px; }
@@ -639,6 +649,15 @@
   .stage.paneled .steps { display: none; }
   @media (max-height: 700px) { .steps li:not(.now) { display: none; } }
   .orderswrap { position: relative; }
+  .chatwrap { position: relative; } .chatwrap .count { position: absolute; top: -4px; right: -4px; }
+  .chatbox { position: absolute; right: 0; top: 46px; z-index: 9; width: 380px; max-width: calc(100vw - 24px); display: none; flex-direction: column;
+    border: 2px solid transparent; border-image: var(--brass-face) 1; background: var(--leather); box-shadow: 0 10px 30px rgba(0, 0, 0, .7); }
+  .chatwrap.open .chatbox { display: flex; }
+  .chatbox h4 { margin: 0; padding: 6px 12px; font: 700 14px var(--display); color: var(--brass-hi); border-bottom: 1px solid var(--brass-lo); }
+  .chatbox .lines { max-height: 48vh; overflow-y: auto; padding: 6px 10px; display: grid; gap: 5px; font-size: 14px; }
+  .chatbox .line b { font-weight: 700; } .chatbox .line.aside { font-style: italic; color: var(--ink-2); } .chatbox .line small { color: var(--ink-3); }
+  .chatbox form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--brass-lo); }
+  .chatbox input { flex: 1; min-width: 0; } .chatbox select { max-width: 120px; }
   .orderswrap .ordersbox { position: absolute; right: 0; top: 46px; width: 400px; max-height: 65vh; overflow-y: auto; margin: 0; display: none; z-index: 9;
                            box-shadow: 0 12px 30px rgba(0, 0, 0, .7); }
   .orderswrap:hover .ordersbox, .orderswrap.open .ordersbox { display: block; }
@@ -804,6 +823,8 @@
     <div class="orderswrap"><button class="iconbtn" id="ordersbtn" type="button" data-tip="This year's orders"></button>
       <section class="ordersbox" id="orders"></section></div>
     <button class="btn primary" id="endturn" title="Send your orders and let the year pass">End the year</button>
+    <div class="chatwrap" id="chatwrap" hidden><button class="iconbtn" id="chatbtn" type="button" data-tip="Talk at the table" aria-label="Talk at the table"></button>
+      <section class="chatbox" id="chatbox" aria-label="The table's talk"></section></div>
     <button class="iconbtn" id="musicbtn" type="button" data-tip="Music of the age: on or off"></button>
     <button class="iconbtn" id="soundbtn" type="button" data-tip="Sound on or off"></button>
     <button class="iconbtn" id="optionsbtn" type="button" data-tip="Options" aria-label="Options"></button>

@@ -268,3 +268,40 @@ def test_a_table_playing_a_year_a_day_waits_two_days_for_its_players() -> None:
     assert abandoned_after(5) == 30 * 60
     assert abandoned_after(60 * 24) == 2 * 24 * 3600
     assert abandoned_after(60 * 24 * 5) == 3 * 24 * 3600  # never more than three days
+
+
+def test_players_talk_at_the_table_aloud_and_aside(
+    lobby: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    table, anne = open_table(lobby)
+    pedro = lobby.post(f"/api/t/{table}/join", json={"name": "Pedro", "nation": "spain"}).json()[
+        "token"
+    ]
+    eve = lobby.post(f"/api/t/{table}/join", json={"name": "Eve", "nation": "england"}).json()[
+        "token"
+    ]
+    said = lobby.post(f"/api/t/{table}/chat", json={"text": "Peace?"}, headers={"X-Seat": anne})
+    assert said.status_code == 200
+    too_soon = lobby.post(f"/api/t/{table}/chat", json={"text": "Hm"}, headers={"X-Seat": anne})
+    assert too_soon.status_code == 429
+    now = time.time()
+    monkeypatch.setattr(time, "time", lambda: now + 5)
+    aside = {"text": "Against England, then", "to": "spain"}
+    assert (
+        lobby.post(f"/api/t/{table}/chat", json=aside, headers={"X-Seat": anne}).status_code == 200
+    )
+    to_bot = {"text": "Hello", "to": "austria"}
+    assert (
+        lobby.post(f"/api/t/{table}/chat", json=to_bot, headers={"X-Seat": anne}).status_code == 422
+    )
+
+    def heard_by(seat: str) -> list[str]:
+        got = lobby.get(f"/api/t/{table}/chat", headers={"X-Seat": seat}).json()
+        return [c["text"] for c in got["lines"]]
+
+    assert heard_by(pedro) == ["Peace?", "Against England, then"]
+    assert heard_by(eve) == ["Peace?"]
+    status = lobby.get(f"/api/t/{table}/status", headers={"X-Seat": eve}).json()
+    assert status["chat"] == 1
+    later = lobby.get(f"/api/t/{table}/chat?after=1", headers={"X-Seat": pedro}).json()["lines"]
+    assert [c["name"] for c in later] == ["Anne"]

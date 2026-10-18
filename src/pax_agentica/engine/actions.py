@@ -546,6 +546,15 @@ class SendExpedition(_Action):
     kind: ColonyKind = ColonyKind.PLANTATION
 
 
+class TakeDecision(_Action):
+    """Take one of your crown's national decisions (`decisions` in your view), once its goals
+    hold and you can pay its authority and ducats: it pays at once and leaves a lasting effect,
+    and some give the realm a new name. Each is taken once."""
+
+    type: Literal["take_decision"] = "take_decision"
+    decision: str
+
+
 class FoundViceroyalty(_Action):
     """Make a region where you hold rules.viceroyalty_colonies colonies a viceroyalty, under a
     viceroy of skill 1 to 3: more cargo there (rules.viceroy_cargo a point of skill), and the
@@ -699,6 +708,7 @@ type Action = Annotated[
     | SailFleet
     | SeekBattle
     | SendExpedition
+    | TakeDecision
     | FoundViceroyalty
     | SeizeColony
     | ShipTroops

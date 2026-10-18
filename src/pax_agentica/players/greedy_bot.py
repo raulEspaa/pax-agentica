@@ -65,6 +65,7 @@ from pax_agentica.engine.actions import (
     SetStance,
     SetTaxes,
     ShipTroops,
+    TakeDecision,
     Terms,
     UpgradeBuilding,
     UpgradeMonument,
@@ -134,6 +135,7 @@ class _Planner:
         self.seas = {z.id: z for z in view.seas}
         self.landings: dict[tuple[ProvinceId, ProvinceId], int] = {}  # what ships carry
         self.shipped = 0  # regiments carried overseas this year
+        self.authority = view.me.authority  # left to spend this year
         me = view.me.id
         # Where our regiments stand (our land and what we occupy), and what we can build on.
         self.mine = {p.id for p in view.provinces if (p.controller or p.owner) == me}
@@ -852,7 +854,8 @@ class _Planner:
         self._research(reserve)
         self._council(reserve)
         self._policies()
-        self._viceroyalty()  # authority first for the colonies, then the royal acts
+        self._decisions()  # authority first for the great choices and the colonies
+        self._viceroyalty()
         self._crown()
         self._dynasty()
         self._focus(reserve)  # cheap and for good: before the works
@@ -972,10 +975,25 @@ class _Planner:
         self.actions.append(SendExpedition(region=best.id, kind=kind))
         self.budget = self.budget - cost
 
+    def _decisions(self) -> None:
+        """Take every national decision that can be taken, the dearest in authority first."""
+        left = self.authority
+        for d in sorted(self.me.decisions, key=lambda d: (-d.authority, d.id)):
+            if d.taken or d.missing or d.authority > left:
+                continue
+            if d.ducats and not self.budget.covers(Resources(ducats=d.ducats)):
+                continue
+            self.actions.append(TakeDecision(decision=d.id))
+            left -= d.authority
+            self.authority = left
+            self.budget = self.budget - Resources(ducats=d.ducats)
+
     def _viceroyalty(self) -> None:
         """Make the region with the most colonies a viceroyalty, once it can be."""
         rules = self.v.rules
         if not self.budget.covers(rules.viceroyalty_cost) or self.budget.ducats < 150:
+            return
+        if self.authority < rules.viceroyalty_authority:
             return
         ready = [r for r in self.v.new_world if r.viceroyalty_error is None]
         if not ready:
@@ -983,6 +1001,7 @@ class _Planner:
         best = max(ready, key=lambda r: (r.cargo * r.price, r.id.value))
         self.actions.append(FoundViceroyalty(region=best.id))
         self.budget = self.budget - rules.viceroyalty_cost
+        self.authority -= rules.viceroyalty_authority
 
     def _ocean(self, nation: str) -> float:
         return sum(
@@ -1296,7 +1315,7 @@ class _Planner:
         is needed most (or before the authority overflows)."""
         if self.me.agenda is None and self.me.agenda_offers:
             self.actions.append(ChooseAgenda(agenda=self.me.agenda_offers[0].id))
-        acts, have = self.v.rules.royal_acts, self.me.authority
+        acts, have = self.v.rules.royal_acts, self.authority
         unrest = sum(1 for p in self.owned if self.provinces[p].unrest)
         wish: list[RoyalAct] = []
         if self.me.stability < 1:

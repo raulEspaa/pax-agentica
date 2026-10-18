@@ -8,6 +8,7 @@ import random
 
 from pydantic import BaseModel, ConfigDict
 
+from pax_agentica.engine.decisions import taken_effects
 from pax_agentica.engine.missions import lasting_bonuses
 from pax_agentica.engine.model import (
     Advisor,
@@ -280,6 +281,7 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             round(me.war_exhaustion, 1),
             me.prestige,
             tuple(me.missions_done),
+            tuple(me.decisions),
             me.tax,
         )
     cached = _CACHE.get(key)
@@ -517,6 +519,11 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         for k, v in spec.realm.items():
             learnt[k] = learnt.get(k, 0.0) + v
         lines.append(f"{spec.landmark} of {state.map.provinces[pid].name}: {spec.realm_text}")
+    for d in taken_effects(nation, tuple(me.decisions)):
+        for k, v in d.effects.items():
+            learnt[k] = learnt.get(k, 0.0) + v
+        if d.effect_text:
+            lines.append(f"{d.title}: {d.effect_text}")
     for axis, side in sorted(me.policies.items()):
         sides = rules.policies.get(axis)
         if sides is None or not 0 <= side < len(sides):

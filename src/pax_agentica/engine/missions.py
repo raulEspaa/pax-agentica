@@ -31,6 +31,9 @@ GoalKind = Literal[
     "alliance",  # an alliance with any of `nations`
     "prestige",  # prestige at least `amount`
     "regiments",  # an army of at least `amount` regiments
+    "year",  # the year at least `amount`
+    "stability",  # stability at least `amount`
+    "colonies",  # at least `amount` colonies beyond the sea
 ]
 
 # what a lasting bonus can raise: the same kinds of bonus as the monuments give
@@ -583,6 +586,12 @@ def progress(state: GameState, nation: NationId, goal: Goal) -> tuple[int, int]:
             return state.nations[nation].prestige, goal.amount
         case "regiments":
             return state.troops_of(nation), goal.amount
+        case "year":
+            return state.year, goal.amount
+        case "stability":
+            return state.nations[nation].stability, goal.amount
+        case "colonies":
+            return state.nations[nation].colony_total(), goal.amount
 
 
 def done(state: GameState, nation: NationId, goal: Goal) -> bool:
@@ -619,6 +628,12 @@ def goal_text(state: GameState, goal: Goal) -> str:
             return f"{goal.amount} prestige"
         case "regiments":
             return f"an army of {goal.amount} regiments"
+        case "year":
+            return f"the year {goal.amount}"
+        case "stability":
+            return f"stability {goal.amount:+d}"
+        case "colonies":
+            return f"{goal.amount} colonies beyond the sea"
 
 
 def reward_text(m: Mission) -> str:

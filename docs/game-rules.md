@@ -749,6 +749,42 @@ the end of the next year (or take the first answer).
 | The road to Vienna | 1526–1535, when the Sultan borders Austria | the Ottomans | war with Austria and 8 veteran janissaries on its border; Vienna calls 4 regiments of burghers |
 | The Holy League | 1530–1549, when the Sultan's galleys are worth 12 or more in the Mediterranean | every Catholic crown with a Mediterranean port | 40 ducats for 6 galleys, +3 prestige and war with the Sultan; a year later all the League's Mediterranean fleets fight all of the Sultan's in one great battle (+6 or −6 prestige) |
 
+### National decisions
+
+Each crown has two or three great choices of its history, in `me.decisions`. `take_decision`
+takes one once its goals hold and the crown can pay its authority (and ducats): it pays at once
+and leaves a lasting effect; some give the realm a new name, which every court sees. Each is
+taken once, and the decisions a crown has taken are public.
+
+| Crown | Decision | Needs | Costs | Gives |
+|---|---|---|---|---|
+| England | The Kingdom of Great Britain | hold Scotland and Highlands; stability +1 | 30 authority | renamed Great Britain, +10 prestige, fleets +10%, manpower +10% |
+| England | The Act of Supremacy | the year 1534 | 25 authority | -1 stability, +120 ducats, +5% ducats |
+| England | The Navy Royal | naval technology 2 | 20 authority, 60 ducats | fleets +10%, ships 10% cheaper |
+| France | The Concordat of Bologna | the year 1516; stability +1 | 25 authority | +1 stability, +5% ducats |
+| France | The crown of the Italian wars | hold Milan or Naples; 30 prestige | 30 authority | +10 prestige, +5% battle power |
+| France | The Collège royal | administration technology 2 | 20 authority, 50 ducats | research 10% cheaper |
+| Spain | The Council of the Indies | 3 colonies beyond the sea | 25 authority | the colonies send 15% more; expeditions 5 more progress a year |
+| Spain | The Iberian Union | hold Lisbon and Porto | 35 authority | renamed The Iberian Union, +10 prestige, the colonies send 20% more, fleets +5% |
+| Spain | The Tercios | military technology 2 | 20 authority | +5% battle power, +5% morale |
+| Austria | The Habsburg Monarchy | hold Bohemia and Buda and Upper Hungary and Croatia; stability +1 | 30 authority | renamed The Habsburg Monarchy, +10 prestige, +15% manpower |
+| Austria | The Military Frontier | hold Croatia | 20 authority | forts 10% stronger a level, +10% manpower |
+| Austria | The Imperial Reform | hold Bavaria or Swabia; stability +2 | 30 authority | +5% ducats, stability 10% cheaper |
+| Ottoman Empire | The Kanun of Suleiman | the year 1520; stability +1 | 25 authority | stability 15% cheaper, +5% ducats |
+| Ottoman Empire | The Sultan of the Two Seas | hold Crimea and Wallachia and Moldavia | 30 authority | +10 prestige, +10% grain, the merchants' cut 5% lower |
+| Ottoman Empire | The Kapudan Pasha | hold Algiers or Tunis; naval technology 1 | 20 authority | fleets +15% |
+| Sweden | The hereditary crown | the year 1544; stability +1 | 25 authority | +1 stability, stability 10% cheaper |
+| Sweden | The Swedish Empire | hold Livonia and Scania | 35 authority | renamed The Swedish Empire, +10 prestige, +5% battle power, the merchants' cut 5% lower |
+| Russia | The Tsardom of Russia | the year 1547; hold Novgorod and Pskov | 30 authority | renamed The Tsardom of Russia, +10 prestige, +1 stability, +10% manpower |
+| Russia | The Streltsy | military technology 2 | 20 authority | +5% battle power, +10% manpower |
+| Russia | A window on the Baltic | hold Livonia | 25 authority | the merchants' cut 10% lower, +5% ducats |
+| Poland-Lithuania | The Union of Lublin | hold Lithuania and Kiev and Polotsk; a realm of 28 development; stability +1 | 30 authority | renamed The Polish-Lithuanian Commonwealth, +10 prestige, +10% ducats, +10% manpower |
+| Poland-Lithuania | The Warsaw Confederation | stability +2 | 20 authority | +1 stability, provinces of another faith 30% less discontent |
+| Poland-Lithuania | The Winged Hussars | military technology 2 | 20 authority | +5% battle power, +5% morale |
+| Brandenburg-Prussia | The Reformation in Brandenburg | the year 1539 | 20 authority | +1 stability, +80 ducats |
+| Brandenburg-Prussia | The Kingdom in Prussia | hold Prussia and Pomerania and Saxony; 30 prestige | 35 authority | renamed The Kingdom of Prussia, +10 prestige, +5% battle power, +10% manpower |
+| Brandenburg-Prussia | The cantonal system | an army of 20 regiments | 25 authority | +20% manpower |
+
 ## Diplomacy
 
 | Action | What happens |
@@ -818,6 +854,11 @@ Letters (`send_message`) change no rule. Every proposal, and every answer (`resp
 court, the last exchanges between it and you (letters, proposals and their fate, treaties,
 wars, gifts) in `nations[].correspondence`, so a ruler remembers what was said and promised.
 
+At a table with other players, **the table's talk** (the 👥 button) carries words between the
+players: aloud to all, or aside to one. Bots do not listen there; they read letters. Every
+court's alliances, royal marriages and pacts of non-aggression are public: the diplomacy office
+shows them under each court.
+
 ### Opinion
 
 Every court has an opinion of every other, from −100 to 100, and sees what each court thinks of
@@ -860,6 +901,7 @@ leagues against those who wronged it, and is readier to make war on them.
 - **Domination**: rule half the provinces of Europe (52 of 104), or be the last nation standing.
 - **Destiny**: fulfil every ambition of your crown (its five missions). Small crowns can win this
   way as surely as great ones.
+- **Allies share the victory**: the winner's allies when the game ends win with it.
 - **Otherwise**, when the turn limit (50 by default) runs out, the highest **standing** wins:
   the total development you own plus half your prestige. Ties go to more provinces, then more
   ducats.

@@ -48,11 +48,31 @@ ABANDON_AFTER = 30 * 60.0  # with nobody at it this long (a game page polls ever
 KEEP_CLOSED = 7 * 24 * 3600.0  # seconds a closed table keeps its replay
 UNLOAD_AFTER = 15 * 60.0  # seconds without a visit before a table leaves memory
 SWEEP_EVERY = 60.0
+CHAT_CHARS = 400  # the longest word at the table
+CHAT_KEPT = 300  # lines a table keeps
+CHAT_PAUSE = 1.5  # seconds between two words of the same player
 
 
 class Seat(BaseModel):
     name: str
     token: str
+
+
+class ChatLine(BaseModel):
+    """A word at the table: to everyone, or to one other player only."""
+
+    n: int  # its number at the table, from 1
+    turn: int
+    nation: NationId
+    name: str  # the player's name
+    text: str
+    to: NationId | None = None  # a private word to this seat
+    at: float
+
+
+class Chat(BaseModel):
+    text: str = Field(min_length=1, max_length=CHAT_CHARS)
+    to: NationId | None = None
 
 
 class TableMeta(BaseModel):
@@ -71,6 +91,7 @@ class TableMeta(BaseModel):
     drafts: dict[NationId, Orders] = Field(default_factory=dict)  # unsent, kept for the clock
     deadline: float | None = None
     first_answer: float | None = None
+    chat: list[ChatLine] = Field(default_factory=list)  # the table's talk, the last CHAT_KEPT
 
 
 class TableFile(BaseModel):
@@ -110,6 +131,7 @@ class Table:
             "max_turns": state.max_turns,
             "finished": state.finished,
             "winner": state.winner,
+            "shared_with": list(state.shared_with),
             "turn_minutes": self.meta.turn_minutes,
             "created": self.meta.created,
             "closed": self.meta.closed,
@@ -466,7 +488,46 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
             "waiting_for": session.waiting_for(),
             "seconds_left": max(0, round(left)) if left is not None else None,
             "force_in": session.force_in(nation),
+            "chat": max((c.n for c in heard(table, nation)), default=0),
         }
+
+    def heard(table: Table, nation: NationId) -> list[ChatLine]:
+        """The lines a seat may read: every public one, and the private ones to or from it."""
+        return [c for c in table.meta.chat if c.to is None or nation in (c.to, c.nation)]
+
+    @app.get("/api/t/{table_id}/chat")
+    def chat(table_id: str, after: int = 0, x_seat: str | None = Header(default=None)) -> Any:
+        table = lobby.table(table_id)
+        nation = lobby.seat_of(table, x_seat)
+        return {"lines": [c.model_dump() for c in heard(table, nation) if c.n > after]}
+
+    @app.post("/api/t/{table_id}/chat")
+    def say(table_id: str, req: Chat, x_seat: str | None = Header(default=None)) -> Any:
+        """Speak at the table, to all or to one player. Bots do not listen: write them letters."""
+        table = lobby.table(table_id)
+        nation = lobby.seat_of(table, x_seat)
+        playable(table)
+        text = " ".join(req.text.split())
+        if not text:
+            raise HTTPException(422, "say something")
+        if req.to is not None and (req.to == nation or req.to not in table.meta.seats):
+            raise HTTPException(422, "only another player at this table can be spoken to alone")
+        now = time.time()
+        mine = [c for c in table.meta.chat if c.nation == nation]
+        if mine and now - mine[-1].at < CHAT_PAUSE:
+            raise HTTPException(429, "a moment: let the others answer")
+        line = ChatLine(
+            n=(table.meta.chat[-1].n if table.meta.chat else 0) + 1,
+            turn=table.session.state.turn,
+            nation=nation,
+            name=table.meta.seats[nation].name,
+            text=text,
+            to=req.to,
+            at=now,
+        )
+        table.meta.chat = [*table.meta.chat, line][-CHAT_KEPT:]
+        table.session.save()
+        return {"line": line.model_dump()}
 
     @app.post("/api/t/{table_id}/turn")
     async def turn(

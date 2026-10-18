@@ -16,7 +16,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from pax_agentica.engine import fortune, missions
+from pax_agentica.engine import decisions, fortune, missions
 from pax_agentica.engine.events import Event
 from pax_agentica.engine.mechanics import (
     army_of,
@@ -243,6 +243,21 @@ class MissionView(_View):
     after: str | None
 
 
+class DecisionView(_View):
+    """One of your crown's national decisions: `take_decision` it once its goals hold."""
+
+    id: str
+    title: str
+    lore: str
+    goals: tuple[GoalView, ...]
+    authority: int  # spent when taken
+    ducats: int  # spent when taken
+    rename: str | None  # the realm's new name, if it gives one
+    reward: str  # what it gives, in words
+    taken: bool
+    missing: tuple[str, ...]  # what it still lacks (empty: it can be taken now)
+
+
 class LedgerLine(_View):
     kind: Literal["income", "expense"]
     source: str  # land, buildings, workings, the crown's modifiers, the army, the council...
@@ -315,6 +330,7 @@ class MyNation(_View):
     pending_events: tuple[EventView, ...]  # decisions awaiting the crown
     loans: tuple[Loan, ...]
     missions: tuple[MissionView, ...]  # your ambitions: done at the end of a year all goals hold
+    decisions: tuple[DecisionView, ...]  # your crown's great choices: take_decision
     patronage_cost: int  # ducats for patronize (+rules.patronage_prestige prestige), once a year
     tax: int  # -2 very low ... +2 very high; change it with set_taxes
     infamy: float  # your conquests' weight on Europe; past rules.coalition_infamy, leagues form
@@ -370,6 +386,9 @@ class NationSummary(_View):
     naval_power: dict[SeaId, float]  # what they are worth there
     colonies: dict[Region, int]  # its colonies beyond the sea (public)
     viceroys: dict[Region, str]  # its viceroys, by region (public)
+    decisions: tuple[str, ...]  # the national decisions it has taken (public)
+    marriages: tuple[NationId, ...]  # the courts it is married into (public)
+    pacts: tuple[NationId, ...]  # the courts it has a pact of non-aggression with (public)
     garrisons: dict[Region, int]  # its regiments overseas, by region (public)
     stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
     infamy: float  # its conquests' weight on Europe; from rules.coalition_infamy, a league may form
@@ -741,6 +760,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         pending_events=tuple(_event_view(state, nation, e) for e in me.pending_events),
         loans=tuple(me.loans),
         missions=_missions(state, nation),
+        decisions=_decisions(state, nation),
         tax=me.tax,
         infamy=round(me.infamy, 1),
         grudges=tuple(_grudge(state, g) for g in me.grudges),
@@ -821,6 +841,9 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             naval_power=_naval(state, nid),
             colonies={r: len(c) for r, c in ns.colonies.items()},
             viceroys={r: v.name for r, v in ns.viceroys.items()},
+            decisions=tuple(ns.decisions),
+            marriages=tuple(state.partners(nid, TreatyKind.MARRIAGE)),
+            pacts=tuple(state.partners(nid, TreatyKind.NON_AGGRESSION)),
             garrisons=dict(ns.garrisons),
             opinion_of_you=state.opinion(nid, nation),
             stances=dict(ns.stances),
@@ -934,6 +957,44 @@ def _missions(state: GameState, nation: NationId) -> tuple[MissionView, ...]:
             )
         )
     return tuple(views)
+
+
+def _decisions(state: GameState, nation: NationId) -> tuple[DecisionView, ...]:
+    me = state.nations[nation]
+    out = []
+    for d in decisions.decisions_of(nation):
+        goals = tuple(
+            GoalView(text=missions.goal_text(state, g), have=min(have, need), need=need, goal=g)
+            for g in d.goals
+            for have, need in [missions.progress(state, nation, g)]
+        )
+        reward = ", ".join(
+            part
+            for part in (
+                f"the realm becomes {d.rename}" if d.rename else "",
+                f"+{d.prestige} prestige" if d.prestige else "",
+                f"{d.stability:+d} stability" if d.stability else "",
+                f"+{d.gain_ducats} ducats" if d.gain_ducats else "",
+                d.effect_text,
+            )
+            if part
+        )
+        taken = d.id in me.decisions
+        out.append(
+            DecisionView(
+                id=d.id,
+                title=d.title,
+                lore=d.lore,
+                goals=goals,
+                authority=d.authority,
+                ducats=d.ducats,
+                rename=d.rename,
+                reward=reward,
+                taken=taken,
+                missing=() if taken else tuple(decisions.missing(state, nation, d)),
+            )
+        )
+    return tuple(out)
 
 
 def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:

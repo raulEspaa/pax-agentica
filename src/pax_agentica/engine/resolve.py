@@ -19,7 +19,7 @@ import math
 import random
 from collections.abc import Iterator, Mapping
 
-from pax_agentica.engine import fortune, missions
+from pax_agentica.engine import decisions, fortune, missions
 from pax_agentica.engine.actions import (
     Action,
     AssignGeneral,
@@ -75,6 +75,7 @@ from pax_agentica.engine.actions import (
     SetStance,
     SetTaxes,
     ShipTroops,
+    TakeDecision,
     Terms,
     UpgradeBuilding,
     UpgradeMonument,
@@ -1530,6 +1531,8 @@ class _Resolver:
                         self._seize_colony(nation, action)
                     case FoundViceroyalty():
                         self._found_viceroyalty(nation, action)
+                    case TakeDecision():
+                        self._take_decision(nation, action)
                     case ShipTroops():
                         self._ship_troops(nation, action)
                     case BuildColonialFort():
@@ -1845,6 +1848,39 @@ class _Resolver:
             nations=(nation,),
             region=a.region.value,
             colony=a.kind.value,
+        )
+
+    def _take_decision(self, nation: NationId, a: TakeDecision) -> None:
+        me = self.s.nations[nation]
+        d = decisions.decision(nation, a.decision)
+        if d is None:
+            self._reject(nation, a, f"'{a.decision}' is no decision of your crown")
+            return
+        if d.id in me.decisions:
+            self._reject(nation, a, f"{d.title} is taken already")
+            return
+        if lacks := decisions.missing(self.s, nation, d):
+            self._reject(nation, a, f"{d.title} needs {', '.join(lacks)}")
+            return
+        me.authority -= d.authority
+        me.resources = me.resources - Resources(ducats=d.ducats) + Resources(ducats=d.gain_ducats)
+        me.decisions.append(d.id)
+        old = me.name
+        if d.rename:
+            me.name = d.rename
+        if d.prestige:
+            self._prestige(nation, d.prestige, d.title)
+        if d.stability:
+            self._change_stability(nation, d.stability, d.title)
+        self._emit(
+            EventKind.DECISION,
+            f"{old} decides: {d.title}"
+            + (f". The realm is now {d.rename}" if d.rename else "")
+            + (f" ({d.effect_text})" if d.effect_text else ""),
+            nations=(nation,),
+            decision=d.id,
+            title=d.title,
+            rename=d.rename or "",
         )
 
     def _found_viceroyalty(self, nation: NationId, a: FoundViceroyalty) -> None:
@@ -4338,11 +4374,25 @@ class _Resolver:
             return
         self.s.finished = True
         self.s.winner = winner
+        allies = (
+            sorted(
+                n for n in self.s.partners(winner, TreatyKind.ALLIANCE) if self.s.nations[n].alive
+            )
+            if self.s.rules.shared_victory
+            else []
+        )
+        self.s.shared_with = allies
+        shared = (
+            f", and shares the victory with its allies {', '.join(self._name(n) for n in allies)}"
+            if allies
+            else ""
+        )
         self._emit(
             EventKind.GAME_OVER,
-            f"{self._name(winner)} wins: {reason}",
-            nations=(winner,),
+            f"{self._name(winner)} wins: {reason}{shared}",
+            nations=(winner, *allies),
             reason=reason,
+            allies=", ".join(allies),
         )
 
     def _ranking(self, nation: NationId) -> tuple[int, int, int, str]:

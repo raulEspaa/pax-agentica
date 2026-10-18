@@ -102,12 +102,46 @@
             : "The year ended before your last orders reached the court: some were not carried out.");
           if (document.hidden) document.title = window.PaxI18n ? PaxI18n.t(`⚑ ${V.year}: your turn · Pax Agentica`) : `⚑ ${V.year}: your turn · Pax Agentica`;
         } else { G.waiting_for = st.waiting_for; G.submitted = st.submitted; G.seconds_left = st.seconds_left; G.force_in = st.force_in;
+          if (st.chat > talk.last) hear();
           if (st.closed && G.table) G.table.closed = st.closed; banner(); }
       } catch {}
       watch();
     }, G.submitted ? 2500 : 6000);
   }
   const who = (nid) => `${nameOf(nid)}${G.humans && G.humans[nid] ? ` (${G.humans[nid]})` : ""}`;
+  // ------------------------------------------------------------------ the table's talk
+  // Players at one table speak aloud to all or aside to one; bots do not listen (they read
+  // letters). The lines come with the status the page already polls for.
+  const talk = {lines: [], last: 0, seen: 0, open: false};
+  async function hear() {
+    if (!TABLE) return;
+    try {
+      const got = await (await api(`/chat?after=${talk.last}`)).json();
+      if (got.lines.length) { talk.lines.push(...got.lines); talk.last = got.lines[got.lines.length - 1].n;
+        if (!talk.open && got.lines.some((l) => l.nation !== G.human)) J.play("click"); }
+    } catch {}
+    chatBox();
+  }
+  function chatBox() {
+    const wrap = $("chatwrap"), humans = Object.keys(G.humans || {});
+    wrap.hidden = !TABLE || humans.length < 2;
+    if (wrap.hidden) return;
+    if (talk.open) talk.seen = talk.last;
+    const unread = talk.lines.filter((l) => l.n > talk.seen && l.nation !== G.human).length;
+    $("chatbtn").innerHTML = I("users") + (unread ? `<span class="count">${unread}</span>` : "");
+    const others = humans.filter((n) => n !== G.human);
+    const line = (l) => `<div class="line ${l.to ? "aside" : ""}"><b style="color:${mix(N[nIndex[l.nation]].color, "#ffffff", .45)}">${esc(l.name)}</b> <small>${esc(nameOf(l.nation))}${l.to ? `, ${l.nation === G.human ? `to ${esc(G.humans[l.to] || nameOf(l.to))}` : "to you alone"}` : ""}, ${R.startYear + l.turn - 1}</small><div>${esc(l.text)}</div></div>`;
+    const box = $("chatbox"), keep = box.querySelector("input")?.value || "", to = box.querySelector("select")?.value || "";
+    box.innerHTML = `<h4>The table</h4><div class="lines">${talk.lines.map(line).join("") || `<p class="muted">Nobody has spoken yet. Bots do not listen here: write them letters.</p>`}</div>
+      <form><select class="field" aria-label="To whom"><option value="">To all</option>${others.map((n) => `<option value="${n}" ${to === n ? "selected" : ""}>Aside to ${esc(G.humans[n])} (${esc(nameOf(n))})</option>`).join("")}</select>
+        <input class="field" maxlength="400" placeholder="Say something to the table" value="${esc(keep)}"><button class="btn" type="submit">Say</button></form>`;
+    const lines = box.querySelector(".lines"); lines.scrollTop = lines.scrollHeight;
+    box.querySelector("form").onsubmit = async (e) => { e.preventDefault();
+      const input = box.querySelector("input"), text = input.value.trim(), target = box.querySelector("select").value || null;
+      if (!text) return;
+      const r = await api("/chat", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, to: target})});
+      if (r.ok) { input.value = ""; await hear(); box.querySelector("input")?.focus(); } else flash((await r.json()).detail || "Not said."); };
+  }
   function banner() {
     const fallen = !V.me.provinces.length;
     const clock = G.seconds_left != null && !G.finished ? ` ⏳ ${Math.floor(G.seconds_left / 60)}:${String(G.seconds_left % 60).padStart(2, "0")} left this year.` : "";
@@ -129,7 +163,8 @@
       pill.querySelector(".tablepill").onclick = () => pill.classList.toggle("open");
     }
     const table = closed ? `<div class="banner">This table is closed (${esc(closed)}). <a href="${REPLAY}" target="_blank">Watch the replay</a> · <a href="/">Back to the tables</a></div>` : "";
-    $("banner").innerHTML = G.finished ? `<div class="over">👑 ${esc(G.winner ? nameOf(G.winner) + " wins." : "The game is over.")} <a href="#" id="theend">How the age ended</a> · <a href="${REPLAY}" target="_blank">Watch the replay</a></div>`
+    const sharers = (G.shared_with || []).map(nameOf);
+    $("banner").innerHTML = G.finished ? `<div class="over">👑 ${esc(G.winner ? (sharers.length ? `${nameOf(G.winner)} wins, with its allies ${sharers.join(", ")}.` : nameOf(G.winner) + " wins.") : "The game is over.")} <a href="#" id="theend">How the age ended</a> · <a href="${REPLAY}" target="_blank">Watch the replay</a></div>`
       : fallen ? `<div class="banner">Your realm has fallen. You can watch the rest of the game year by year.</div>` : table;
     const te = $("theend"); if (te) te.onclick = (e) => { e.preventDefault(); report(null); };
     const fb = $("forceyear");
@@ -145,10 +180,13 @@
   }
   function afterLoad() {
     V = G.view; me = nIndex[G.human];
+    // a realm renamed by a decision (Great Britain, the Commonwealth...) is called so everywhere
+    V.nations.forEach((n) => { if (N[nIndex[n.id]]) N[nIndex[n.id]].name = n.name; }); N[me].name = V.me.name;
     if (!afterLoad.units) { afterLoad.units = true; U.forEach((u, k) => Object.assign(u, fielded(U0[k], G.human))); } // my regiments, as my crown fields them
     // the music follows the realm: a crisis raging, a war, or peace
     J.setMood?.(V.crisis && V.crisis.raging ? "crisis" : V.me.at_war_with.length ? "war" : "peace");
     if (!afterLoad.done) { afterLoad.done = true;
+      hear();
       let seen = false; try { seen = !!localStorage.getItem("pax-guided"); localStorage.setItem("pax-guided", "1"); } catch {}
       setTimeout(() => (seen || V.turn > 1 ? eventSheet() : guide(0)), 400); }
     if (!map.homed) { map.home(V.me.provinces.map((p) => pIndex[p])); map.homed = true; }
@@ -1494,7 +1532,19 @@
         <div class="row"><button class="btn" id="proclaim">Proclaim</button></div>`}
         <h4>What your realm enjoys</h4><ul class="enjoys">${enjoys || "<li>Nothing yet: research, a council and a gifted ruler all add here.</li>"}</ul>`,
     };
-    const tabs = [["ruler", "👑 The ruler", (V.me.claims || []).length > 0], ["authority", "⚜ Authority", noAgenda], ["policies", "⚖ Policies", undecided],
+    const ready = (V.me.decisions || []).filter((d) => !d.taken && !d.missing.length);
+    const takenNow = (id) => orders.some((o) => o.type === "take_decision" && o.decision === id);
+    sections.decisions = `<h4>The crown's great decisions</h4><p class="sub">Each is taken once, when its goals hold and the crown can pay: it pays at once and changes the realm for good.</p>
+      <div class="decisions">${(V.me.decisions || []).map((d) => {
+        const goals = d.goals.map((g) => `<li class="${g.have >= g.need ? "met" : ""}"><span>${g.have >= g.need ? "✓" : "○"} ${esc(g.text)}</span>${g.need > 1 && g.have < g.need && !["year", "stability"].includes(g.goal.kind) ? `<small class="num">${g.have}/${g.need}</small>` : ""}</li>`).join("");
+        const cost = [d.authority ? `${d.authority} 👑` : "", d.ducats ? `${d.ducats} ducats` : ""].filter(Boolean).join(", ");
+        const state = d.taken ? "done" : takenNow(d.id) ? "queued" : d.missing.length ? "locked" : "ready";
+        return `<div class="decision ${state}"><div class="dhead"><b>${esc(d.title)}</b>${d.taken ? `<span class="chip">✓ taken</span>` : ""}</div>
+          <p class="lore">${esc(d.lore)}</p>${d.taken ? "" : `<ul class="goals">${goals}</ul>`}
+          <p class="dreward"><span class="sub">It brings</span> ${esc(d.reward)}</p>
+          ${d.taken ? "" : `<div class="row"><button class="btn" data-decide="${d.id}" ${state === "ready" ? "" : "disabled"}>${state === "queued" ? "Taken this year" : "Take the decision"}</button>${cost ? `<span class="cost">${cost}</span>` : ""}
+            ${d.missing.length ? `<small class="sub lacks"><span>Still lacks:</span> ${d.missing.map((m) => `<span>${esc(m)}</span>`).join("; ")}</small>` : ""}</div>`}</div>`; }).join("")}</div>`;
+    const tabs = [["ruler", "👑 The ruler", (V.me.claims || []).length > 0], ["authority", "⚜ Authority", noAgenda], ["decisions", "📜 Decisions", ready.some((d) => !takenNow(d.id))], ["policies", "⚖ Policies", undecided],
       ["council", "🪶 Council", false], ["glory", "🎨 Glory", false]];
     if (!sections[crownSub]) crownSub = "ruler";
     return `<div class="pad">${subtabs(crownSub, tabs, "crownsub")}${sections[crownSub]}</div>`;
@@ -1671,13 +1721,19 @@
         <div class="row"><button class="btn danger" data-dip="declare_war" ${pending("declare_war") ? "disabled" : ""}>Declare war on ${name}</button></div></details>`}`;
   }
   function diplomacyTab() {
+    // what every court has signed, as all Europe knows: its alliances, marriages and pacts
+    const named = (ids) => ids.map(nameOf).join(", ");
+    const treatiesOf = (n) => { const bits = [[n.allies, "🤝", "allied with"], [n.marriages || [], "💍", "married into"], [n.pacts || [], "🕊", "at peace by pact with"], [n.at_war_with, "⚔", "at war with"]]
+      .filter(([ids]) => ids.length).map(([ids, ic, word]) => `<span title="${esc(cap(word))} ${esc(named(ids))}">${ic} ${esc(named(ids))}</span>`);
+      return bits.length ? `<div class="pubtreaties">${bits.join("")}</div>` : ""; };
     const list = V.nations.filter((n) => n.alive).map((n) => {
       const color = N[nIndex[n.id]].color, waiting = V.proposals_to_answer.filter((p) => p.sender === n.id).length;
       const fresh = n.correspondence.filter((e) => e.turn === V.turn - 1 && e.kind === "message" && e.data.sender === n.id).length;
       return `<div class="nrow court ${nIndex[n.id] === focus ? "sel" : ""}" data-n="${n.id}" tabindex="0">
         ${n.ruler ? portrait(n.ruler, color, 38) : `<span class="shield" style="background:${color}"></span>`}
         <div><b>${PaxMap.flag(n.id, color, 20, "flag inline")} ${esc(n.name)}</b>${G.humans && G.humans[n.id] ? ` <span class="chip player" title="A player at this table">👤 ${esc(G.humans[n.id])}</span>` : ""}${waiting ? ` <span class="count" title="Proposals awaiting your answer">${waiting}</span>` : ""}${fresh ? ` <span class="count letters" title="Letters last year">✉ ${fresh}</span>` : ""}<small>${n.ruler ? `${esc(n.ruler.title)} ${esc(n.ruler.name)}` : ""}</small>
-          <div class="chips">${opinionBadge(n.opinion_of_you, "Their opinion of you: ")}${stanceChip(n.stances[G.human], "toward you")}${stanceChip(V.me.stances[n.id], "yours")}${n.infamy >= R.coalitionInfamy ? `<span class="chip war" title="Infamy ${n.infamy}: Europe may league against it">feared</span>` : ""}${chipsFor(n.id)}</div></div></div>`;
+          <div class="chips">${opinionBadge(n.opinion_of_you, "Their opinion of you: ")}${stanceChip(n.stances[G.human], "toward you")}${stanceChip(V.me.stances[n.id], "yours")}${n.infamy >= R.coalitionInfamy ? `<span class="chip war" title="Infamy ${n.infamy}: Europe may league against it">feared</span>` : ""}${chipsFor(n.id)}</div>
+          ${treatiesOf(n)}</div></div>`;
     }).join("");
     const against = V.nations.filter((n) => n.alive && n.leagued_against.includes(G.human)).map((n) => esc(n.name));
     const feared = V.nations.filter((n) => n.alive && n.infamy >= R.coalitionInfamy / 2).sort((a, b) => b.infamy - a.infamy)
@@ -2144,6 +2200,7 @@
     panel.querySelectorAll("[data-royal]").forEach((b) => b.onclick = () => { const act = b.dataset.royal;
       const target = act === "embassy" ? b.parentElement.querySelector("[data-embassy]").value : null;
       queue(target ? {type: "royal_action", act, target} : {type: "royal_action", act}); });
+    panel.querySelectorAll("[data-decide]").forEach((b) => b.onclick = () => queue({type: "take_decision", decision: b.dataset.decide}));
     panel.querySelectorAll("[data-agenda]").forEach((b) => b.onclick = () => { orders = orders.filter((o) => o.type !== "choose_agenda"); queue({type: "choose_agenda", agenda: b.dataset.agenda}); });
     panel.querySelectorAll("[data-policy]").forEach((b) => b.onclick = () => { const [axis, side] = b.dataset.policy.split(":");
       orders = orders.filter((o) => !(o.type === "set_policy" && o.axis === axis)); queue({type: "set_policy", axis, side: +side}); });
@@ -2251,6 +2308,7 @@
       case "royal_action": return `👑 ${esc(R.royalActs[o.act].name)}${o.target ? ` to ${nn(o.target)}` : ""}`;
       case "choose_agenda": { const a = (V.me.agenda_offers || []).find((x) => x.id === o.agenda); return `👑 Resolve: ${esc(a ? a.name : o.agenda)}`; }
       case "set_policy": return `🏛 Adopt ${esc(R.policies[o.axis][o.side].name)}`;
+      case "take_decision": { const d = (V.me.decisions || []).find((x) => x.id === o.decision); return `📜 Decide: ${esc(d ? d.title : o.decision)}`; }
       case "set_posture": { const k = postureOf(o.posture); return `${k[1]} ${pn(o.province)}: ${k[2].toLowerCase()}`; }
       case "set_focus": { const f = FOCI.find(([k]) => k === o.focus); return `${f ? f[1] : "🎯"} Turn ${pn(o.province)} to ${f ? f[2].toLowerCase() : o.focus}`; }
       case "improve": return `${PaxMap.goodOf(S, P[pIndex[o.province]].good).icon} Raise the ${PaxMap.goodOf(S, P[pIndex[o.province]].good).workings.toLowerCase()} of ${pn(o.province)}`;
@@ -2900,8 +2958,9 @@
       .sort((a, b) => b.score - a.score || b.provinces - a.provinces);
     const place = ranking.findIndex((n) => n.id === G.human) + 1;
     const fallen = !V.me.provinces.length;
-    const ending = G.finished || fallen ? `<div class="ending ${G.winner === G.human ? "won" : ""}">
-        <h3>${G.winner === G.human ? "Your realm is the greatest in Europe" : fallen ? "Your realm is no more" : `${esc(nameOf(G.winner))} prevails`}</h3>
+    const sharing = (G.shared_with || []).includes(G.human);
+    const ending = G.finished || fallen ? `<div class="ending ${G.winner === G.human || sharing ? "won" : ""}">
+        <h3>${G.winner === G.human ? "Your realm is the greatest in Europe" : sharing ? `You share the victory of ${esc(nameOf(G.winner))}, your ally` : fallen ? "Your realm is no more" : `${esc(nameOf(G.winner))} prevails`}</h3>
         <p>${esc(V.last_turn_events.find((e) => e.kind === "game_over")?.summary || (fallen ? "Your last province has fallen" : "The game is over")).replace(/\.?$/, ".")}${place && !fallen ? ` You finish ${["first", "second", "third", "fourth", "fifth", "sixth", "seventh"][place - 1]}.` : ""}</p>
         <table class="grid num"><thead><tr><th></th><th>Nation</th><th>Score</th><th>Provinces</th></tr></thead><tbody>${ranking.map((n, k) =>
           `<tr class="${n.id === G.human ? "me" : ""}"><td>${k + 1}</td><td>${esc(n.name)}${n.alive ? "" : " †"}</td><td>${n.score}</td><td>${n.provinces}</td></tr>`).join("")}</tbody></table>
@@ -3230,6 +3289,7 @@
   };
   $("zin").innerHTML = I("zoom-in"); $("zout").innerHTML = I("zoom-out"); $("zhome").innerHTML = I("house");
   $("guide").innerHTML = I("circle-help"); $("feedback").innerHTML = I("message-square-text");
+  $("chatbtn").onclick = () => { talk.open = !talk.open; $("chatwrap").classList.toggle("open", talk.open); chatBox(); if (talk.open) $("chatbox").querySelector("input")?.focus(); };
   const soundIcon = () => { $("soundbtn").innerHTML = I(J.muted() ? "volume-x" : "volume-2"); $("soundbtn").setAttribute("aria-pressed", String(!J.muted())); };
   soundIcon();
   $("soundbtn").onclick = () => { J.setMuted(!J.muted()); soundIcon(); musicIcon(); J.play("click"); };
