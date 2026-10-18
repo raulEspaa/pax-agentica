@@ -220,6 +220,15 @@ def test_an_invitation_code_forgives_case_spaces_and_a_stray_percent(tmp_path: P
     assert client.post("/api/tables", json=body | {"code": "pikes43"}).status_code == 403
 
 
+def test_several_invitation_codes_each_open_the_door(tmp_path: Path) -> None:
+    client = TestClient(create_lobby_app(tmp_path, invite_code="pikes, halberds\n"))
+    body = {"name": "Anne", "nation": "france"}
+    for typed in ("pikes", "Halberds"):
+        assert client.post("/api/tables", json=body | {"code": typed}).status_code == 200, typed
+    for typed in ("", "pikes,halberds", "muskets"):
+        assert client.post("/api/tables", json=body | {"code": typed}).status_code == 403, typed
+
+
 def test_a_table_removed_by_hand_is_forgotten(tmp_path: Path) -> None:
     client = TestClient(create_lobby_app(tmp_path, invite_code=""))
     table, _ = open_table(client)

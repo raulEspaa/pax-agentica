@@ -15,7 +15,9 @@ them, or once the game is over; a closed table keeps its replay for a week, then
 nobody has looked at for a while is let go from memory and read again when someone returns.
 
 Set PAX_INVITE_CODE to require a code to open a table or take a seat (for a server on the
-internet). Nothing else is private: this is for playing with friends, not strangers.
+internet); several codes, separated by commas, each work (one for friends, one for a group of
+testers, each withdrawn on its own). Nothing else is private: this is for playing with
+friends, not strangers.
 """
 
 import json
@@ -243,9 +245,9 @@ class Lobby:
     # ------------------------------------------------------------ the life of a table
 
     def check_code(self, code: str) -> None:
-        if self.invite_code and not secrets.compare_digest(
-            _plain(code).encode(), _plain(self.invite_code).encode()
-        ):
+        codes = [_plain(c) for c in (self.invite_code or "").split(",") if _plain(c)]
+        typed = _plain(code).encode()
+        if codes and not any([secrets.compare_digest(typed, c.encode()) for c in codes]):
             raise HTTPException(
                 403, "wrong invitation code: check it letter by letter (no spaces needed)"
             )

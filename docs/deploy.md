@@ -57,6 +57,10 @@ read -s 'code?code: ' && printf %s "$code" | gcloud secrets versions add pax-inv
 gcloud secrets versions list pax-invite-code --project pax-agentica-261016
 gcloud secrets versions disable <old version> --secret pax-invite-code --project pax-agentica-261016
 
+# several codes at once, separated by commas, each work: one for friends, one per group of
+# testers; withdraw a group's code by adding a version without it
+# (e.g. "word-for-friends,testers-code")
+
 # or a random one
 python3 -c "import secrets; print(''.join(secrets.choice('abcdefghjkmnpqrstuvwxyz23456789') for _ in range(10)))" | gcloud secrets versions add pax-invite-code --project pax-agentica-261016 --data-file=-
 
