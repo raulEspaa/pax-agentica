@@ -34,6 +34,11 @@ TECH = {
         "Engineering",
         "buildings and development cost fewer ducats and less timber",
     ),
+    TechBranch.NAVAL: ("Naval", "stronger fleets, cheaper ships, faster expeditions"),
+    TechBranch.ADMINISTRATION: (
+        "Administration",
+        "a steadier realm, cheaper research, less infamy",
+    ),
 }
 
 CHRONICLE = {
@@ -238,10 +243,21 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                     TechBranch.MILITARY: rules.military_tech_bonus,
                     TechBranch.ECONOMY: rules.economy_tech_bonus,
                     TechBranch.ENGINEERING: rules.engineering_tech_discount,
-                }[branch],
+                }.get(branch, 0.0),
                 "cost": amounts(rules.tech_costs[branch]),
                 "levels": [
-                    {"name": step.name, "unlocks": step.unlocks, "lore": step.lore}
+                    {
+                        "name": step.name,
+                        "unlocks": step.unlocks,
+                        "lore": step.lore,
+                        "requires": [step.requires[0].value, step.requires[1]]
+                        if step.requires
+                        else None,
+                        "options": [
+                            {"name": o.name, "effect": o.effect, "lore": o.lore}
+                            for o in step.options
+                        ],
+                    }
                     for step in rules.tech_tree[branch]
                 ],
             }

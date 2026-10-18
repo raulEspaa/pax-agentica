@@ -256,25 +256,48 @@ level.
 
 ### Technology
 
-Three branches, levels 0 to 5. **One research a year**; the first level costs the branch's base
-cost and each one after it half the base cost more (×1, ×1.5, ×2, ×2.5, ×3). Every nation's
-levels are public.
+Five branches, levels 0 to 5. **One research a year**; the first level costs the branch's base
+cost and each one after it half the base cost more (×1, ×1.5, ×2, ×2.5, ×3). Some levels need a
+level of another branch first. Every nation's levels and doctrines are public.
 
 | Branch | Base cost | Each level |
 |---|---|---|
 | Military | 60 ducats, 5 iron | +6% battle power, attacking and defending |
 | Economy | 70 ducats | +5% ducat and grain income |
 | Engineering | 50 ducats, 6 timber | −8% ducats and timber for buildings and development |
+| Naval | 55 ducats, 8 timber | its milestones: stronger fleets, cheaper ships, faster expeditions |
+| Administration | 65 ducats | its milestones: cheaper stability and research, less infamy |
 
-Every level is also a **milestone** that unlocks something new:
+Every level is a **milestone** that unlocks something, and offers **two doctrines**: `research`
+names the one taken (`choice`), and the other is lost for good, so no two realms end alike.
 
-| Level | Military | Economy | Engineering |
-|---|---|---|---|
-| 1 | Pike and Shot: the armory | Banking: the bank | Blast Furnace: ironworks |
-| 2 | Bastions: the citadel and the cannon foundry | Printing Press: the university and the observatory | Water Mills: farm estates and lumber mills yield +150% instead of +100% |
-| 3 | Tercios: training grounds and the military academy | Mercantilism: marketplaces yield +150% instead of +100%, and the royal exchange | Roads and Canals: armies eat 20% less grain |
-| 4 | Field Artillery: your attacks ignore one level of enemy forts | Humanism: the cathedral | Star Forts: forts and citadels give +35% instead of +25% |
-| 5 | Military Revolution: one more general | Cameralism: one more building slot in every province | Grand Architecture: provinces can grow to development 15 |
+| Level | Milestone | Doctrines (choose one) |
+|---|---|---|
+| Military 1 | Pike and Shot: the armory | **Swiss pike drill**: +5% morale / **Arquebus volleys**: +4% battle power |
+| Military 2 | Bastions: the citadel and the cannon foundry | **Siege trains**: +1 to every siege roll of yours / **Garrison companies**: forts +5% |
+| Military 3 | Tercios: training grounds and the military academy | **Old soldiers**: victories season regiments half again as fast / **Mass levies**: +15% manpower |
+| Military 4 | Field Artillery (needs engineering 2): your attacks ignore one level of enemy forts | **Horse artillery**: +5% battle power / **Siege engineers**: +1 to every siege roll of yours |
+| Military 5 | Military Revolution: one more general | **Standing army**: +5% morale, and the army eats 10% less grain / **Drill and discipline**: +6% battle power |
+| Economy 1 | Banking: the bank | **Bills of exchange**: the merchants' cut 10% lower / **Crown monopolies**: +5% ducats |
+| Economy 2 | Printing Press: the university and the observatory | **Academies**: research 5% cheaper / **Royal printers**: stability 10% cheaper |
+| Economy 3 | Mercantilism: marketplaces yield +150% instead of +100%, and the royal exchange | **Navigation acts**: the merchants' cut 15% lower / **Royal manufactories**: +5% ducats |
+| Economy 4 | Humanism: the cathedral | **Tolerance**: provinces of another faith lose a quarter less / **Reform of the Church**: stability 15% cheaper |
+| Economy 5 | Cameralism: one more building slot in every province | **Excise**: +7% ducats / **Granaries**: +10% grain |
+| Engineering 1 | Blast Furnace: ironworks | **Master masons**: buildings and development 5% cheaper / **Gunpowder mills**: +1 to every siege roll of yours |
+| Engineering 2 | Water Mills: farm estates and lumber mills yield +150% instead of +100% | **Polders**: +5% grain / **Sawmills**: buildings and development 5% cheaper |
+| Engineering 3 | Roads and Canals: armies eat 20% less grain | **Post roads**: +4% morale / **Canals**: the merchants' cut 10% lower |
+| Engineering 4 | Star Forts (needs military 2): your forts and citadels give +35% instead of +25% | **Trace italienne**: forts +5% / **Corps of engineers**: +1 to every siege roll of yours |
+| Engineering 5 | Grand Architecture: provinces can grow to development 15 | **Palaces**: stability 10% cheaper / **Urban planning**: buildings and development 10% cheaper |
+| Naval 1 | Caravels: expeditions 5 more progress a year | **Portolan charts**: expeditions 5 more progress a year / **Galley oarsmen**: fleets +10% |
+| Naval 2 | Carracks (needs engineering 1): ships 10% cheaper | **Shipwrights' guilds**: ships 15% cheaper more / **Marines**: a landing's beach 10% less of an advantage |
+| Naval 3 | Galleons (needs engineering 2): fleets +10% | **Broadside gunnery**: fleets +10% more / **Treasure fleets**: the colonies send 25% more |
+| Naval 4 | Admiralty (needs economy 3): every port launches two more ships a year | **Convoys**: your blockaded ports lose half as much / **Privateers**: takes colonies with a fleet only 1.5 times the enemy's |
+| Naval 5 | Line of Battle: fleets +15% | **Fighting instructions**: fleets +10% more / **Amphibious warfare**: a landing's beach 15% less of an advantage |
+| Administration 1 | Chancery: stability 5% cheaper | **Secretaries of state**: research 5% cheaper / **Royal council**: stability 10% cheaper more |
+| Administration 2 | Tax registers: +3% ducats | **Tax farming**: +5% ducats / **Cadastre**: +10% manpower |
+| Administration 3 | Intendants (needs economy 2): conquests breed 20% less infamy | **Absolutism**: stability 10% cheaper, and +3% battle power / **Estates' consent**: +5% ducats |
+| Administration 4 | Diplomatic service: conquests breed 10% less infamy | **Balance of power**: conquests breed 25% less infamy more / **Court patronage**: research 5% cheaper, stability 5% cheaper |
+| Administration 5 | Bureaucracy (needs economy 4): research 5% cheaper | **Enlightened ministers**: research 5% cheaper more / **Standing bureaucracy**: +5% ducats |
 
 ## Government
 

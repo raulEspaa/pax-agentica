@@ -406,9 +406,8 @@ def nation_income(state: GameState, nation: NationId) -> Resources:
     for province in state.provinces_of(nation):
         out = province_output(state, province)
         if province in shut:
-            out = out.model_copy(
-                update={"ducats": math.floor(out.ducats * (1 - rules.blockade_share))}
-            )
+            loss = rules.blockade_share * (1 - modifiers(state, nation).convoys)
+            out = out.model_copy(update={"ducats": math.floor(out.ducats * (1 - loss))})
         total = total + out
     mods = modifiers(state, nation)
     stability = rules.stability_income_bonus * state.nations[nation].stability
@@ -443,6 +442,7 @@ def colonial_dues(state: GameState, nation: NationId) -> Resources:
     total = {k: 0.0 for k in Resources.model_fields}
     for region, n in me.colonies.items():
         bonus = 1 + (spirit.dues.get(region, 0.0) if spirit else 0.0)
+        bonus += modifiers(state, nation).colonial_dues
         for k, v in rules.regions[region].yields.amounts().items():
             total[k] += v * n * bonus
     if ocean_blockaded(state, nation):
@@ -486,6 +486,7 @@ def expedition_progress(state: GameState, nation: NationId, region: Region) -> i
         rules.expedition_base
         + fleet
         + (spirit.progress.get(region, 0) if spirit else 0)
+        + modifiers(state, nation).colonial
         - rules.regions[region].hardness
         - (0 if atlantic else rules.expedition_baltic)
     )
@@ -518,10 +519,11 @@ def region_cap(rules: Rules, region: Region) -> int:
     return max(1, math.ceil(rules.regions[region].slots * rules.region_share))
 
 
-def seize_factor(nation: NationId, rules: Rules) -> float:
-    """The Atlantic fleet, times the enemy's, a crown needs to take one of its colonies."""
+def seize_factor(state: GameState, nation: NationId) -> float:
+    """The ocean fleet, times the enemy's, a crown needs to take one of its colonies."""
     spirit = COLONIAL_SPIRITS.get(nation)
-    return spirit.seize if spirit and spirit.seize is not None else rules.seize_command
+    factor = spirit.seize if spirit and spirit.seize is not None else state.rules.seize_command
+    return min(factor, 1.5) if modifiers(state, nation).privateers else factor
 
 
 def discounted(cost: Resources, discount: float) -> Resources:
@@ -633,6 +635,8 @@ def siege_modifiers(state: GameState, province: ProvinceId) -> list[tuple[str, i
         out.append(("cannon", 1))
     if p.siege_years:
         out.append(("the garrison starves", p.siege_years))
+    if siege := modifiers(state, p.siege_by).siege:
+        out.append(("siege doctrine", siege))
     if sum(army.values()) < rules.siege_ring_per_wall * walls:
         out.append(("too few to close the ring", -2))
     if p.owner is not None:
@@ -720,6 +724,7 @@ def morale(state: GameState, nation: NationId | None) -> float:
         1
         + rules.morale_per_stability * me.stability
         - rules.morale_per_exhaustion * me.war_exhaustion
+        + modifiers(state, nation).morale
     )
 
 
@@ -982,7 +987,7 @@ def defense_multiplier(
         if sea is None or sea_command(state, crosser, holder, sea) != "ours":
             bonus += rules.sea_crossing_bonus
     elif not state.map.adjacent(origin, target):  # a landing from the boats
-        bonus += rules.sea_crossing_bonus + rules.landing_bonus
+        bonus += max(0.0, rules.sea_crossing_bonus + rules.landing_bonus - attacker.landing)
     return rules.defender_advantage * terrain * (1 + bonus)
 
 

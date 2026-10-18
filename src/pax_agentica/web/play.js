@@ -476,7 +476,7 @@
     const guard = p.general && p.general.nation === held ? 1 + R.generalBonus * p.general.skill : 1;
     return R.defender * R.terrain[P[target].terrain] * (1 + bonus) * tech * guard;
   }
-  const myFactor = (general) => (1 + T[0].perLevel * V.me.technology.military) * (general ? 1 + R.generalBonus * general.skill : 1);
+  const myFactor = (general) => (1 + V.me.modifiers.battle_power) * (general ? 1 + R.generalBonus * general.skill : 1);
   function winChance(att, def, mult) {
     if (def === 0) return 1;
     const n = 60, lo = R.rollMin, span = R.rollMax - R.rollMin;
@@ -1151,32 +1151,44 @@
       <div class="regions">${cards}</div>
       <p class="sub">An expedition needs a port of yours on the Atlantic or the Baltic and a fleet to escort it. Each year it makes progress by a die, your fleet and your crown's way, less the region's hardness; at 100% it founds a colony, unless every place was taken first. At war, an Atlantic fleet ${C.seize} times the enemy's takes its colonies; an enemy that rules the Atlantic halves what they send home.</p></div>`;
   }
-  const BRANCH_IC = {military: "⚔", economy: "💰", engineering: "⚒"};
+  const BRANCH_IC = {military: "⚔", economy: "💰", engineering: "⚒", naval: "⚓", administration: "📜"};
+  const branchName = (id) => (T.find((b) => b.id === id) || {name: id}).name;
   function techTab() {
     const doing = researching();
     const net = V.me.income_per_turn.ducats - V.me.army_upkeep_per_turn.ducats - V.me.inputs_per_turn.ducats;
     const yearsFor = (cost) => { const short = Math.max(0, cost.ducats - V.me.resources.ducats);
       return !short ? "affordable now" : net > 0 ? `in about ${Math.ceil(short / net)} year${Math.ceil(short / net) === 1 ? "" : "s"}` : "not on this income"; };
+    const chosenAt = (id, k) => ((V.me.doctrines || {})[id] || [])[k];
     const cards = T.map((b) => {
       const level = V.me.technology[b.id], cost = V.me.research_costs[b.id], next = b.levels[level];
-      const word = b.id === "engineering" ? "cheaper buildings and development" : b.id === "economy" ? "ducats and grain" : "battle power";
+      const word = b.id === "engineering" ? "cheaper buildings and development" : b.id === "economy" ? "ducats and grain" : b.id === "military" ? "battle power" : "";
       const unlocked = next ? B.filter((x) => x.tech && x.tech[0] === b.id && x.tech[1] === level + 1) : [];
       const busy = doing && doing.branch === b.id;
+      const need = next && next.requires && V.me.technology[next.requires[0]] < next.requires[1] ? next.requires : null;
+      const can = !doing && cost && affordable(unbundle(cost)) && !need;
+      const doctrines = next ? (next.options.length ? next.options : [{name: "Research", effect: ""}]).map((o, k) =>
+        `<button class="btn doctrine ${busy && doing.choice === k ? "on" : ""}" data-research="${b.id}" data-choice="${k}" ${can ? "" : "disabled"}${o.lore ? ` title="${esc(o.lore)}"` : ""}><b>${esc(o.name)}</b>${o.effect ? `<small>${esc(o.effect)}</small>` : ""}</button>`).join("") : "";
+      const taken = b.levels.slice(0, level).map((step, k) => step.options[chosenAt(b.id, k)]).filter(Boolean);
       return `<div class="studycard ${busy ? "doing" : ""}"><div class="shead"><span class="ic">${BRANCH_IC[b.id]}</span><b>${b.name}</b><span class="num">${level} / ${R.maxTech}</span></div>
         <i class="bar"><b style="width:${Math.round(100 * level / R.maxTech)}%"></b></i>
-        <p class="sub">Now: +${Math.round(b.perLevel * 100 * level)}% ${word}.${next ? ` Next: +${Math.round(b.perLevel * 100 * (level + 1))}%.` : ""}</p>
+        ${word ? `<p class="sub">Now: +${Math.round(b.perLevel * 100 * level)}% ${word}.${next ? ` Next: +${Math.round(b.perLevel * 100 * (level + 1))}%.` : ""}</p>` : `<p class="sub">${esc(cap(b.effect))}.</p>`}
+        ${taken.length ? `<p class="sub">Doctrines: ${taken.map((o) => `<span class="chip">${esc(o.name)}</span>`).join(" ")}</p>` : ""}
         ${next ? `<p><b>${esc(next.name)}</b>: ${esc(next.unlocks)}</p>${unlocked.length ? `<div class="unlocks"><span class="sub">Unlocks</span>${unlocked.map((x) => `<span class="chipb"${tip(`<h5>${BICON[x.id]} ${esc(x.name)}</h5><div>${esc(x.effect)}</div><div class="dim">Costs ${costText(x.cost)}${(x.consumes || []).some((v) => v) ? `; eats ${costText(x.consumes)} a year` : ""}</div>`)}>${BICON[x.id]} ${esc(x.name)}</span>`).join("")}</div>` : ""}
           ${next.lore ? `<p class="lore">${esc(next.lore)}</p>` : ""}
-          <div class="act">${busy ? `<span class="ok">Researching this year</span>` : `<button class="btn" data-research="${b.id}" ${doing || !cost || !affordable(unbundle(cost)) ? "disabled" : ""}>Research</button>`}
-            ${cost ? `<span class="cost">${costText(unbundle(cost))}, ${yearsFor(cost)}</span>` : ""}</div>` : `<p class="ok">Mastered.</p>`}</div>`;
+          ${need ? `<p class="note war">Needs ${esc(branchName(need[0]).toLowerCase())} ${need[1]} first.</p>` : ""}
+          ${busy ? `<p class="ok">Researching this year: ${esc((next.options[doing.choice] || {name: next.name}).name)}</p>` : `<p class="sub">Choose a doctrine: the other is lost for good.</p>`}
+          <div class="doctrines">${doctrines}</div>
+          ${cost ? `<p class="cost">${costText(unbundle(cost))}, ${yearsFor(cost)}</p>` : ""}` : `<p class="ok">Mastered.</p>`}</div>`;
     }).join("");
     const columns = T.map((b) => {
       const level = V.me.technology[b.id];
       const nodes = b.levels.map((step, k) => {
         const n = k + 1, done = n <= level, nxt = n === level + 1;
         const state = done ? "done" : nxt ? (doing && doing.branch === b.id ? "doing" : "next") : "locked";
+        const pickedDoc = done ? step.options[chosenAt(b.id, k)] : null;
         return `<div class="node ${state}" title="${esc(step.name)}: ${esc(step.unlocks)}. ${esc(step.lore || "")}"><div class="lvl">${done ? "✓" : n}</div><b>${esc(step.name)}</b>
-          <div class="unl">${esc(cap(step.unlocks))}</div></div>`;
+          <div class="unl">${esc(cap(step.unlocks))}</div>${step.requires ? `<div class="req">needs ${esc(branchName(step.requires[0]).toLowerCase())} ${step.requires[1]}</div>` : ""}
+          <div class="opts">${step.options.map((o) => `<span class="opt ${pickedDoc === o ? "on" : pickedDoc ? "lost" : ""}" title="${esc(o.effect)}">${esc(o.name)}</span>`).join("")}</div></div>`;
       }).join(`<div class="link"></div>`);
       return `<div class="branch"><h5>${BRANCH_IC[b.id]} ${b.name}<small>${level} of ${R.maxTech}</small></h5>${nodes}</div>`;
     }).join("");
@@ -1883,7 +1895,7 @@
     const focusOn = (i) => { picked = i; send = Infinity; lead = true; if (!pinned) panelOpen = false; map.centerOn(i, 2.2, innerWidth > 960 ? 300 : 0); render(); };
     panel.querySelectorAll("tr.click").forEach((tr) => tr.onclick = () => focusOn(+tr.dataset.p));
     panel.querySelectorAll("[data-goto]").forEach((b) => b.onclick = () => focusOn(+b.dataset.goto));
-    panel.querySelectorAll("[data-research]").forEach((b) => b.onclick = () => queue({type: "research", branch: b.dataset.research}));
+    panel.querySelectorAll("[data-research]").forEach((b) => b.onclick = () => { orders = orders.filter((o) => o.type !== "research"); queue({type: "research", branch: b.dataset.research, choice: +(b.dataset.choice || 0)}); });
     panel.querySelectorAll("[data-hire]").forEach((b) => b.onclick = () => queue({type: "hire_advisor", candidate: +b.dataset.hire}));
     panel.querySelectorAll("[data-dismiss]").forEach((b) => b.onclick = () => queue({type: "dismiss_advisor", role: b.dataset.dismiss}));
     panel.querySelectorAll("[data-assign]").forEach((b) => b.onclick = () => {
@@ -2023,7 +2035,8 @@
       case "set_taxes": return `⚖ Set taxes ${TAX_WORDS[o.level + 2].toLowerCase()}`;
       case "patronize": return `🎨 Patronise the arts (+${R.patronagePrestige} prestige)`;
       case "hire_mercenaries": return `💰 Hire ${o.regiments} mercenary regiments in ${pn(o.province)}`;
-      case "research": { const b = T.find((x) => x.id === o.branch); return `Research ${b.levels[V.me.technology[o.branch]]?.name || o.branch}`; }
+      case "research": { const b = T.find((x) => x.id === o.branch), step = b.levels[V.me.technology[o.branch]], doc = step && step.options[o.choice || 0];
+        return `${BRANCH_IC[o.branch] || ""} Research ${step?.name || o.branch}${doc ? `: ${doc.name}` : ""}`; }
       case "hire_advisor": { const c = V.me.advisor_candidates.find((x) => x.id === o.candidate); return c ? `Hire ${esc(c.name)} as ${c.role}` : "Hire an advisor"; }
       case "dismiss_advisor": return `Dismiss the ${o.role}`;
       case "hire_general": return `Appoint a general in ${pn(o.province)}`;

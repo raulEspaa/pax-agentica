@@ -86,6 +86,7 @@ from pax_agentica.engine.mechanics import (
     convert_cost,
     defense_multiplier,
     develop_cost,
+    discounted,
     expedition_error,
     expedition_progress,
     fight,
@@ -709,6 +710,7 @@ class _Resolver:
         rules = self.s.rules
         me = self.s.nations[taker]
         added = rules.infamy_per_development * self.s.provinces[province].development
+        added *= 1 - modifiers(self.s, taker).infamy_relief
         before = me.infamy
         me.infamy += added
         worried = {
@@ -1633,7 +1635,7 @@ class _Resolver:
             return
         mine = ocean_power(self.s, nation)
         theirs = ocean_power(self.s, a.enemy)
-        need = seize_factor(nation, rules)
+        need = seize_factor(self.s, nation)
         if mine < rules.expedition_ships or mine < need * theirs:
             self._reject(
                 nation,
@@ -1712,7 +1714,9 @@ class _Resolver:
         if province.siege_by is not None:
             self._reject(nation, a, f"{where} is besieged")
             return
-        room = rules.ships_per_port + province.development // 3 - self.launched.get(a.province, 0)
+        mods = modifiers(self.s, nation)
+        room = rules.ships_per_port + mods.yards + province.development // 3
+        room -= self.launched.get(a.province, 0)
         if a.count > room:
             self._reject(
                 nation,
@@ -1721,7 +1725,7 @@ class _Resolver:
             )
             return
         spec = rules.ships[a.ship]
-        if error := self._pay(nation, spec.cost.times(a.count)):
+        if error := self._pay(nation, discounted(spec.cost, mods.ship_discount).times(a.count)):
             self._reject(nation, a, error)
             return
         self.launched[a.province] = self.launched.get(a.province, 0) + a.count
@@ -1809,17 +1813,32 @@ class _Resolver:
         if cost is None:
             self._reject(nation, a, f"{a.branch.value} technology is at its maximum")
             return
+        step = self.s.rules.tech_tree[a.branch][level]
+        if step.requires is not None and me.technology[step.requires[0]] < step.requires[1]:
+            need, at = step.requires
+            self._reject(nation, a, f"{step.name} needs {need.value} technology {at} first")
+            return
+        if step.options and a.choice >= len(step.options):
+            self._reject(nation, a, f"{step.name} offers only {len(step.options)} doctrines")
+            return
         if error := self._pay(nation, cost):
             self._reject(nation, a, error)
             return
         self.researched.add(nation)
         me.technology[a.branch] = level + 1
+        chosen = me.doctrines.setdefault(a.branch, [])
+        del chosen[level:]  # the doctrines of the levels reached, in order
+        chosen.extend([0] * (level - len(chosen)))
+        chosen.append(a.choice if step.options else 0)
+        doctrine = step.options[a.choice].name if step.options else None
         self._emit(
             EventKind.RESEARCHED,
-            f"{me.name} reaches {a.branch.value} technology {level + 1}",
+            f"{me.name} reaches {a.branch.value} technology {level + 1}: {step.name}"
+            + (f", choosing {doctrine}" if doctrine else ""),
             nations=(nation,),
             branch=a.branch.value,
             level=level + 1,
+            doctrine=doctrine or "",
         )
 
     def _hire(self, nation: NationId, a: HireGeneral) -> None:
@@ -2574,7 +2593,7 @@ class _Resolver:
         if result.attacker_won:
             fallen = share(force, result.attacker_losses)
             survivors = {k: force[k] - fallen[k] for k in UnitKind}
-            seasoned = self._seasoned(seasoned, committed, target.troops)
+            seasoned = self._seasoned(seasoned, committed, target.troops, nation)
             if walls:
                 target.set_army({})  # the garrison is beaten, the walls still stand
                 self._siege(nation, a, survivors, general, walls, seasoned)
@@ -2583,13 +2602,16 @@ class _Resolver:
                     nation, a.target, survivors, general, origin=a.origin, veterancy=seasoned
                 )
         else:
-            target.veterancy = self._seasoned(target.veterancy, target.troops, committed)
+            target.veterancy = self._seasoned(target.veterancy, target.troops, committed, defender)
             target.take(result.defender_losses)
 
-    def _seasoned(self, veterancy: float, regiments: int, beaten: int) -> float:
+    def _seasoned(
+        self, veterancy: float, regiments: int, beaten: int, nation: NationId | None = None
+    ) -> float:
         """An army's veterancy after a victory: rules.veterancy_per_victory more for beating an
-        army its own size or larger, less for a smaller one."""
+        army its own size or larger, less for a smaller one (more with Old soldiers)."""
         gain = self.s.rules.veterancy_per_victory * min(1.0, beaten / max(1, regiments))
+        gain *= 1 + modifiers(self.s, nation).veterancy
         return min(1.0, veterancy + gain)
 
     def _walls(self, nation: NationId, province: ProvinceId, force: dict[UnitKind, int]) -> int:
@@ -2738,7 +2760,7 @@ class _Resolver:
             self._lift(a.target, f"{self._name(nation)} breaks the siege lines")
             fallen = share(force, result.attacker_losses)
             survivors = {k: force[k] - fallen[k] for k in UnitKind}
-            seasoned = self._seasoned(seasoned, committed, dug_in)
+            seasoned = self._seasoned(seasoned, committed, dug_in, nation)
             if target.holder == nation:  # into the town they saved
                 target.add(survivors, seasoned)
                 if general is not None and self.s.general_in(a.target) is None:
@@ -2748,7 +2770,9 @@ class _Resolver:
         else:
             beaten = share(lines, result.defender_losses)
             target.besiegers = {k: lines[k] - beaten[k] for k in UnitKind if lines[k] - beaten[k]}
-            target.siege_veterancy = self._seasoned(target.siege_veterancy, dug_in, committed)
+            target.siege_veterancy = self._seasoned(
+                target.siege_veterancy, dug_in, committed, besieger
+            )
 
     def _battle_event(
         self,

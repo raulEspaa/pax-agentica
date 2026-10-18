@@ -133,20 +133,42 @@ class TechBranch(StrEnum):
     MILITARY = "military"  # stronger armies
     ECONOMY = "economy"  # richer provinces
     ENGINEERING = "engineering"  # cheaper building and development
+    NAVAL = "naval"  # stronger fleets, cheaper ships, the way to the New World
+    ADMINISTRATION = "administration"  # a steadier realm, cheaper research, less infamy
+
+
+class TechOption(BaseModel):
+    """One of the doctrines a level offers: choosing it shuts the others out for good."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    effect: str  # what it does, in a few words
+    effects: dict[str, float]  # see realm.EFFECTS for the keys
+    lore: str = ""
 
 
 class TechLevel(BaseModel):
-    """One step of a technology branch: what it is called and what it brings."""
+    """One step of a technology branch: what it is called, what it brings, what it needs from
+    another branch, and the doctrines to choose between when it is reached."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: str
     unlocks: str  # what it brings, in one sentence
     lore: str = ""  # what it was, in history
+    effects: dict[str, float] = Field(default_factory=dict)  # what it brings, as effects
+    requires: tuple[TechBranch, int] | None = None  # a level of another branch first
+    options: tuple[TechOption, ...] = ()
+
+
+def _o(name: str, effect: str, effects: dict[str, float], lore: str = "") -> TechOption:
+    return TechOption(name=name, effect=effect, effects=effects, lore=lore)
 
 
 def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
-    """Every branch also gives its per-level bonus (see Rules); these are the milestones."""
+    """Every branch also gives its per-level bonus (see Rules); these are the milestones, and at
+    each the two doctrines a realm chooses between."""
     t = TechLevel
     return {
         TechBranch.MILITARY: [
@@ -157,6 +179,20 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
                     "Pikemen guard the arquebusiers while they reload: the square"
                     " that will rule the field."
                 ),
+                options=(
+                    _o(
+                        "Swiss pike drill",
+                        "+5% morale",
+                        {"morale": 0.05},
+                        "The Swiss square that broke the knights of Burgundy.",
+                    ),
+                    _o(
+                        "Arquebus volleys",
+                        "+4% battle power",
+                        {"battle_power": 0.04},
+                        "Ranks of shot firing in turn, as at Cerignola.",
+                    ),
+                ),
             ),
             t(
                 name="Bastions",
@@ -164,6 +200,20 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
                 lore=(
                     "Low, angled walls that shot glances off, the trace "
                     "italienne, and foundries to cast the guns that test them."
+                ),
+                options=(
+                    _o(
+                        "Siege trains",
+                        "+1 to every siege roll of yours",
+                        {"siege": 1},
+                        "Oxen, gabions and great guns that follow the army to the walls.",
+                    ),
+                    _o(
+                        "Garrison companies",
+                        "forts +5%",
+                        {"fort": 0.05},
+                        "Paid companies kept in every fortress, all year round.",
+                    ),
                 ),
             ),
             t(
@@ -173,6 +223,20 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
                     "Spain's regiments of pike, sword and shot, drilled to fight "
                     "as one, and schools to train their captains."
                 ),
+                options=(
+                    _o(
+                        "Old soldiers",
+                        "victories season regiments half again as fast",
+                        {"veterancy": 0.5},
+                        "Veterans kept under the colours, war after war.",
+                    ),
+                    _o(
+                        "Mass levies",
+                        "+15% manpower",
+                        {"manpower": 0.15},
+                        "Every parish sends its men: numbers before drill.",
+                    ),
+                ),
             ),
             t(
                 name="Field Artillery",
@@ -181,11 +245,40 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
                     "Lighter guns on wheeled carriages that keep pace with the "
                     "army and breach walls in days."
                 ),
+                requires=(TechBranch.ENGINEERING, 2),
+                options=(
+                    _o(
+                        "Horse artillery",
+                        "+5% battle power",
+                        {"battle_power": 0.05},
+                        "Light pieces that gallop with the cavalry.",
+                    ),
+                    _o(
+                        "Siege engineers",
+                        "+1 to every siege roll of yours",
+                        {"siege": 1},
+                        "Sappers and mines under the bastions.",
+                    ),
+                ),
             ),
             t(
                 name="Military Revolution",
                 unlocks="one more general",
                 lore="Standing armies, drill and supply: war becomes the business of states.",
+                options=(
+                    _o(
+                        "Standing army",
+                        "+5% morale, and the army eats 10% less grain",
+                        {"morale": 0.05, "grain_upkeep": -0.10},
+                        "Regiments paid in peace as in war, in barracks and magazines.",
+                    ),
+                    _o(
+                        "Drill and discipline",
+                        "+6% battle power",
+                        {"battle_power": 0.06},
+                        "Maurice of Nassau's drill: every man a part of a machine.",
+                    ),
+                ),
             ),
         ],
         TechBranch.ECONOMY: [
@@ -195,11 +288,39 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
                 lore=(
                     "The Fuggers and the Medici lend to kings, and bills of exchange cross Europe."
                 ),
+                options=(
+                    _o(
+                        "Bills of exchange",
+                        "the merchants' cut 10% lower",
+                        {"trade": 0.10},
+                        "Paper that pays in Antwerp what was lent in Genoa.",
+                    ),
+                    _o(
+                        "Crown monopolies",
+                        "+5% ducats",
+                        {"ducat_income": 0.05},
+                        "Salt, alum and pepper sold by the crown alone.",
+                    ),
+                ),
             ),
             t(
                 name="Printing Press",
                 unlocks="the university and the observatory",
                 lore="Gutenberg's press prints books by the thousand: learning becomes cheap.",
+                options=(
+                    _o(
+                        "Academies",
+                        "research 5% cheaper",
+                        {"research": 0.05},
+                        "Learned societies under royal patronage.",
+                    ),
+                    _o(
+                        "Royal printers",
+                        "stability 10% cheaper",
+                        {"stability": 0.10},
+                        "The crown's edicts, printed and read in every parish.",
+                    ),
+                ),
             ),
             t(
                 name="Mercantilism",
@@ -208,16 +329,58 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
                     "Gold is power: protect your own trades, tax the foreigner's,"
                     " and build an exchange."
                 ),
+                options=(
+                    _o(
+                        "Navigation acts",
+                        "the merchants' cut 15% lower",
+                        {"trade": 0.15},
+                        "Your goods in your own ships, and the foreigner's taxed.",
+                    ),
+                    _o(
+                        "Royal manufactories",
+                        "+5% ducats",
+                        {"ducat_income": 0.05},
+                        "Tapestries, glass and mirrors made at the king's expense.",
+                    ),
+                ),
             ),
             t(
                 name="Humanism",
                 unlocks="the cathedral",
                 lore="The scholars of the Renaissance return to the ancients, and to man.",
+                options=(
+                    _o(
+                        "Tolerance",
+                        "provinces of another faith lose a quarter less",
+                        {"tolerance": 0.25},
+                        "Erasmus' peace: the faiths may live side by side.",
+                    ),
+                    _o(
+                        "Reform of the Church",
+                        "stability 15% cheaper",
+                        {"stability": 0.15},
+                        "Councils and seminaries renew the faith, and its obedience.",
+                    ),
+                ),
             ),
             t(
                 name="Cameralism",
                 unlocks="one more building slot in every province",
                 lore="The science of administration: counting, taxing and planning a realm.",
+                options=(
+                    _o(
+                        "Excise",
+                        "+7% ducats",
+                        {"ducat_income": 0.07},
+                        "A tax on every barrel of beer and every pound of salt.",
+                    ),
+                    _o(
+                        "Granaries",
+                        "+10% grain",
+                        {"grain_income": 0.10},
+                        "Public granaries against the lean years.",
+                    ),
+                ),
             ),
         ],
         TechBranch.ENGINEERING: [
@@ -225,26 +388,306 @@ def default_tech_tree() -> dict[TechBranch, list[TechLevel]]:
                 name="Blast Furnace",
                 unlocks="ironworks",
                 lore="Furnaces fed by water-driven bellows pour iron by the ton.",
+                options=(
+                    _o(
+                        "Master masons",
+                        "buildings and development 5% cheaper",
+                        {"building": 0.05},
+                        "Guilds of builders that move from site to site.",
+                    ),
+                    _o(
+                        "Gunpowder mills",
+                        "+1 to every siege roll of yours",
+                        {"siege": 1},
+                        "Saltpetre, sulphur and charcoal, ground by water.",
+                    ),
+                ),
             ),
             t(
                 name="Water Mills",
                 unlocks="farm estates and lumber mills yield +150% instead of +100%",
                 lore="Wheels on every stream grind grain and saw timber.",
+                options=(
+                    _o(
+                        "Polders",
+                        "+5% grain",
+                        {"grain_income": 0.05},
+                        "Dikes and windmills win fields from the sea.",
+                    ),
+                    _o(
+                        "Sawmills",
+                        "buildings and development 5% cheaper",
+                        {"building": 0.05},
+                        "Timber cut by water, for ships and roofs.",
+                    ),
+                ),
             ),
             t(
                 name="Roads and Canals",
                 unlocks="armies eat 20% less grain",
                 lore="Paved roads and locks move grain and soldiers faster.",
+                options=(
+                    _o(
+                        "Post roads",
+                        "+4% morale",
+                        {"morale": 0.04},
+                        "Couriers and magazines along the roads of war.",
+                    ),
+                    _o(
+                        "Canals",
+                        "the merchants' cut 10% lower",
+                        {"trade": 0.10},
+                        "Barges carry what carts cannot.",
+                    ),
+                ),
             ),
             t(
                 name="Star Forts",
                 unlocks="your forts and citadels give +35% instead of +25%",
                 lore="Fortresses shaped like stars, every wall covered by another's fire.",
+                requires=(TechBranch.MILITARY, 2),
+                options=(
+                    _o(
+                        "Trace italienne",
+                        "forts +5%",
+                        {"fort": 0.05},
+                        "Every bastion covering its neighbours.",
+                    ),
+                    _o(
+                        "Corps of engineers",
+                        "+1 to every siege roll of yours",
+                        {"siege": 1},
+                        "Vauban's science, turned on the enemy's walls.",
+                    ),
+                ),
             ),
             t(
                 name="Grand Architecture",
                 unlocks="provinces can grow to development 15",
                 lore="Palladio and Bramante: domes and squares for cities that keep growing.",
+                options=(
+                    _o(
+                        "Palaces",
+                        "stability 10% cheaper",
+                        {"stability": 0.10},
+                        "A court that dazzles keeps the nobles near and quiet.",
+                    ),
+                    _o(
+                        "Urban planning",
+                        "buildings and development 10% cheaper",
+                        {"building": 0.10},
+                        "Straight streets, squares and fountains.",
+                    ),
+                ),
+            ),
+        ],
+        TechBranch.NAVAL: [
+            t(
+                name="Caravels",
+                unlocks="expeditions 5 more progress a year",
+                lore="Lateen sails that beat into the wind: the ships of the discoveries.",
+                effects={"colonial": 5},
+                options=(
+                    _o(
+                        "Portolan charts",
+                        "expeditions 5 more progress a year",
+                        {"colonial": 5},
+                        "Every cape and harbour drawn by the pilots of Sagres.",
+                    ),
+                    _o(
+                        "Galley oarsmen",
+                        "fleets +10%",
+                        {"navy": 0.10},
+                        "Convicts and slaves at the oars of the war galleys.",
+                    ),
+                ),
+            ),
+            t(
+                name="Carracks",
+                unlocks="ships 10% cheaper",
+                lore="Great round ships, castled fore and aft, that carry an army's stores.",
+                effects={"ship_cost": 0.10},
+                requires=(TechBranch.ENGINEERING, 1),
+                options=(
+                    _o(
+                        "Shipwrights' guilds",
+                        "ships 15% cheaper more",
+                        {"ship_cost": 0.15},
+                        "Arsenals that launch a galley a day.",
+                    ),
+                    _o(
+                        "Marines",
+                        "a landing's beach 10% less of an advantage",
+                        {"landing": 0.10},
+                        "Soldiers who fight from ships and from boats.",
+                    ),
+                ),
+            ),
+            t(
+                name="Galleons",
+                unlocks="fleets +10%",
+                lore="Lower, faster and heavier-gunned: the ship that crossed every ocean.",
+                effects={"navy": 0.10},
+                requires=(TechBranch.ENGINEERING, 2),
+                options=(
+                    _o(
+                        "Broadside gunnery",
+                        "fleets +10% more",
+                        {"navy": 0.10},
+                        "Guns along the sides, fired at once.",
+                    ),
+                    _o(
+                        "Treasure fleets",
+                        "the colonies send 25% more",
+                        {"colonial_dues": 0.25},
+                        "Convoys of galleons bring the silver home.",
+                    ),
+                ),
+            ),
+            t(
+                name="Admiralty",
+                unlocks="every port launches two more ships a year",
+                lore="A board of the navy, its yards, its stores and its captains.",
+                effects={"yards": 2},
+                requires=(TechBranch.ECONOMY, 3),
+                options=(
+                    _o(
+                        "Convoys",
+                        "your blockaded ports lose half as much",
+                        {"convoys": 0.5},
+                        "Merchantmen sail together under escort.",
+                    ),
+                    _o(
+                        "Privateers",
+                        "takes colonies with a fleet only 1.5 times the enemy's",
+                        {"privateers": 1.0},
+                        "Letters of marque to every captain bold enough.",
+                    ),
+                ),
+            ),
+            t(
+                name="Line of Battle",
+                unlocks="fleets +15%",
+                lore="Ships in a line, each firing its broadside in turn.",
+                effects={"navy": 0.15},
+                options=(
+                    _o(
+                        "Fighting instructions",
+                        "fleets +10% more",
+                        {"navy": 0.10},
+                        "Every captain knows his place in the line.",
+                    ),
+                    _o(
+                        "Amphibious warfare",
+                        "a landing's beach 15% less of an advantage",
+                        {"landing": 0.15},
+                        "Flat boats, and men drilled to wade ashore.",
+                    ),
+                ),
+            ),
+        ],
+        TechBranch.ADMINISTRATION: [
+            t(
+                name="Chancery",
+                unlocks="stability 5% cheaper",
+                lore="Secretaries, seals and registers: the king's will on paper.",
+                effects={"stability": 0.05},
+                options=(
+                    _o(
+                        "Secretaries of state",
+                        "research 5% cheaper",
+                        {"research": 0.05},
+                        "Ministers who read every report.",
+                    ),
+                    _o(
+                        "Royal council",
+                        "stability 10% cheaper more",
+                        {"stability": 0.10},
+                        "The great lords bound to the crown's decisions.",
+                    ),
+                ),
+            ),
+            t(
+                name="Tax registers",
+                unlocks="+3% ducats",
+                lore="Every hearth counted and every field assessed.",
+                effects={"ducat_income": 0.03},
+                options=(
+                    _o(
+                        "Tax farming",
+                        "+5% ducats",
+                        {"ducat_income": 0.05},
+                        "Bankers buy the right to collect, and pay in advance.",
+                    ),
+                    _o(
+                        "Cadastre",
+                        "+10% manpower",
+                        {"manpower": 0.10},
+                        "Every village surveyed: the recruiters know where the men are.",
+                    ),
+                ),
+            ),
+            t(
+                name="Intendants",
+                unlocks="conquests breed 20% less infamy",
+                lore="Royal officers in every province, answerable to the king alone.",
+                effects={"infamy": 0.20},
+                requires=(TechBranch.ECONOMY, 2),
+                options=(
+                    _o(
+                        "Absolutism",
+                        "stability 10% cheaper, and +3% battle power",
+                        {"stability": 0.10, "battle_power": 0.03},
+                        "L'État, c'est moi: no estates between the king and his subjects.",
+                    ),
+                    _o(
+                        "Estates' consent",
+                        "+5% ducats",
+                        {"ducat_income": 0.05},
+                        "Taxes voted by the estates are taxes paid.",
+                    ),
+                ),
+            ),
+            t(
+                name="Diplomatic service",
+                unlocks="conquests breed 10% less infamy",
+                lore="Resident ambassadors in every court, and ciphers for their letters.",
+                effects={"infamy": 0.10},
+                options=(
+                    _o(
+                        "Balance of power",
+                        "conquests breed 25% less infamy more",
+                        {"infamy": 0.25},
+                        "No crown may grow too great: so says every treaty.",
+                    ),
+                    _o(
+                        "Court patronage",
+                        "research 5% cheaper, stability 5% cheaper",
+                        {"research": 0.05, "stability": 0.05},
+                        "Painters, poets and scholars at the court's expense.",
+                    ),
+                ),
+            ),
+            t(
+                name="Bureaucracy",
+                unlocks="research 5% cheaper",
+                lore="Offices, careers and archives: the state that outlives its kings.",
+                effects={"research": 0.05},
+                requires=(TechBranch.ECONOMY, 4),
+                options=(
+                    _o(
+                        "Enlightened ministers",
+                        "research 5% cheaper more",
+                        {"research": 0.05},
+                        "Reform from above, by reason and by decree.",
+                    ),
+                    _o(
+                        "Standing bureaucracy",
+                        "+5% ducats",
+                        {"ducat_income": 0.05},
+                        "Officials paid by salary, not by what they can take.",
+                    ),
+                ),
             ),
         ],
     }
@@ -1182,6 +1625,19 @@ class Rules(BaseModel):
         settlements took the fixed building slots' place)."""
         if isinstance(data, dict) and any(k in data for k in RETIRED_RULES):
             data = {k: v for k, v in data.items() if k not in RETIRED_RULES}
+        if isinstance(data, dict) and isinstance(data.get("tech_tree"), dict):
+            # a tree saved before the doctrines and the naval and administrative branches: the
+            # game takes today's tree, and the costs of the branches it lacked
+            tree = data["tech_tree"]
+            if set(tree) != {b.value for b in TechBranch} or not any(
+                isinstance(level, dict) and level.get("options")
+                for levels in tree.values()
+                for level in levels
+            ):
+                data = {k: v for k, v in data.items() if k != "tech_tree"}
+            costs = data.get("tech_costs")
+            if isinstance(costs, dict) and set(costs) != {b.value for b in TechBranch}:
+                data = {k: v for k, v in data.items() if k != "tech_costs"}
         if isinstance(data, dict) and isinstance(data.get("ships"), dict):
             # ships saved before a field was added take it from the ship of the same kind
             defaults = default_ships()
@@ -1356,6 +1812,8 @@ class Rules(BaseModel):
             TechBranch.MILITARY: Resources(ducats=60, iron=5),
             TechBranch.ECONOMY: Resources(ducats=70),
             TechBranch.ENGINEERING: Resources(ducats=50, timber=6),
+            TechBranch.NAVAL: Resources(ducats=55, timber=8),
+            TechBranch.ADMINISTRATION: Resources(ducats=65),
         }
     )
     research_cost_growth: float = 0.5  # each level costs half the base cost more than the last
@@ -1700,6 +2158,15 @@ class NationState(BaseModel):
     stability: int = 0
     alive: bool = True
     technology: dict[TechBranch, int] = Field(default_factory=lambda: dict.fromkeys(TechBranch, 0))
+    doctrines: dict[TechBranch, list[int]] = Field(default_factory=dict)  # chosen, by level
+
+    @model_validator(mode="after")
+    def _every_branch(self) -> Self:
+        """A realm saved before a branch existed knows it at level 0."""
+        for branch in TechBranch:
+            self.technology.setdefault(branch, 0)
+        return self
+
     ruler: Ruler | None = None
     advisors: dict[AdvisorRole, Advisor] = Field(default_factory=dict)
     stances: dict[NationId, Stance] = Field(default_factory=dict)  # declared friends and rivals

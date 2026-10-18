@@ -272,6 +272,7 @@ class MyNation(_View):
     wars: tuple[WarView, ...]
     treaties: tuple[TreatyView, ...]
     technology: dict[TechBranch, int]
+    doctrines: dict[TechBranch, list[int]]  # the doctrine chosen at each level reached
     research_costs: dict[TechBranch, Resources | None]  # None: already at the top
     building_costs: dict[BuildingKind, Resources]  # after engineering
     generals: tuple[GeneralView, ...]
@@ -293,6 +294,7 @@ class NationSummary(_View):
     at_war_with: tuple[NationId, ...]
     allies: tuple[NationId, ...]
     technology: dict[TechBranch, int]  # public, as in any court of Europe
+    doctrines: dict[TechBranch, list[int]]  # its doctrines, public too
     generals: int
     ruler: Ruler | None  # public too: every court knows who reigns where
     opinion_of_you: int  # what this court thinks of you, from -100 to 100
@@ -626,6 +628,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         ),
         treaties=treaties,
         technology=dict(me.technology),
+        doctrines={b: list(c) for b, c in me.doctrines.items()},
         research_costs={
             b: research_cost(state.rules, b, level, mods.research_discount)
             for b, level in me.technology.items()
@@ -664,6 +667,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             at_war_with=tuple(state.enemies_of(nid)),
             allies=tuple(state.partners(nid, TreatyKind.ALLIANCE)),
             technology=dict(ns.technology),
+            doctrines={b: list(c) for b, c in ns.doctrines.items()},
             generals=len(state.generals_of(nid)),
             ruler=ns.ruler,
             fleets={w: dict(ships) for w, ships in ns.fleets.items()},
@@ -806,7 +810,8 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
     dues = colonial_dues(state, nation).amounts()
     for pid in blockaded_ports(state, nation):
         ducats = province_output(state, pid).ducats
-        choked["ducats"] -= ducats - math.floor(ducats * (1 - state.rules.blockade_share))
+        loss = state.rules.blockade_share * (1 - modifiers(state, nation).convoys)
+        choked["ducats"] -= ducats - math.floor(ducats * (1 - loss))
     crown = {  # stability, technology, ruler, prestige, taxes, exhaustion...
         k: v
         - land.amounts()[k]

@@ -74,6 +74,8 @@ from pax_agentica.engine.model import (
     Stance,
     Tactic,
     TechBranch,
+    TechLevel,
+    TechOption,
     TreatyKind,
     UnitKind,
     Water,
@@ -1141,19 +1143,49 @@ class _Planner:
                     return
 
     def _research(self, reserve: int) -> None:
-        """One technology a year when the treasury allows: war first in war, wealth in peace."""
-        costs = self.me.research_costs
+        """One technology a year when the treasury allows: war first in war, wealth in peace,
+        the sea for a realm with ports, and the doctrine that suits the realm."""
+        costs, tech, levels = self.me.research_costs, self.me.technology, self.v.rules.tech_tree
+
+        def tree(branch: TechBranch, level: int) -> TechLevel | None:
+            return levels[branch][level] if level < len(levels[branch]) else None
+
+        ports = any(self.provinces[p].seas for p in self.owned)
         order = [TechBranch.MILITARY] if self.enemies else []
-        order += sorted(
-            (TechBranch.ECONOMY, TechBranch.ENGINEERING, TechBranch.MILITARY),
-            key=lambda b: (self.me.technology[b], b != TechBranch.ECONOMY),
-        )
+        branches = [TechBranch.ECONOMY, TechBranch.ENGINEERING, TechBranch.MILITARY]
+        branches += [TechBranch.ADMINISTRATION] + ([TechBranch.NAVAL] if ports else [])
+        order += sorted(branches, key=lambda b: (tech[b], b != TechBranch.ECONOMY, b.value))
         for branch in order:
-            cost = costs[branch]
-            if cost is not None and self.budget.covers(cost + Resources(ducats=reserve)):
-                self.actions.append(Research(branch=branch))
-                self.budget = self.budget - cost
-                return
+            cost = costs.get(branch)
+            if cost is None or not self.budget.covers(cost + Resources(ducats=reserve)):
+                continue
+            step = tree(branch, tech[branch])
+            if step is None:
+                continue
+            if step.requires is not None and tech[step.requires[0]] < step.requires[1]:
+                continue
+            self.actions.append(Research(branch=branch, choice=self._doctrine(step.options)))
+            self.budget = self.budget - cost
+            return
+
+    def _doctrine(self, options: tuple[TechOption, ...]) -> int:
+        """The doctrine worth most to this realm: arms in war, money in peace, the sea and the
+        colonies for a realm that sails."""
+        if not options:
+            return 0
+        war = bool(self.enemies)
+        sails = bool(self.me.colonies or self.me.expeditions)
+        weight = {
+            "battle_power": 3.0 if war else 1.5, "morale": 3.0 if war else 1.5,
+            "siege": 0.08 if war else 0.04, "fort": 1.0, "veterancy": 0.3, "manpower": 0.8,
+            "ducat_income": 2.5, "grain_income": 1.2, "trade": 1.0, "research": 1.5,
+            "stability": 1.0, "building": 1.5, "tolerance": 0.6, "grain_upkeep": -1.5,
+            "navy": 1.0 if sails else 0.4, "ship_cost": 0.4, "landing": 0.3,
+            "colonial": 0.1 if sails else 0.03, "colonial_dues": 1.5 if sails else 0.2,
+            "convoys": 0.4, "privateers": 0.1, "infamy": 0.8, "yards": 0.02,
+        }  # fmt: skip
+        worth = [sum(weight.get(k, 0.0) * v for k, v in o.effects.items()) for o in options]
+        return max(range(len(options)), key=lambda i: (worth[i], -i))
 
     # ------------------------------------------------------------ 3b. generals
 

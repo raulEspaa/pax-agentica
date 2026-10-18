@@ -156,6 +156,13 @@
   .cspirit { font-size: 13.5px; color: var(--ink-2); margin: 4px 0; display: block; } .cspirit b { color: var(--brass-hi); }
   .studies { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
   .studycard { padding: 8px 10px; background: var(--walnut-lo); border: 1px solid var(--brass-lo); font-size: 13.5px; }
+  .doctrines { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 4px 0; }
+  .btn.doctrine { display: grid; gap: 2px; text-align: left; padding: 5px 8px; white-space: normal; }
+  .btn.doctrine b { font-size: 13px; } .btn.doctrine small { font-size: 11.5px; opacity: .85; }
+  .btn.doctrine.on { background: #6a4a22; color: #f6e7c4; }
+  .node .opts { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; } .node .opt { font-size: 10.5px; padding: 0 4px; border: 1px solid rgba(181, 138, 62, .4); border-radius: 3px; }
+  .node .opt.on { background: rgba(181, 138, 62, .45); color: #fff; } .node .opt.lost { opacity: .35; text-decoration: line-through; }
+  .node .req { font-size: 10.5px; color: #c9895c; }
   .studycard.doing { border-color: var(--brass); box-shadow: inset 3px 0 0 var(--brass); }
   .studycard .shead { display: flex; gap: 6px; align-items: center; } .studycard .shead b { flex: 1; color: var(--brass-hi); font: 700 14px var(--display); }
   .studycard .bar { display: block; position: relative; height: 5px; margin: 5px 0; background: rgba(255, 255, 255, .1); }
@@ -265,7 +272,7 @@
            background: var(--vellum-tex), linear-gradient(#f4e8cb, var(--vellum-2)); border: 2px solid #8f2f22; box-shadow: 0 6px 18px rgba(0, 0, 0, .6); }
   .office .btn, .ordersbox .btn { height: 28px; }
   /* the tree of learning */
-  .tree { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .tree { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
   .branch h5 { margin: 0 0 6px; font: 700 13px var(--display); color: var(--brass-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .branch h5 small { display: block; font: italic 400 12px var(--body); color: var(--ink-3); }
   .node { position: relative; padding: 6px 6px 7px 26px; font-size: 12.5px; line-height: 1.25; border: 1px solid rgba(196, 154, 82, .3); background: var(--walnut-lo); }

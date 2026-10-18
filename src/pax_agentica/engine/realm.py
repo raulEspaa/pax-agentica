@@ -59,6 +59,17 @@ class Modifiers(BaseModel):
     navy: float = 0.0  # fleet strength, on top of the ships'
     faith_tolerance: float = 0.0  # share of the penalty for provinces of another faith forgiven
     trade_bonus: float = 0.0  # share of the merchants' cut waived, buying and selling
+    morale: float = 0.0  # added to the armies' morale
+    siege: int = 0  # added to every siege roll of the realm's
+    ship_discount: float = 0.0  # ships this much cheaper
+    colonial: int = 0  # every expedition this much more progress a year
+    landing: float = 0.0  # taken off the defenders' advantage on a beach
+    veterancy: float = 0.0  # victories season regiments this much faster
+    colonial_dues: float = 0.0  # the colonies send this much more
+    convoys: float = 0.0  # share of a blockade's loss the realm's convoys save
+    privateers: bool = False  # takes colonies with a fleet only 1.5 times the enemy's
+    infamy_relief: float = 0.0  # share of the infamy of conquest spared
+    yards: int = 0  # more ships a port can launch a year
     sources: tuple[str, ...] = ()  # one line per bonus, for humans and prompts
 
 
@@ -186,6 +197,7 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         ruler = me.ruler
         key += (
             tuple(me.technology.values()),
+            tuple((b, tuple(c)) for b, c in sorted(me.doctrines.items())),
             (
                 ruler.title,
                 ruler.name,
@@ -419,9 +431,31 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             ("grand", GRAND_ARCHITECTURE),
         )
     }
+    learnt: dict[str, float] = {}  # the effects of every level reached and doctrine chosen
     for branch, levels in rules.tech_tree.items():
-        for level, step in enumerate(levels[: tech[branch]], start=1):
+        chosen = me.doctrines.get(branch, [])
+        for level, step in enumerate(levels[: tech.get(branch, 0)], start=1):
             lines.append(f"{step.name} ({branch.value} {level}): {step.unlocks}")
+            picked = []
+            if level - 1 < len(chosen) and 0 <= chosen[level - 1] < len(step.options):
+                option = step.options[chosen[level - 1]]
+                picked.append(option.effects)
+                lines.append(f"{option.name} (doctrine): {option.effect}")
+            for effects in (step.effects, *picked):
+                for k, v in effects.items():
+                    learnt[k] = learnt.get(k, 0.0) + v
+    ducats += learnt.get("ducat_income", 0.0)
+    grain_spirit += learnt.get("grain_income", 0.0)
+    manpower += learnt.get("manpower", 0.0)
+    power += learnt.get("battle_power", 0.0)
+    stability = min(0.8, stability + learnt.get("stability", 0.0))
+    building_spirit += learnt.get("building", 0.0)
+    grain_upkeep += learnt.get("grain_upkeep", 0.0)
+    navy += learnt.get("navy", 0.0)
+    tolerance += learnt.get("tolerance", 0.0)
+    trade += learnt.get("trade", 0.0)
+    research += learnt.get("research", 0.0)
+    fort_extra += learnt.get("fort", 0.0)
     learned = min(
         rules.learning_research_cap,
         rules.learning_research_discount * learning_towns(state, nation),
@@ -443,6 +477,17 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         navy=navy,
         faith_tolerance=tolerance,
         trade_bonus=min(rules.trade_bonus_max, trade),
+        morale=learnt.get("morale", 0.0),
+        siege=int(learnt.get("siege", 0)),
+        ship_discount=min(0.6, learnt.get("ship_cost", 0.0)),
+        colonial=int(learnt.get("colonial", 0)),
+        landing=learnt.get("landing", 0.0),
+        veterancy=learnt.get("veterancy", 0.0),
+        colonial_dues=learnt.get("colonial_dues", 0.0),
+        convoys=min(1.0, learnt.get("convoys", 0.0)),
+        privateers=bool(learnt.get("privateers")),
+        infamy_relief=min(0.8, learnt.get("infamy", 0.0)),
+        yards=int(learnt.get("yards", 0)),
         fort_bonus_per_level=(0.35 if milestones["star"] else rules.fort_bonus_per_level)
         + fort_extra,
         ignores_fort_levels=(1 if milestones["artillery"] else 0) + (1 if powder else 0),

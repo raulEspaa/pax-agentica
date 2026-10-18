@@ -115,10 +115,15 @@ class Disband(_Action):
 
 class Research(_Action):
     """Advance one technology branch by a level: military (stronger armies), economy (richer
-    provinces) or engineering (cheaper building and development). One research a year."""
+    provinces), engineering (cheaper building and development), naval (stronger fleets, cheaper
+    ships, faster expeditions) or administration (a steadier realm, cheaper research, less
+    infamy). One research a year. Some levels need a level of another branch first (see
+    rules.tech_tree requires). Every level offers doctrines to choose between: `choice` is the
+    index of the one you take, for good."""
 
     type: Literal["research"] = "research"
     branch: TechBranch
+    choice: int = Field(default=0, ge=0, le=3)
 
 
 class HireGeneral(_Action):
