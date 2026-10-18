@@ -556,7 +556,11 @@
     if (o && o !== G.human) focus = nIndex[o];
     else if (o === G.human) focus = -1; // your own land: the diplomacy map shows your relations again
     render();
+    unhide(picked);
   }
+  // the province just picked, out from under its own deed and any office open beside it
+  const unhide = (i) => { if (i >= 0) map.reveal(i, ["deed", "panel"].map((id) => { const e = $(id);
+    return e && e.classList.contains("open") ? e.getBoundingClientRect() : null; })); };
   function command(i) { // right-click: march or attack from the selected province
     if (picked < 0 || !owned(picked)) return flash("Select one of your provinces first, then right-click where its regiments should go.");
     const target = targetsFrom(picked).find(([j]) => j === i);
@@ -1153,55 +1157,78 @@
   }
   const BRANCH_IC = {military: "⚔", economy: "💰", engineering: "⚒", naval: "⚓", administration: "📜"};
   const branchName = (id) => (T.find((b) => b.id === id) || {name: id}).name;
+  // A choice made for good or for years (a doctrine, a policy, an ambition): a card, not a button,
+  // so its effect reads in full; chosen, queued for this year, or lost, it says so in a tag.
+  const TAGS = {on: "✓ chosen", queued: "this year", lost: "not taken"};
+  const choiceCard = ({name, effect = "", lore = "", state = "", attrs = "", off = false, tag}) =>
+    `<button type="button" class="choice ${state}" ${attrs} ${off ? "disabled" : ""}${lore ? ` title="${esc(lore)}"` : ""}>
+      <b>${esc(name)}</b>${(tag ?? TAGS[state]) ? `<span class="tag">${tag ?? TAGS[state]}</span>` : ""}${effect ? `<small>${esc(effect)}</small>` : ""}</button>`;
+  const subtabs = (now, tabs, key) => `<nav class="desktabs subtabs" role="tablist">${tabs.map(([id, label, dot]) =>
+    `<button role="tab" aria-selected="${now === id}" class="${now === id ? "on" : ""}" data-${key}="${id}">${label}${dot ? `<i class="dot" title="Something to decide here"></i>` : ""}</button>`).join("")}</nav>`;
+  // ------------------------------------------------------------------ learning: the tree at a glance
+  // Branches in rows, levels in columns, every level's state at a glance (researched, open, this
+  // year's, waiting on another branch, out of reach); a level picked shows its details below, with
+  // its two doctrines to choose between.
+  let techPick = null, techSub = "tree";
   function techTab() {
     const doing = researching();
     const net = V.me.income_per_turn.ducats - V.me.army_upkeep_per_turn.ducats - V.me.inputs_per_turn.ducats;
     const yearsFor = (cost) => { const short = Math.max(0, cost.ducats - V.me.resources.ducats);
       return !short ? "affordable now" : net > 0 ? `in about ${Math.ceil(short / net)} year${Math.ceil(short / net) === 1 ? "" : "s"}` : "not on this income"; };
     const chosenAt = (id, k) => ((V.me.doctrines || {})[id] || [])[k];
-    const cards = T.map((b) => {
-      const level = V.me.technology[b.id], cost = V.me.research_costs[b.id], next = b.levels[level];
-      const word = b.id === "engineering" ? "cheaper buildings and development" : b.id === "economy" ? "ducats and grain" : b.id === "military" ? "battle power" : "";
-      const unlocked = next ? B.filter((x) => x.tech && x.tech[0] === b.id && x.tech[1] === level + 1) : [];
-      const busy = doing && doing.branch === b.id;
-      const need = next && next.requires && V.me.technology[next.requires[0]] < next.requires[1] ? next.requires : null;
-      const can = !doing && cost && affordable(unbundle(cost)) && !need;
-      const doctrines = next ? (next.options.length ? next.options : [{name: "Research", effect: ""}]).map((o, k) =>
-        `<button class="btn doctrine ${busy && doing.choice === k ? "on" : ""}" data-research="${b.id}" data-choice="${k}" ${can ? "" : "disabled"}${o.lore ? ` title="${esc(o.lore)}"` : ""}><b>${esc(o.name)}</b>${o.effect ? `<small>${esc(o.effect)}</small>` : ""}</button>`).join("") : "";
-      const taken = b.levels.slice(0, level).map((step, k) => step.options[chosenAt(b.id, k)]).filter(Boolean);
-      return `<div class="studycard ${busy ? "doing" : ""}"><div class="shead"><span class="ic">${BRANCH_IC[b.id]}</span><b>${b.name}</b><span class="num">${level} / ${R.maxTech}</span></div>
-        <i class="bar"><b style="width:${Math.round(100 * level / R.maxTech)}%"></b></i>
-        ${word ? `<p class="sub">Now: +${Math.round(b.perLevel * 100 * level)}% ${word}.${next ? ` Next: +${Math.round(b.perLevel * 100 * (level + 1))}%.` : ""}</p>` : `<p class="sub">${esc(cap(b.effect))}.</p>`}
-        ${taken.length ? `<p class="sub">Doctrines: ${taken.map((o) => `<span class="chip">${esc(o.name)}</span>`).join(" ")}</p>` : ""}
-        ${next ? `<p><b>${esc(next.name)}</b>: ${esc(next.unlocks)}</p>${unlocked.length ? `<div class="unlocks"><span class="sub">Unlocks</span>${unlocked.map((x) => `<span class="chipb"${tip(`<h5>${BICON[x.id]} ${esc(x.name)}</h5><div>${esc(x.effect)}</div><div class="dim">Costs ${costText(x.cost)}${(x.consumes || []).some((v) => v) ? `; eats ${costText(x.consumes)} a year` : ""}</div>`)}>${BICON[x.id]} ${esc(x.name)}</span>`).join("")}</div>` : ""}
-          ${next.lore ? `<p class="lore">${esc(next.lore)}</p>` : ""}
-          ${need ? `<p class="note war">Needs ${esc(branchName(need[0]).toLowerCase())} ${need[1]} first.</p>` : ""}
-          ${busy ? `<p class="ok">Researching this year: ${esc((next.options[doing.choice] || {name: next.name}).name)}</p>` : `<p class="sub">Choose a doctrine: the other is lost for good.</p>`}
-          <div class="doctrines">${doctrines}</div>
-          ${cost ? `<p class="cost">${costText(unbundle(cost))}, ${yearsFor(cost)}</p>` : ""}` : `<p class="ok">Mastered.</p>`}</div>`;
+    const needOf = (step) => step.requires && V.me.technology[step.requires[0]] < step.requires[1] ? step.requires : null;
+    const stateOf = (b, k) => { const level = V.me.technology[b.id];
+      return k < level ? "done" : k > level ? "locked" : doing && doing.branch === b.id ? "doing" : needOf(b.levels[k]) ? "blocked" : "next"; };
+    const word = (b) => b.id === "engineering" ? "cheaper works" : b.id === "economy" ? "ducats and grain" : b.id === "military" ? "battle power" : "";
+    const valid = techPick && T.some((b) => b.id === techPick[0] && techPick[1] < b.levels.length);
+    if (!valid) { const open = T.filter((b) => b.levels[V.me.technology[b.id]]);
+      const first = (doing && T.find((b) => b.id === doing.branch)) || open.find((b) => stateOf(b, V.me.technology[b.id]) === "next") || open[0] || T[0];
+      techPick = [first.id, Math.min(V.me.technology[first.id], first.levels.length - 1)]; }
+    const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
+    const head = `<div></div>${Array.from({length: R.maxTech}, (_, k) => `<div class="tcol">${ROMAN[k] || k + 1}</div>`).join("")}`;
+    const rows = T.map((b) => {
+      const level = V.me.technology[b.id], w = word(b);
+      const rh = `<div class="trh"><b>${BRANCH_IC[b.id]} ${esc(b.name)}</b><small>${level} of ${R.maxTech}${w && level ? ` · +${Math.round(b.perLevel * 100 * level)}% ${w}` : ""}</small></div>`;
+      return rh + b.levels.map((step, k) => {
+        const st = stateOf(b, k), need = needOf(step), doc = st === "done" ? step.options[chosenAt(b.id, k)] : st === "doing" ? step.options[doing.choice] : null;
+        const sub = doc ? doc.name : st === "blocked" || (st === "locked" && need) ? `⛓ ${branchName(need[0]).toLowerCase()} ${need[1]}` : `${step.options.length || 1} doctrine${step.options.length === 1 ? "" : "s"}`;
+        const sel = techPick[0] === b.id && techPick[1] === k;
+        return `<button type="button" class="tnode ${st} ${sel ? "sel" : ""} ${k ? "" : "first"}" data-tnode="${b.id}:${k}" aria-pressed="${sel}" title="${esc(step.name)}: ${esc(step.unlocks)}">
+          <span class="tl">${st === "done" ? "✓" : st === "doing" ? "◆" : st === "locked" ? "🔒" : k + 1}</span><b>${esc(step.name)}</b><small>${esc(sub)}</small></button>`;
+      }).join("");
     }).join("");
-    const columns = T.map((b) => {
-      const level = V.me.technology[b.id];
-      const nodes = b.levels.map((step, k) => {
-        const n = k + 1, done = n <= level, nxt = n === level + 1;
-        const state = done ? "done" : nxt ? (doing && doing.branch === b.id ? "doing" : "next") : "locked";
-        const pickedDoc = done ? step.options[chosenAt(b.id, k)] : null;
-        return `<div class="node ${state}" title="${esc(step.name)}: ${esc(step.unlocks)}. ${esc(step.lore || "")}"><div class="lvl">${done ? "✓" : n}</div><b>${esc(step.name)}</b>
-          <div class="unl">${esc(cap(step.unlocks))}</div>${step.requires ? `<div class="req">needs ${esc(branchName(step.requires[0]).toLowerCase())} ${step.requires[1]}</div>` : ""}
-          <div class="opts">${step.options.map((o) => `<span class="opt ${pickedDoc === o ? "on" : pickedDoc ? "lost" : ""}" title="${esc(o.effect)}">${esc(o.name)}</span>`).join("")}</div></div>`;
-      }).join(`<div class="link"></div>`);
-      return `<div class="branch"><h5>${BRANCH_IC[b.id]} ${b.name}<small>${level} of ${R.maxTech}</small></h5>${nodes}</div>`;
-    }).join("");
+    const legend = `<div class="tlegend"><span class="tnode done">✓ researched</span><span class="tnode next">open now</span><span class="tnode doing">◆ this year</span>
+      <span class="tnode blocked">⛓ needs another branch</span><span class="tnode locked">🔒 later</span></div>`;
+    // the level picked, in full
+    const b = T.find((x) => x.id === techPick[0]), k = techPick[1], step = b.levels[k], st = stateOf(b, k), need = needOf(step);
+    const cost = st === "next" || st === "doing" || st === "blocked" ? V.me.research_costs[b.id] : null;
+    const can = st === "next" && !doing && cost && affordable(unbundle(cost));
+    const status = {done: "✓ Researched", doing: "◆ Researching this year", locked: `🔒 After ${esc(b.name.toLowerCase())} ${k}`,
+      blocked: `⛓ Needs ${esc(branchName((need || ["", 0])[0]).toLowerCase())} ${(need || ["", 0])[1]} first`,
+      next: doing ? "One research a year: this year's is chosen" : cost && affordable(unbundle(cost)) ? "Open now" : "Open, when the treasury allows"}[st];
+    const unlocked = B.filter((x) => x.tech && x.tech[0] === b.id && x.tech[1] === k + 1);
+    const opts = step.options.length ? step.options : [{name: "Research", effect: ""}];
+    const pickable = can || st === "doing";
+    const cards = opts.map((o, j) => choiceCard({name: o.name, effect: o.effect, lore: o.lore,
+      state: st === "done" ? (chosenAt(b.id, k) === j ? "on" : "lost") : st === "doing" && doing.choice === j ? "queued" : "",
+      attrs: pickable ? `data-research="${b.id}" data-choice="${j}"` : "", off: !pickable})).join("");
+    const detail = `<div class="tdetail"><div class="tdhead"><b>${BRANCH_IC[b.id]} ${esc(b.name)} ${ROMAN[k] || k + 1}: ${esc(step.name)}</b><span class="tstatus ${st}">${status}</span></div>
+      <p>${esc(cap(step.unlocks))}.</p>
+      ${unlocked.length ? `<div class="unlocks"><span class="sub">Unlocks</span>${unlocked.map((x) => `<span class="chipb"${tip(`<h5>${BICON[x.id]} ${esc(x.name)}</h5><div>${esc(x.effect)}</div><div class="dim">Costs ${costText(x.cost)}${(x.consumes || []).some((v) => v) ? `; eats ${costText(x.consumes)} a year` : ""}</div>`)}>${BICON[x.id]} ${esc(x.name)}</span>`).join("")}</div>` : ""}
+      ${step.lore ? `<p class="lore">${esc(step.lore)}</p>` : ""}
+      <h5 class="bshelf">${st === "done" ? "The doctrine taken" : opts.length > 1 ? "Two doctrines: choose one, the other is lost for good" : "Research"}</h5>
+      <div class="choices">${cards}</div>
+      ${cost ? `<p class="cost">${costText(unbundle(cost))}, ${yearsFor(cost)}</p>` : ""}</div>`;
     // where you stand against every other court, branch by branch
     const courts = [{id: G.human, name: V.me.name, technology: V.me.technology}, ...V.nations.filter((n) => n.alive)];
-    const race = T.map((b) => `<div class="race"><h5>${BRANCH_IC[b.id]} ${b.name}</h5>${courts.sort((x, y) => y.technology[b.id] - x.technology[b.id]).map((n) =>
-      `<div class="raceline ${n.id === G.human ? "me" : ""}"><span>${esc(n.name)}</span><i><b style="width:${Math.round(100 * n.technology[b.id] / R.maxTech)}%;background:${N[nIndex[n.id]].color}"></b></i><span class="num">${n.technology[b.id]}</span></div>`).join("")}</div>`).join("");
-    const helpers = [V.me.modifiers.research_discount ? `research ${Math.round(V.me.modifiers.research_discount * 100)}% cheaper (council, observatory, scholars)` : "a chancellor, an observatory or a scholar on the throne would make research cheaper"];
-    return `<div class="pad"><h4>Learning</h4>
-      <p class="sub">One research a year: ${doing ? `this year, ${esc(T.find((b) => b.id === doing.branch).name)}.` : "nothing chosen yet."} ${cap(helpers.join(""))}.</p>
-      <div class="studies">${cards}</div>
-      <h4>The race of learning</h4><div class="races">${race}</div>
-      <h4>The tree</h4><div class="tree">${columns}</div></div>`;
+    const race = T.map((x) => `<div class="race"><h5>${BRANCH_IC[x.id]} ${x.name}</h5>${courts.sort((p, q) => q.technology[x.id] - p.technology[x.id]).map((n) =>
+      `<div class="raceline ${n.id === G.human ? "me" : ""}"><span>${esc(n.name)}</span><i><b style="width:${Math.round(100 * n.technology[x.id] / R.maxTech)}%;background:${N[nIndex[n.id]].color}"></b></i><span class="num">${n.technology[x.id]}</span></div>`).join("")}</div>`).join("");
+    const discount = V.me.modifiers.research_discount ? `Research is ${Math.round(V.me.modifiers.research_discount * 100)}% cheaper (council, observatory, scholars).` : "A chancellor, an observatory or a scholar on the throne would make research cheaper.";
+    const doingB = doing && T.find((x) => x.id === doing.branch), doingStep = doingB && doingB.levels[V.me.technology[doingB.id]];
+    const summary = `<div class="tsum">${doingStep ? `◆ This year: <b>${esc(doingB.name)} ${ROMAN[V.me.technology[doingB.id]]}, ${esc(doingStep.name)}</b>${doingStep.options[doing.choice] ? ` (${esc(doingStep.options[doing.choice].name)})` : ""}` : "One research a year: pick an open level in the tree."} <span class="sub">${discount}</span></div>`;
+    const body = techSub === "race" ? `<div class="races">${race}</div>`
+      : `<div class="ttree" style="grid-template-columns:minmax(96px,auto) repeat(${R.maxTech},minmax(84px,1fr))">${head}${rows}</div>${legend}${detail}`;
+    return `<div class="pad">${summary}${subtabs(techSub, [["tree", "🌳 The tree"], ["race", "🏁 The race of learning"]], "techsub")}${body}</div>`;
   }
   // the court a sitter belongs to, from its colour (a council's own colour is mixed: then it is yours)
   const CULTURE = {ottomans: "ottoman", russia: "russian"};
@@ -1270,6 +1297,7 @@
         <div class="sub">${m.status === "locked" && after ? `After “${esc(after.title)}”. ` : ""}${m.status === "done" ? "Fulfilled: " : "Reward: "}${esc(m.reward)}</div></div>`;
     }).join("")}</div><p class="sub">A mission is fulfilled by itself at the end of a year in which all its goals hold.</p>`;
   }
+  let crownSub = "ruler";
   function crownTab() {
     const ruler = V.me.ruler, color = N[me].color;
     const reign = ruler ? R.startYear + ruler.since - 1 : 0;
@@ -1315,10 +1343,13 @@
     const policies = AXES.map(([axis, ic, label]) => {
       const now = (V.me.policies || {})[axis], queued = orders.find((o) => o.type === "set_policy" && o.axis === axis);
       const until = (V.me.policy_locked_until || {})[axis], locked = until !== undefined && V.turn < until;
-      const sides = R.policies[axis].map((side, k) => `<button class="btn doctrine ${now === k ? "on" : ""} ${queued && queued.side === k ? "queued" : ""}" data-policy="${axis}:${k}"
-        ${now === k || locked ? "disabled" : ""} title="${esc(side.lore)}"><b>${esc(side.name)}</b><small>${esc(side.effect)}</small></button>`).join("");
-      return `<div class="policy"><div class="phead"><span class="ic">${ic}</span><b>${label}</b>${locked ? `<small>until ${R.startYear + until - 1}</small>` : now === undefined ? `<small>not chosen: free</small>` : `<small>a change costs ${R.policyStability} stability</small>`}</div><div class="doctrines">${sides}</div></div>`;
+      const sides = R.policies[axis].map((side, k) => choiceCard({name: side.name, effect: side.effect, lore: side.lore,
+        state: queued && queued.side === k ? "queued" : now === k ? "on" : "", tag: now === k && !queued ? "✓ adopted" : undefined,
+        attrs: `data-policy="${axis}:${k}"`, off: now === k || locked}));
+      const state = locked ? `stands until ${R.startYear + until - 1}` : now === undefined ? "not chosen yet: the first choice is free" : `a change costs ${R.policyStability} stability`;
+      return `<div class="axis"><div class="axhead"><b>${ic} ${label}</b><small>${state}</small></div><div class="axpair">${sides[0]}<span class="or">or</span>${sides[1]}</div></div>`;
     }).join("");
+    const undecided = AXES.some(([axis]) => (V.me.policies || {})[axis] === undefined && !orders.some((o) => o.type === "set_policy" && o.axis === axis));
     const ACT_IC = {levy: "💰", progress: "👑", banners: "⚔", pardon: "🕊", embassy: "✉", presence: "🐎", church: "⛪"};
     const usedAuth = orders.filter((o) => o.type === "royal_action").reduce((a, o) => a + R.royalActs[o.act].cost, 0);
     const auth = V.me.authority - usedAuth;
@@ -1329,22 +1360,28 @@
         ${target}<button class="btn" data-royal="${id}" ${a.cost > auth ? "disabled" : ""} title="${esc(a.lore)}">${a.cost} 👑</button></div>`; }).join("");
     const ag = V.me.agenda, offers = V.me.agenda_offers || [], chosenAgenda = orders.find((o) => o.type === "choose_agenda");
     const agenda = ag ? `<div class="agenda"><b>${esc(ag.name)}</b>: ${esc(ag.text)}<i class="bar"><b style="width:${Math.min(100, Math.round(100 * ag.progress / ag.target))}%"></b></i><small>${ag.progress} of ${ag.target}</small></div>`
-      : offers.length ? `<p class="sub">Choose an ambition for this reign: fulfilled, it brings ${R.agendaPrestige} prestige and ${R.agendaAuthority} authority.</p><div class="doctrines">${offers.map((o) => `<button class="btn doctrine ${chosenAgenda && chosenAgenda.agenda === o.id ? "on" : ""}" data-agenda="${o.id}"><b>${esc(o.name)}</b><small>${esc(o.text)}</small></button>`).join("")}</div>` : "";
+      : offers.length ? `<p class="sub">Choose an ambition for this reign: fulfilled, it brings ${R.agendaPrestige} prestige and ${R.agendaAuthority} authority.</p><div class="choices">${offers.map((o) =>
+        choiceCard({name: o.name, effect: o.text, state: chosenAgenda && chosenAgenda.agenda === o.id ? "queued" : "", attrs: `data-agenda="${o.id}"`})).join("")}</div>` : "";
+    const noAgenda = !ag && offers.length && !chosenAgenda;
     const crown = `<div class="authority"><span>👑 Authority <b>${auth}</b> of ${R.authorityMax}</span><i class="bar"><b style="width:${Math.round(100 * auth / R.authorityMax)}%"></b></i><small>+${V.me.authority_per_year} a year: the ruler's three skills</small></div>
       <div class="royalacts">${acts}</div><h5 class="bshelf">The reign's ambition</h5>${agenda}`;
-    return `<div class="pad"><h4>Glory</h4>${patronage}${spirit}
-      <h4>The king's authority</h4>${crown}
-      <h4>The realm's policies</h4><div class="policies">${policies}</div>
-      <p class="sub">The first side taken on each axis is free; changing it costs ${R.policyStability} stability, and a policy stands at least ${R.policyYears} years.</p>
-      <h4>The crown</h4>${rulerHtml}
-      <h4>The council speaks</h4>${counsel.length ? counsel.map(([who, role, text]) => `<div class="counsel">${portrait(who, mix(color, "#efe2c2", .5), 34)}
+    const sections = {
+      ruler: `${rulerHtml}`,
+      authority: `<h4>The king's authority</h4>${crown}`,
+      policies: `<h4>The realm's policies</h4><p class="sub">Each axis leans one way. The first side taken is free; changing it costs ${R.policyStability} stability, and a policy stands at least ${R.policyYears} years.</p><div class="policies">${policies}</div>`,
+      council: `<h4>The council speaks</h4>${counsel.length ? counsel.map(([who, role, text]) => `<div class="counsel">${portrait(who, mix(color, "#efe2c2", .5), 34)}
         <div><b>${esc(who.name)}</b>, your ${role}: <q>${esc(text)}</q></div></div>`).join("") : `<p class="muted">An empty council gives no counsel. Hire advisors below.</p>`}
-      <h4>The council</h4><div class="council">${seats}</div>
-      <p class="sub">New candidates come to court every ${R.advisorYears} years. Unpaid advisors leave.</p>
-      <h4>Speak to all Europe</h4>
-      ${proclaimed ? `<p class="sub">This year you proclaim: <q>${esc(proclaimed.text)}</q></p>` : `<textarea id="proclamation" maxlength="400" placeholder="A proclamation every court will read: a claim, a warning, a promise."></textarea>
-      <div class="row"><button class="btn" id="proclaim">Proclaim</button></div>`}
-      <h4>What your realm enjoys</h4><ul class="enjoys">${enjoys || "<li>Nothing yet: research, a council and a gifted ruler all add here.</li>"}</ul></div>`;
+        <h4>The council</h4><div class="council">${seats}</div><p class="sub">New candidates come to court every ${R.advisorYears} years. Unpaid advisors leave.</p>`,
+      glory: `<h4>Glory</h4>${patronage}${spirit}
+        <h4>Speak to all Europe</h4>
+        ${proclaimed ? `<p class="sub">This year you proclaim: <q>${esc(proclaimed.text)}</q></p>` : `<textarea id="proclamation" maxlength="400" placeholder="A proclamation every court will read: a claim, a warning, a promise."></textarea>
+        <div class="row"><button class="btn" id="proclaim">Proclaim</button></div>`}
+        <h4>What your realm enjoys</h4><ul class="enjoys">${enjoys || "<li>Nothing yet: research, a council and a gifted ruler all add here.</li>"}</ul>`,
+    };
+    const tabs = [["ruler", "👑 The ruler", (V.me.claims || []).length > 0], ["authority", "⚜ Authority", noAgenda], ["policies", "⚖ Policies", undecided],
+      ["council", "🪶 Council", false], ["glory", "🎨 Glory", false]];
+    if (!sections[crownSub]) crownSub = "ruler";
+    return `<div class="pad">${subtabs(crownSub, tabs, "crownsub")}${sections[crownSub]}</div>`;
   }
   // the next of the line: their tutors, a regency, and the claims a failed line leaves
   function heirHtml() {
@@ -1928,11 +1965,15 @@
     const panel = $("office");
     if (!panelOpen) { panel.innerHTML = ""; return; }
     const keep = panel.scrollTop, same = panel.dataset.tab === tab;
+    panelEl.classList.toggle("wide", tab === "tech");
     panel.innerHTML = {realm: realmTab, crown: crownTab, reign: reignTab, missions: missionsTab, army: armyTab, world: worldTab, tech: techTab, diplomacy: diplomacyTab, letters: lettersTab, ledger: ledgerTab, chronicle: chronicleTab}[tab]();
     panel.dataset.tab = tab; if (same) panel.scrollTop = keep;
     const focusOn = (i) => { picked = i; send = Infinity; lead = true; if (!pinned) panelOpen = false; map.centerOn(i, 2.2, innerWidth > 960 ? 300 : 0); render(); };
     panel.querySelectorAll("tr.click").forEach((tr) => tr.onclick = () => focusOn(+tr.dataset.p));
     panel.querySelectorAll("[data-goto]").forEach((b) => b.onclick = () => focusOn(+b.dataset.goto));
+    panel.querySelectorAll("[data-tnode]").forEach((b) => b.onclick = () => { const [id, k] = b.dataset.tnode.split(":"); techPick = [id, +k]; render(); });
+    panel.querySelectorAll("[data-techsub]").forEach((b) => b.onclick = () => { techSub = b.dataset.techsub; render(); });
+    panel.querySelectorAll("[data-crownsub]").forEach((b) => b.onclick = () => { crownSub = b.dataset.crownsub; panel.scrollTop = 0; render(); });
     panel.querySelectorAll("[data-research]").forEach((b) => b.onclick = () => { orders = orders.filter((o) => o.type !== "research"); queue({type: "research", branch: b.dataset.research, choice: +(b.dataset.choice || 0)}); });
     panel.querySelectorAll("[data-hire]").forEach((b) => b.onclick = () => queue({type: "hire_advisor", candidate: +b.dataset.hire}));
     panel.querySelectorAll("[data-dismiss]").forEach((b) => b.onclick = () => queue({type: "dismiss_advisor", role: b.dataset.dismiss}));
@@ -2270,7 +2311,7 @@
       () => queued("build") || queued("upgrade_building") || happened("built"), () => showProvince(capital(), "buildings")],
     ["recruit", "⚔", "Raise regiments", "New regiments can march this very year.",
       () => queued("recruit") || queued("hire_mercenaries"), () => showProvince(capital(), "army")],
-    ["research", "📜", "Study a technology", "Each branch opens new works and makes the realm stronger.",
+    ["research", "📜", "Study a technology", "Pick an open level in the tree, then one of its two doctrines.",
       () => queued("research") || happened("researched"), () => { pinned = true; openOffice("tech"); }],
     ["envoy", "✉", "Write to a court", "Propose an alliance, a pact or a royal marriage.",
       () => ["propose_alliance", "propose_marriage", "propose_non_aggression"].some((k) => queued(k)) || V.proposals_sent.length > 0, () => { pinned = true; openOffice("diplomacy"); }],
@@ -2283,9 +2324,9 @@
     ["endyear", "⏳", "End the year", "Your orders are carried out together, with everyone else's.",
       () => V.turn > 1, () => { $("endturn").classList.add("ready"); $("endturn").focus(); }],
     ["agenda", "👑", "Give your reign an ambition", "In The Crown: fulfilled, it brings prestige and authority to spend on royal acts.",
-      () => !!V.me.agenda || queued("choose_agenda"), () => { pinned = true; openOffice("crown"); }],
+      () => !!V.me.agenda || queued("choose_agenda"), () => { pinned = true; crownSub = "authority"; openOffice("crown"); }],
     ["policy", "⚖", "Adopt a policy", "Each of the realm's policies leans one way: the first choice is free, a change costs stability.",
-      () => queued("set_policy") || Object.keys(V.me.policies || {}).length > 0, () => { pinned = true; openOffice("crown"); }],
+      () => queued("set_policy") || Object.keys(V.me.policies || {}).length > 0, () => { pinned = true; crownSub = "policies"; openOffice("crown"); }],
     ["focus", "🏰", "Give a province a focus", "With its works it grows into a designation: a great granary, a fortress, a shipyard.",
       () => queued("set_focus") || V.me.provinces.some((pid) => prov(pIndex[pid]).focus), () => showProvince(capital(), "economy")],
     ["fleet", "⚓", "Look to your fleets", "Build or sail ships: whoever commands a sea may land armies on any of its shores.",

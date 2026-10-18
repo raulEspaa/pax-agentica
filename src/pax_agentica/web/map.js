@@ -480,7 +480,10 @@ const PaxMap = (() => {
 
     function applyView() {
       view.w = Math.min(maxW(), Math.max(W / 12, view.w)); view.h = view.w / aspect();
-      view.x = Math.min(W - view.w, Math.max(0, view.x)); view.y = Math.min(H - view.h, Math.max(0, view.y));
+      // zoomed in, the camera may look a little past the edge of Europe: a coast at the edge can
+      // then come out from under the window that opened over it
+      const slack = 0.4 * (1 - view.w / maxW()), sx = view.w * slack, sy = view.h * slack;
+      view.x = Math.min(W - view.w + sx, Math.max(-sx, view.x)); view.y = Math.min(H - view.h + sy, Math.max(-sy, view.y));
       svg.setAttribute("viewBox", `${view.x} ${view.y} ${view.w} ${view.h}`);
       gPLabels.style.display = view.w < maxW() * 0.6 ? "" : "none";
       gNames.style.opacity = view.w < maxW() * 0.45 ? .4 : 1;
@@ -488,6 +491,27 @@ const PaxMap = (() => {
       plabels.forEach((t) => { t.setAttribute("font-size", (12 * k).toFixed(2)); t.setAttribute("y", P[+t.dataset.i].y - 22 * k); });
     }
     const refresh = () => { markers(); eventMarks(); drawArrows(); };
+    // Glide the map so province i is not hidden under the windows over it (client rects): it
+    // comes to the middle of the open space beside them, or above a sheet across the bottom.
+    function reveal(i, blocks) {
+      const r = svg.getBoundingClientRect(), m = 36;
+      if (!r.width || i < 0) return;
+      let l = r.left + m, rt = r.right - m, t = r.top + m, b = r.bottom - m;
+      for (const k of blocks) {
+        if (!k || !k.width || k.right <= r.left || k.left >= r.right) continue;
+        if (k.width > r.width * 0.6) b = Math.min(b, k.top - m / 2); // a sheet across the bottom
+        else if (k.left + k.width / 2 < r.left + r.width / 2) l = Math.max(l, k.right + m);
+        else rt = Math.min(rt, k.left - m);
+      }
+      if (rt - l < 120 || b - t < 100) return; // no room worth moving to
+      const s = r.width / view.w, x = r.left + (P[i].x - view.x) * s, y = r.top + (P[i].y - view.y) * s;
+      const tx = x < l || x > rt ? (l + rt) / 2 : x, ty = y < t || y > b ? (t + b) / 2 : y;
+      if (tx === x && ty === y) return;
+      const x0 = view.x, y0 = view.y, dx = (x - tx) / s, dy = (y - ty) / s, start = performance.now();
+      const step = (now) => { const k = Math.min(1, (now - start) / 280), e = 1 - (1 - k) ** 3;
+        view.x = x0 + dx * e; view.y = y0 + dy * e; applyView(); if (k < 1) requestAnimationFrame(step); else refresh(); };
+      requestAnimationFrame(step);
+    }
     // the camera set by hand, for a frame of an animated flight over the map (the trailer's)
     function look(x, y, w) { view.x = x; view.y = y; view.w = w; applyView(); }
     function toMap(cx, cy) { const r = svg.getBoundingClientRect(), s = view.w / r.width;
@@ -544,7 +568,7 @@ const PaxMap = (() => {
     window.addEventListener("pointerup", () => { drag = null; wrap.classList.remove("dragging"); });
     window.addEventListener("resize", () => { applyView(); refresh(); });
 
-    return {paint, pick, pickSea, setTargets, setArrows, zoomAt, home, centerOn, refresh, view, maxW, px, ping, motion, look, aspect, get picked() { return picked; }, get seaPicked() { return seaPicked; }};
+    return {paint, pick, pickSea, setTargets, setArrows, zoomAt, home, centerOn, reveal, refresh, view, maxW, px, ping, motion, look, aspect, get picked() { return picked; }, get seaPicked() { return seaPicked; }};
   }
 
   // ------------------------------------------------------------------ the province vista
