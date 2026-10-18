@@ -37,6 +37,7 @@ from pax_agentica.engine.actions import (
     Disband,
     DismissAdvisor,
     EducateHeir,
+    FoundViceroyalty,
     Gift,
     HireAdvisor,
     HireGeneral,
@@ -75,6 +76,7 @@ from pax_agentica.engine.actions import (
     UpgradeBuilding,
     UpgradeMonument,
 )
+from pax_agentica.engine.colonies import GOVERNORS, VICEROYS
 from pax_agentica.engine.events import Event, EventKind, EventValue
 from pax_agentica.engine.mechanics import (
     BattleResult,
@@ -91,6 +93,7 @@ from pax_agentica.engine.mechanics import (
     defense_multiplier,
     develop_cost,
     discounted,
+    expedition_cost,
     expedition_error,
     expedition_progress,
     fight,
@@ -116,16 +119,20 @@ from pax_agentica.engine.mechanics import (
     siege_modifiers,
     siege_result,
     siege_walls,
+    silver_shipped,
     stability_cost,
     tactic_factor,
     upgrade_cost,
     veteran,
+    viceroyalty_error,
     war_score,
 )
 from pax_agentica.engine.model import (
     RESOURCE_NAMES,
     TRADED,
     BuildingKind,
+    ColonialGood,
+    Colony,
     Crisis,
     Expedition,
     Faith,
@@ -151,6 +158,7 @@ from pax_agentica.engine.model import (
     Treaty,
     TreatyKind,
     UnitKind,
+    Viceroy,
     War,
     pair,
     share,
@@ -1504,6 +1512,8 @@ class _Resolver:
                         self._send_expedition(nation, action)
                     case SeizeColony():
                         self._seize_colony(nation, action)
+                    case FoundViceroyalty():
+                        self._found_viceroyalty(nation, action)
                     case ScrapShips():
                         here = self.s.nations[nation].ships(action.sea)
                         if here[action.ship] < action.count:
@@ -1799,16 +1809,48 @@ class _Resolver:
         if error := expedition_error(self.s, nation, a.region):
             self._reject(nation, a, error)
             return
-        if error := self._pay(nation, self.s.rules.expedition_cost):
+        if error := self._pay(nation, expedition_cost(self.s.rules, a.kind)):
             self._reject(nation, a, error)
             return
-        self.s.nations[nation].expeditions.append(Expedition(region=a.region, since=self.turn))
+        self.s.nations[nation].expeditions.append(
+            Expedition(region=a.region, since=self.turn, kind=a.kind)
+        )
         name = self.s.rules.regions[a.region].name
+        kind = self.s.rules.colony_kinds[a.kind].name.lower()
         self._emit(
             EventKind.EXPEDITION_SENT,
-            f"{self._name(nation)} sends an expedition to {name}",
+            f"{self._name(nation)} sends an expedition to found a {kind} in {name}",
             nations=(nation,),
             region=a.region.value,
+            colony=a.kind.value,
+        )
+
+    def _found_viceroyalty(self, nation: NationId, a: FoundViceroyalty) -> None:
+        rules, me = self.s.rules, self.s.nations[nation]
+        if error := viceroyalty_error(self.s, nation, a.region):
+            self._reject(nation, a, error)
+            return
+        if error := self._pay(nation, rules.viceroyalty_cost):
+            self._reject(nation, a, error)
+            return
+        me.authority -= rules.viceroyalty_authority
+        taken = {v.name for n in self.s.nations.values() for v in n.viceroys.values()}
+        pool = [v for v in VICEROYS.get(nation, GOVERNORS) if v not in taken] or [
+            f"{self.s.rules.regions[a.region].name}'s governor"
+        ]
+        viceroy = Viceroy(
+            name=self.rng.choice(pool), skill=self.rng.choice((1, 2, 2, 3)), since=self.turn
+        )
+        me.viceroys[a.region] = viceroy
+        name = rules.regions[a.region].name
+        self._emit(
+            EventKind.VICEROYALTY,
+            f"{self._name(nation)} makes {name} a viceroyalty under {viceroy.name} "
+            f"(skill {viceroy.skill})",
+            nations=(nation,),
+            region=a.region.value,
+            viceroy=viceroy.name,
+            skill=viceroy.skill,
         )
 
     def _seize_colony(self, nation: NationId, a: SeizeColony) -> None:
@@ -1822,7 +1864,7 @@ class _Resolver:
             self._reject(nation, a, f"you are not at war with {self._name(a.enemy)}")
             return
         enemy = self.s.nations[a.enemy]
-        if not enemy.colonies.get(a.region):
+        if not enemy.colony_count(a.region):
             self._reject(nation, a, f"{self._name(a.enemy)} holds no colony in {name}")
             return
         if any(
@@ -1844,11 +1886,10 @@ class _Resolver:
                 f"({theirs:.1f}) to take its colonies",
             )
             return
-        enemy.colonies[a.region] -= 1
-        if not enemy.colonies[a.region]:
-            del enemy.colonies[a.region]
+        taken = enemy.lose_colony(a.region)
         me = self.s.nations[nation]
-        me.colonies[a.region] = me.colonies.get(a.region, 0) + 1
+        if taken is not None:
+            me.add_colony(a.region, taken)
         self._prestige(nation, rules.prestige_colony, f"a colony in {name} taken")
         self._prestige(a.enemy, -rules.prestige_colony, f"a colony in {name} lost")
         self._emit(
@@ -1880,12 +1921,12 @@ class _Resolver:
                     )
                     continue
                 die = self.rng.randint(1, 6)
-                gain = max(5, expedition_progress(self.s, nation, exp.region) + 5 * die)
+                gain = max(5, expedition_progress(self.s, nation, exp.region, exp.kind) + 5 * die)
                 exp.progress = min(100, exp.progress + gain)
                 if exp.progress < 100:
                     continue
                 me.expeditions.remove(exp)
-                me.colonies[exp.region] = me.colonies.get(exp.region, 0) + 1
+                me.add_colony(exp.region, Colony(kind=exp.kind, founded=self.turn))
                 self._prestige(nation, rules.prestige_colony, f"a colony founded in {spec.name}")
                 self._emit(
                     EventKind.COLONY_FOUNDED,
@@ -1893,8 +1934,26 @@ class _Resolver:
                     "sail home",
                     nations=(nation,),
                     region=exp.region.value,
-                    colonies=me.colonies[exp.region],
+                    colonies=me.colony_count(exp.region),
+                    colony=exp.kind.value,
                 )
+
+    def _inflation(self) -> None:
+        """The silver shipped home makes every price rise; the years slowly calm it."""
+        rules = self.s.rules
+        for nation in self.order:
+            me = self.s.nations[nation]
+            if not me.alive:
+                continue
+            silver = silver_shipped(self.s, nation) if me.colonies else 0.0
+            rate = rules.goods[ColonialGood.SILVER].inflation
+            me.inflation = round(
+                min(
+                    rules.inflation_max,
+                    max(0.0, me.inflation + silver * rate - rules.inflation_decay),
+                ),
+                4,
+            )
 
     def _ships(self, kind: Ship) -> str:
         return self.s.rules.ships[kind].name.lower()
@@ -3605,6 +3664,7 @@ class _Resolver:
         self._move_prices()
         self._sieges()
         self._expeditions()
+        self._inflation()
         decay = self.s.rules.veterancy_decay  # the veterans grow old and go home
         for province in self.s.provinces.values():
             settles = 2 if BuildingKind.CATHEDRAL in province.buildings else 1

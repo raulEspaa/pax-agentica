@@ -10,11 +10,15 @@ from pax_agentica.engine.mechanics import (
     expedition_progress,
     nation_income,
 )
-from pax_agentica.engine.model import Expedition, Region, Resources, Ship, Water
+from pax_agentica.engine.model import Colony, Expedition, Region, Resources, Ship, Water
 
 type Play = Callable[..., GameState]
 
 A = Water.ATLANTIC
+
+
+def held(state: GameState, nation: str) -> dict[Region, int]:
+    return {r: len(c) for r, c in state.nations[nation].colonies.items()}
 
 
 def reasons(state: GameState) -> list[str]:
@@ -22,7 +26,7 @@ def reasons(state: GameState) -> list[str]:
 
 
 def test_spain_starts_with_hispaniola(state: GameState) -> None:
-    assert state.nations["spain"].colonies == {Region.CARIBBEAN: 1}
+    assert held(state, "spain") == {Region.CARIBBEAN: 1}
     assert colonial_dues(state, "spain").ducats == 4
     caribbean = next(r for r in view_for(state, "france").new_world if r.id == Region.CARIBBEAN)
     assert caribbean.held == {"spain": 1}
@@ -48,13 +52,13 @@ def test_an_expedition_founds_a_colony_in_a_few_years(state: GameState, play: Pl
         if new.nations["england"].colonies:
             break
         new = play(new)
-    assert new.nations["england"].colonies == {Region.CARIBBEAN: 1}
+    assert held(new, "england") == {Region.CARIBBEAN: 1}
     assert nation_income(new, "england").ducats > nation_income(state, "england").ducats
 
 
 def test_a_full_region_turns_expeditions_back(state: GameState, play: Play) -> None:
-    state.nations["spain"].colonies = {Region.PERU: 1}
-    state.nations["england"].colonies = {Region.PERU: 1}
+    state.nations["spain"].colonies = {Region.PERU: [Colony()]}
+    state.nations["england"].colonies = {Region.PERU: [Colony()]}
     state.nations["france"].expeditions = [Expedition(region=Region.PERU, since=1, progress=90)]
     new = play(state)
     assert new.nations["france"].expeditions == []
@@ -66,8 +70,8 @@ def test_a_full_region_turns_expeditions_back(state: GameState, play: Play) -> N
 def test_crowns_sail_in_their_own_way(state: GameState) -> None:
     na = Region.NORTH_AMERICA
     assert expedition_progress(state, "france", na) > expedition_progress(state, "spain", na)
-    state.nations["spain"].colonies = {Region.PERU: 1}
-    state.nations["england"].colonies = {Region.PERU: 1}
+    state.nations["spain"].colonies = {Region.PERU: [Colony()]}
+    state.nations["england"].colonies = {Region.PERU: [Colony()]}
     assert colonial_dues(state, "spain").ducats > colonial_dues(state, "england").ducats
 
 
@@ -87,9 +91,9 @@ def test_a_fleet_that_rules_the_ocean_takes_colonies(state: GameState, play: Pla
     new.nations["england"].fleets = {"channel": {Ship.GALLEON: 5}}
     new.nations["spain"].fleets = {"atlantic": {Ship.GALLEON: 3}}  # 15.6 against 7.5: enough
     taken = play(new, england=[SeizeColony(region=Region.CARIBBEAN, enemy="spain")])
-    assert taken.nations["england"].colonies == {Region.CARIBBEAN: 1}
-    assert taken.nations["spain"].colonies == {}
+    assert held(taken, "england") == {Region.CARIBBEAN: 1}
+    assert held(taken, "spain") == {}
     new.nations["england"].fleets = {"channel": {Ship.GALLEON: 3}}  # 9.4 against 7.5
     kept = play(new, england=[SeizeColony(region=Region.CARIBBEAN, enemy="spain")])
-    assert kept.nations["spain"].colonies == {Region.CARIBBEAN: 1}
+    assert held(kept, "spain") == {Region.CARIBBEAN: 1}
     assert any("must be 1.5 times" in r for r in reasons(kept))

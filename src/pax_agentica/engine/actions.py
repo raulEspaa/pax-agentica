@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pax_agentica.engine.model import (
     AdvisorRole,
     BuildingKind,
+    ColonyKind,
     Focus,
     NationId,
     PolicyAxis,
@@ -534,10 +535,23 @@ class SendExpedition(_Action):
     """Send settlers and soldiers to found a colony in a region beyond the sea (see
     `new_world` in your view: what each region yields, when it opens, how many places are left
     and how fast your expeditions go). Needs a port of yours on the Atlantic or the Baltic and
-    an escort of rules.expedition_ships fleet strength there; costs rules.expedition_cost. Each
-    year it makes progress; at 100% the colony is founded, unless the region filled up first."""
+    an escort of rules.expedition_ships fleet strength there; costs rules.expedition_cost, times
+    the kind's cost (rules.colony_kinds). Each year it makes progress; at 100% the colony is
+    founded, unless the region filled up first. A plantation ships the region's full cargo and
+    angers its peoples; a trading post is cheap and quick but ships 60%; a settlement starts at
+    half, grows to half again as much, and defends itself."""
 
     type: Literal["send_expedition"] = "send_expedition"
+    region: Region
+    kind: ColonyKind = ColonyKind.PLANTATION
+
+
+class FoundViceroyalty(_Action):
+    """Make a region where you hold rules.viceroyalty_colonies colonies a viceroyalty, under a
+    viceroy of skill 1 to 3: more cargo there (rules.viceroy_cargo a point of skill), and the
+    colonies better held. Costs rules.viceroyalty_cost and rules.viceroyalty_authority."""
+
+    type: Literal["found_viceroyalty"] = "found_viceroyalty"
     region: Region
 
 
@@ -645,6 +659,7 @@ type Action = Annotated[
     | SailFleet
     | SeekBattle
     | SendExpedition
+    | FoundViceroyalty
     | SeizeColony
     | Convert
     | BoostStability

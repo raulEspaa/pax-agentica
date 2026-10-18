@@ -56,6 +56,7 @@ class EventKind(StrEnum):
     COLONY_FOUNDED = "colony_founded"
     EXPEDITION_LOST = "expedition_lost"
     COLONY_SEIZED = "colony_seized"
+    VICEROYALTY = "viceroyalty"
     MISSION_COMPLETED = "mission_completed"
     TAXES_SET = "taxes_set"
     INFAMY = "infamy"

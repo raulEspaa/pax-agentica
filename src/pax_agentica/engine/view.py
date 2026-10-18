@@ -28,13 +28,18 @@ from pax_agentica.engine.mechanics import (
     building_output,
     building_slots,
     colonial_dues,
+    colonial_trade,
     convert_cost,
     develop_cost,
+    expedition_cost,
     expedition_error,
     expedition_progress,
     faith_penalty,
     fleet_pay,
     focus_bonus,
+    good_price,
+    good_supply,
+    inflation_loss,
     inputs_upkeep,
     manpower_cap,
     market_cut,
@@ -49,6 +54,7 @@ from pax_agentica.engine.mechanics import (
     research_cost,
     settlement,
     siege_modifiers,
+    viceroyalty_error,
     war_score,
     workings_yield,
 )
@@ -58,6 +64,9 @@ from pax_agentica.engine.model import (
     Advisor,
     AdvisorRole,
     BuildingKind,
+    ColonialGood,
+    Colony,
+    ColonyKind,
     Expedition,
     Faith,
     Focus,
@@ -83,6 +92,7 @@ from pax_agentica.engine.model import (
     Terrain,
     TreatyKind,
     UnitKind,
+    Viceroy,
     Water,
 )
 from pax_agentica.engine.realm import (
@@ -253,6 +263,17 @@ class AgendaView(_View):
     target: int
 
 
+class TradeView(_View):
+    """A crown's trade in one colonial good."""
+
+    good: ColonialGood
+    cargo: float  # its cargoes a year
+    price: float  # ducats a cargo today (a monopoly's bonus in it)
+    ducats: float  # what they bring, before the crown's own bonuses
+    shipped: float  # every crown's cargoes of it: past the good's glut, prices fall
+    monopoly: bool  # the crown ships rules.monopoly_share of it, and names its price
+
+
 class MyNation(_View):
     id: NationId
     name: str
@@ -275,8 +296,13 @@ class MyNation(_View):
     naval_power: dict[SeaId, float]  # what they are worth there (galleys rule calm seas)
     blockaded: tuple[SeaId, ...]  # zones an enemy fleet holds against you: ports there earn less
     colonies: dict[Region, int]  # your colonies beyond the sea, by region
+    colony_list: dict[Region, tuple[Colony, ...]]  # each one: its kind and the turn it was founded
     expeditions: tuple[Expedition, ...]  # yours under way, with their progress out of 100
     colonial_dues: Resources  # what the colonies send home a year (already in your income)
+    trade: tuple[TradeView, ...]  # your colonial goods: cargoes, prices, monopolies
+    viceroys: dict[Region, Viceroy]  # your viceroyalties
+    inflation: float  # 0 to rules.inflation_max: the land's ducats fall by it; silver feeds it
+    inflation_loss: int  # the ducats it takes this year
     prestige: int  # 0 to 100: ducats, cheaper stability, and half of it counts towards victory
     standing: int  # development plus half the prestige: what wins when time runs out
     faith: Faith
@@ -337,6 +363,7 @@ class NationSummary(_View):
     fleets: dict[SeaId, dict[Ship, int]]  # its ships in each sea zone: navies are public
     naval_power: dict[SeaId, float]  # what they are worth there
     colonies: dict[Region, int]  # its colonies beyond the sea (public)
+    viceroys: dict[Region, str]  # its viceroys, by region (public)
     stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
     infamy: float  # its conquests' weight on Europe; from rules.coalition_infamy, a league may form
     leagued_against: tuple[NationId, ...]  # the conquerors this court has leagued against
@@ -375,7 +402,7 @@ class SeaView(_View):
 
 
 class RegionView(_View):
-    """A region beyond the sea, as the menu of the New World shows it."""
+    """A region beyond the sea, as the chart of the New World shows it."""
 
     id: Region
     name: str
@@ -389,6 +416,15 @@ class RegionView(_View):
     lore: str
     your_progress: int  # what your expedition there would make a year before the die (5-30)
     send_error: str | None  # why you cannot send one now; None: you can
+    good: ColonialGood  # what it ships
+    cargo: int  # cargoes a plantation there ships a year
+    price: float  # ducats a cargo of its good today
+    people: str  # who lives there
+    natives: int  # the regiments its peoples can field
+    viceroys: dict[NationId, str]  # the crowns that made it a viceroyalty, and their viceroys
+    progress_by_kind: dict[ColonyKind, int]  # your progress a year, by the kind of colony
+    cost_by_kind: dict[ColonyKind, Resources]  # what an expedition of each kind costs
+    viceroyalty_error: str | None  # why you cannot make it a viceroyalty; None: you can
 
 
 class CrisisView(_View):
@@ -422,9 +458,10 @@ class NationView(_View):
 
 def _new_world(state: GameState, nation: NationId) -> tuple[RegionView, ...]:
     out = []
+    supply = good_supply(state)
     for region, spec in state.rules.regions.items():
         held = {
-            n: c for n, ns in state.nations.items() if ns.alive and (c := ns.colonies.get(region))
+            n: c for n, ns in state.nations.items() if ns.alive and (c := ns.colony_count(region))
         }
         out.append(
             RegionView(
@@ -440,6 +477,21 @@ def _new_world(state: GameState, nation: NationId) -> tuple[RegionView, ...]:
                 lore=spec.lore,
                 your_progress=expedition_progress(state, nation, region),
                 send_error=expedition_error(state, nation, region),
+                good=spec.good,
+                cargo=spec.cargo,
+                price=round(good_price(state, spec.good, supply), 2),
+                people=spec.people,
+                natives=spec.natives,
+                viceroys={
+                    n: ns.viceroys[region].name
+                    for n, ns in state.nations.items()
+                    if ns.alive and region in ns.viceroys
+                },
+                progress_by_kind={
+                    k: expedition_progress(state, nation, region, k) for k in ColonyKind
+                },
+                cost_by_kind={k: expedition_cost(state.rules, k) for k in ColonyKind},
+                viceroyalty_error=viceroyalty_error(state, nation, region),
             )
         )
     return tuple(out)
@@ -638,9 +690,24 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         fleets={w: dict(ships) for w, ships in me.fleets.items()},
         naval_power=_naval(state, nation),
         blockaded=tuple(sorted(blockaded(state, nation))),
-        colonies=dict(me.colonies),
+        colonies={r: len(c) for r, c in me.colonies.items()},
+        colony_list={r: tuple(c) for r, c in me.colonies.items()},
         expeditions=tuple(me.expeditions),
         colonial_dues=colonial_dues(state, nation),
+        trade=tuple(
+            TradeView(
+                good=t.good,
+                cargo=round(t.cargo, 2),
+                price=round(t.price, 2),
+                ducats=round(t.ducats, 1),
+                shipped=round(t.shipped, 2),
+                monopoly=t.monopoly,
+            )
+            for t in colonial_trade(state, nation)
+        ),
+        viceroys=dict(me.viceroys),
+        inflation=me.inflation,
+        inflation_loss=inflation_loss(state, nation),
         prestige=me.prestige,
         standing=state.standing(nation),
         faith=me.faith,
@@ -725,7 +792,8 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             heir=ns.heir,
             fleets={w: dict(ships) for w, ships in ns.fleets.items()},
             naval_power=_naval(state, nid),
-            colonies=dict(ns.colonies),
+            colonies={r: len(c) for r, c in ns.colonies.items()},
+            viceroys={r: v.name for r, v in ns.viceroys.items()},
             opinion_of_you=state.opinion(nid, nation),
             stances=dict(ns.stances),
             war_exhaustion=ns.war_exhaustion,
@@ -861,6 +929,7 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
     income = nation_income(state, nation).amounts()
     choked = {"ducats": 0}
     dues = colonial_dues(state, nation).amounts()
+    inflated = inflation_loss(state, nation)
     for pid in blockaded_ports(state, nation):
         ducats = province_output(state, pid).ducats
         loss = state.rules.blockade_share * (1 - modifiers(state, nation).convoys)
@@ -873,6 +942,7 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
         - discontent[k]
         - choked.get(k, 0)
         - dues[k]
+        + (inflated if k == "ducats" else 0)
         for k, v in income.items()
     }
     factor = modifiers(state, nation).grain_upkeep_factor
@@ -888,6 +958,7 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
         LedgerLine(kind="income", source="the crown's modifiers", amount=crown),
         LedgerLine(kind="income", source="blockaded ports", amount=choked),
         LedgerLine(kind="income", source="the colonies", amount=dues),
+        LedgerLine(kind="income", source="inflation", amount={"ducats": -inflated}),
         LedgerLine(kind="expense", source="the army", amount=army.amounts()),
         LedgerLine(kind="expense", source="the fleets", amount=fleet.amounts()),
         LedgerLine(kind="expense", source="the council", amount=council.amounts()),

@@ -49,5 +49,17 @@ COLONIAL_SPIRITS: dict[NationId, ColonialSpirit] = {
     ),
 }
 
+# Viceroys and governors of the age, by crown; the others name governors of their own.
+VICEROYS: dict[NationId, tuple[str, ...]] = {
+    "spain": ("Antonio de Mendoza", "Francisco de Toledo", "Luis de Velasco", "Martín Enríquez",
+              "Andrés Hurtado de Mendoza", "Blasco Núñez Vela"),
+    "england": ("Walter Raleigh", "Humphrey Gilbert", "Ralph Lane", "Thomas Gates",
+                "George Somers", "Richard Grenville"),
+    "france": ("Jean-François de Roberval", "Samuel de Champlain", "Pierre Dugua de Mons",
+               "Charles de Montmagny", "Nicolas Durand de Villegaignon", "Jacques Cartier"),
+}  # fmt: skip
+GOVERNORS = ("Gerhard Mercator", "Olof Larsson", "Ivan Kurbsky", "Jan Zamoyski", "Ahmed Reis",
+             "Georg Fugger", "Lorenzo Tiepolo", "Heinrich Ehinger")  # fmt: skip
+
 # The colonies of 1500: Hispaniola, eight years after Columbus.
 STARTING_COLONIES: dict[NationId, dict[Region, int]] = {"spain": {Region.CARIBBEAN: 1}}

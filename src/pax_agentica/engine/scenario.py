@@ -11,6 +11,7 @@ import random
 from pax_agentica.engine.colonies import STARTING_COLONIES
 from pax_agentica.engine.model import (
     BuildingKind,
+    Colony,
     Faith,
     GameState,
     General,
@@ -741,7 +742,9 @@ def new_game(seed: int, max_turns: int = 50, rules: Rules | None = None) -> Game
             faith=FAITHS.get(nid, Faith.CATHOLIC),
             prestige=STARTING_PRESTIGE.get(nid, 10),
             fleets={w: dict(ships) for w, ships in STARTING_FLEETS.get(nid, {}).items()},
-            colonies=dict(STARTING_COLONIES.get(nid, {})),
+            colonies={
+                r: [Colony() for _ in range(n)] for r, n in STARTING_COLONIES.get(nid, {}).items()
+            },
         )
         for nid, name, color, capital in _NATIONS
     }

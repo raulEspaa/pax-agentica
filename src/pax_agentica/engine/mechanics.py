@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from pax_agentica.engine.colonies import COLONIAL_SPIRITS
 from pax_agentica.engine.model import (
     BuildingKind,
+    ColonialGood,
+    Colony,
+    ColonyKind,
     Focus,
     GameState,
     Good,
@@ -426,10 +429,10 @@ def landing_sea(
     return best
 
 
-def nation_income(state: GameState, nation: NationId) -> Resources:
+def nation_income(state: GameState, nation: NationId, inflated: bool = True) -> Resources:
     """Total production per turn, with stability and the realm's modifiers (technology, ruler,
     treasurer) applied to ducats, and economy technology to grain. A blockaded port loses
-    rules.blockade_share of its ducats."""
+    rules.blockade_share of its ducats; inflation takes its share of the land's ducats."""
     rules = state.rules
     total = Resources()
     shut = set(blockaded_ports(state, nation))
@@ -442,6 +445,8 @@ def nation_income(state: GameState, nation: NationId) -> Resources:
     mods = modifiers(state, nation)
     stability = rules.stability_income_bonus * state.nations[nation].stability
     ducats = total.ducats * (1 + stability + mods.ducat_income)
+    if inflated:
+        ducats *= 1 - min(rules.inflation_max, state.nations[nation].inflation)
     grain = total.grain * (1 + mods.grain_income)
     men = (
         total.manpower
@@ -460,24 +465,117 @@ def nation_income(state: GameState, nation: NationId) -> Resources:
 # ---------------------------------------------------------------- the New World
 
 
+def inflation_loss(state: GameState, nation: NationId) -> int:
+    """The ducats inflation takes from the land this year."""
+    if not state.nations[nation].inflation:
+        return 0
+    return nation_income(state, nation, inflated=False).ducats - nation_income(state, nation).ducats
+
+
+def colony_share(rules: Rules, colony: Colony, turn: int) -> float:
+    """A colony's share of its region's cargo: by its kind, and a settlement's by its years."""
+    spec = rules.colony_kinds[colony.kind]
+    return min(spec.most, spec.cargo + spec.growth * max(0, turn - colony.founded))
+
+
+def colonial_cargo(state: GameState, nation: NationId) -> dict[Region, float]:
+    """The cargoes a crown's colonies ship home a year, by region (a viceroy adds to them)."""
+    rules, me = state.rules, state.nations[nation]
+    out: dict[Region, float] = {}
+    for region, held in me.colonies.items():
+        vice = me.viceroys.get(region)
+        more = 1 + (rules.viceroy_cargo * vice.skill if vice else 0.0)
+        out[region] = (
+            rules.regions[region].cargo
+            * more
+            * sum(colony_share(rules, c, state.turn) for c in held)
+        )
+    return out
+
+
+def good_supply(state: GameState) -> dict[ColonialGood, float]:
+    """The cargoes of each colonial good every crown together ships a year."""
+    supply = dict.fromkeys(ColonialGood, 0.0)
+    for nid, n in state.nations.items():
+        if n.alive and n.colonies:
+            for region, cargo in colonial_cargo(state, nid).items():
+                supply[state.rules.regions[region].good] += cargo
+    return supply
+
+
+def good_price(
+    state: GameState, good: ColonialGood, supply: dict[ColonialGood, float] | None = None
+) -> float:
+    """A cargo's price in ducats: the good's base, less for every cargo past what Europe wants."""
+    rules = state.rules
+    spec = rules.goods[good]
+    shipped = (supply or good_supply(state))[good]
+    glut = rules.good_price_drop * max(0.0, shipped - spec.glut)
+    return spec.price * max(rules.good_price_floor, 1 - glut)
+
+
+@dataclass(frozen=True)
+class GoodTrade:
+    """A crown's trade in one colonial good this year."""
+
+    good: ColonialGood
+    cargo: float  # its cargoes
+    price: float  # ducats each, monopoly included
+    ducats: float  # what it brings, before the crown's own bonuses
+    shipped: float  # every crown's cargoes of it
+    monopoly: bool  # the crown ships most of it, and names its price
+
+
+def colonial_trade(state: GameState, nation: NationId) -> list[GoodTrade]:
+    """What each of the crown's colonial goods brings home, at today's prices."""
+    rules = state.rules
+    supply = good_supply(state)
+    mine = dict.fromkeys(ColonialGood, 0.0)
+    for region, cargo in colonial_cargo(state, nation).items():
+        mine[rules.regions[region].good] += cargo
+    out = []
+    for good, cargo in mine.items():
+        if cargo <= 0:
+            continue
+        # the master of a good ships most of it, and at least half what Europe wants of it
+        master = (
+            cargo >= rules.monopoly_share * supply[good] and cargo >= rules.goods[good].glut / 2
+        )
+        price = good_price(state, good, supply) * (1 + (rules.monopoly_bonus if master else 0.0))
+        out.append(GoodTrade(good, cargo, price, cargo * price, supply[good], master))
+    return out
+
+
 def colonial_dues(state: GameState, nation: NationId) -> Resources:
-    """What a crown's colonies send home a year: each region's due per colony, more for the
-    crowns that know how to work it, and much less while an enemy blockades the Atlantic (the
-    treasure fleets cannot sail)."""
+    """What a crown's colonies send home a year: their cargoes sold at the goods' prices, and
+    each region's other dues by its colonies' shares; more for the crowns that know how to work
+    them, and much less while an enemy blockades the Atlantic (the treasure fleets cannot sail)."""
     me = state.nations[nation]
     if not me.colonies:
         return Resources()
     rules = state.rules
     spirit = COLONIAL_SPIRITS.get(nation)
+    learnt = modifiers(state, nation).colonial_dues
     total = {k: 0.0 for k in Resources.model_fields}
-    for region, n in me.colonies.items():
-        bonus = 1 + (spirit.dues.get(region, 0.0) if spirit else 0.0)
-        bonus += modifiers(state, nation).colonial_dues
-        for k, v in rules.regions[region].yields.amounts().items():
-            total[k] += v * n * bonus
+    prices = {t.good: t.price for t in colonial_trade(state, nation)}
+    cargo = colonial_cargo(state, nation)
+    for region, held in me.colonies.items():
+        spec = rules.regions[region]
+        bonus = 1 + (spirit.dues.get(region, 0.0) if spirit else 0.0) + learnt
+        total["ducats"] += cargo.get(region, 0.0) * prices.get(spec.good, 0.0) * bonus
+        share = sum(colony_share(rules, c, state.turn) for c in held)
+        for k, v in spec.yields.amounts().items():
+            total[k] += v * share * bonus
     if ocean_blockaded(state, nation):
         total = {k: v * (1 - rules.colonial_blockade) for k, v in total.items()}
     return Resources(**{k: math.floor(v) for k, v in total.items()})
+
+
+def silver_shipped(state: GameState, nation: NationId) -> float:
+    """The ducats of silver a crown ships home a year, which feed its inflation."""
+    return sum(
+        t.ducats for t in colonial_trade(state, nation) if state.rules.goods[t.good].inflation
+    )
 
 
 def colonial_ports(state: GameState, nation: NationId) -> list[ProvinceId]:
@@ -492,7 +590,7 @@ def colonial_ports(state: GameState, nation: NationId) -> list[ProvinceId]:
 
 def colonies_in(state: GameState, region: Region) -> int:
     """The colonies every crown together holds in a region."""
-    return sum(n.colonies.get(region, 0) for n in state.nations.values() if n.alive)
+    return sum(n.colony_count(region) for n in state.nations.values() if n.alive)
 
 
 def ocean_fleet(state: GameState, nation: NationId) -> float:
@@ -500,10 +598,20 @@ def ocean_fleet(state: GameState, nation: NationId) -> float:
     return ocean_power(state, nation, (Water.ATLANTIC, Water.BALTIC))
 
 
-def expedition_progress(state: GameState, nation: NationId, region: Region) -> int:
+def expedition_cost(rules: Rules, kind: ColonyKind) -> Resources:
+    """What an expedition to found a colony of this kind costs."""
+    share = rules.colony_kinds[kind].cost
+    return Resources(
+        **{k: math.ceil(v * share) for k, v in rules.expedition_cost.amounts().items()}
+    )
+
+
+def expedition_progress(
+    state: GameState, nation: NationId, region: Region, kind: ColonyKind = ColonyKind.PLANTATION
+) -> int:
     """An expedition's progress a year before the die (which adds 5 to 30): the base, the
-    escorting fleet, the crown's own way, less the region's hardness, and less again sailing
-    the long way round from the Baltic."""
+    escorting fleet, the crown's own way and the kind of colony, less the region's hardness,
+    and less again sailing the long way round from the Baltic."""
     rules = state.rules
     spirit = COLONIAL_SPIRITS.get(nation)
     fleet = min(
@@ -517,6 +625,7 @@ def expedition_progress(state: GameState, nation: NationId, region: Region) -> i
         + fleet
         + (spirit.progress.get(region, 0) if spirit else 0)
         + modifiers(state, nation).colonial
+        + rules.colony_kinds[kind].progress
         - rules.regions[region].hardness
         - (0 if atlantic else rules.expedition_baltic)
     )
@@ -539,8 +648,21 @@ def expedition_error(state: GameState, nation: NationId, region: Region) -> str 
         return f"no more than {rules.expeditions_at_once} expeditions at once"
     if colonies_in(state, region) >= spec.slots:
         return f"{spec.name} is full: every place there is taken"
-    if me.colonies.get(region, 0) >= region_cap(rules, region):
+    if me.colony_count(region) >= region_cap(rules, region):
         return f"you hold all of {spec.name} one crown may: the other crowns will not suffer more"
+    return None
+
+
+def viceroyalty_error(state: GameState, nation: NationId, region: Region) -> str | None:
+    """Why a crown cannot make a region a viceroyalty now (None: it can)."""
+    rules, me = state.rules, state.nations[nation]
+    name = rules.regions[region].name
+    if region in me.viceroys:
+        return f"{name} is already a viceroyalty of yours"
+    if me.colony_count(region) < rules.viceroyalty_colonies:
+        return f"a viceroyalty needs {rules.viceroyalty_colonies} colonies of yours in {name}"
+    if me.authority < rules.viceroyalty_authority:
+        return f"a viceroyalty needs {rules.viceroyalty_authority} authority"
     return None
 
 

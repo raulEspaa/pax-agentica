@@ -798,6 +798,135 @@ class Region(StrEnum):
     NORTH_AMERICA = "north_america"
 
 
+class ColonialGood(StrEnum):
+    """What the colonies ship home, sold on Europe's markets at a price of its own."""
+
+    SUGAR = "sugar"
+    SILVER = "silver"
+    SPICES = "spices"
+    FURS = "furs"
+    GOLD = "gold"
+
+
+class GoodSpec(BaseModel):
+    """A colonial good's price: its base, falling as the crowns ship more of it than Europe
+    wants (its glut), never below a floor; silver also feeds the inflation of whoever ships it."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    price: float  # ducats a cargo, when Europe wants all that comes
+    glut: int  # cargoes a year Europe takes at full price, among all the crowns
+    inflation: float = 0.0  # inflation for each ducat of it shipped home
+    lore: str = ""
+
+
+def default_goods() -> dict[ColonialGood, GoodSpec]:
+    return {
+        ColonialGood.SUGAR: GoodSpec(
+            name="Sugar",
+            price=2.0,
+            glut=8,
+            lore="White gold of the islands, sweetening every table in Christendom.",
+        ),
+        ColonialGood.SILVER: GoodSpec(
+            name="Silver",
+            price=3.0,
+            glut=6,
+            inflation=0.002,
+            lore="Pieces of eight by the shipload: riches that make every price rise.",
+        ),
+        ColonialGood.SPICES: GoodSpec(
+            name="Spices",
+            price=3.0,
+            glut=5,
+            lore="Pepper, cloves and nutmeg, worth their weight in gold at Antwerp.",
+        ),
+        ColonialGood.FURS: GoodSpec(
+            name="Furs", price=1.5, glut=8, lore="Beaver for the hats of every gentleman in Europe."
+        ),
+        ColonialGood.GOLD: GoodSpec(
+            name="Gold",
+            price=2.0,
+            glut=6,
+            lore="Gold dust and ivory from the forts of the Gold Coast.",
+        ),
+    }
+
+
+class ColonyKind(StrEnum):
+    """How a colony is founded and worked."""
+
+    PLANTATION = (
+        "plantation"  # fields and mines worked hard: the full cargo, and the natives' anger
+    )
+    POST = "post"  # a trading post: cheap and quick, a little cargo, little anger
+    SETTLEMENT = "settlement"  # settlers who stay: slow to pay, growing, defending themselves
+
+
+class ColonyKindSpec(BaseModel):
+    """What each kind of colony costs, how fast it is founded and what it ships."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    cost: float  # times rules.expedition_cost
+    progress: int  # more (or less) progress a year for its expedition
+    cargo: float  # its share of the region's cargo when founded
+    growth: float = 0.0  # more of it each year, up to `most`
+    most: float = 1.0
+    militia: int = 0  # regiments its own people raise to defend it
+    anger: float = 1.0  # how much it angers the peoples of the land
+    effect: str = ""
+
+
+def default_colony_kinds() -> dict[ColonyKind, ColonyKindSpec]:
+    return {
+        ColonyKind.PLANTATION: ColonyKindSpec(
+            name="Plantation",
+            cost=1.0,
+            progress=0,
+            cargo=1.0,
+            anger=1.5,
+            effect="the full cargo of the region; angers the peoples of the land the most",
+        ),
+        ColonyKind.POST: ColonyKindSpec(
+            name="Trading post",
+            cost=0.5,
+            progress=10,
+            cargo=0.6,
+            anger=0.5,
+            effect="half the cost and a quicker voyage; 60% of the cargo; little anger",
+        ),
+        ColonyKind.SETTLEMENT: ColonyKindSpec(
+            name="Settlement",
+            cost=1.25,
+            progress=-5,
+            cargo=0.5,
+            growth=0.08,
+            most=1.5,
+            militia=1,
+            effect="half the cargo at first, growing to half again as much in twelve "
+            "years; its settlers defend it",
+        ),
+    }
+
+
+class Colony(BaseModel):
+    """One colony of a crown: how it was founded, and when."""
+
+    kind: ColonyKind = ColonyKind.PLANTATION
+    founded: int = 1  # the turn
+
+
+class Viceroy(BaseModel):
+    """The crown's viceroy over a region where it holds a viceroyalty."""
+
+    name: str
+    skill: int = Field(ge=1, le=3)  # more cargo, and the colonies better held
+    since: int  # the turn
+
+
 class RegionSpec(BaseModel):
     """What a region beyond the sea offers, and how hard it is to hold."""
 
@@ -806,10 +935,15 @@ class RegionSpec(BaseModel):
     name: str
     opens: int  # the year the way there is known
     slots: int  # colonies it can hold, among all the crowns together
-    yields: Resources  # each colony's yearly due to its crown
+    yields: Resources  # each colony's yearly due to its crown, besides its cargo
     hardness: int  # taken off each year's progress: distance, fevers, those who live there
     goods: str  # what it sends home, in words
     lore: str
+    good: ColonialGood = ColonialGood.SUGAR  # its cargo, sold at the good's price
+    cargo: int = 2  # cargoes a plantation there ships a year
+    people: str = ""  # who lives there
+    natives: int = 0  # the regiments its peoples can field
+    plunder: int = 0  # ducats for whoever breaks them
 
 
 def default_regions() -> dict[Region, RegionSpec]:
@@ -818,64 +952,99 @@ def default_regions() -> dict[Region, RegionSpec]:
             name="The Caribbean",
             opens=1500,
             slots=4,
-            yields=Resources(ducats=4, goods=1),
+            yields=Resources(goods=1),
             hardness=0,
             goods="sugar and logwood",
             lore="Hispaniola, Cuba, the Antilles: the first landfall of the Indies.",
+            good=ColonialGood.SUGAR,
+            cargo=2,
+            people="the Taíno and the Caribs",
+            natives=4,
+            plunder=20,
         ),
         Region.BRAZIL: RegionSpec(
             name="Brazil",
             opens=1500,
             slots=3,
-            yields=Resources(ducats=3, timber=2),
+            yields=Resources(timber=2),
             hardness=5,
             goods="brazilwood and sugar",
             lore="The coast Cabral sighted in 1500, red with the dyewood that gave it a name.",
+            good=ColonialGood.SUGAR,
+            cargo=2,
+            people="the Tupi",
+            natives=6,
+            plunder=20,
         ),
         Region.GUINEA: RegionSpec(
             name="The Guinea coast",
             opens=1500,
             slots=3,
-            yields=Resources(ducats=4),
+            yields=Resources(),
             hardness=5,
             goods="gold dust and ivory",
             lore="Forts on the Gold Coast, traded for by the castle of Elmina.",
+            good=ColonialGood.GOLD,
+            cargo=2,
+            people="the kingdoms of the Akan and of Benin",
+            natives=10,
+            plunder=40,
         ),
         Region.EAST_INDIES: RegionSpec(
             name="The East Indies",
             opens=1511,
             slots=3,
-            yields=Resources(ducats=6, goods=1),
+            yields=Resources(goods=1),
             hardness=15,
             goods="pepper, cloves and nutmeg",
             lore="Malacca and the Spice Islands, round the Cape and across the Indian Ocean.",
+            good=ColonialGood.SPICES,
+            cargo=2,
+            people="the sultanates of the Spice Islands",
+            natives=12,
+            plunder=60,
         ),
         Region.NEW_SPAIN: RegionSpec(
             name="New Spain",
             opens=1519,
             slots=2,
-            yields=Resources(ducats=9),
+            yields=Resources(),
             hardness=10,
             goods="the silver of Zacatecas",
             lore="The empire of the Mexica, and the silver mines beyond it.",
+            good=ColonialGood.SILVER,
+            cargo=3,
+            people="the Mexica empire of Moctezuma",
+            natives=16,
+            plunder=150,
         ),
         Region.PERU: RegionSpec(
             name="Peru",
             opens=1532,
             slots=2,
-            yields=Resources(ducats=11),
+            yields=Resources(),
             hardness=15,
             goods="the silver mountain of Potosí",
             lore="The realm of the Inca, high in the Andes, and the mountain of silver.",
+            good=ColonialGood.SILVER,
+            cargo=4,
+            people="the Inca empire of Atahualpa",
+            natives=14,
+            plunder=200,
         ),
         Region.NORTH_AMERICA: RegionSpec(
             name="North America",
             opens=1534,
             slots=5,
-            yields=Resources(ducats=2, timber=2, grain=2),
+            yields=Resources(timber=2, grain=2),
             hardness=5,
             goods="furs, cod and timber",
             lore="The St Lawrence, the Chesapeake and the cold banks of cod.",
+            good=ColonialGood.FURS,
+            cargo=2,
+            people="the Haudenosaunee and the Algonquian nations",
+            natives=8,
+            plunder=10,
         ),
     }
 
@@ -1834,6 +2003,11 @@ class Rules(BaseModel):
             costs = data.get("tech_costs")
             if isinstance(costs, dict) and set(costs) != {b.value for b in TechBranch}:
                 data = {k: v for k, v in data.items() if k != "tech_costs"}
+        regions = data.get("regions") if isinstance(data, dict) else None
+        if isinstance(regions, dict) and any(
+            isinstance(r, dict) and "good" not in r for r in regions.values()
+        ):  # regions saved before the colonial goods: the game takes today's regions
+            data = {k: v for k, v in data.items() if k != "regions"}
         if isinstance(data, dict) and isinstance(data.get("ships"), dict):
             # ships saved before a field was added take it from the ship of the same kind
             defaults = default_ships()
@@ -2011,6 +2185,18 @@ class Rules(BaseModel):
     prestige_colony: int = 3
     colonial_blockade: float = 0.5  # share of colonial dues lost while the Atlantic is blockaded
     seize_command: float = 2.0  # Atlantic fleet times the enemy's needed to take a colony
+    goods: dict[ColonialGood, GoodSpec] = Field(default_factory=default_goods)
+    colony_kinds: dict[ColonyKind, ColonyKindSpec] = Field(default_factory=default_colony_kinds)
+    good_price_drop: float = 0.04  # of a good's price lost for each cargo a year past its glut
+    good_price_floor: float = 0.5  # the lowest share of its price a good falls to
+    monopoly_share: float = 0.6  # of a good's cargoes, the share that makes a crown its master
+    monopoly_bonus: float = 0.25  # more for the master's cargoes of it
+    inflation_decay: float = 0.01  # inflation lost each year
+    inflation_max: float = 0.3  # the most: income in ducats falls by the inflation
+    viceroyalty_colonies: int = 3  # colonies in a region a viceroyalty needs
+    viceroyalty_cost: Resources = Resources(ducats=80)
+    viceroyalty_authority: int = 20
+    viceroy_cargo: float = 0.1  # more cargo in the region per point of the viceroy's skill
     # from a hamlet to a great city, by development: each step up gives room for one more work
     settlements: tuple[Settlement, ...] = Field(default_factory=default_settlements)
     # what a building does and eats at each level, times its first level's
@@ -2410,8 +2596,44 @@ class NationState(BaseModel):
     claims: list[NationId] = Field(default_factory=list)  # thrones this crown may press a claim to
     deeds: dict[str, int] = Field(default_factory=dict)  # counts of what the realm has done
     fleets: dict[SeaId, dict[Ship, int]] = Field(default_factory=dict)  # by sea zone; public
-    colonies: dict[Region, int] = Field(default_factory=dict)  # public: every crown's empire
+    colonies: dict[Region, list[Colony]] = Field(default_factory=dict)  # public: every empire
     expeditions: list[Expedition] = Field(default_factory=list)  # under way
+    inflation: float = 0.0  # 0 to rules.inflation_max: the silver that made every price rise
+    viceroys: dict[Region, Viceroy] = Field(default_factory=dict)  # public
+
+    @model_validator(mode="before")
+    @classmethod
+    def _colonies_one_by_one(cls, data: Any) -> Any:
+        """A realm saved when colonies were counted: each becomes a plantation."""
+        if isinstance(data, dict) and isinstance(data.get("colonies"), dict):
+            data = {
+                **data,
+                "colonies": {
+                    r: [{"kind": "plantation"} for _ in range(v)] if isinstance(v, int) else v
+                    for r, v in data["colonies"].items()
+                },
+            }
+        return data
+
+    def colony_count(self, region: Region) -> int:
+        return len(self.colonies.get(region, []))
+
+    def colony_total(self) -> int:
+        return sum(len(c) for c in self.colonies.values())
+
+    def add_colony(self, region: Region, colony: Colony) -> None:
+        self.colonies.setdefault(region, []).append(colony)
+
+    def lose_colony(self, region: Region) -> Colony | None:
+        """The newest colony in a region goes (the oldest are held hardest)."""
+        held = self.colonies.get(region, [])
+        if not held:
+            return None
+        lost = held.pop()
+        if not held:
+            del self.colonies[region]
+            self.viceroys.pop(region, None)
+        return lost
 
     def ships(self, sea: SeaId) -> dict[Ship, int]:
         """The ships in a sea zone, every kind listed."""
@@ -2432,6 +2654,7 @@ class Expedition(BaseModel):
     region: Region
     since: int  # the turn it sailed
     progress: int = Field(default=0, ge=0)  # out of 100
+    kind: ColonyKind = ColonyKind.PLANTATION  # the colony it will found
 
 
 class PendingEvent(BaseModel):

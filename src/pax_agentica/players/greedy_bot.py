@@ -14,6 +14,7 @@ It only reads its `NationView`, exactly like an LLM ruler would.
 import math
 import random
 from collections import deque
+from typing import ClassVar
 
 from pax_agentica.engine import NationView, Orders, Resources
 from pax_agentica.engine.actions import (
@@ -31,6 +32,7 @@ from pax_agentica.engine.actions import (
     DeclareWar,
     Develop,
     EducateHeir,
+    FoundViceroyalty,
     HireAdvisor,
     HireGeneral,
     HireMercenaries,
@@ -69,6 +71,7 @@ from pax_agentica.engine.mechanics import tactic_factor
 from pax_agentica.engine.model import (
     AdvisorRole,
     BuildingKind,
+    ColonyKind,
     Focus,
     Good,
     Personality,
@@ -845,6 +848,7 @@ class _Planner:
         self._research(reserve)
         self._council(reserve)
         self._policies()
+        self._viceroyalty()  # authority first for the colonies, then the royal acts
         self._crown()
         self._dynasty()
         self._focus(reserve)  # cheap and for good: before the works
@@ -922,27 +926,58 @@ class _Planner:
                 self.budget = self.budget - spec.cost.times(n)
                 room -= n * spec.pay
 
+    # how each crown likes to settle: Spain works plantations, France sends settlers, England
+    # trades first
+    TASTE: ClassVar[dict[str, ColonyKind]] = {
+        "spain": ColonyKind.PLANTATION,
+        "france": ColonyKind.SETTLEMENT,
+        "england": ColonyKind.POST,
+    }
+
     def _colonize(self, reserve: int) -> None:
-        """With ducats to spare, send an expedition where a colony pays best for the years it
-        takes, while places are left."""
-        rules = self.v.rules
-        cost = rules.expedition_cost
+        """With ducats to spare, send an expedition where a colony pays best for its cost and
+        the years it takes, while places are left: of the kind that pays best there."""
+        taste = self.TASTE.get(self.me.id)
+        lasting = {ColonyKind.PLANTATION: 1.0, ColonyKind.POST: 0.6, ColonyKind.SETTLEMENT: 1.1}
+
+        left = self.v.max_turns - self.v.turn
+
+        def worth(r: RegionView, kind: ColonyKind) -> float:
+            """What the colony would bring over the years left, less what it costs."""
+            y = r.yields
+            due = r.cargo * r.price + 2 * y.goods + y.timber + 0.8 * y.grain + y.iron
+            free = r.slots - sum(r.held.values())
+            years = 100 / max(5, r.progress_by_kind[kind] + 17.5)
+            liked = 1.2 if kind == taste else 1.0
+            earned = due * lasting[kind] * liked * max(0.0, left - years)
+            return min(1.0, free / 2) * earned - r.cost_by_kind[kind].ducats
+
+        ready = [
+            (worth(r, k), r.id.value, k.value, r, k)
+            for r in self.v.new_world
+            if r.send_error is None
+            for k in ColonyKind
+        ]
+        if not ready or max(ready, key=lambda c: c[:3])[0] <= 0:
+            return
+        _, _, _, best, kind = max(ready, key=lambda c: c[:3])
+        cost = best.cost_by_kind[kind]
         if self.budget.ducats < cost.ducats + reserve + 20 or not self.budget.covers(cost):
             return
+        self.actions.append(SendExpedition(region=best.id, kind=kind))
+        self.budget = self.budget - cost
 
-        def worth(r: RegionView) -> float:
-            y = r.yields
-            due = y.ducats + 2 * y.goods + y.timber + 0.8 * y.grain + y.iron
-            free = r.slots - sum(r.held.values())
-            years = 100 / max(5, r.your_progress + 17.5)
-            return due * min(1.0, free / 2) / years
-
-        ready = [r for r in self.v.new_world if r.send_error is None]
+    def _viceroyalty(self) -> None:
+        """Make the region with the most colonies a viceroyalty, once it can be."""
+        rules = self.v.rules
+        if not self.budget.covers(rules.viceroyalty_cost) or self.budget.ducats < 150:
+            return
+        ready = [r for r in self.v.new_world if r.viceroyalty_error is None]
         if not ready:
             return
-        best = max(ready, key=lambda r: (worth(r), r.id.value))
-        self.actions.append(SendExpedition(region=best.id))
-        self.budget = self.budget - cost
+        best = max(ready, key=lambda r: (r.cargo * r.price, r.id.value))
+        self.actions.append(FoundViceroyalty(region=best.id))
+        self.budget = self.budget - rules.viceroyalty_cost
 
     def _ocean(self, nation: str) -> float:
         return sum(
@@ -961,7 +996,8 @@ class _Planner:
                 continue
             if mine < rules.seize_command * self._ocean(enemy):  # the Sea Dogs need less
                 continue
-            region = max(other.colonies, key=lambda r: (rules.regions[r].yields.ducats, r.value))
+            regions = rules.regions
+            region = max(other.colonies, key=lambda r: (regions[r].cargo, r.value))
             self.actions.append(SeizeColony(region=region, enemy=enemy))
 
     def _sea_battles(self) -> None:

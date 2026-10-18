@@ -558,15 +558,35 @@ year (a tournament may set `pay`, ducats a year at war).
 
 The lands beyond the sea are not on the map: they are in the office of the New World.
 
-| Region | Opens | Places | Each colony a year | Hardness |
+| Region | Opens | Places | Good, cargoes a year | Also | Hardness | Peoples (regiments) |
+|---|---|---|---|---|---|---|
+| The Caribbean | 1500 | 4 | sugar, 2 | 1 goods | 0 | the Taíno and the Caribs (4) |
+| Brazil | 1500 | 3 | sugar, 2 | 2 timber | 5 | the Tupi (6) |
+| The Guinea coast | 1500 | 3 | gold, 2 | | 5 | the Akan and Benin (10) |
+| The East Indies | 1511 | 3 | spices, 2 | 1 goods | 15 | the sultanates of the Spice Islands (12) |
+| New Spain | 1519 | 2 | silver, 3 | | 10 | the Mexica empire (16) |
+| Peru | 1532 | 2 | silver, 4 | | 15 | the Inca empire (14) |
+| North America | 1534 | 5 | furs, 2 | 2 timber, 2 grain | 5 | the Haudenosaunee and Algonquians (8) |
+
+**Colonial goods.** A colony ships its region's cargoes, sold in Europe at the good's price:
+sugar 2 ducats a cargo, silver 3, spices 3, furs 1.5, gold 2. Each good has a glut (sugar 8
+cargoes a year among all the crowns, silver 6, spices 5, furs 8, gold 6): past it, every cargo
+more takes 4% off the price, down to half. A crown that ships three in five of a good's cargoes,
+and at least half its glut, is its **master**: 25% more for its cargoes of it.
+
+**Inflation.** Every ducat of silver shipped home adds 0.2% inflation, and each year takes 1%
+off, up to 30%. The land's ducats fall by the inflation (a line of its own in the ledger).
+
+**Kinds of colony.** `send_expedition` names the kind:
+
+| Kind | Cost | Progress | Cargo | |
 |---|---|---|---|---|
-| The Caribbean | 1500 | 4 | 4 ducats, 1 goods | 0 |
-| Brazil | 1500 | 3 | 3 ducats, 2 timber | 5 |
-| The Guinea coast | 1500 | 3 | 4 ducats | 5 |
-| The East Indies | 1511 | 3 | 6 ducats, 1 goods | 15 |
-| New Spain | 1519 | 2 | 9 ducats | 10 |
-| Peru | 1532 | 2 | 11 ducats | 15 |
-| North America | 1534 | 5 | 2 ducats, 2 timber, 2 grain | 5 |
+| Plantation | 40 ducats, 3 manpower | as is | the full cargo | angers the peoples the most |
+| Trading post | half | 10 more a year | 60% | little anger |
+| Settlement | a quarter more | 5 less | half, growing 8% a year to 150% | its settlers defend it (1 regiment) |
+
+**Viceroyalties.** With 3 colonies in a region, `found_viceroyalty` (80 ducats, 20 authority)
+names a viceroy of skill 1 to 3: 10% more cargo there per point of skill.
 
 - `send_expedition` costs 40 ducats and 3 manpower. It needs a port of yours on the ocean or
   the Baltic and an escort: fleets of strength 2.5 on their zones. No more than 2 at once, one per region.
@@ -575,7 +595,7 @@ The lands beyond the sea are not on the map: they are in the office of the New W
   port. At 100% it founds a colony (+3 prestige), unless every place was taken first: then it
   comes home with nothing.
 - A region's places are shared by every crown; one crown may hold at most half of them.
-- The colonies' dues are part of the yearly income. While enemy fleets hold every ocean zone
+- The colonies' dues (cargoes and other dues) are part of the yearly income. While enemy fleets hold every ocean zone
   your ports look onto, the treasure fleets cannot sail: the dues are halved.
 - At war, `seize_colony` takes one colony a year from each enemy, if your fleets on the ocean
   zones are twice the enemy's (+3 prestige to you, −3 to them).
