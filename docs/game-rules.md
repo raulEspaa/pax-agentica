@@ -149,6 +149,35 @@ least 5 years. The bonus is 15% in a hamlet and 5% more for each step its town h
 | Garrison | its manpower +twice the bonus, and its own people defend it half the bonus harder |
 | Learning | developing it costs the bonus less (ducats and timber); each province of learning makes the realm's research 3% cheaper, up to 15% |
 
+### Designations
+
+A focus grows into a **designation** as the province builds what it needs. The focus alone is
+tier 1. One of the designation's key works standing (and fed) makes tier 2: one more building
+slot. Two make tier 3: a landmark of its own, a bonus to the realm's provinces next to it, and
+an effect across the realm (no more than two of a kind count for the realm).
+
+| Focus | Designation | Key works | Tier 3: next door | Tier 3: the realm |
+|---|---|---|---|---|
+| Trade | Trade town (Trade port by the sea) | marketplace, bank, workshop | +5% ducats | the merchants' cut 5% lower |
+| Farming | Granary | farm estates, lumber mill, marketplace | +5% grain | armies eat 5% less grain |
+| Mining | Arsenal | ironworks, armory, cannon foundry | +10% iron | +2% battle power |
+| Garrison | Fortress | fort, citadel, training grounds, barracks | defended 10% harder | forts +3% |
+| Learning | University town | university, cathedral, observatory | +3% ducats | research 5% cheaper |
+| Shipyard (a port only) | Shipyard | lumber mill, workshop, ironworks | +10% timber | ships 10% cheaper |
+
+A shipyard's focus is timber, and from tier 2 its yards launch two more ships a year.
+
+### Policies
+
+Three great choices, each with two sides (`set_policy`). The first side taken on an axis is
+free; changing it costs 1 stability, and a policy stands at least 10 years.
+
+| Axis | One side | The other |
+|---|---|---|
+| Army | Professional army: +5% battle power, victories season a quarter faster, −10% manpower | Militia levies: +20% manpower, −4% morale |
+| Economy | Agrarian: +10% grain, +5% manpower | Mercantile: +5% ducats, the merchants' cut 10% lower |
+| State | Centralism: +4% ducats, research 5% cheaper, stability 10% dearer | Fueros: stability 15% cheaper, −3% ducats |
+
 ### Inputs and idle buildings
 
 Some buildings **consume** every year: marketplaces a bale of goods (they sell it), universities a

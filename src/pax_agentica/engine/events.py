@@ -46,6 +46,7 @@ class EventKind(StrEnum):
     BUILT = "built"
     IMPROVED = "improved"
     FOCUS_SET = "focus_set"
+    POLICY_SET = "policy_set"
     SHIPS_BUILT = "ships_built"
     FLEET_SAILED = "fleet_sailed"
     EXPEDITION_SENT = "expedition_sent"

@@ -889,6 +889,123 @@ class Focus(StrEnum):
     MINING = "mining"  # more iron and timber
     GARRISON = "garrison"  # more manpower, defended harder
     LEARNING = "learning"  # cheaper to develop, and the realm's research cheaper
+    SHIPYARD = "shipyard"  # more timber, and its yards launch more ships (a port only)
+
+
+class DesignationSpec(BaseModel):
+    """What a focused province becomes as it builds what its focus needs: a designation in
+    three tiers. The focus alone is tier 1; one of its key works makes tier 2 (one more building
+    slot); two make tier 3, with a landmark of its own, a bonus to the realm's provinces next to
+    it and an effect felt across the realm (from no more than rules.designation_realm_cap of a
+    kind)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    port_name: str | None = None  # its name in a port, if another
+    keys: tuple[BuildingKind, ...]
+    landmark: str
+    neighbours: dict[str, float]  # output fields (or "defence") its neighbours gain, as shares
+    neighbours_text: str
+    realm: dict[str, float]  # effects on the realm (realm.py keys)
+    realm_text: str
+    lore: str = ""
+
+
+def default_designations() -> dict[Focus, DesignationSpec]:
+    b = BuildingKind
+    return {
+        Focus.TRADE: DesignationSpec(
+            name="Trade town", port_name="Trade port",
+            keys=(b.MARKETPLACE, b.BANK, b.WORKSHOP), landmark="the Exchange",
+            neighbours={"ducats": 0.05}, neighbours_text="+5% ducats",
+            realm={"trade": 0.05}, realm_text="the merchants' cut 5% lower",
+            lore="Merchants' halls, counting houses and the bourse under arcades.",
+        ),
+        Focus.FARMING: DesignationSpec(
+            name="Granary",
+            keys=(b.FARM_ESTATES, b.LUMBER_MILL, b.MARKETPLACE), landmark="the royal granary",
+            neighbours={"grain": 0.05}, neighbours_text="+5% grain",
+            realm={"grain_upkeep": -0.05}, realm_text="armies eat 5% less grain",
+            lore="Wheat for half a kingdom, stored against the lean years.",
+        ),
+        Focus.MINING: DesignationSpec(
+            name="Arsenal",
+            keys=(b.IRONWORKS, b.ARMORY, b.CANNON_FOUNDRY), landmark="the royal armoury",
+            neighbours={"iron": 0.10}, neighbours_text="+10% iron",
+            realm={"battle_power": 0.02}, realm_text="+2% battle power",
+            lore="Forges, powder and the guns of the king.",
+        ),
+        Focus.GARRISON: DesignationSpec(
+            name="Fortress",
+            keys=(b.FORT, b.CITADEL, b.TRAINING_GROUNDS, b.BARRACKS), landmark="the great fortress",
+            neighbours={"defence": 0.10}, neighbours_text="defended 10% harder",
+            realm={"fort": 0.03}, realm_text="forts +3%",
+            lore="A town that is a camp, behind walls that are a school of war.",
+        ),
+        Focus.LEARNING: DesignationSpec(
+            name="University town",
+            keys=(b.UNIVERSITY, b.CATHEDRAL, b.OBSERVATORY), landmark="the studium generale",
+            neighbours={"ducats": 0.03}, neighbours_text="+3% ducats",
+            realm={"research": 0.05}, realm_text="research 5% cheaper",
+            lore="Colleges, presses and the lecture halls of a famous faculty.",
+        ),
+        Focus.SHIPYARD: DesignationSpec(
+            name="Shipyard",
+            keys=(b.LUMBER_MILL, b.WORKSHOP, b.IRONWORKS), landmark="the arsenal of ships",
+            neighbours={"timber": 0.10}, neighbours_text="+10% timber",
+            realm={"ship_cost": 0.10}, realm_text="ships 10% cheaper",
+            lore="Slipways, ropewalks and the smell of pitch.",
+        ),
+    }  # fmt: skip
+
+
+class PolicyAxis(StrEnum):
+    """A great choice of how the realm is run: one side or the other, or neither."""
+
+    ARMY = "army"
+    ECONOMY = "economy"
+    STATE = "state"
+
+
+class PolicySide(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    effect: str
+    effects: dict[str, float]
+    lore: str = ""
+
+
+def default_policies() -> dict[PolicyAxis, tuple[PolicySide, PolicySide]]:
+    s = PolicySide
+    return {
+        PolicyAxis.ARMY: (
+            s(name="Professional army",
+              effect="+5% battle power, victories season a quarter faster, -10% manpower",
+              effects={"battle_power": 0.05, "veterancy": 0.25, "manpower": -0.10},
+              lore="Fewer men, paid, drilled and kept."),
+            s(name="Militia levies", effect="+20% manpower, -4% morale",
+              effects={"manpower": 0.20, "morale": -0.04},
+              lore="Every village owes the king its young men."),
+        ),
+        PolicyAxis.ECONOMY: (
+            s(name="Agrarian", effect="+10% grain, +5% manpower",
+              effects={"grain_income": 0.10, "manpower": 0.05},
+              lore="The land and those who work it come first."),
+            s(name="Mercantile", effect="+5% ducats, the merchants' cut 10% lower",
+              effects={"ducat_income": 0.05, "trade": 0.10},
+              lore="Trade is the sinew of the state."),
+        ),
+        PolicyAxis.STATE: (
+            s(name="Centralism", effect="+4% ducats, research 5% cheaper, stability 10% dearer",
+              effects={"ducat_income": 0.04, "research": 0.05, "stability": -0.10},
+              lore="One law, one tax, one court for the whole realm."),
+            s(name="Fueros", effect="stability 15% cheaper, -3% ducats",
+              effects={"stability": 0.15, "ducat_income": -0.03},
+              lore="Every province keeps its old laws, and is the quieter for it."),
+        ),
+    }  # fmt: skip
 
 
 class Faith(StrEnum):
@@ -1739,6 +1856,14 @@ class Rules(BaseModel):
     focus_per_settlement: float = 0.05  # each step up from a hamlet
     focus_cost: Resources = Resources(ducats=30)
     focus_years: int = 5  # before a province can turn to another focus
+    designations: dict[Focus, DesignationSpec] = Field(default_factory=default_designations)
+    designation_realm_cap: int = 2  # tier 3 designations of a kind that count for the realm
+    shipyard_yards: int = 2  # more ships a tier 2 shipyard launches a year
+    policies: dict[PolicyAxis, tuple[PolicySide, PolicySide]] = Field(
+        default_factory=default_policies
+    )
+    policy_stability: int = 1  # stability a change of policy costs (the first choice is free)
+    policy_years: int = 10  # before a policy can change again
     learning_research_discount: float = 0.03  # each province of learning, up to the cap
     learning_research_cap: float = 0.15
     develop_goods_from: int = 5  # from this development, developing also takes goods
@@ -2181,6 +2306,8 @@ class NationState(BaseModel):
     infamy: float = 0.0  # aggressive expansion: grows with every province taken, fades yearly
     grudges: list[Grudge] = Field(default_factory=list)  # wrongs it will not forget
     flags: list[str] = Field(default_factory=list)  # choices that last, e.g. "quarantine"
+    policies: dict[PolicyAxis, int] = Field(default_factory=dict)  # the side taken on each axis
+    policy_since: dict[PolicyAxis, int] = Field(default_factory=dict)  # the turn it was taken
     fleets: dict[SeaId, dict[Ship, int]] = Field(default_factory=dict)  # by sea zone; public
     colonies: dict[Region, int] = Field(default_factory=dict)  # public: every crown's empire
     expeditions: list[Expedition] = Field(default_factory=list)  # under way

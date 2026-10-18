@@ -1311,7 +1311,17 @@
       ${spirits.map(([title, words]) => `<div class="spirit"><b>${esc(title)}</b><small>${esc(words)}</small></div>`).join("")}
       ${own ? `<div class="spirit unit"><b>${UICON[own.kind]} ${esc(own.name)}</b><small>${esc(own.lore)} ${[own.attack !== 1 && `attack ×${own.attack}`, own.defence !== 1 && `defence ×${own.defence}`,
         ...Object.entries(own.terrain).map(([g, v]) => `×${v} on ${g}`), own.cost !== 1 && `${Math.round((1 - own.cost) * 100)}% cheaper`].filter(Boolean).join(", ")}.</small></div>` : ""}</div>` : "";
+    const AXES = [["army", "⚔", "The army"], ["economy", "💰", "The economy"], ["state", "🏛", "The state"]];
+    const policies = AXES.map(([axis, ic, label]) => {
+      const now = (V.me.policies || {})[axis], queued = orders.find((o) => o.type === "set_policy" && o.axis === axis);
+      const until = (V.me.policy_locked_until || {})[axis], locked = until !== undefined && V.turn < until;
+      const sides = R.policies[axis].map((side, k) => `<button class="btn doctrine ${now === k ? "on" : ""} ${queued && queued.side === k ? "queued" : ""}" data-policy="${axis}:${k}"
+        ${now === k || locked ? "disabled" : ""} title="${esc(side.lore)}"><b>${esc(side.name)}</b><small>${esc(side.effect)}</small></button>`).join("");
+      return `<div class="policy"><div class="phead"><span class="ic">${ic}</span><b>${label}</b>${locked ? `<small>until ${R.startYear + until - 1}</small>` : now === undefined ? `<small>not chosen: free</small>` : `<small>a change costs ${R.policyStability} stability</small>`}</div><div class="doctrines">${sides}</div></div>`;
+    }).join("");
     return `<div class="pad"><h4>Glory</h4>${patronage}${spirit}
+      <h4>The realm's policies</h4><div class="policies">${policies}</div>
+      <p class="sub">The first side taken on each axis is free; changing it costs ${R.policyStability} stability, and a policy stands at least ${R.policyYears} years.</p>
       <h4>The crown</h4>${rulerHtml}
       <h4>The council speaks</h4>${counsel.length ? counsel.map(([who, role, text]) => `<div class="counsel">${portrait(who, mix(color, "#efe2c2", .5), 34)}
         <div><b>${esc(who.name)}</b>, your ${role}: <q>${esc(text)}</q></div></div>`).join("") : `<p class="muted">An empty council gives no counsel. Hire advisors below.</p>`}
@@ -1930,6 +1940,8 @@
       orders = orders.filter((o) => o.type !== "set_taxes");
       if (level !== V.me.tax) queue({type: "set_taxes", level}); else render(); };
     const patronize = panel.querySelector("#patronize"); if (patronize) patronize.onclick = () => queue({type: "patronize"});
+    panel.querySelectorAll("[data-policy]").forEach((b) => b.onclick = () => { const [axis, side] = b.dataset.policy.split(":");
+      orders = orders.filter((o) => !(o.type === "set_policy" && o.axis === axis)); queue({type: "set_policy", axis, side: +side}); });
     const proclaim = panel.querySelector("#proclaim");
     if (proclaim) proclaim.onclick = () => { const text = $("proclamation").value.trim();
       if (!text) return flash("Write the proclamation first."); queue({type: "proclaim", text}); };
@@ -2025,6 +2037,7 @@
       case "scrap_ships": return `⚓ Lay up ${o.count} ${o.ship}${o.count > 1 ? "s" : ""} in the ${esc(seaName(o.sea))}`;
       case "sail_fleet": { const n = Object.values(o.ships).reduce((a, b) => a + b, 0); return `⛵ Sail ${n} ships from the ${esc(seaName(o.origin))} to the ${esc(seaName(o.target))}`; }
       case "seek_battle": return `⚔ Seek out the fleet of ${nn(o.enemy)} in the ${esc(seaName(o.sea))}`;
+      case "set_policy": return `🏛 Adopt ${esc(R.policies[o.axis][o.side].name)}`;
       case "set_posture": { const k = postureOf(o.posture); return `${k[1]} ${pn(o.province)}: ${k[2].toLowerCase()}`; }
       case "set_focus": { const f = FOCI.find(([k]) => k === o.focus); return `${f ? f[1] : "🎯"} Turn ${pn(o.province)} to ${f ? f[2].toLowerCase() : o.focus}`; }
       case "improve": return `${PaxMap.goodOf(S, P[pIndex[o.province]].good).icon} Raise the ${PaxMap.goodOf(S, P[pIndex[o.province]].good).workings.toLowerCase()} of ${pn(o.province)}`;
@@ -2437,7 +2450,8 @@
   // What its people turn their hands to: a share more of one side of its output, the larger the
   // town the more; set for a price, and kept for some years.
   const FOCI = [["trade", "💰", "Trade", "more ducats"], ["farming", "🌾", "Farming", "more grain"], ["mining", "⛏", "Mining", "more iron and timber"],
-    ["garrison", "🛡", "Garrison", "twice as much more manpower, and its own people defend it harder"], ["learning", "📚", "Learning", "cheaper to develop, and each one makes the realm's research cheaper"]];
+    ["garrison", "🛡", "Garrison", "twice as much more manpower, and its own people defend it harder"], ["learning", "📚", "Learning", "cheaper to develop, and each one makes the realm's research cheaper"],
+    ["shipyard", "⚓", "Shipyard", "more timber, and its yards launch more ships (a port only)"]];
   function focusShare(p) { // what a focus would give this province, by its town
     const steps = (R.settlements || []).map((s) => s.min_development).sort((a, b) => a - b);
     const step = Math.max(0, steps.filter((m) => p.development >= m).length - 1);
@@ -2451,9 +2465,26 @@
     return `<section><div class="card ${why ? "blocked" : "ready"}">
       <div class="cardhead"><span class="ic">${now ? now[1] : "🎯"}</span><div><b>${now ? `Given to ${now[2].toLowerCase()}` : "No focus yet"}</b>
         <div class="gain">${now ? `<span>+${share}%: ${esc(now[3])}</span>` : `<span>a focus gives +${share}% here, more as the town grows</span>`}</div></div></div>
-      <div class="foci">${FOCI.map(([k, ic, name, what]) => `<button class="btn ${p.focus === k ? "on" : ""} ${queued && queued.focus === k ? "queued" : ""}" data-act="focus:${k}"
-        ${why || p.focus === k ? "disabled" : ""}${tip(`<h5>${ic} ${name}</h5><div>+${share}%: ${esc(what)}</div>`)}>${ic} ${name}</button>`).join("")}</div>
+      <div class="foci">${FOCI.filter(([k]) => k !== "shipyard" || (P[i].seas || []).length).map(([k, ic, name, what]) => `<button class="btn ${p.focus === k ? "on" : ""} ${queued && queued.focus === k ? "queued" : ""}" data-act="focus:${k}"
+        ${why || p.focus === k ? "disabled" : ""}${tip(`<h5>${ic} ${name}</h5><div>+${share}%: ${esc(what)}</div><div class="dim">Grows into: ${esc(designationOf(k, i).name)}</div>`)}>${ic} ${name}</button>`).join("")}</div>
+      ${p.focus ? designationHtml(i) : ""}
       <p class="note">${why ? cap(why) + ". " : ""}Costs ${costText(R.focus.cost)}; a province keeps its focus ${R.focus.years} years.</p></div></section>`;
+  }
+  // what a focus grows into here, and what its next tier needs
+  function designationOf(focus, i) {
+    const d = R.designations[focus];
+    return {...d, name: d.port && (P[i].seas || []).length ? d.port : d.name};
+  }
+  function designationHtml(i) {
+    const p = prov(i), d = designationOf(p.focus, i), tier = p.designation_tier || 1;
+    const have = d.keys.filter((k) => p.buildings.includes(k)), missing = d.keys.filter((k) => !p.buildings.includes(k));
+    const bname = (k) => B[bIndex[k]] ? B[bIndex[k]].name : k;
+    const next = tier >= 3 ? "" : `<p class="sub">Tier ${tier + 1}: build ${tier === 1 ? "one" : "another"} of ${missing.map((k) => `<b>${esc(bname(k))}</b>`).join(", ")}${tier === 1 ? " (one more building slot)" : ` (${esc(d.landmark)}: ${esc(d.neighbours)} next door, ${esc(d.realm)} in the realm)`}.</p>`;
+    return `<div class="designation tier${tier}"><div class="dhead"><b>${esc(d.name)}</b><span class="stars">${"★".repeat(tier)}${"☆".repeat(3 - tier)}</span></div>
+      <p class="lore">${esc(d.lore)}</p>
+      <ul class="perks"><li class="${tier >= 2 ? "on" : ""}">★★ one more building slot</li>
+        <li class="${tier >= 3 ? "on" : ""}">★★★ ${esc(cap(d.landmark))}: ${esc(d.neighbours)} in the realm's provinces next door; ${esc(d.realm)} across the realm</li></ul>
+      ${have.length ? `<p class="sub">Key works here: ${have.map((k) => esc(bname(k))).join(", ")}</p>` : ""}${next}</div>`;
   }
   // ------------------------------------------------------------------ the epilogue: the whole game, once it is over
   // Every court's course year by year in one chart (pick the measure), what each did in the
@@ -2812,7 +2843,7 @@
     $("tip").innerHTML = `<b class="t">${esc(P[i].name)}</b><div class="kv">
       <span>Owner</span><b>${p.owner ? esc(nameOf(p.owner)) : "Independent"}</b>
       <span>Development</span><b>${p.development}${p.settlement ? ` <small>· ${esc(p.settlement.toLowerCase())}</small>` : ""}</b>
-      ${p.focus ? `<span>Focus</span><b>${(FOCI.find(([k]) => k === p.focus) || [])[1] || ""} ${esc(cap(p.focus))} +${Math.round((p.focus_bonus || 0) * 100)}%</b>` : ""}${p.faith ? `<span>Faith</span><b>${PaxMap.FAITH_ICON[p.faith]} ${cap(p.faith)}</b>` : ""}<span>Regiments</span><b>${p.troops === null ? "hidden" : `${p.troops}${p.army && p.troops ? ` <small>${KINDS.filter((k) => p.army[k]).map((k) => `${UICON[k]}${p.army[k]}`).join(" ")}</small>` : ""}`}</b>
+      ${p.focus ? `<span>Focus</span><b>${(FOCI.find(([k]) => k === p.focus) || [])[1] || ""} ${esc(cap(p.focus))} +${Math.round((p.focus_bonus || 0) * 100)}%</b>` : ""}${p.designation ? `<span>Designation</span><b>${esc(p.designation)} ${"★".repeat(p.designation_tier)}</b>` : ""}${p.faith ? `<span>Faith</span><b>${PaxMap.FAITH_ICON[p.faith]} ${cap(p.faith)}</b>` : ""}<span>Regiments</span><b>${p.troops === null ? "hidden" : `${p.troops}${p.army && p.troops ? ` <small>${KINDS.filter((k) => p.army[k]).map((k) => `${UICON[k]}${p.army[k]}`).join(" ")}</small>` : ""}`}</b>
       ${M[p.id] && p.monument !== null ? `<span>Monument</span><b>${esc(M[p.id].name)} ${p.monument ? "★".repeat(p.monument) : "(a site)"}</b>` : ""}
       ${p.general ? `<span>General</span><b>${esc(p.general.name)} ${stars(p.general.skill)}</b>` : ""}
       ${p.fort ? `<span>Walls</span><b>🏰 ${p.fort} level${p.fort > 1 ? "s" : ""}: must be besieged</b>` : ""}

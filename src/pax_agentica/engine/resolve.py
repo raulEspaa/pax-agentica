@@ -63,6 +63,7 @@ from pax_agentica.engine.actions import (
     SendExpedition,
     SendMessage,
     SetFocus,
+    SetPolicy,
     SetPosture,
     SetStance,
     SetTaxes,
@@ -80,7 +81,6 @@ from pax_agentica.engine.mechanics import (
     building_consumes,
     building_cost,
     building_inputs,
-    building_slots,
     carries,
     colonies_in,
     convert_cost,
@@ -102,6 +102,7 @@ from pax_agentica.engine.mechanics import (
     naval_power,
     ocean_power,
     peace_cost,
+    province_slots,
     recruit_cost,
     research_cost,
     sea_command,
@@ -153,6 +154,7 @@ from pax_agentica.engine.realm import (
     advisor_hire_cost,
     advisor_salaries,
     death_chance,
+    designation,
     make_ruler,
     modifiers,
 )
@@ -1298,6 +1300,8 @@ class _Resolver:
                         self._improve(nation, action)
                     case SetFocus():
                         self._set_focus(nation, action)
+                    case SetPolicy():
+                        self._set_policy(nation, action)
                     case BuildShips():
                         self._build_ships(nation, action)
                     case SendExpedition():
@@ -1716,6 +1720,8 @@ class _Resolver:
             return
         mods = modifiers(self.s, nation)
         room = rules.ships_per_port + mods.yards + province.development // 3
+        if (held := designation(self.s, a.province)) and held == (Focus.SHIPYARD, held[1]):
+            room += rules.shipyard_yards if held[1] >= 2 else 0
         room -= self.launched.get(a.province, 0)
         if a.count > room:
             self._reject(
@@ -1744,6 +1750,30 @@ class _Resolver:
             count=a.count,
         )
 
+    def _set_policy(self, nation: NationId, a: SetPolicy) -> None:
+        rules, me = self.s.rules, self.s.nations[nation]
+        sides = rules.policies[a.axis]
+        now = me.policies.get(a.axis)
+        if now == a.side:
+            self._reject(nation, a, f"{sides[a.side].name} is already the realm's policy")
+            return
+        since = me.policy_since.get(a.axis)
+        if since is not None and self.turn < since + rules.policy_years:
+            until = rules.start_year + since + rules.policy_years - 1
+            self._reject(nation, a, f"{sides[now or 0].name} stands until {until}")
+            return
+        me.policies[a.axis] = a.side
+        me.policy_since[a.axis] = self.turn
+        if now is not None:  # a change of course unsettles the realm
+            self._change_stability(nation, -rules.policy_stability, "a change of policy")
+        self._emit(
+            EventKind.POLICY_SET,
+            f"{self._name(nation)} adopts {sides[a.side].name}",
+            nations=(nation,),
+            axis=a.axis.value,
+            policy=sides[a.side].name,
+        )
+
     def _set_focus(self, nation: NationId, a: SetFocus) -> None:
         rules = self.s.rules
         if error := self._own_error(nation, a.province):
@@ -1751,6 +1781,9 @@ class _Resolver:
             return
         province = self.s.provinces[a.province]
         where = self._pname(a.province)
+        if a.focus == Focus.SHIPYARD and not self.s.map.provinces[a.province].seas:
+            self._reject(nation, a, f"{where} has no coast for a shipyard")
+            return
         if province.focus == a.focus:
             self._reject(nation, a, f"{where} is already given to {a.focus.value}")
             return
@@ -2075,7 +2108,7 @@ class _Resolver:
         province = self.s.provinces[a.province]
         spec = rules.buildings[a.building]
         mods = modifiers(self.s, nation)
-        slots = building_slots(rules, province.development, mods.extra_building_slots)
+        slots = province_slots(self.s, a.province)
         where = self._pname(a.province)
         if a.building in province.buildings:
             error = f"{where} already has {_article(spec.name)}"

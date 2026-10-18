@@ -26,7 +26,7 @@ from pax_agentica.engine.model import (
     UnitKind,
     Water,
 )
-from pax_agentica.engine.realm import advisor_salaries, modifiers
+from pax_agentica.engine.realm import advisor_salaries, designation, modifiers
 
 # Buildings that add a share of one of the province's outputs.
 OUTPUT_BUILDINGS = {
@@ -58,6 +58,7 @@ FOCUS_YIELDS: dict[Focus, tuple[str, ...]] = {
     Focus.MINING: ("iron", "timber"),
     Focus.GARRISON: ("manpower",),
     Focus.LEARNING: (),
+    Focus.SHIPYARD: ("timber",),
 }
 
 
@@ -71,6 +72,30 @@ def settlement(rules: Rules, development: int) -> Settlement:
 def building_slots(rules: Rules, development: int = 0, extra: int = 0) -> int:
     """Room for works: a hamlet has four, a great city eight; some realms find one more."""
     return settlement(rules, development).building_slots + extra
+
+
+def province_slots(state: GameState, province: ProvinceId) -> int:
+    """A province's room for works: its town's, its realm's extra, and one more once its
+    designation reaches tier 2."""
+    p = state.provinces[province]
+    held = designation(state, province)
+    extra = modifiers(state, p.owner).extra_building_slots + (1 if held and held[1] >= 2 else 0)
+    return building_slots(state.rules, p.development, extra)
+
+
+def neighbour_shares(state: GameState, province: ProvinceId) -> dict[str, float]:
+    """What the great designations of the realm's provinces next door add to this one."""
+    p = state.provinces[province]
+    out: dict[str, float] = {}
+    if p.owner is None:
+        return out
+    for q in state.map.provinces[province].neighbors:
+        held = designation(state, q)
+        if held is None or held[1] < 3 or state.provinces[q].owner != p.owner:
+            continue
+        for k, v in state.rules.designations[held[0]].neighbours.items():
+            out[k] = out.get(k, 0.0) + v
+    return out
 
 
 def level_factor(rules: Rules, level: int) -> float:
@@ -271,6 +296,11 @@ def province_output(state: GameState, province: ProvinceId) -> Resources:
         # a garrison town doubles its focus in men: soldiering is what it does
         share = focus_bonus(state, province) * (2 if p.focus == Focus.GARRISON else 1)
         out = out.model_copy(update={f: math.floor(getattr(out, f) * (1 + share)) for f in fields})
+    near = {k: v for k, v in neighbour_shares(state, province).items() if hasattr(out, k)}
+    if near:
+        out = out.model_copy(
+            update={k: math.floor(getattr(out, k) * (1 + v)) for k, v in near.items()}
+        )
     return _keep(out, faith_penalty(state, province))
 
 
@@ -977,6 +1007,8 @@ def defense_multiplier(
     bonus = modifiers(state, holder).fort_bonus_per_level * forts
     if target_state.focus == Focus.GARRISON and holder == owner:  # its own people man the walls
         bonus += focus_bonus(state, target) / 2
+    if holder == owner:  # a great fortress next door sends its men to the walls
+        bonus += neighbour_shares(state, target).get("defence", 0.0)
     if BuildingKind.TRAINING_GROUNDS in target_state.buildings:
         bonus += 0.2 * level_factor(rules, target_state.level(BuildingKind.TRAINING_GROUNDS))
     if owner is not None and holder == owner and state.nations[owner].capital == target:

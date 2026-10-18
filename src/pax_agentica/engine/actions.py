@@ -18,6 +18,7 @@ from pax_agentica.engine.model import (
     BuildingKind,
     Focus,
     NationId,
+    PolicyAxis,
     Posture,
     ProvinceId,
     Region,
@@ -479,6 +480,17 @@ class SeekBattle(_Action):
     enemy: NationId
 
 
+class SetPolicy(_Action):
+    """Take a side on one of the realm's great choices (see rules.policies): army (a
+    professional army or militia levies), economy (agrarian or mercantile) or state (centralism
+    or fueros). The first side taken on an axis is free; changing it later costs
+    rules.policy_stability stability, and a policy stands at least rules.policy_years years."""
+
+    type: Literal["set_policy"] = "set_policy"
+    axis: PolicyAxis
+    side: int = Field(ge=0, le=1)
+
+
 class SendExpedition(_Action):
     """Send settlers and soldiers to found a colony in a region beyond the sea (see
     `new_world` in your view: what each region yields, when it opens, how many places are left
@@ -584,6 +596,7 @@ type Action = Annotated[
     | Improve
     | SetFocus
     | SetPosture
+    | SetPolicy
     | BuildShips
     | ScrapShips
     | SailFleet

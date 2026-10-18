@@ -44,6 +44,7 @@ from pax_agentica.engine.mechanics import (
     nation_upkeep,
     naval_power,
     province_output,
+    province_slots,
     recruit_cost,
     research_cost,
     settlement,
@@ -67,6 +68,7 @@ from pax_agentica.engine.model import (
     NationId,
     PendingEvent,
     Personality,
+    PolicyAxis,
     Posture,
     ProposalKind,
     ProvinceId,
@@ -83,7 +85,14 @@ from pax_agentica.engine.model import (
     UnitKind,
     Water,
 )
-from pax_agentica.engine.realm import Modifiers, advisor_candidates, advisor_hire_cost, modifiers
+from pax_agentica.engine.realm import (
+    Modifiers,
+    advisor_candidates,
+    advisor_hire_cost,
+    designation,
+    designation_name,
+    modifiers,
+)
 
 
 class _View(BaseModel):
@@ -122,6 +131,8 @@ class ProvinceView(_View):
     focus: Focus | None  # what its people turn their hands to (yours and everyone's are public)
     focus_bonus: float  # the share its focus adds to its side of the output
     focus_locked_until: int | None  # the turn from which its focus may change
+    designation: str | None  # what its focus has made of it: "Trade port"
+    designation_tier: int  # 0 none, 1 the focus, 2 one key work (+1 slot), 3 two (a landmark)
     building_slots: int  # the settlement's room for works, and one more with Cameralism
     output_per_turn: Resources  # what it yields its owner each turn (nothing during unrest)
     building_output_per_turn: Resources  # the part of that output its buildings add
@@ -273,6 +284,8 @@ class MyNation(_View):
     treaties: tuple[TreatyView, ...]
     technology: dict[TechBranch, int]
     doctrines: dict[TechBranch, list[int]]  # the doctrine chosen at each level reached
+    policies: dict[PolicyAxis, int]  # the side taken on each axis (rules.policies)
+    policy_locked_until: dict[PolicyAxis, int]  # the turn from which each may change again
     research_costs: dict[TechBranch, Resources | None]  # None: already at the top
     building_costs: dict[BuildingKind, Resources]  # after engineering
     generals: tuple[GeneralView, ...]
@@ -295,6 +308,7 @@ class NationSummary(_View):
     allies: tuple[NationId, ...]
     technology: dict[TechBranch, int]  # public, as in any court of Europe
     doctrines: dict[TechBranch, list[int]]  # its doctrines, public too
+    policies: dict[PolicyAxis, int]  # its policies, public
     generals: int
     ruler: Ruler | None  # public too: every court knows who reigns where
     opinion_of_you: int  # what this court thinks of you, from -100 to 100
@@ -497,9 +511,11 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             building_levels={b: ps.level(b) for b in ps.buildings},
             idle=tuple(ps.idle),
             settlement=settlement(state.rules, ps.development).name,
-            building_slots=building_slots(
-                state.rules, ps.development, _mods(state, ps.owner).extra_building_slots
-            ),
+            building_slots=province_slots(state, pid)
+            if ps.owner is not None
+            else building_slots(state.rules, ps.development),
+            designation=designation_name(state, pid),
+            designation_tier=(designation(state, pid) or (None, 0))[1],
             output_per_turn=province_output(state, pid),
             building_output_per_turn=Resources() if ps.unrest else building_output(state, pid),
             unrest=ps.unrest,
@@ -629,6 +645,8 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         treaties=treaties,
         technology=dict(me.technology),
         doctrines={b: list(c) for b, c in me.doctrines.items()},
+        policies=dict(me.policies),
+        policy_locked_until={a: t + state.rules.policy_years for a, t in me.policy_since.items()},
         research_costs={
             b: research_cost(state.rules, b, level, mods.research_discount)
             for b, level in me.technology.items()
@@ -668,6 +686,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             allies=tuple(state.partners(nid, TreatyKind.ALLIANCE)),
             technology=dict(ns.technology),
             doctrines={b: list(c) for b, c in ns.doctrines.items()},
+            policies=dict(ns.policies),
             generals=len(state.generals_of(nid)),
             ruler=ns.ruler,
             fleets={w: dict(ships) for w, ships in ns.fleets.items()},

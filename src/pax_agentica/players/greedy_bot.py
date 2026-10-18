@@ -52,6 +52,7 @@ from pax_agentica.engine.actions import (
     SendExpedition,
     SendMessage,
     SetFocus,
+    SetPolicy,
     SetPosture,
     SetStance,
     SetTaxes,
@@ -67,6 +68,7 @@ from pax_agentica.engine.model import (
     Focus,
     Good,
     Personality,
+    PolicyAxis,
     Posture,
     ProposalKind,
     ProvinceId,
@@ -781,6 +783,7 @@ class _Planner:
         self._taxes()
         self._research(reserve)
         self._council(reserve)
+        self._policies()
         self._focus(reserve)  # cheap and for good: before the works
         self._navy(reserve)
         self._colonize(reserve)
@@ -973,6 +976,14 @@ class _Planner:
         if goods_short:
             by_development = sorted(self.owned, key=lambda p: (-self.provinces[p].development, p))
             wishes.append((BuildingKind.WORKSHOP, by_development))
+        for pid in sorted(self.owned):  # raise each focused province to its designation
+            p = self.provinces[pid]
+            design = rules.designations.get(p.focus) if p.focus else None
+            if design is None or p.designation_tier >= 3:
+                continue
+            missing = [k for k in design.keys if k not in p.buildings]
+            if missing:
+                wishes.append((missing[0], [pid]))
         if self.enemies:
             wishes.append((BuildingKind.ARMORY, [staging]))
         if self.enemies:
@@ -1056,7 +1067,8 @@ class _Planner:
         worth = {"ducats": 1.0, "grain": 1.6 if starving else 0.8, "iron": 2.0, "timber": 1.5,
                  "manpower": 1.2 if self.enemies else 0.6}  # fmt: skip
         fields = {Focus.TRADE: ("ducats",), Focus.FARMING: ("grain",),
-                  Focus.MINING: ("iron", "timber"), Focus.GARRISON: ("manpower",)}  # fmt: skip
+                  Focus.MINING: ("iron", "timber"), Focus.GARRISON: ("manpower",),
+                  Focus.SHIPYARD: ("timber",)}  # fmt: skip
         best: tuple[float, ProvinceId, Focus] | None = None
         for pid in self.owned:
             p = self.provinces[pid]
@@ -1064,6 +1076,8 @@ class _Planner:
                 continue
             out = p.output_per_turn
             for focus, names in fields.items():
+                if focus == Focus.SHIPYARD and not (p.seas and (self.me.fleets or self.enemies)):
+                    continue  # yards for a realm that sails
                 gain = sum(worth[n] * getattr(out, n) for n in names)
                 if focus == Focus.GARRISON:
                     gain = gain * 2 + (5 if self._exposed(pid) and self.enemies else 0)
@@ -1076,6 +1090,23 @@ class _Planner:
         if best is not None and best[0] >= 4:
             self.actions.append(SetFocus(province=best[1], focus=best[2]))
             self.budget = self.budget - rules.focus_cost
+
+    def _policies(self) -> None:
+        """Take a side on each great choice once, as the realm is: a professional army for a
+        soldier king, levies otherwise; mercantile for a realm of ports, agrarian for one that
+        must feed its men; fueros while the realm is restless, centralism once it is steady."""
+        if self.v.turn < 2:
+            return
+        ruler = self.me.ruler
+        wanted = {
+            PolicyAxis.ARMY: 0 if ruler is not None and ruler.military >= 3 else 1,
+            PolicyAxis.ECONOMY: 1 if any(self.provinces[p].seas for p in self.owned) else 0,
+            PolicyAxis.STATE: 1 if self.me.stability < 1 else 0,
+        }
+        for axis, side in wanted.items():
+            if axis not in self.me.policies:
+                self.actions.append(SetPolicy(axis=axis, side=side))
+                return
 
     def _convert(self, reserve: int) -> None:
         """Preach to the richest province of another faith, when the treasury allows."""

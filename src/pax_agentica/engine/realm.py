@@ -17,6 +17,7 @@ from pax_agentica.engine.model import (
     GameState,
     NationId,
     Personality,
+    ProvinceId,
     Ruler,
     Rules,
     TechBranch,
@@ -141,6 +142,39 @@ TRADITIONS: dict[NationId, tuple[tuple[str, str, dict[str, float]], ...]] = {
 }
 
 
+def designation(state: GameState, province: ProvinceId) -> tuple[Focus, int] | None:
+    """What a focused province has become, and its tier (1 to 3): its focus alone is tier 1,
+    each of its designation's key works standing (and working) one more. Only for land its
+    owner holds."""
+    p = state.provinces[province]
+    if p.focus is None or p.owner is None or p.controller:
+        return None
+    spec = state.rules.designations.get(p.focus)
+    if spec is None:
+        return p.focus, 1
+    built = sum(1 for k in spec.keys if k in p.buildings and k not in p.idle)
+    return p.focus, 1 + min(2, built)
+
+
+def designation_name(state: GameState, province: ProvinceId) -> str | None:
+    """A province's designation as it is called there: a trade port by the sea."""
+    held = designation(state, province)
+    if held is None:
+        return None
+    spec = state.rules.designations[held[0]]
+    port = spec.port_name and state.map.provinces[province].seas
+    return spec.port_name if port and spec.port_name else spec.name
+
+
+def designations_of(state: GameState, nation: NationId) -> tuple[tuple[str, Focus, int], ...]:
+    """Every designation a realm holds, province by province."""
+    out = []
+    for pid, p in state.provinces.items():
+        if p.owner == nation and p.focus is not None and (held := designation(state, pid)):
+            out.append((pid, held[0], held[1]))
+    return tuple(out)
+
+
 def _has(state: GameState, nation: NationId, milestone: tuple[TechBranch, int]) -> bool:
     branch, level = milestone
     return state.nations[nation].technology[branch] >= level
@@ -198,6 +232,8 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         key += (
             tuple(me.technology.values()),
             tuple((b, tuple(c)) for b, c in sorted(me.doctrines.items())),
+            tuple(sorted(me.policies.items())),
+            designations_of(state, me.id),
             (
                 ruler.title,
                 ruler.name,
@@ -444,6 +480,24 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             for effects in (step.effects, *picked):
                 for k, v in effects.items():
                     learnt[k] = learnt.get(k, 0.0) + v
+    # the great designations' effects on the realm: no more than a few of a kind count
+    counted: dict[Focus, int] = {}
+    for pid, kind, tier in designations_of(state, nation):
+        if tier < 3 or counted.get(kind, 0) >= rules.designation_realm_cap:
+            continue
+        counted[kind] = counted.get(kind, 0) + 1
+        spec = rules.designations[kind]
+        for k, v in spec.realm.items():
+            learnt[k] = learnt.get(k, 0.0) + v
+        lines.append(f"{spec.landmark} of {state.map.provinces[pid].name}: {spec.realm_text}")
+    for axis, side in sorted(me.policies.items()):
+        sides = rules.policies.get(axis)
+        if sides is None or not 0 <= side < len(sides):
+            continue
+        policy = sides[side]
+        for k, v in policy.effects.items():
+            learnt[k] = learnt.get(k, 0.0) + v
+        lines.append(f"{policy.name} (policy): {policy.effect}")
     ducats += learnt.get("ducat_income", 0.0)
     grain_spirit += learnt.get("grain_income", 0.0)
     manpower += learnt.get("manpower", 0.0)

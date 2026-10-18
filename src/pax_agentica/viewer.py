@@ -370,6 +370,24 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "maxGenerals": rules.max_generals,
             "generalBonus": rules.general_bonus_per_skill,
             "settlements": [s.model_dump() for s in rules.settlements],
+            "designations": {
+                f.value: {
+                    "name": d.name,
+                    "port": d.port_name,
+                    "keys": [k.value for k in d.keys],
+                    "landmark": d.landmark,
+                    "neighbours": d.neighbours_text,
+                    "realm": d.realm_text,
+                    "lore": d.lore,
+                }
+                for f, d in rules.designations.items()
+            },
+            "policies": {
+                a.value: [{"name": x.name, "effect": x.effect, "lore": x.lore} for x in sides]
+                for a, sides in rules.policies.items()
+            },
+            "policyYears": rules.policy_years,
+            "policyStability": rules.policy_stability,
             "focus": {
                 "base": rules.focus_base,
                 "perSettlement": rules.focus_per_settlement,
