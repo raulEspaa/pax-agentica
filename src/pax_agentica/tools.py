@@ -27,10 +27,10 @@ from pax_agentica.engine.model import (
     BuildingKind,
     Posture,
     ProvinceId,
+    SeaId,
     Tactic,
     TechBranch,
     UnitKind,
-    Water,
 )
 from pax_agentica.engine.view import ProvinceView
 
@@ -94,6 +94,10 @@ def battle_odds(
         return None
     if sea_command(view, origin, target) == "closed":
         return 0.0  # their fleet bars the strait: the army cannot cross
+    if target not in (*here.neighbors, *here.sea_neighbors) and landing(view, origin, target) < (
+        sum(army.values())
+    ):
+        return 0.0  # no fleet of ours to carry them there
     if there.troops == 0:
         return 1.0
     ground = there.terrain
@@ -128,37 +132,73 @@ def battle_odds(
         bonus += rules.capital_bonus
     if target in here.sea_neighbors and sea_command(view, origin, target) != "ours":
         bonus += rules.sea_crossing_bonus
+    elif target not in here.neighbors and target not in here.sea_neighbors:  # off the boats
+        bonus += rules.sea_crossing_bonus + rules.landing_bonus
     theirs *= rules.defender_advantage * rules.terrain_defense[ground] * (1 + bonus)
     return round(win_chance(mine, theirs, rules.roll_min, rules.roll_max), 3)
 
 
-def naval_power(view: NationView, nation: str | None, water: Water) -> float:
-    """A realm's fleet strength in a water, as Europe knows it (navies are public)."""
+def naval_power(view: NationView, nation: str | None, sea: SeaId) -> float:
+    """A realm's fleet strength in a sea zone, as Europe knows it (navies are public)."""
     if nation is None:
         return 0.0
-    if nation == view.me.id:
-        return view.me.naval_power.get(water, 0.0)
-    other = next((n for n in view.nations if n.id == nation), None)
-    return other.naval_power.get(water, 0.0) if other else 0.0
+    zone = next((z for z in view.seas if z.id == sea), None)
+    return zone.power.get(nation, 0.0) if zone else 0.0
+
+
+def _holder(view: NationView, target: ProvinceId) -> str | None:
+    there = _province(view, target)
+    if there.siege_by not in (None, view.me.id):
+        return there.siege_by
+    return there.controller or there.owner
 
 
 def sea_command(view: NationView, origin: ProvinceId, target: ProvinceId) -> str:
-    """Who holds the water an attack from `origin` would cross to `target`, as the engine
+    """Who holds the sea an attack from `origin` would cross to `target`, as the engine
     judges it: "closed" (their fleet bars the crossing), "ours" (the strait favours no one),
     "contested" (it favours the defender) or "land" (no strait)."""
-    water = _province(view, origin).straits.get(target)
-    if water is None:
+    sea = _province(view, origin).straits.get(target)
+    if sea is None:
         return "land"
-    there = _province(view, target)
-    enemy = (
-        there.siege_by
-        if there.siege_by not in (None, view.me.id)
-        else (there.controller or there.owner)
-    )
-    mine, theirs = naval_power(view, view.me.id, water), naval_power(view, enemy, water)
+    enemy = _holder(view, target)
+    mine, theirs = sea_reach(view, view.me.id, sea), sea_reach(view, enemy, sea)
     if theirs > 0 and theirs >= view.rules.fleet_command * mine:
         return "closed"
     return "ours" if mine > theirs else "contested"
+
+
+def sea_reach(view: NationView, nation: str | None, sea: SeaId) -> float:
+    """A realm's sway over a strait's sea: its fleet there and half of those next to it."""
+    zone = next((z for z in view.seas if z.id == sea), None)
+    if nation is None or zone is None:
+        return 0.0
+    near = sum(naval_power(view, nation, z) for z in zone.neighbors)
+    return naval_power(view, nation, sea) + view.rules.fleet_reach * near
+
+
+def landing(view: NationView, origin: ProvinceId, target: ProvinceId) -> int:
+    """How many regiments your ships could carry from `origin` to `target` over a sea zone both
+    look onto, where your fleet outmatches whoever holds `target` (0: none can)."""
+    rules, me = view.rules, view.me.id
+    enemy = _holder(view, target)
+    there = set(_province(view, target).seas)
+    best = 0
+    for sea in _province(view, origin).seas:
+        if sea not in there:
+            continue
+        mine = naval_power(view, me, sea)
+        if enemy not in (None, me):
+            if mine <= naval_power(view, enemy, sea):
+                continue
+        elif any(
+            naval_power(view, e, sea) >= rules.fleet_command * mine
+            and naval_power(view, e, sea) > 0
+            for e in view.me.at_war_with
+        ):
+            continue
+        ships = view.me.fleets.get(sea, {})
+        best = max(best, sum(n * rules.ships[k].carries for k, n in ships.items()))
+    return best
 
 
 def best_tactic(
@@ -183,20 +223,35 @@ def best_tactic(
 
 
 def targets(view: NationView, origin: ProvinceId) -> list[dict[str, Any]]:
-    """Where the regiments at `origin` can go: marches to your own land, attacks elsewhere."""
+    """Where the regiments at `origin` can go: marches to your own land, attacks elsewhere, and
+    by sea wherever your fleet can carry them (with how many it can carry)."""
     here = _province(view, origin)
     out: list[dict[str, Any]] = []
-    for pid in (*here.neighbors, *here.sea_neighbors):
+    shores = {
+        q
+        for z in view.seas
+        if z.id in here.seas
+        for q in z.coasts
+        if q != origin and q not in here.neighbors and q not in here.sea_neighbors
+    }
+    for pid in (*here.neighbors, *here.sea_neighbors, *sorted(shores)):
         p = _province(view, pid)
         holder = p.controller or p.owner
+        by_sea = pid in shores
+        room = landing(view, origin, pid) if by_sea else None
+        if by_sea and not room:
+            continue
         if holder == view.me.id:
-            out.append({"province": pid, "action": "move"})
+            out.append({"province": pid, "action": "move", **({"by_sea": room} if by_sea else {})})
         elif (holder is None or holder in view.me.at_war_with) and sea_command(
             view, origin, pid
         ) != "closed":
             tactic = best_tactic(view, origin, pid)
             odds = battle_odds(view, origin, pid, tactic=tactic)
-            out.append({"province": pid, "action": "attack", "tactic": tactic, "odds": odds})
+            out.append(
+                {"province": pid, "action": "attack", "tactic": tactic, "odds": odds}
+                | ({"landing": room} if by_sea else {})
+            )
     return out
 
 

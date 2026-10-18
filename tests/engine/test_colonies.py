@@ -74,19 +74,22 @@ def test_crowns_sail_in_their_own_way(state: GameState) -> None:
 def test_a_blockade_of_the_atlantic_stops_the_treasure_fleets(state: GameState, play: Play) -> None:
     new = play(state, england=[DeclareWar(target="spain")])
     before = colonial_dues(new, "spain").ducats
-    new.nations["england"].fleets = {A: {Ship.GALLEON: 10}}
-    new.nations["spain"].fleets = {A: {Ship.GALLEON: 1}}
+    ten = {Ship.GALLEON: 10}
+    new.nations["england"].fleets = {"atlantic": ten}  # Galicia still sails out of Biscay
+    new.nations["spain"].fleets = {"atlantic": {Ship.GALLEON: 1}}
+    assert colonial_dues(new, "spain").ducats == before
+    new.nations["england"].fleets = {"atlantic": ten, "biscay": ten}
     assert colonial_dues(new, "spain").ducats < before
 
 
 def test_a_fleet_that_rules_the_ocean_takes_colonies(state: GameState, play: Play) -> None:
     new = play(state, england=[DeclareWar(target="spain")])
-    new.nations["england"].fleets = {A: {Ship.GALLEON: 5}}
-    new.nations["spain"].fleets = {A: {Ship.GALLEON: 3}}  # 12.5 against 7.5 x 1.5: enough
+    new.nations["england"].fleets = {"channel": {Ship.GALLEON: 5}}
+    new.nations["spain"].fleets = {"atlantic": {Ship.GALLEON: 3}}  # 15.6 against 7.5: enough
     taken = play(new, england=[SeizeColony(region=Region.CARIBBEAN, enemy="spain")])
     assert taken.nations["england"].colonies == {Region.CARIBBEAN: 1}
     assert taken.nations["spain"].colonies == {}
-    new.nations["england"].fleets = {A: {Ship.GALLEON: 3}}
+    new.nations["england"].fleets = {"channel": {Ship.GALLEON: 3}}  # 9.4 against 7.5
     kept = play(new, england=[SeizeColony(region=Region.CARIBBEAN, enemy="spain")])
     assert kept.nations["spain"].colonies == {Region.CARIBBEAN: 1}
     assert any("must be 1.5 times" in r for r in reasons(kept))

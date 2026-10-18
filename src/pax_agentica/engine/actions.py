@@ -22,12 +22,12 @@ from pax_agentica.engine.model import (
     ProvinceId,
     Region,
     Resources,
+    SeaId,
     Ship,
     Stance,
     Tactic,
     TechBranch,
     UnitKind,
-    Water,
 )
 
 MAX_ACTIONS_PER_TURN = 50
@@ -179,7 +179,9 @@ class Patronize(_Action):
 
 
 class Move(_Action):
-    """Move regiments between two adjacent provinces that you own. Happens before battles."""
+    """Move regiments between two adjacent provinces that you own. Happens before battles. By
+    sea too: between two of your coastal provinces on the same sea zone, if your ships there
+    can carry them and no enemy fleet commands it."""
 
     type: Literal["move"] = "move"
     origin: ProvinceId
@@ -203,6 +205,10 @@ class Attack(_Action):
     `siege_modifiers` on the province). Attacking a province you besiege sends reinforcements
     to the siege lines; attacking a province of yours (or an ally's) under siege fights the
     besiegers to relieve it.
+
+    A landing: from a coastal province, attack any province on the same sea zone where your
+    fleet is stronger than the defender's; the ships there carry the men (rules.ships carries)
+    and the defenders fight rules.sea_crossing_bonus + rules.landing_bonus harder on the beach.
     """
 
     type: Literal["attack"] = "attack"
@@ -423,45 +429,48 @@ class SetPosture(_Action):
 
 
 class BuildShips(_Action):
-    """Launch ships from a port of yours: they join your fleet in the water the port looks onto
-    (name it if the port has two). Galleys are cheap and rule calm seas; galleons cost more and
-    rule the ocean (see rules.ships for costs, pay and strength in each water). A port launches
+    """Launch ships from a port of yours into one of the sea zones it looks onto (name it if it
+    has more than one; see the province's `seas`). Galleys are cheap and rule calm seas;
+    galleons cost more, rule the ocean and carry more men (see rules.ships). A port launches
     at most rules.ships_per_port ships a year, and one more for every 3 development."""
 
     type: Literal["build_ships"] = "build_ships"
     province: ProvinceId
     ship: Ship
     count: int = Field(ge=1, le=20)
-    water: Water | None = None
+    sea: SeaId | None = None
 
 
 class ScrapShips(_Action):
-    """Lay up ships of yours in a water, to save their pay."""
+    """Lay up ships of yours in a sea zone."""
 
     type: Literal["scrap_ships"] = "scrap_ships"
-    water: Water
+    sea: SeaId
     ship: Ship
     count: int = Field(ge=1, le=200)
 
 
 class SailFleet(_Action):
-    """Send ships from one water to another where you hold a port. They are at sea all year:
-    they arrive at its end, and neither fight nor hold either water meanwhile."""
+    """Sail ships from a sea zone to a neighbouring one, before the battles: fleets move a zone
+    a year, as armies march a province. Sail into an enemy's zone and seek_battle there the
+    same year."""
 
     type: Literal["sail_fleet"] = "sail_fleet"
-    origin: Water
-    target: Water
+    origin: SeaId
+    target: SeaId
     ships: dict[Ship, int]
 
 
 class SeekBattle(_Action):
-    """Send your fleet in a water to find the fleet of a realm you are at war with there, and
-    fight it, before the armies march. Strength is each ship's in that water, times a roll of
-    the dice and each realm's morale; the beaten fleet loses half its ships. The water's master
-    closes its straits to the other's armies (see sea_command) and blockades its ports."""
+    """Send your fleet in a sea zone against the fleet of a realm you are at war with in the
+    same zone, after the fleets have sailed and before the armies march. Strength is each
+    ship's in that kind of water, times a roll of the dice and each realm's morale; the beaten
+    fleet loses half its ships. A fleet rules.fleet_command times the enemy's in a zone closes
+    its straits to the enemy's armies and blockades its ports there; any fleet stronger than
+    the defender's lets your armies cross its straits freely and land on its shores."""
 
     type: Literal["seek_battle"] = "seek_battle"
-    water: Water
+    sea: SeaId
     enemy: NationId
 
 

@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, model_validat
 from pax_agentica.engine.events import Event
 
 type ProvinceId = str
+type SeaId = str  # a zone of the sea
 type NationId = str
 
 
@@ -315,6 +316,7 @@ class ShipSpec(BaseModel):
     name: str
     cost: Resources
     pay: float  # ducats a year at war (0: the crews are pressed when needed)
+    carries: int  # regiments it can land on an enemy shore
     strength: dict[Water, float]
     role: str
 
@@ -325,6 +327,7 @@ def default_ships() -> dict[Ship, ShipSpec]:
             name="Galleys",
             cost=Resources(ducats=12, timber=3, manpower=1),
             pay=0.0,
+            carries=1,
             strength={Water.MEDITERRANEAN: 1.5, Water.BALTIC: 1.0, Water.ATLANTIC: 0.5},
             role="oared war galleys: cheap, and masters of the calm inland seas",
         ),
@@ -332,6 +335,7 @@ def default_ships() -> dict[Ship, ShipSpec]:
             name="Galleons",
             cost=Resources(ducats=30, timber=6, iron=2, goods=1),
             pay=0.0,
+            carries=2,
             strength={Water.ATLANTIC: 2.5, Water.BALTIC: 2.0, Water.MEDITERRANEAN: 1.5},
             role="tall ships with broadsides of guns: dear, and the only masters of the ocean",
         ),
@@ -1106,7 +1110,20 @@ class ProvinceDef(BaseModel):
     lat: float
     neighbors: tuple[ProvinceId, ...]  # land borders
     sea_neighbors: tuple[ProvinceId, ...] = ()  # straits: crossings that favour the defender
-    coasts: tuple[Water, ...] = ()  # the waters it looks onto: ships are built and blockaded here
+    coasts: tuple[Water, ...] = ()  # the waters it looks onto (of its sea zones)
+    seas: tuple[SeaId, ...] = ()  # the sea zones it looks onto: its ports, and where it is landed
+
+
+class SeaZoneDef(BaseModel):
+    """A zone of the sea: fleets sail from zone to zone as armies march between provinces."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: SeaId
+    name: str
+    water: Water  # what kind of sea it is: what galleys and galleons are worth there
+    neighbors: tuple[SeaId, ...]
+    coasts: tuple[ProvinceId, ...]  # the provinces it washes
 
 
 class MapDef(BaseModel):
@@ -1114,14 +1131,25 @@ class MapDef(BaseModel):
 
     name: str
     provinces: dict[ProvinceId, ProvinceDef]
-    straits: dict[str, Water] = Field(default_factory=dict)  # "a|b" (sorted): the water crossed
+    seas: dict[SeaId, SeaZoneDef] = Field(default_factory=dict)
+    straits: dict[str, SeaId] = Field(default_factory=dict)  # "a|b" (sorted): the zone crossed
+
+    def strait_sea(self, a: ProvinceId, b: ProvinceId) -> SeaId | None:
+        """The sea zone a crossing between two provinces goes over (None: a land border)."""
+        return self.straits.get("|".join(sorted((a, b))))
 
     def strait_water(self, a: ProvinceId, b: ProvinceId) -> Water | None:
-        """The water a crossing between two provinces goes over (None: a land border)."""
-        return self.straits.get("|".join(sorted((a, b))))
+        sea = self.strait_sea(a, b)
+        return self.seas[sea].water if sea in self.seas else None
 
     def coastal(self, water: Water) -> tuple[ProvinceId, ...]:
         return tuple(pid for pid, p in self.provinces.items() if water in p.coasts)
+
+    def shared_seas(self, a: ProvinceId, b: ProvinceId) -> tuple[SeaId, ...]:
+        """The sea zones both provinces look onto: where an army may be carried from one to
+        the other."""
+        there = set(self.provinces[b].seas)
+        return tuple(z for z in self.provinces[a].seas if z in there)
 
     def adjacent(self, a: ProvinceId, b: ProvinceId) -> bool:
         p = self.provinces[a]
@@ -1274,6 +1302,7 @@ class Rules(BaseModel):
     ships: dict[Ship, ShipSpec] = Field(default_factory=default_ships)
     ships_per_port: int = 3  # ships a port can launch in a year, and one more per 3 development
     fleet_command: float = 2.0  # a fleet this many times the enemy's closes its straits to it
+    fleet_reach: float = 0.5  # of a fleet's strength, what it lends a strait next door
     blockade_share: float = 0.25  # ducats a blockaded port loses
     blockade_min: float = 8.0  # the least fleet strength that can blockade a coast
     naval_loser_loss: float = 0.5  # share of the beaten fleet sunk or taken
@@ -1380,6 +1409,7 @@ class Rules(BaseModel):
     fort_bonus_per_level: float = 0.25  # per fort building (fort, citadel)
     capital_bonus: float = 0.25
     sea_crossing_bonus: float = 0.25
+    landing_bonus: float = 0.25  # on top of it: defenders on the beach against men off boats
     roll_min: float = 0.8
     roll_max: float = 1.2
     winner_loss_factor: float = 0.5  # winner loses factor * (loser power / winner power)
@@ -1672,21 +1702,21 @@ class NationState(BaseModel):
     infamy: float = 0.0  # aggressive expansion: grows with every province taken, fades yearly
     grudges: list[Grudge] = Field(default_factory=list)  # wrongs it will not forget
     flags: list[str] = Field(default_factory=list)  # choices that last, e.g. "quarantine"
-    fleets: dict[Water, dict[Ship, int]] = Field(default_factory=dict)  # public, as navies are
+    fleets: dict[SeaId, dict[Ship, int]] = Field(default_factory=dict)  # by sea zone; public
     colonies: dict[Region, int] = Field(default_factory=dict)  # public: every crown's empire
     expeditions: list[Expedition] = Field(default_factory=list)  # under way
 
-    def ships(self, water: Water) -> dict[Ship, int]:
-        """The ships stationed in a water, every kind listed."""
-        here = self.fleets.get(water, {})
+    def ships(self, sea: SeaId) -> dict[Ship, int]:
+        """The ships in a sea zone, every kind listed."""
+        here = self.fleets.get(sea, {})
         return {k: here.get(k, 0) for k in Ship}
 
-    def set_ships(self, water: Water, ships: Mapping[Ship, int]) -> None:
+    def set_ships(self, sea: SeaId, ships: Mapping[Ship, int]) -> None:
         kept = {k: n for k, n in ships.items() if n > 0}
         if kept:
-            self.fleets[water] = kept
+            self.fleets[sea] = kept
         else:
-            self.fleets.pop(water, None)
+            self.fleets.pop(sea, None)
 
 
 class Expedition(BaseModel):
@@ -1804,9 +1834,10 @@ class GameState(BaseModel):
 
     @model_validator(mode="after")
     def _chart_the_seas(self) -> Self:
-        """A game saved before the fleets: its map gets its coasts and straits, and the crowns
-        the fleets of 1500."""
-        if self.map.straits or not any(p.sea_neighbors for p in self.map.provinces.values()):
+        """A game saved before the sea zones: its map gets them, and each crown's ships (kept
+        by water then, or not at all before the fleets) move to the zone of that water where
+        most of its ports lie; a game saved before the fleets gets the fleets of 1500."""
+        if self.map.seas or not any(p.sea_neighbors for p in self.map.provinces.values()):
             return self
         from pax_agentica.engine import scenario  # here: the scenario is built on this module
 
@@ -1817,7 +1848,21 @@ class GameState(BaseModel):
         if not any(n.fleets for n in self.nations.values()):
             for nid, fleets in scenario.STARTING_FLEETS.items():
                 if nid in self.nations and self.nations[nid].alive:
-                    self.nations[nid].fleets = {w: dict(ships) for w, ships in fleets.items()}
+                    self.nations[nid].fleets = {z: dict(ships) for z, ships in fleets.items()}
+            return self
+        for nid, nation in self.nations.items():
+            ports = [pid for pid, p in self.provinces.items() if p.owner == nid]
+            moved: dict[SeaId, dict[Ship, int]] = {}
+            for water, ships in nation.fleets.items():
+                zones = [z for z, zone in charted.seas.items() if zone.water == water]
+                if not zones:
+                    continue
+                home = max(
+                    zones, key=lambda z: (sum(z in charted.provinces[p].seas for p in ports), z)
+                )
+                for kind, n in ships.items():
+                    moved.setdefault(home, {})[kind] = moved.get(home, {}).get(kind, 0) + n
+            nation.fleets = moved
         return self
 
     def crisis_now(self) -> str | None:

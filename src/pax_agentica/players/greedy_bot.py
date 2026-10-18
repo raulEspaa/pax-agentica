@@ -45,6 +45,7 @@ from pax_agentica.engine.actions import (
     Recruit,
     Research,
     Respond,
+    SailFleet,
     SeekBattle,
     SeizeColony,
     Sell,
@@ -78,7 +79,7 @@ from pax_agentica.engine.model import (
     Water,
 )
 from pax_agentica.engine.view import ProposalView, ProvinceView, RegionView
-from pax_agentica.tools import best_tactic, naval_power, sea_command
+from pax_agentica.tools import best_tactic, sea_command
 
 CAPITAL_GUARD = 3
 type Army = dict[UnitKind, int]
@@ -115,6 +116,7 @@ class _Planner:
         self.rng = rng
         self.margin = margin
         self.provinces = {p.id: p for p in view.provinces}
+        self.seas = {z.id: z for z in view.seas}
         me = view.me.id
         # Where our regiments stand (our land and what we occupy), and what we can build on.
         self.mine = {p.id for p in view.provinces if (p.controller or p.owner) == me}
@@ -807,10 +809,10 @@ class _Planner:
             self.budget = self.budget - cost
 
     def _navy(self, reserve: int) -> None:
-        """Ships only for a war at sea: where an enemy's fleet could blockade our ports or
-        close our straits, build towards matching it, a few ships a year and never more pay
-        than a tenth of the ducats we earn. Each ship is the one that buys most strength there
-        per ducat."""
+        """Ships only for a war at sea: in each sea zone our ports look onto where an enemy's
+        fleet (there or next door) could blockade us or bar our straits, build towards matching
+        it, a few ships a year and never more pay than a tenth of the ducats we earn. Each ship
+        is the one that buys most strength in that water per ducat."""
         if not self.enemies:
             return
         rules = self.v.rules
@@ -818,17 +820,22 @@ class _Planner:
             n * rules.ships[k].pay for ships in self.me.fleets.values() for k, n in ships.items()
         )
         room = self.me.income_per_turn.ducats / 10 - pay
-        for water in Water:
+        for sea in sorted(self.seas):
+            zone = self.seas[sea]
             ports = sorted(
-                (p for p in self.owned if water in self.provinces[p].coasts),
+                (p for p in self.owned if sea in self.provinces[p].seas),
                 key=lambda p: (-self.provinces[p].development, p),
             )
             if not ports or room <= 0:
                 continue
-            mine = naval_power(self.v, self.me.id, water)
-            rival = max((naval_power(self.v, n, water) for n in self.enemies), default=0.0)
+            mine = zone.power.get(self.me.id, 0.0)
+            near = (sea, *zone.neighbors)
+            rival = max(
+                (self.seas[z].power.get(e, 0.0) for z in near for e in self.enemies), default=0.0
+            )
             if rival < rules.blockade_min or mine >= rival:
                 continue
+            water = zone.water
             ship = max(
                 Ship, key=lambda k: rules.ships[k].strength[water] / rules.ships[k].cost.ducats
             )
@@ -838,12 +845,12 @@ class _Planner:
                 math.ceil((rival - mine) / spec.strength[water]),
                 3,
                 rules.ships_per_port + port.development // 3,
-                int(room / spec.pay),
+                int(room / spec.pay) if spec.pay else 3,
             )
             while n > 0 and not self._afford(spec.cost.times(n), reserve):
                 n -= 1
             if n > 0 and self.budget.covers(spec.cost.times(n)):  # goods are not for sale
-                self.actions.append(BuildShips(province=port.id, ship=ship, count=n, water=water))
+                self.actions.append(BuildShips(province=port.id, ship=ship, count=n, sea=sea))
                 self.budget = self.budget - spec.cost.times(n)
                 room -= n * spec.pay
 
@@ -869,36 +876,51 @@ class _Planner:
         self.actions.append(SendExpedition(region=best.id))
         self.budget = self.budget - cost
 
+    def _ocean(self, nation: str) -> float:
+        return sum(
+            z.power.get(nation, 0.0) for z in self.seas.values() if z.water == Water.ATLANTIC
+        )
+
     def _seize_colonies(self) -> None:
         """At war, take an enemy's colony wherever our Atlantic fleet far outmatches theirs."""
         rules = self.v.rules
-        mine = naval_power(self.v, self.me.id, Water.ATLANTIC)
+        mine = self._ocean(self.me.id)
         if mine < rules.expedition_ships:
             return
         for enemy in sorted(self.enemies - self.mobilising):
             other = next((n for n in self.v.nations if n.id == enemy), None)
             if other is None or not other.colonies:
                 continue
-            need = rules.seize_command  # the Sea Dogs need less; the engine knows
-            if mine < need * naval_power(self.v, enemy, Water.ATLANTIC):
+            if mine < rules.seize_command * self._ocean(enemy):  # the Sea Dogs need less
                 continue
             region = max(other.colonies, key=lambda r: (rules.regions[r].yields.ducats, r.value))
             self.actions.append(SeizeColony(region=region, enemy=enemy))
 
-    def _fleet_of(self, nation: str, water: Water) -> dict[Ship, int]:
-        other = next((n for n in self.v.nations if n.id == nation), None)
-        return dict(other.fleets.get(water, {})) if other else {}
-
     def _sea_battles(self) -> None:
-        """Seek out an enemy fleet we clearly outmatch: the sea is then ours."""
-        for water in Water:
-            mine = naval_power(self.v, self.me.id, water)
-            for enemy in sorted(self.enemies - self.mobilising):
-                theirs = naval_power(self.v, enemy, water)
-                ships = sum(n for n in self._fleet_of(enemy, water).values())
-                if ships >= 4 and mine >= 1.5 * theirs:  # a fleet worth sinking, and sure odds
-                    self.actions.append(SeekBattle(water=water, enemy=enemy))
-                    break
+        """Seek out an enemy fleet we clearly outmatch, where ours is or a zone away (the fleet
+        sails there first): a fleet worth sinking, and sure odds."""
+        engaged: set[str] = set()
+        for sea in sorted(self.seas, key=lambda z: -self.seas[z].power.get(self.me.id, 0.0)):
+            mine = self.seas[sea].power.get(self.me.id, 0.0)
+            if not mine:
+                continue
+            best = None
+            for z in (sea, *self.seas[sea].neighbors):
+                if z in engaged:
+                    continue
+                for enemy in sorted(self.enemies - self.mobilising):
+                    ships = sum(self.seas[z].fleets.get(enemy, {}).values())
+                    theirs = self.seas[z].power.get(enemy, 0.0)
+                    if ships >= 4 and mine >= 1.5 * theirs and (best is None or z == sea):
+                        best = (z, enemy)
+            if best is None:
+                continue
+            z, enemy = best
+            if z != sea:
+                here = self.me.fleets.get(sea, {})
+                self.actions.append(SailFleet(origin=sea, target=z, ships=dict(here)))
+            self.actions.append(SeekBattle(sea=z, enemy=enemy))
+            engaged.add(z)
 
     def _afford(self, cost: Resources, reserve: int) -> bool:
         """Whether the budget covers `cost`, buying at the market whatever traded resource is

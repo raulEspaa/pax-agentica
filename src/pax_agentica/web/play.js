@@ -55,8 +55,12 @@
   const map = PaxMap.create($("map"), S, {
     hover: (i, e) => tooltip(i, e),
     leave: () => { $("tip").style.display = "none"; },
-    click: (i) => select(i),
+    click: (i) => { pickedSea = -1; select(i); },
     command: (i) => command(i),
+    seaClick: (z) => { pickedSea = pickedSea === z ? -1 : z; picked = -1; render(); },
+    seaCommand: (z) => { if (pickedSea < 0) return flash("Click a sea with ships of yours first, then right-click where they should sail.");
+      sail(SEAS[pickedSea].id, SEAS[z].id); },
+    seaHover: (z, e) => seaTip(z, e),
   });
 
   // ------------------------------------------------------------------ server
@@ -318,71 +322,129 @@
     return TACTICS.map(([k]) => k).reduce((a, b) => (tacticFactor(b, f.posture, army, f.army, P[to].terrain) > tacticFactor(a, f.posture, army, f.army, P[to].terrain) + 1e-9 ? b : a), "assault");
   }
   const chosenTactic = (to, army) => (tactic === "best" ? bestTactic(to, army) : tactic);
-  // ------------------------------------------------------------------ fleets
-  const WATERS = [["atlantic", "🌊", "The Atlantic", "the ocean, the Channel and the North Sea"],
-    ["baltic", "❄", "The Baltic", "the Baltic and the Gulf of Bothnia"], ["mediterranean", "☀", "The Mediterranean", "with the Adriatic and the Black Sea"]];
-  const waterOf = (id) => WATERS.find(([k]) => k === id) || WATERS[0];
+  // ------------------------------------------------------------------ fleets on the sea zones
+  const WATER = {atlantic: ["🌊", "the ocean"], baltic: ["❄", "the Baltic"], mediterranean: ["☀", "an inland sea"]};
+  const SEAS = S.seas || [], ZI = Object.fromEntries(SEAS.map((z, k) => [z.id, k]));
+  const seaOf = (id) => SEAS[ZI[id]], seaName = (id) => (seaOf(id) ? seaOf(id).name : id);
+  const seaView = (id) => (V.seas || []).find((z) => z.id === id);
   const SHIPS = ["galley", "galleon"], SICON = {galley: "🚣", galleon: "⛵"};
-  function navalPower(nid, w) {
-    if (!nid) return 0;
-    if (nid === G.human) return (V.me.naval_power || {})[w] || 0;
-    const n = V.nations.find((x) => x.id === nid);
-    return n ? (n.naval_power || {})[w] || 0 : 0;
-  }
-  // who holds the water an attack from `origin` crosses to `target`, as the engine judges it
+  function navalPower(nid, z) { const s = seaView(z); return s && nid ? s.power[nid] || 0 : 0; }
+  const holderAt = (j) => { const p = prov(j); return p.siege_by && p.siege_by !== G.human ? p.siege_by : p.controller || p.owner; };
+  // who holds the sea an attack from `origin` crosses to `target`, as the engine judges it
   function seaCommand(origin, target) {
-    const w = (P[origin].straits || {})[target];
-    if (!w) return "land";
-    const p = prov(target), enemy = p.siege_by && p.siege_by !== G.human ? p.siege_by : p.controller || p.owner;
-    const mine = navalPower(G.human, w), theirs = navalPower(enemy, w);
+    const z = (P[origin].straits || {})[target];
+    if (!z) return "land";
+    const reach = (nid) => nid ? navalPower(nid, z) + R.navy.reach * seaOf(z).neighbors.reduce((t, x) => t + navalPower(nid, x), 0) : 0;
+    const enemy = holderAt(target), mine = reach(G.human), theirs = reach(enemy);
     if (theirs > 0 && theirs >= R.navy.command * mine) return "closed";
     return mine > theirs ? "ours" : "contested";
   }
-  const shipsIn = (w) => ({galley: 0, galleon: 0, ...((V.me.fleets || {})[w] || {})});
-  const buildWater = (o) => o.water || P[pIndex[o.province]].coasts[0];
-  const launching = (w) => { const out = {galley: 0, galleon: 0}; orders.filter((o) => o.type === "build_ships" && buildWater(o) === w).forEach((o) => (out[o.ship] += o.count)); return out; };
-  const shipPower = (ships, w) => SHIPS.reduce((t, k) => t + (ships[k] || 0) * R.ships[k].strength[w], 0) * (1 + (V.me.modifiers.navy || 0));
-  let fleetPort = {}, fleetN = {};
+  const shipsIn = (z) => ({galley: 0, galleon: 0, ...((V.me.fleets || {})[z] || {})});
+  const carry = (ships) => SHIPS.reduce((t, k) => t + (ships[k] || 0) * R.ships[k].carries, 0);
+  // how many regiments my ships could carry from i to j over a sea both look onto (0: none)
+  function landingRoom(i, j) {
+    const enemy = holderAt(j), there = new Set(P[j].seas || []);
+    let best = 0;
+    for (const z of P[i].seas || []) {
+      if (!there.has(z)) continue;
+      const mine = navalPower(G.human, z);
+      if (enemy && enemy !== G.human) { if (mine <= navalPower(enemy, z)) continue; }
+      else if (V.me.at_war_with.some((e) => navalPower(e, z) > 0 && navalPower(e, z) >= R.navy.command * mine)) continue;
+      best = Math.max(best, carry(shipsIn(z)));
+    }
+    return best;
+  }
+  // the ships in a zone once this year's sailings are done
+  function fleetAfter(z) {
+    const f = shipsIn(z);
+    for (const o of orders) if (o.type === "sail_fleet") for (const k of SHIPS) {
+      if (o.origin === z) f[k] -= o.ships[k] || 0;
+      if (o.target === z) f[k] += o.ships[k] || 0;
+    }
+    return f;
+  }
+  const buildSea = (o) => o.sea || (P[pIndex[o.province]].seas || [])[0];
+  const launching = (z) => { const out = {galley: 0, galleon: 0}; orders.filter((o) => o.type === "build_ships" && buildSea(o) === z).forEach((o) => (out[o.ship] += o.count)); return out; };
+  const myPorts = (z) => V.me.provinces.map((id) => pIndex[id]).filter((i) => (P[i].seas || []).includes(z) && !prov(i).controller && !prov(i).siege_by);
+  let fleetPort = {}, fleetN = {}, pickedSea = -1;
+  function seekOdds(z, e) {
+    const ex = V.nations.find((x) => x.id === e)?.war_exhaustion || 0;
+    const mine = SHIPS.reduce((t, k) => t + (fleetAfter(z)[k] || 0) * R.ships[k].strength[seaOf(z).water], 0) * (1 + (V.me.modifiers.navy || 0));
+    return winChance(mine * myMorale(), navalPower(e, z) * (1 - R.tactics.perExhaustion * ex), 1);
+  }
+  // the launching yard of a zone: a port of yours on it, and how many of each kind
+  function yardHtml(z) {
+    const harbours = myPorts(z);
+    if (!harbours.length) return `<p class="sub">No port of yours on ${esc(seaName(z))}.</p>`;
+    if (!fleetPort[z] || !harbours.includes(pIndex[fleetPort[z]])) fleetPort[z] = P[harbours.sort((a, b) => prov(b).development - prov(a).development)[0]].id;
+    const port = pIndex[fleetPort[z]];
+    const used = orders.filter((o) => o.type === "build_ships" && o.province === fleetPort[z]).reduce((a, o) => a + o.count, 0);
+    const room = R.navy.perPort + Math.floor(prov(port).development / 3) - used;
+    const n = (k) => Math.min(fleetN[`${z}:${k}`] || 0, room);
+    const cost = [0, 0, 0, 0, 0, 0]; SHIPS.forEach((k) => R.ships[k].cost.forEach((v, j) => (cost[j] += v * n(k))));
+    const ok = SHIPS.some((k) => n(k) > 0) && affordable(cost) && SHIPS.reduce((a, k) => a + n(k), 0) <= room;
+    const water = seaOf(z).water;
+    const stepper = (k) => `<span class="stepper"><button type="button" data-fleetkind="${z}:${k}" data-d="-1">−</button><b class="num">${n(k)}</b><button type="button" data-fleetkind="${z}:${k}" data-d="1">+</button></span>`;
+    return `<div class="row"><span class="sub">Launch from</span><select class="field" data-fport="${z}">${harbours.map((i) => `<option value="${P[i].id}" ${P[i].id === fleetPort[z] ? "selected" : ""}>${esc(P[i].name)}</option>`).join("")}</select><small class="sub">${room} more this year</small></div>
+      <div class="row">${SHIPS.map((k) => `<span${tip(`<h5>${SICON[k]} ${esc(R.ships[k].name)}</h5><div>${esc(R.ships[k].role)}.</div><div class="dim">Strength here ${R.ships[k].strength[water]}; carries ${R.ships[k].carries} regiment${R.ships[k].carries > 1 ? "s" : ""}</div>`)}>${SICON[k]} ${esc(R.ships[k].name)}</span>${stepper(k)}`).join("")}<button class="btn" data-fbuild="${z}" ${ok ? "" : "disabled"}>Launch</button><span class="cost">${cost.some((v) => v) ? costText(cost) : ""}</span></div>`;
+  }
+  // the deed of a zone of the sea: every fleet in it, yours to sail or fight, your yards on it
+  function seaDeed() {
+    const z = SEAS[pickedSea].id, sea = seaOf(z), sv = seaView(z) || {fleets: {}, power: {}}, w = WATER[sea.water];
+    const fleets = Object.entries(sv.fleets).sort((a, b) => (sv.power[b[0]] || 0) - (sv.power[a[0]] || 0)).map(([n, ships]) =>
+      `<div class="fleetrow">${PaxMap.flag(n, N[nIndex[n]].color, 22)}<b>${esc(nameOf(n))}</b>${n !== G.human && relation(n).war ? `<span class="chip war">at war</span>` : ""}
+        <span>${SHIPS.filter((k) => ships[k]).map((k) => `${SICON[k]} ${ships[k]}`).join(" ")}</span><span class="num">${(sv.power[n] || 0).toFixed(1)}</span></div>`).join("");
+    const mine = fleetAfter(z), total = SHIPS.reduce((a, k) => a + mine[k], 0);
+    const sails = orders.filter((o) => o.type === "sail_fleet" && o.origin === z);
+    const sailTo = total ? sea.neighbors.map((t) => `<button class="btn" data-sailto="${z}:${t}">➜ ${esc(seaName(t))}</button>`).join("") : "";
+    const enemies = V.me.wars.filter((x) => x.attacks_allowed_from_turn <= V.turn && navalPower(x.enemy, z) > 0).map((x) => x.enemy);
+    const seeking = new Set(orders.filter((o) => o.type === "seek_battle" && o.sea === z).map((o) => o.enemy));
+    const battles = total ? enemies.map((e) => `<button class="btn ${seeking.has(e) ? "on" : ""}" data-seek="${z}:${e}" ${seeking.has(e) ? "disabled" : ""}>⚔ Seek out the fleet of ${esc(nameOf(e))} · ${Math.round(seekOdds(z, e) * 100)}%</button>`).join("") : "";
+    const held = (V.me.blockaded || []).includes(z);
+    const box = $("deed");
+    box.innerHTML = `<header class="deedhead seahead"><div class="seaband">${w[0]}</div>
+        <div class="ribbon"><span class="shield" style="background:#2a5d8a"></span><div><h2 id="deedname">${esc(sea.name)}</h2><div class="owner">${cap(w[1])}: galleys ${R.ships.galley.strength[sea.water]}, galleons ${R.ships.galleon.strength[sea.water]}</div></div></div>
+        <button class="x" data-close aria-label="Close" title="Close (Esc)">×</button></header>
+      ${held ? `<section class="warnotes"><p class="note war">⚓ An enemy fleet holds these waters: your ports here earn ${Math.round(R.navy.blockadeShare * 100)}% fewer ducats.</p></section>` : ""}
+      <section><h4>Fleets here</h4>${fleets || `<p class="muted">No fleet sails here.</p>`}</section>
+      <section><h4>Your fleet</h4>
+        <p class="shipline">${SHIPS.map((k) => `<span>${SICON[k]} <b>${mine[k]}</b> <span>${k}s</span></span>`).join("")}${total ? `<span>carries ${carry(mine)} regiments to a landing</span>` : ""}${sails.length ? `<span class="sub">(after this year's sailing)</span>` : ""}</p>
+        ${sailTo ? `<div class="row"><span class="sub">Sail all ${total} ships to</span>${sailTo}</div><p class="note">Or right-click a neighbouring sea. Fleets sail a zone a year, before the battles.</p>` : ""}
+        ${battles ? `<div class="row">${battles}</div>` : ""}</section>
+      <section><h4>Shipyards</h4>${yardHtml(z)}</section>
+      <section><p class="note"><b>Coasts</b>: ${sea.coasts.map((i) => `<span>${esc(P[i].name)}</span>`).join(", ")}.</p><p class="note">A fleet ${R.navy.command} times the enemy's here closes its straits to the enemy's armies and blockades its ports; any fleet stronger than the defender's lets your armies cross its straits freely and land on any of these coasts.</p></section>`;
+    box.classList.add("open"); box.classList.remove("min", "compact");
+    box.querySelector("[data-close]").onclick = () => { pickedSea = -1; render(); };
+    box.querySelectorAll("[data-sailto]").forEach((b) => b.onclick = () => { const [from, to] = b.dataset.sailto.split(":"); sail(from, to); });
+    box.querySelectorAll("[data-seek]").forEach((b) => b.onclick = () => { const [zz, e] = b.dataset.seek.split(":"); queue({type: "seek_battle", sea: zz, enemy: e}); });
+    wireYards(box);
+  }
+  function sail(from, to) {
+    const f = fleetAfter(from), ships = Object.fromEntries(SHIPS.filter((k) => f[k] > 0).map((k) => [k, f[k]]));
+    if (!Object.keys(ships).length) return flash(`No ships of yours in ${seaName(from)}.`);
+    if (!seaOf(from).neighbors.includes(to)) return flash(`${seaName(from)} does not open onto ${seaName(to)}.`);
+    queue({type: "sail_fleet", origin: from, target: to, ships});
+    pickedSea = ZI[to]; render();
+  }
+  function wireYards(root) {
+    root.querySelectorAll("[data-fleetkind]").forEach((b) => b.onclick = () => { const k = b.dataset.fleetkind; fleetN[k] = Math.max(0, (fleetN[k] || 0) + +b.dataset.d); render(); });
+    root.querySelectorAll("[data-fport]").forEach((x) => x.onchange = () => { fleetPort[x.dataset.fport] = x.value; render(); });
+    root.querySelectorAll("[data-fbuild]").forEach((b) => b.onclick = () => { const z = b.dataset.fbuild;
+      SHIPS.forEach((k) => { const n = fleetN[`${z}:${k}`] || 0; if (n > 0) queue({type: "build_ships", province: fleetPort[z], ship: k, count: n, sea: z}); fleetN[`${z}:${k}`] = 0; }); render(); });
+  }
+  // the army office's summary of the fleets: every zone where you have ships or ports
   function fleetsSection() {
-    const ports = (w) => V.me.provinces.map((id) => pIndex[id]).filter((i) => P[i].coasts.includes(w) && !prov(i).controller && !prov(i).siege_by);
-    const waters = WATERS.filter(([w]) => ports(w).length || SHIPS.some((k) => shipsIn(w)[k]));
-    if (!waters.length) return `<p class="muted">You hold no port: a realm without a coast keeps no fleet.</p>`;
-    const cards = waters.map(([w, ic, name, what]) => {
-      const have = shipsIn(w), coming = launching(w), mine = navalPower(G.human, w);
-      const harbours = ports(w);
-      if (!fleetPort[w] || !harbours.includes(pIndex[fleetPort[w]])) fleetPort[w] = harbours.length ? P[harbours.sort((a, b) => prov(b).development - prov(a).development)[0]].id : null;
-      const port = fleetPort[w] ? pIndex[fleetPort[w]] : -1;
-      const used = orders.filter((o) => o.type === "build_ships" && o.province === fleetPort[w]).reduce((a, o) => a + o.count, 0);
-      const room = port >= 0 ? R.navy.perPort + Math.floor(prov(port).development / 3) - used : 0;
-      const n = (k) => Math.min(fleetN[`${w}:${k}`] || 0, room);
-      const cost = [0, 0, 0, 0, 0, 0]; SHIPS.forEach((k) => R.ships[k].cost.forEach((v, j) => (cost[j] += v * n(k))));
-      const ok = SHIPS.some((k) => n(k) > 0) && affordable(cost) && SHIPS.reduce((a, k) => a + n(k), 0) <= room;
-      const courts = [{id: G.human, name: V.me.name, power: mine}, ...V.nations.filter((x) => x.alive).map((x) => ({id: x.id, name: x.name, power: navalPower(x.id, w)}))]
-        .filter((c) => c.power > 0).sort((a, b) => b.power - a.power);
-      const top = courts[0] ? courts[0].power : 1;
-      const race = courts.slice(0, 5).map((c) => `<div class="raceline ${c.id === G.human ? "me" : ""}"><span>${esc(c.name)}${c.id !== G.human && relation(c.id).war ? " ⚔" : ""}</span><i><b style="width:${Math.round(100 * c.power / top)}%;background:${N[nIndex[c.id]].color}"></b></i><span class="num">${c.power.toFixed(1)}</span></div>`).join("");
-      const enemies = V.me.wars.filter((x) => x.attacks_allowed_from_turn <= V.turn && navalPower(x.enemy, w) > 0).map((x) => x.enemy);
-      const seeking = new Set(orders.filter((o) => o.type === "seek_battle" && o.water === w).map((o) => o.enemy));
-      const foe = (nid) => { const ex = V.nations.find((x) => x.id === nid)?.war_exhaustion || 0;
-        return winChance(mine * myMorale(), navalPower(nid, w) * (1 - R.tactics.perExhaustion * ex), 1); };
-      const battles = mine > 0 ? enemies.map((e) => `<button class="btn ${seeking.has(e) ? "on" : ""}" data-seek="${w}:${e}" ${seeking.has(e) ? "disabled" : ""}>⚔ Seek out the fleet of ${esc(nameOf(e))} · ${Math.round(foe(e) * 100)}%</button>`).join("") : "";
-      const blockaded = (V.me.blockaded || []).includes(w);
-      const strongest = courts[0] && courts[0].id === G.human;
-      const status = blockaded ? `<span class="chip war">⚓ blockaded: your ports here earn ${Math.round(R.navy.blockadeShare * 100)}% fewer ducats</span>`
-        : strongest ? `<span class="chip">👑 the strongest fleet here</span>` : "";
-      const others = WATERS.filter(([x]) => x !== w && ports(x).length);
-      const total = SHIPS.reduce((a, k) => a + have[k], 0);
-      const sailing = orders.some((o) => o.type === "sail_fleet" && o.origin === w);
-      const stepper = (k) => `<span class="stepper"><button type="button" data-fleetkind="${w}:${k}" data-d="-1">−</button><b class="num">${n(k)}</b><button type="button" data-fleetkind="${w}:${k}" data-d="1">+</button></span>`;
-      return `<div class="fleetcard"><div class="fhead"><span class="ic">${ic}</span><b>${name}</b><small>${what}</small>${status}</div>
-        <div class="fships">${SHIPS.map((k) => `<span${tip(`<h5>${SICON[k]} ${esc(R.ships[k].name)}</h5><div>${esc(R.ships[k].role)}.</div><div class="dim">Strength here ${R.ships[k].strength[w]}${R.ships[k].pay ? `; ${R.ships[k].pay} ducats a year at war` : ""}</div>`)}>${SICON[k]} <b>${have[k]}</b> ${k}s${coming[k] ? ` <small class="up">+${coming[k]}</small>` : ""}</span>`).join("")}<span>strength <b>${mine.toFixed(1)}</b></span></div>
-        ${race ? `<div class="race">${race}</div>` : ""}
-        ${harbours.length ? `<div class="row"><span class="sub">Launch from</span><select class="field" data-fport="${w}">${harbours.map((i) => `<option value="${P[i].id}" ${P[i].id === fleetPort[w] ? "selected" : ""}>${esc(P[i].name)}</option>`).join("")}</select><small class="sub">${room} more this year</small></div>
-        <div class="row">${SHIPS.map((k) => `<span>${SICON[k]} ${esc(R.ships[k].name)}</span>${stepper(k)}`).join("")}<button class="btn" data-fbuild="${w}" ${ok ? "" : "disabled"}>Launch</button><span class="cost">${cost.some((v) => v) ? costText(cost) : ""}</span></div>` : `<p class="sub">No port of yours on these waters: ships here can only sail away.</p>`}
-        ${total && others.length && !sailing ? `<div class="row"><span class="sub">Sail all ${total} ships to</span>${others.map(([x, xi, xn]) => `<button class="btn" data-fsail="${w}:${x}">${xi} ${xn}</button>`).join("")}</div>` : ""}
-        ${battles ? `<div class="row">${battles}</div>` : ""}</div>`;
-    }).join("");
-    return `${cards}<p class="sub">Galleys are cheap and rule calm seas; galleons cost more and rule the ocean. A fleet ${R.navy.command} times the enemy's closes the straits to its armies and blockades its ports; any fleet stronger than the enemy's takes away the strait's advantage. The beaten fleet in a sea battle loses ${Math.round(R.navy.loserLoss * 100)}% of its ships.</p>`;
+    const zones = SEAS.filter((z) => myPorts(z.id).length || SHIPS.some((k) => fleetAfter(z.id)[k]));
+    if (!zones.length) return `<p class="muted">You hold no port: a realm without a coast keeps no fleet.</p>`;
+    const rows = zones.map((z) => {
+      const f = fleetAfter(z.id), coming = launching(z.id), sv = seaView(z.id) || {power: {}};
+      const top = Object.entries(sv.power).filter(([n]) => n !== G.human).sort((a, b) => b[1] - a[1])[0];
+      const held = (V.me.blockaded || []).includes(z.id);
+      return `<tr class="click" data-sea="${ZI[z.id]}"><td>${WATER[z.water][0]} ${esc(z.name)}</td><td>${SICON.galley} ${f.galley}${coming.galley ? `<small class="up">+${coming.galley}</small>` : ""}</td>
+        <td>${SICON.galleon} ${f.galleon}${coming.galleon ? `<small class="up">+${coming.galleon}</small>` : ""}</td><td class="num">${navalPower(G.human, z.id).toFixed(1)}</td>
+        <td>${top ? `${esc(nameOf(top[0]))} ${top[1].toFixed(1)}` : "—"}</td><td>${held ? `<span class="neg">⚓ blockaded</span>` : ""}</td></tr>`; }).join("");
+    return `<table class="grid num"><thead><tr><th>Sea</th><th>Galleys</th><th>Galleons</th><th>Strength</th><th>Strongest other</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="sub">Click a sea here or on the map to sail its fleet, seek battle or launch ships. Galleys are cheap and rule calm seas; galleons cost more, rule the ocean and carry two regiments each to a landing. A fleet ${R.navy.command} times the enemy's closes the straits to its armies and blockades its ports; the beaten fleet in a sea battle loses ${Math.round(R.navy.loserLoss * 100)}% of its ships.</p>`;
   }
   const siege = (army) => { const total = KINDS.reduce((t, k) => t + (army[k] || 0), 0);
     return total ? Math.floor((army.artillery || 0) / total / R.siegeShare + 1e-9) : 0; };
@@ -409,6 +471,7 @@
     let bonus = perLevel * forts + (p.is_capital && held === p.owner ? R.capital : 0);
     if (p.buildings.includes("training_grounds")) bonus += 0.2 * (R.levelFactors[((p.building_levels || {}).training_grounds || 1) - 1] || 1);
     if (P[origin].sea.includes(target) && seaCommand(origin, target) !== "ours") bonus += R.sea; // unless your fleet holds the water
+    else if (!P[origin].land.includes(target) && !P[origin].sea.includes(target)) bonus += R.sea + R.landing; // off the boats
     const tech = holder ? 1 + T[0].perLevel * holder.technology.military : 1;
     const guard = p.general && p.general.nation === held ? 1 + R.generalBonus * p.general.skill : 1;
     return R.defender * R.terrain[P[target].terrain] * (1 + bonus) * tech * guard;
@@ -431,6 +494,16 @@
       else if (seaCommand(i, j) === "closed") continue; // their fleet bars the strait
       else if (o === null) out.push([j, "attack"]);
       else { const w = relation(o).war; if (w && w.attacks_allowed_from_turn <= V.turn) out.push([j, "attack"]); }
+    }
+    // by sea: any shore of a sea your fleet holds, as many regiments as its ships carry
+    const near = new Set([i, ...P[i].land, ...P[i].sea]), shores = new Set();
+    for (const z of P[i].seas || []) for (const j of seaOf(z).coasts) if (!near.has(j)) shores.add(j);
+    for (const j of shores) {
+      const room = landingRoom(i, j); if (!room) continue;
+      const o = holder(j);
+      if (o === G.human) out.push([j, "move", room]);
+      else if (o === null) out.push([j, "attack", room]);
+      else { const w = relation(o).war; if (w && w.attacks_allowed_from_turn <= V.turn) out.push([j, "attack", room]); }
     }
     return out;
   }
@@ -496,8 +569,10 @@
     march(picked, i, target[1]);
   }
   function march(from, to, kind) {
-    const army = force(from), n = KINDS.reduce((t, k) => t + army[k], 0);
+    let army = force(from), n = KINDS.reduce((t, k) => t + army[k], 0);
     if (n <= 0) return flash(`No regiments left in ${P[from].name}.`);
+    const room = (targetsFrom(from).find(([j]) => j === to) || [])[2];
+    if (room !== undefined && n > room) { army = share(army, room); n = room; flash(`Your ships carry only ${room} regiments: ${room} sail.`); }
     const g = lead ? generalAt(from) : null;
     const order = {type: kind, origin: P[from].id, target: P[to].id, regiments: n};
     if (pickMix) order.units = Object.fromEntries(KINDS.filter((k) => army[k]).map((k) => [k, army[k]]));
@@ -667,9 +742,9 @@
         const comp = U.map((u) => `<div class="unit ${now[u.id] ? "" : "none"}" title="${esc(u.name)}: ${esc(u.role)}">
           <span class="ic">${UICON[u.id]}</span><b>${now[u.id]}</b><small>${esc(u.id)}</small></div>`).join("");
         const mixed = U.filter((u) => now[u.id] / Math.max(1, here) >= R.combinedShare).length;
-        const marches = targets.map(([j, kind]) => {
+        const marches = targets.map(([j, kind, room]) => {
           const chance = kind === "attack" ? odds(i, j) : null, how = kind === "attack" && prov(j).siege_by !== G.human ? tacticOf(chosenTactic(j, force(i))) : null;
-          return `<button class="btn" data-march="${j}" data-kind="${kind}" ${how ? `title="${esc(`${how[2]}: ${how[3]}`)}"` : ""}>${kind === "move" ? "➜" : "⚔"} ${esc(P[j].name)}${how ? ` ${how[1]}` : ""}${chance !== null ? ` ${Math.round(chance * 100)}%` : ""}</button>`;
+          return `<button class="btn" data-march="${j}" data-kind="${kind}" ${how ? `title="${esc(`${how[2]}: ${how[3]}`)}"` : ""}>${room !== undefined ? "⚓" : kind === "move" ? "➜" : "⚔"} ${esc(P[j].name)}${how ? ` ${how[1]}` : ""}${chance !== null ? ` ${Math.round(chance * 100)}%` : ""}${room !== undefined ? ` <small>(${room})</small>` : ""}</button>`;
         }).join("");
         const tacticChips = `<div class="foci tactics"><button class="btn ${tactic === "best" ? "on" : ""}" data-tactic="best" title="The tactic that does most against each garrison's posture, where you can see it">✦ Best</button>${TACTICS.map(([k, ic, name, what, kind]) =>
           `<button class="btn ${tactic === k ? "on" : ""}" data-tactic="${k}" title="${esc(`${name}: ${what}. Carried by ${kind}; beats ${postureOf(BEATS[k])[2].toLowerCase()}, breaks on ${postureOf(LOSES[k])[2].toLowerCase()}.`)}">${ic} ${name}</button>`).join("")}</div>`;
@@ -1830,15 +1905,10 @@
     panel.querySelectorAll("[data-recruitkind]").forEach((b) => b.onclick = () => { const k = b.dataset.recruitkind, d = +b.dataset.d;
       recruitN[k] = Math.max(0, (recruitN[k] || 0) + d); render(); });
     const ra = panel.querySelector("#recruitat"); if (ra) ra.onchange = () => { recruitAt = ra.value; render(); };
-    panel.querySelectorAll("[data-fleetkind]").forEach((b) => b.onclick = () => { const k = b.dataset.fleetkind; fleetN[k] = Math.max(0, (fleetN[k] || 0) + +b.dataset.d); render(); });
-    panel.querySelectorAll("[data-fport]").forEach((x) => x.onchange = () => { fleetPort[x.dataset.fport] = x.value; render(); });
-    panel.querySelectorAll("[data-fbuild]").forEach((b) => b.onclick = () => { const w = b.dataset.fbuild;
-      SHIPS.forEach((k) => { const n = fleetN[`${w}:${k}`] || 0; if (n > 0) queue({type: "build_ships", province: fleetPort[w], ship: k, count: n, water: w}); fleetN[`${w}:${k}`] = 0; }); render(); });
-    panel.querySelectorAll("[data-fsail]").forEach((b) => b.onclick = () => { const [from, to] = b.dataset.fsail.split(":");
-      queue({type: "sail_fleet", origin: from, target: to, ships: Object.fromEntries(SHIPS.filter((k) => shipsIn(from)[k]).map((k) => [k, shipsIn(from)[k]]))}); });
+    wireYards(panel);
+    panel.querySelectorAll("tr[data-sea]").forEach((tr) => tr.onclick = () => { pickedSea = +tr.dataset.sea; picked = -1; if (!pinned) panelOpen = false; render(); });
     panel.querySelectorAll("[data-expedition]").forEach((b) => b.onclick = () => queue({type: "send_expedition", region: b.dataset.expedition}));
     panel.querySelectorAll("[data-seize]").forEach((b) => b.onclick = () => { const [r, e] = b.dataset.seize.split(":"); queue({type: "seize_colony", region: r, enemy: e}); });
-    panel.querySelectorAll("[data-seek]").forEach((b) => b.onclick = () => { const [w, e] = b.dataset.seek.split(":"); queue({type: "seek_battle", water: w, enemy: e}); });
     const rgo = panel.querySelector("#recruitgo"); if (rgo) rgo.onclick = () => { U.forEach((u) => { const n = recruitN[u.id] || 0;
       if (n > 0) queue({type: "recruit", province: recruitAt, regiments: n, unit: u.id}); }); recruitN = {}; render(); };
     const mgo = panel.querySelector("#mercgo"); if (mgo) mgo.onclick = () => { const n = recruitN.mercs || 0;
@@ -1940,9 +2010,9 @@
       case "send_expedition": return `⛵ Send an expedition to ${esc(regionName(o.region))}`;
       case "seize_colony": return `⚔ Take a colony in ${esc(regionName(o.region))} from ${nn(o.enemy)}`;
       case "build_ships": return `${SICON[o.ship]} Launch ${o.count} ${o.ship}${o.count > 1 ? "s" : ""} from ${pn(o.province)}`;
-      case "scrap_ships": return `⚓ Lay up ${o.count} ${o.ship}${o.count > 1 ? "s" : ""} in ${waterOf(o.water)[2].toLowerCase()}`;
-      case "sail_fleet": { const n = Object.values(o.ships).reduce((a, b) => a + b, 0); return `${waterOf(o.target)[1]} Sail ${n} ships from ${waterOf(o.origin)[2].toLowerCase()} to ${waterOf(o.target)[2].toLowerCase()}`; }
-      case "seek_battle": return `⚔ Seek out the fleet of ${nn(o.enemy)} in ${waterOf(o.water)[2].toLowerCase()}`;
+      case "scrap_ships": return `⚓ Lay up ${o.count} ${o.ship}${o.count > 1 ? "s" : ""} in the ${esc(seaName(o.sea))}`;
+      case "sail_fleet": { const n = Object.values(o.ships).reduce((a, b) => a + b, 0); return `⛵ Sail ${n} ships from the ${esc(seaName(o.origin))} to the ${esc(seaName(o.target))}`; }
+      case "seek_battle": return `⚔ Seek out the fleet of ${nn(o.enemy)} in the ${esc(seaName(o.sea))}`;
       case "set_posture": { const k = postureOf(o.posture); return `${k[1]} ${pn(o.province)}: ${k[2].toLowerCase()}`; }
       case "set_focus": { const f = FOCI.find(([k]) => k === o.focus); return `${f ? f[1] : "🎯"} Turn ${pn(o.province)} to ${f ? f[2].toLowerCase() : o.focus}`; }
       case "improve": return `${PaxMap.goodOf(S, P[pIndex[o.province]].good).icon} Raise the ${PaxMap.goodOf(S, P[pIndex[o.province]].good).workings.toLowerCase()} of ${pn(o.province)}`;
@@ -2014,12 +2084,12 @@
   }
   // A sea battle: two fleets, what they were worth, and what went down.
   function navalCard(e) {
-    const d = e.data, mine = d.attacker === G.human, won = mine === d.attacker_won, w = waterOf(d.water);
+    const d = e.data, mine = d.attacker === G.human, won = mine === d.attacker_won, zone = seaOf(d.sea), w = [WATER[zone ? zone.water : "atlantic"][0], zone ? `the ${zone.name}` : "the sea"];
     const side = (nid, fleet, power, lost, winner) => `<div class="bfight ${winner ? "winner" : ""}">
       <div class="bwho">${PaxMap.flag(nid, N[nIndex[nid]].color, 26)}<b>${esc(nameOf(nid))}</b>${winner ? `<span class="crownmark">won</span>` : ""}</div>
       <div class="bnums"><span class="neg"><b>−${lost}</b> ships</span><span><b>${power}</b> power</span></div><small>${esc(fleet)}</small></div>`;
     return `<div class="battlecard ${won ? "won" : "lost"}">
-      <div class="bhead"><span>${w[1]} ${d.great ? "A great sea battle" : "Sea battle"} in ${esc(w[2].toLowerCase())}</span><b>${won ? "Victory" : "Defeat"}</b></div>
+      <div class="bhead"><span>${w[0]} ${d.great ? "A great sea battle" : "Sea battle"} in ${esc(w[1])}</span><b>${won ? "Victory" : "Defeat"}</b></div>
       <div class="bsides">${side(d.attacker, d.attacker_fleet, d.attacker_power, d.attacker_won ? d.winner_lost : d.loser_lost, d.attacker_won)}
         <span class="vs">vs</span>${side(d.defender, d.defender_fleet, d.defender_power, d.attacker_won ? d.loser_lost : d.winner_lost, !d.attacker_won)}</div>
       <p class="bthen">${d.attacker_won === mine ? "The sea is yours: its straits and its ports are in your hands while your fleet holds it." : "Their fleet holds the sea: your armies cannot cross where it commands, and your ports may be blockaded."}</p></div>`;
@@ -2651,6 +2721,8 @@
       controller: V.provinces.map((p) => (p.controller ? nIndex[p.controller] : -1)),
       troops: V.provinces.map((p) => p.troops), dev: V.provinces.map((p) => p.development),
       veterans: V.provinces.map((p) => p.veterancy || 0),
+      fleets: SEAS.map((z) => { const sv = seaView(z.id); return sv ? Object.entries(sv.fleets).sort((a, b) => (sv.power[b[0]] || 0) - (sv.power[a[0]] || 0))
+        .map(([n, ships]) => [nIndex[n], Object.values(ships).reduce((a, b) => a + b, 0)]) : []; }),
       planned: V.provinces.map((p, i) => (owned(i) && p.troops !== null ? troopsAfter(i) - p.troops : 0)),
       forts: V.provinces.map((p) => p.fort || 0),
       sieges: V.provinces.map((p) => (p.siege_by ? {by: nIndex[p.siege_by], progress: p.siege_progress, besiegers: p.besiegers} : null)),
@@ -2702,16 +2774,27 @@
       <div class="row"><span style="color:#8a6420">★</span> Capital <span style="margin-left:8px">${PaxMap.HELM("#7a5a3a", 14)}</span> General (a pip per point of skill)</div>
       <div class="row"><i style="border:2px solid #3f8f55"></i>March <i style="border:2px solid #b8392b"></i>Attack</div>`;
   }
+  function seaTip(z, evt) {
+    const sea = SEAS[z], sv = seaView(sea.id) || {fleets: {}, power: {}};
+    const lines = Object.entries(sv.fleets).map(([n, ships]) => `<span>${esc(nameOf(n))}</span><b>${SHIPS.filter((k) => ships[k]).map((k) => `${SICON[k]}${ships[k]}`).join(" ")} <small>· ${(sv.power[n] || 0).toFixed(1)}</small></b>`).join("");
+    let extra = "Click to see its fleets";
+    if (pickedSea >= 0 && pickedSea !== z && SEAS[pickedSea].neighbors.includes(sea.id) && SHIPS.some((k) => fleetAfter(SEAS[pickedSea].id)[k])) extra = "Right-click to sail your fleet here";
+    $("tip").innerHTML = `<b class="t">${WATER[sea.water][0]} ${esc(sea.name)}</b><div class="kv">${lines || "<span>Fleets</span><b>none</b>"}</div><div class="hint">${extra}</div>`;
+    const tip = $("tip"), r = $("mapwrap").getBoundingClientRect();
+    let x = evt.clientX - r.left + 16, y = evt.clientY - r.top + 16;
+    if (x + 280 > r.width) x -= 300; if (y + 160 > r.height) y -= 180;
+    tip.style.left = x + "px"; tip.style.top = y + "px"; tip.style.display = "block";
+  }
   function tooltip(i, evt) {
     const p = prov(i), out = unbundle(p.output_per_turn).map((v, k) => `${RES[k][2]} ${v}`).join("&ensp;");
     let extra = mode === "terrain" ? `${PaxMap.TERRAIN_ICON[P[i].terrain]} ${cap(P[i].terrain)}: ${PaxMap.terrainLines(S, P[i].terrain).join(" · ")}` : "Click to select";
     if (picked >= 0 && owned(picked) && i !== picked) {
       const t = targetsFrom(picked).find(([j]) => j === i), n = KINDS.reduce((sum, k) => sum + force(picked)[k], 0);
-      if (t && t[1] === "move") extra = `Right-click to march ${n} regiments here`;
+      if (t && t[1] === "move") extra = t[2] !== undefined ? `Right-click to ship ${Math.min(n, t[2])} regiments here by sea` : `Right-click to march ${n} regiments here`;
       if (t && t[1] === "attack") { const c = odds(picked, i), s = prov(i).siege_by;
         const verb = s === G.human ? "send them to the siege lines" : s ? "break the siege" : "attack";
         const joined = orders.filter((o) => o.type === "attack" && pIndex[o.target] === i && pIndex[o.origin] !== picked).reduce((a, o) => a + o.regiments, 0);
-        extra = `Right-click to ${verb} with ${n}${joined ? ` (with the ${joined} already sent: one battle)` : ""}${c !== null ? `: ${Math.round(c * 100)}% to win` : ""}`; }
+        extra = `Right-click to ${t[2] !== undefined ? "land" : verb} with ${t[2] !== undefined ? Math.min(n, t[2]) : n}${joined ? ` (with the ${joined} already sent: one battle)` : ""}${c !== null ? `: ${Math.round(c * 100)}% to win` : ""}`; }
     }
     $("tip").innerHTML = `<b class="t">${esc(P[i].name)}</b><div class="kv">
       <span>Owner</span><b>${p.owner ? esc(nameOf(p.owner)) : "Independent"}</b>
@@ -2786,8 +2869,11 @@
     $("endturn").textContent = G.finished ? "Game over" : fallen ? "Next year" : G.submitted ? "Send again" : "End the year";
     $("endturn").disabled = G.finished || !!(TABLE && G.table && G.table.closed);
     treasury(); map.paint(world()); map.pick(picked);
-    map.setArrows(orders.filter((o) => o.type === "move" || o.type === "attack").map((o) => [pIndex[o.origin], pIndex[o.target], o.type, o.regiments]));
-    deed(); office(); ordersBox(); legend();
+    map.setArrows([...orders.filter((o) => o.type === "move" || o.type === "attack").map((o) => [pIndex[o.origin], pIndex[o.target], o.type, o.regiments]),
+      ...orders.filter((o) => o.type === "sail_fleet").map((o) => [ZI[o.origin], ZI[o.target], "sail", Object.values(o.ships).reduce((a, b) => a + b, 0)])]);
+    map.pickSea(pickedSea, pickedSea >= 0 ? SEAS[pickedSea].neighbors.map((t) => ZI[t]) : []);
+    if (pickedSea >= 0) { seaDeed(); map.setTargets([]); } else deed();
+    office(); ordersBox(); legend();
   }
 
   $("endturn").onclick = endTurn;

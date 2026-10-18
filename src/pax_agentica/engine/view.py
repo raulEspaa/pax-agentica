@@ -74,6 +74,7 @@ from pax_agentica.engine.model import (
     Resources,
     Ruler,
     Rules,
+    SeaId,
     Ship,
     Stance,
     TechBranch,
@@ -144,8 +145,9 @@ class ProvinceView(_View):
     monument: int | None  # level of its monument (see rules.monuments); None if it has none
     neighbors: tuple[ProvinceId, ...]
     sea_neighbors: tuple[ProvinceId, ...]
-    coasts: tuple[Water, ...]  # the waters it looks onto: where ships are built
-    straits: dict[ProvinceId, Water]  # the water each sea crossing goes over
+    coasts: tuple[Water, ...]  # the kinds of water it looks onto
+    seas: tuple[SeaId, ...]  # the sea zones it looks onto: where its ships launch and land
+    straits: dict[ProvinceId, SeaId]  # the sea zone each strait crossing goes over
 
 
 class TreatyView(_View):
@@ -248,9 +250,9 @@ class MyNation(_View):
     ]  # where your armies stand: your own unoccupied land and what you occupy
     war_exhaustion: float  # 0 to 20: costs ducats, and stability from 10
     morale: float  # your armies' battle power from stability and war exhaustion (1 = even)
-    fleets: dict[Water, dict[Ship, int]]  # your ships in each water
-    naval_power: dict[Water, float]  # what they are worth there (galleys rule calm seas)
-    blockaded: tuple[Water, ...]  # waters an enemy fleet holds against you: those ports earn less
+    fleets: dict[SeaId, dict[Ship, int]]  # your ships in each sea zone
+    naval_power: dict[SeaId, float]  # what they are worth there (galleys rule calm seas)
+    blockaded: tuple[SeaId, ...]  # zones an enemy fleet holds against you: ports there earn less
     colonies: dict[Region, int]  # your colonies beyond the sea, by region
     expeditions: tuple[Expedition, ...]  # yours under way, with their progress out of 100
     colonial_dues: Resources  # what the colonies send home a year (already in your income)
@@ -298,8 +300,8 @@ class NationSummary(_View):
     prestige: int
     standing: int
     faith: Faith
-    fleets: dict[Water, dict[Ship, int]]  # its ships in each water: navies are public
-    naval_power: dict[Water, float]  # what they are worth there
+    fleets: dict[SeaId, dict[Ship, int]]  # its ships in each sea zone: navies are public
+    naval_power: dict[SeaId, float]  # what they are worth there
     colonies: dict[Region, int]  # its colonies beyond the sea (public)
     stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
     infamy: float  # its conquests' weight on Europe; from rules.coalition_infamy, a league may form
@@ -324,6 +326,18 @@ class ProposalView(_View):
     limit_army: int | None  # peace: the recipient's army may not grow beyond this
     note: str  # the sender's words
     reply_to: int | None  # the proposal of yours this one counters
+
+
+class SeaView(_View):
+    """A zone of the sea, with every fleet in it (navies are public)."""
+
+    id: SeaId
+    name: str
+    water: Water  # what kind of sea: what galleys and galleons are worth here
+    neighbors: tuple[SeaId, ...]  # where a fleet can sail from here in a year
+    coasts: tuple[ProvinceId, ...]  # the provinces it washes: ports, and shores to land on
+    fleets: dict[NationId, dict[Ship, int]]
+    power: dict[NationId, float]  # what each fleet is worth here
 
 
 class RegionView(_View):
@@ -368,6 +382,7 @@ class NationView(_View):
     market: dict[str, PriceView]  # the European market today: trade with `buy` and `sell`
     crisis: CrisisView | None  # the age's great trouble, from the year it is announced
     new_world: tuple[RegionView, ...]  # the regions beyond the sea: send_expedition, seize_colony
+    seas: tuple[SeaView, ...]  # the sea zones and their fleets: sail_fleet, seek_battle, landings
     rules: Rules
 
 
@@ -396,8 +411,27 @@ def _new_world(state: GameState, nation: NationId) -> tuple[RegionView, ...]:
     return tuple(out)
 
 
-def _naval(state: GameState, nation: NationId) -> dict[Water, float]:
-    return {w: round(v, 2) for w in Water if (v := naval_power(state, nation, w))}
+def _naval(state: GameState, nation: NationId) -> dict[SeaId, float]:
+    fleets = state.nations[nation].fleets
+    return {z: round(v, 2) for z in fleets if (v := naval_power(state, nation, z))}
+
+
+def _seas(state: GameState) -> tuple[SeaView, ...]:
+    out = []
+    for z, zone in state.map.seas.items():
+        here = {n: ns for n, ns in state.nations.items() if ns.alive and z in ns.fleets}
+        out.append(
+            SeaView(
+                id=z,
+                name=zone.name,
+                water=zone.water,
+                neighbors=zone.neighbors,
+                coasts=zone.coasts,
+                fleets={n: dict(ns.fleets[z]) for n, ns in here.items()},
+                power={n: round(naval_power(state, n, z), 2) for n in here},
+            )
+        )
+    return tuple(out)
 
 
 def visible_provinces(state: GameState, nation: NationId) -> set[ProvinceId]:
@@ -517,10 +551,11 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             neighbors=definition.neighbors,
             sea_neighbors=definition.sea_neighbors,
             coasts=definition.coasts,
+            seas=definition.seas,
             straits={
-                q: w
+                q: z
                 for q in definition.sea_neighbors
-                if (w := state.map.strait_water(pid, q)) is not None
+                if (z := state.map.strait_sea(pid, q)) is not None
             },
         )
         for pid, definition in state.map.provinces.items()
@@ -677,6 +712,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         last_turn_events=tuple(e for e in state.last_events if e.visible_to(nation)),
         crisis=_crisis(state),
         new_world=_new_world(state, nation),
+        seas=_seas(state),
         market={
             res: PriceView(
                 price=round(price, 2),

@@ -110,6 +110,12 @@ svg.paxmap { display: block; width: 100%; height: 100%; user-select: none; }
 .pborder.mine { stroke: var(--brass-hi); stroke-width: 2.6; }
 .bglow { fill: none; stroke: rgba(10, 5, 0, .22); stroke-width: 7; stroke-linejoin: round; }
 svg .pick { fill: none; stroke: #fff6dc; stroke-width: 2.4; stroke-dasharray: 6 4; pointer-events: none; }
+.zone { fill: transparent; stroke: rgba(225, 240, 248, .22); stroke-width: 1.2; stroke-dasharray: 2 5; cursor: pointer; }
+.zone.hover { fill: rgba(220, 238, 250, .08); }
+.zone.picked { fill: rgba(232, 200, 120, .14); stroke: rgba(240, 214, 140, .8); stroke-width: 2; stroke-dasharray: none; }
+.zone.aim { fill: rgba(140, 200, 240, .12); stroke: rgba(160, 214, 246, .7); stroke-dasharray: 4 3; }
+.badge.fleet .hull { fill: #f4e8cc; stroke: #120a04; stroke-width: .8; stroke-linejoin: round; }
+.arrow.sail { fill: none; stroke: #2a5d8a; stroke-linecap: round; } .arrow.wake { fill: none; stroke: rgba(230, 244, 252, .55); stroke-linecap: round; }
 .target { fill: none; stroke-width: 3.2; pointer-events: none; stroke-dasharray: 4 3; }
 .target.move { stroke: #8fe0a4; } .target.attack { stroke: #ff7a66; }
 .arrow { fill: none; stroke-linecap: round; opacity: .92; }

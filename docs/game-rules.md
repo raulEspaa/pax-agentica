@@ -11,8 +11,9 @@ else to play. Every number here comes from `Rules` in
   **trade good** (one of fourteen, see below), a **development** level (1–12), **workings**
   (0–3), **buildings** and a garrison of **regiments**.
 - **Borders** are land borders or **straits** (the Channel, the Øresund, Gibraltar…). Straits
-  can be crossed, but they favour the defender unless the attacker's fleet holds the water, and
-  a fleet twice the attacker's closes them (see Fleets). Land borders are exactly the ones drawn on the
+  can be crossed, but they favour the defender unless the attacker's fleet holds the sea, and a
+  fleet twice the attacker's closes them. The sea is cut into zones that fleets sail, and from
+  which armies land on any coast (see Fleets). Land borders are exactly the ones drawn on the
   map, which is built from real geography.
 - **Nine great powers**: England, France, Spain, Austria, the Ottoman Empire, Sweden, Russia,
   Poland-Lithuania and Brandenburg-Prussia. Two unions come early, so the middle of Europe has
@@ -438,36 +439,44 @@ technology, milestones, ruler and council.
 
 ### Fleets
 
-Fleets are not drawn on the map: each realm keeps ships in three **waters**, the Atlantic (with
-the Channel and the North Sea), the Baltic (with the Gulf of Bothnia) and the Mediterranean (with
-the Adriatic and the Black Sea). Every coastal province looks onto one or two of them. Navies are
-public: every court knows every fleet.
+The sea is cut into 14 **zones** drawn on the map (the Atlantic Ocean, the Bay of Biscay, the
+English Channel, the Irish Sea, the North Sea, the Norwegian Sea, the Baltic, the Gulf of
+Bothnia, the Mediterranean, the Tyrrhenian, the Adriatic, the Ionian, the Aegean and the Black
+Sea). Fleets sail from zone to zone as armies march between provinces. Every coastal province
+looks onto one or two zones. Each zone is one of three kinds of water, and a ship's strength
+depends on the kind. Navies are public: every court sees every fleet.
 
-| Ship | Cost | Strength: Atlantic | Baltic | Mediterranean |
-|---|---|---|---|---|
-| Galley | 12 ducats, 3 timber, 1 manpower | 0.5 | 1 | 1.5 |
-| Galleon | 30 ducats, 6 timber, 2 iron, 1 goods | 2.5 | 2 | 1.5 |
+| Ship | Cost | Carries | Strength: ocean | Baltic | inland sea (Mediterranean) |
+|---|---|---|---|---|---|
+| Galley | 12 ducats, 3 timber, 1 manpower | 1 regiment | 0.5 | 1 | 1.5 |
+| Galleon | 30 ducats, 6 timber, 2 iron, 1 goods | 2 regiments | 2.5 | 2 | 1.5 |
 
 Ships cost their price once: the crews are pressed when needed, so a fleet costs nothing a
 year (a tournament may set `pay`, ducats a year at war).
 
-- `build_ships` launches ships from one of your ports into its water: at most 3 a year from a
-  port, and one more for every 3 development. `scrap_ships` lays them up. `sail_fleet` sends
-  ships to another water where you hold a port; they are at sea all year and arrive at its end.
-- **The straits.** A fleet twice as strong as the attacker's (and stronger than nothing) closes
-  a strait's water to its armies: they cannot cross. A fleet stronger than the defender's takes
-  away the strait's 25% defence bonus.
-- **Sea battles.** `seek_battle` sends your fleet in a water against an enemy's there, before the
-  armies march. Strength × morale × a roll of 0.8 to 1.2 decides it; the beaten fleet loses half
-  its ships, the winner 30% of the loser's strength over its own. It counts in the war score like
-  a land battle when the beaten fleet loses 3 ships or more. With 30 ships or more on both sides it is a great sea battle: twice the
+- `build_ships` launches ships from one of your ports into a zone it looks onto: at most 3 a
+  year from a port, and one more for every 3 development. `scrap_ships` lays them up.
+- `sail_fleet` moves ships to a neighbouring zone, a zone a year, before the battles.
+- **The straits.** A strait belongs to a zone. A realm's sway over it is its fleet there plus
+  half of its fleets in the neighbouring zones. A defender with twice the attacker's sway (and
+  more than none) closes the strait: no army crosses. An attacker with more sway than the
+  defender takes away the strait's 25% defence bonus.
+- **Landings.** From a coastal province, an army may attack (or move to) any province on the same
+  zone, if your fleet there is stronger than the defender's and its ships can carry every
+  regiment. The defenders fight 25% (the strait) + 25% (the beach) harder.
+- **Sea battles.** `seek_battle` sends your fleet in a zone against an enemy's in the same zone,
+  after the fleets sail and before the armies march. Strength × morale × a roll of 0.8 to 1.2
+  decides it; the beaten fleet loses half its ships, the winner 30% of the loser's strength
+  over its own. It counts in the war score like a land battle when the beaten fleet loses 3
+  ships or more. With 30 ships or more on both sides it is a great sea battle: twice the
   prestige.
-- **Blockade.** At war, an enemy fleet of strength 8 or more, twice yours in a water, blockades
-  it: your provinces whose every coast is on blockaded water earn 25% fewer ducats.
-- The fleets of 1500: the Sultan's 10 galleys and a galleon; Spain's 6 galleys and 3 galleons
-  on two seas; France's 4 galleys and 2 galleons; England's 4 galleons and a galley; Sweden's 3
-  galleys and 2 galleons; a galley each for Brandenburg and Austria. England and Sweden sail a
-  quarter better.
+- **Blockade.** At war, an enemy fleet of strength 8 or more, twice yours in a zone, holds it:
+  your provinces whose every zone is held earn 25% fewer ducats.
+- The fleets of 1500: the Sultan's galleys in the Aegean and the Black Sea; Spain's galleys in
+  the Mediterranean and galleons on the Atlantic; France's galleys in the Mediterranean and
+  galleons in the Channel, and England's ships royal there; Sweden's in the Baltic; a galley each
+  for Brandenburg (the Baltic) and Austria (the Adriatic). England and Sweden sail a quarter
+  better.
 
 ### The New World
 
@@ -483,17 +492,17 @@ The lands beyond the sea are not on the map: they are in the office of the New W
 | Peru | 1532 | 2 | 11 ducats | 15 |
 | North America | 1534 | 5 | 2 ducats, 2 timber, 2 grain | 5 |
 
-- `send_expedition` costs 40 ducats and 3 manpower. It needs a port of yours on the Atlantic or
-  the Baltic and an escort: a fleet of strength 2.5 there. No more than 2 at once, one per region.
+- `send_expedition` costs 40 ducats and 3 manpower. It needs a port of yours on the ocean or
+  the Baltic and an escort: fleets of strength 2.5 on their zones. No more than 2 at once, one per region.
 - Each year an expedition makes 20 progress, plus 5 per pip of a die, plus 1 per point of the
   escorting fleet's strength (10 at most), less the region's hardness, less 10 from a Baltic
   port. At 100% it founds a colony (+3 prestige), unless every place was taken first: then it
   comes home with nothing.
 - A region's places are shared by every crown; one crown may hold at most half of them.
-- The colonies' dues are part of the yearly income. While an enemy blockades your Atlantic
-  ports, the treasure fleets cannot sail: the dues are halved.
-- At war, `seize_colony` takes one colony a year from each enemy, if your Atlantic fleet is twice
-  the enemy's (+3 prestige to you, −3 to them).
+- The colonies' dues are part of the yearly income. While enemy fleets hold every ocean zone
+  your ports look onto, the treasure fleets cannot sail: the dues are halved.
+- At war, `seize_colony` takes one colony a year from each enemy, if your fleets on the ocean
+  zones are twice the enemy's (+3 prestige to you, −3 to them).
 - Spain starts with Hispaniola. Three crowns sail in their own way: Spain's Casa de
   Contratación (every expedition 5 progress more, the silver of New Spain and Peru half again),
   England's Sea Dogs (take colonies with a fleet only 1.5 times the enemy's, 10 progress more in

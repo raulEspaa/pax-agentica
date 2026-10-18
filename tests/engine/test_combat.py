@@ -24,7 +24,7 @@ def at_war(state: GameState, a: str, b: str, play: Play) -> GameState:
 
 def test_defence_multiplies_terrain_forts_capitals_and_straits(state: GameState) -> None:
     advantage = state.rules.defender_advantage
-    assert defense_multiplier(state, "lisbon", "galicia") == pytest.approx(advantage * 1.25)
+    assert defense_multiplier(state, "porto", "galicia") == pytest.approx(advantage * 1.25)
     assert defense_multiplier(state, "normandy", "paris") == pytest.approx(advantage * 1.25)
     state.provinces["paris"].buildings = [BuildingKind.FORT, BuildingKind.CITADEL]
     assert defense_multiplier(state, "normandy", "paris") == pytest.approx(advantage * 1.75)
@@ -122,6 +122,7 @@ def test_an_occupied_capital_costs_stability_and_stays_a_capital(
     war.provinces["normandy"].owner = "spain"
     war.provinces["normandy"].troops = 200
     war.provinces["london"].troops = 1
+    war.nations["england"].fleets = {}  # the Channel open
     new = play(war, spain=[Attack(origin="normandy", target="london", regiments=200)])
     england = new.nations["england"]
     assert new.provinces["london"].owner == "england"

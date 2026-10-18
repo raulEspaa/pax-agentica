@@ -112,6 +112,8 @@ const PaxMap = (() => {
         <path d="M0 1 L11 6 L0 11 L3.5 6 Z" fill="#2f6b3e" stroke="#13240f" stroke-width=".8" stroke-linejoin="round"/></marker>
       <marker id="arrow-attack" viewBox="0 0 16 10" refX="11" refY="5" markerWidth="5.6" markerHeight="3.5" orient="auto-start-reverse">
         <path d="M0 3.4 L4 3.4 L5 1 L15.5 5 L5 9 L4 6.6 L0 6.6 Z" fill="#b8392b" stroke="#3a0d07" stroke-width=".9" stroke-linejoin="round"/></marker>
+      <marker id="arrow-sail" viewBox="0 0 12 12" refX="7" refY="6" markerWidth="4.6" markerHeight="4.6" orient="auto-start-reverse">
+        <path d="M0 1 L11 6 L0 11 L3.5 6 Z" fill="#2a5d8a" stroke="#0c1c2a" stroke-width=".8" stroke-linejoin="round"/></marker>
       <clipPath id="landclip"></clipPath>`;
 
     const off = {"pointer-events": "none"};
@@ -125,6 +127,10 @@ const PaxMap = (() => {
       el("text", {x: s.x, y: s.y, class: "sea", "font-size": size, "letter-spacing": size * .22,
         transform: `rotate(${s.angle} ${s.x} ${s.y})`}, gSea).textContent = s.name;
     }
+    // the zones of the sea fleets sail: faint lines between them, a wash when picked or aimed at
+    const Z = S.seas || [];
+    const gZones = el("g", {}, svg);
+    const zonePaths = Z.map((z, k) => { const e = el("path", {d: z.d || "", class: "zone"}, gZones); e.dataset.z = k; return e; });
     const landclip = defs.querySelector("#landclip");
     el("path", {d: S.map.wasteland}, landclip);
     P.forEach((p) => el("path", {d: p.d}, landclip));
@@ -242,10 +248,24 @@ const PaxMap = (() => {
         "font-size": l.size.toFixed(1), "letter-spacing": (l.size * 0.28).toFixed(1)}, gNames).textContent = l.name;
     }
 
+    function fleets(k) { // a shield for each realm's fleet in a zone, beside the zone's name
+      (world.fleets || []).forEach((list, z) => {
+        if (!list || !list.length || !Z[z]) return;
+        const total = list.length;
+        list.forEach(([o, ships], n) => {
+          const x = Z[z].x + (n - (total - 1) / 2) * 30 * k, y = Z[z].y + 20 * k;
+          const {g} = shield(gMarks, String(ships), N[o].color, {x, y, scale: 1.15 * k});
+          g.classList.add("fleet");
+          el("path", {class: "hull", d: "M-7 -11 H7 L4 -8 H-4 Z M0 -11 V-21 L6 -13 H0", transform: "translate(0 0)"}, g);
+          el("title", {}, g).textContent = `${N[o].name}: ${ships} ships in the ${Z[z].name}`;
+        });
+      });
+    }
     function markers() {
       gMarks.textContent = "";
       if (!world) return;
       const k = px(), close = view.w < maxW() * 0.6;
+      fleets(k);
       P.forEach((p, i) => {
         const o = (world.controller || [])[i] >= 0 ? world.controller[i] : world.owner[i];
         if (world.capitals.has(i) && world.owner[i] >= 0) el("path", {class: "capital", transform: `translate(${p.x} ${p.y - 14 * k}) scale(${1.1 * k})`,
@@ -424,13 +444,16 @@ const PaxMap = (() => {
       gArrows.textContent = "";
       const k = px();
       for (const [a, b, kind, count] of arrows) {
-        const p = P[a], q = P[b], mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+        const p = kind === "sail" ? Z[a] : P[a], q = kind === "sail" ? Z[b] : P[b], mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
         const dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy) || 1;
         const cx = mx - dy / len * len * 0.18, cy = my + dx / len * len * 0.18; // a gentle bow
         const d = `M${p.x} ${p.y} Q${cx} ${cy} ${q.x} ${q.y}`;
         const at = (s) => [(1 - s) * (1 - s) * p.x + 2 * (1 - s) * s * cx + s * s * q.x, (1 - s) * (1 - s) * p.y + 2 * (1 - s) * s * cy + s * s * q.y];
         const dir = (s) => Math.atan2(2 * (1 - s) * (cy - p.y) + 2 * s * (q.y - cy), 2 * (1 - s) * (cx - p.x) + 2 * s * (q.x - cx)) * 180 / Math.PI;
-        if (kind === "attack") {
+        if (kind === "sail") {
+          el("path", {d, class: "arrow wake", "stroke-width": 5 * k}, gArrows);
+          el("path", {d, class: "arrow sail", "stroke-width": 2.6 * k, "stroke-dasharray": `${6 * k} ${4 * k}`, "marker-end": "url(#arrow-sail)"}, gArrows);
+        } else if (kind === "attack") {
           el("path", {d, class: "arrow edge", "stroke-width": 7 * k}, gArrows);
           el("path", {d, class: "arrow attack", "stroke-width": 4.6 * k, "marker-end": "url(#arrow-attack)"}, gArrows);
         } else {
@@ -441,13 +464,18 @@ const PaxMap = (() => {
             el("path", {d: "M-3 -3.4 L1.6 0 L-3 3.4", class: "chevron", transform: `translate(${x} ${y}) rotate(${dir(s)}) scale(${1.25 * k})`}, gArrows); }
         }
         const [lx, ly] = at(.5);
-        shield(gArrows, count, kind === "attack" ? "#b8392b" : "#2f6b3e", {x: lx, y: ly - 3 * k, scale: 1.05 * k});
+        shield(gArrows, count, kind === "attack" ? "#b8392b" : kind === "sail" ? "#2a5d8a" : "#2f6b3e", {x: lx, y: ly - 3 * k, scale: 1.05 * k});
       }
     }
 
     function setTargets(list) { // [[province, "move" | "attack"]]
       gTargets.textContent = "";
       for (const [i, kind] of list) el("path", {d: P[i].d, class: `target ${kind}`}, gTargets);
+    }
+    let seaPicked = -1;
+    function pickSea(z, aims = []) { // a picked zone of the sea, and the zones its fleet may sail to
+      zonePaths.forEach((e, k) => { e.classList.toggle("picked", k === z); e.classList.toggle("aim", aims.includes(k)); });
+      seaPicked = z;
     }
 
     function applyView() {
@@ -496,6 +524,14 @@ const PaxMap = (() => {
     gLand.addEventListener("contextmenu", (e) => { const i = +e.target.dataset.i;
       if (!hooks.command || Number.isNaN(i)) return;
       e.preventDefault(); hooks.command(i, e); });
+    gZones.addEventListener("pointermove", (e) => { const z = +e.target.dataset.z;
+      if (Number.isNaN(z) || drag) return;
+      zonePaths.forEach((p, k) => p.classList.toggle("hover", k === z)); if (hooks.seaHover) hooks.seaHover(z, e); });
+    gZones.addEventListener("pointerleave", () => { zonePaths.forEach((p) => p.classList.remove("hover")); if (hooks.leave) hooks.leave(); });
+    gZones.addEventListener("click", (e) => { if (moved) return; const z = +e.target.dataset.z;
+      if (hooks.seaClick && !Number.isNaN(z)) hooks.seaClick(z, e); });
+    gZones.addEventListener("contextmenu", (e) => { const z = +e.target.dataset.z;
+      if (!hooks.seaCommand || Number.isNaN(z)) return; e.preventDefault(); hooks.seaCommand(z, e); });
     wrap.addEventListener("wheel", (e) => {
       if (!svg.contains(e.target)) return; // over the deed or the legend, the wheel scrolls them
       e.preventDefault(); zoomAt(e.deltaY > 0 ? 1.18 : 1 / 1.18, e.clientX, e.clientY); }, {passive: false});
@@ -508,7 +544,7 @@ const PaxMap = (() => {
     window.addEventListener("pointerup", () => { drag = null; wrap.classList.remove("dragging"); });
     window.addEventListener("resize", () => { applyView(); refresh(); });
 
-    return {paint, pick, setTargets, setArrows, zoomAt, home, centerOn, refresh, view, maxW, px, ping, motion, look, aspect, get picked() { return picked; }};
+    return {paint, pick, pickSea, setTargets, setArrows, zoomAt, home, centerOn, refresh, view, maxW, px, ping, motion, look, aspect, get picked() { return picked; }, get seaPicked() { return seaPicked; }};
   }
 
   // ------------------------------------------------------------------ the province vista

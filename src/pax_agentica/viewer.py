@@ -162,6 +162,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
     """Everything about a game that never changes: the drawn map, provinces, nations, rules."""
     order = list(state.map.provinces)
     rules = state.rules
+    drawn = {z["id"]: z for z in geo.get("zones", [])}
     return {
         "map": {
             "width": geo["width"],
@@ -188,13 +189,25 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                 "land": [order.index(n) for n in d.neighbors],
                 "sea": [order.index(n) for n in d.sea_neighbors],
                 "coasts": [w.value for w in d.coasts],
+                "seas": list(d.seas),
                 "straits": {
-                    str(order.index(n)): w.value
+                    str(order.index(n)): z
                     for n in d.sea_neighbors
-                    if (w := state.map.strait_water(pid, n)) is not None
+                    if (z := state.map.strait_sea(pid, n)) is not None
                 },
             }
             for pid, d in state.map.provinces.items()
+        ],
+        "seas": [
+            {
+                "id": zid,
+                "name": zone.name,
+                "water": zone.water.value,
+                "neighbors": list(zone.neighbors),
+                "coasts": [order.index(p) for p in zone.coasts],
+                **{k: drawn[zid][k] for k in ("d", "x", "y") if zid in drawn},
+            }
+            for zid, zone in state.map.seas.items()
         ],
         "nations": [{"id": n.id, "name": n.name, "color": n.color} for n in state.nations.values()],
         "resources": list(RESOURCE_NAMES),
@@ -352,6 +365,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                     "name": spec.name,
                     "cost": amounts(spec.cost),
                     "pay": spec.pay,
+                    "carries": spec.carries,
                     "strength": {w.value: v for w, v in spec.strength.items()},
                     "role": spec.role,
                 }
@@ -384,6 +398,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "navy": {
                 "perPort": rules.ships_per_port,
                 "command": rules.fleet_command,
+                "reach": rules.fleet_reach,
                 "blockadeShare": rules.blockade_share,
                 "blockadeMin": rules.blockade_min,
                 "loserLoss": rules.naval_loser_loss,
@@ -405,6 +420,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
             "fort": rules.fort_bonus_per_level,
             "capital": rules.capital_bonus,
             "sea": rules.sea_crossing_bonus,
+            "landing": rules.landing_bonus,
             "rollMin": rules.roll_min,
             "rollMax": rules.roll_max,
             "stabilityBonus": rules.stability_income_bonus,

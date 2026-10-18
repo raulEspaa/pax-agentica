@@ -17,6 +17,7 @@ from pax_agentica.engine.model import (
     Region,
     Resources,
     Rules,
+    SeaId,
     Settlement,
     Ship,
     Tactic,
@@ -273,59 +274,126 @@ def province_output(state: GameState, province: ProvinceId) -> Resources:
     return _keep(out, faith_penalty(state, province))
 
 
-def naval_power(state: GameState, nation: NationId | None, water: Water) -> float:
-    """What a realm's ships in a water are worth: each kind by its strength there, times the
-    realm's own seamanship."""
-    if nation is None:
+def naval_power(state: GameState, nation: NationId | None, sea: SeaId) -> float:
+    """What a realm's ships in a sea zone are worth: each kind by its strength in that kind of
+    water, times the realm's own seamanship."""
+    zone = state.map.seas.get(sea)
+    if nation is None or zone is None:
         return 0.0
     rules = state.rules
-    ships = state.nations[nation].ships(water)
-    base = sum(n * rules.ships[k].strength[water] for k, n in ships.items())
+    ships = state.nations[nation].ships(sea)
+    base = sum(n * rules.ships[k].strength[zone.water] for k, n in ships.items())
     return base * (1 + modifiers(state, nation).navy) if base else 0.0
 
 
-def fleet_upkeep(rules: Rules, fleets: Mapping[Water, Mapping[Ship, int]]) -> int:
+def ocean_power(
+    state: GameState, nation: NationId, waters: Collection[Water] = (Water.ATLANTIC,)
+) -> float:
+    """A realm's fleets on every zone of these waters together: its sway on the ocean."""
+    return sum(
+        naval_power(state, nation, z)
+        for z, zone in state.map.seas.items()
+        if zone.water in waters and z in state.nations[nation].fleets
+    )
+
+
+def carries(rules: Rules, ships: Mapping[Ship, int]) -> int:
+    """How many regiments these ships can carry to a landing."""
+    return sum(n * rules.ships[k].carries for k, n in ships.items())
+
+
+def fleet_upkeep(rules: Rules, fleets: Mapping[SeaId, Mapping[Ship, int]]) -> int:
     """What a realm's ships cost in ducats a year."""
     pay = sum(n * rules.ships[k].pay for ships in fleets.values() for k, n in ships.items())
     return math.ceil(pay - 1e-9)
 
 
 def sea_command(
-    state: GameState, attacker: NationId | None, defender: NationId | None, water: Water
+    state: GameState, attacker: NationId | None, defender: NationId | None, sea: SeaId
 ) -> str:
-    """Who holds a water for a crossing: "closed" when the defender's fleet is
+    """Who holds a sea zone for a crossing: "closed" when the defender's fleet is
     rules.fleet_command times the attacker's (no army crosses), "ours" when the attacker's is
     the stronger (the strait favours no one), else "contested" (it favours the defender)."""
-    mine, theirs = naval_power(state, attacker, water), naval_power(state, defender, water)
+    mine, theirs = sea_reach(state, attacker, sea), sea_reach(state, defender, sea)
     if theirs > 0 and theirs >= state.rules.fleet_command * mine:
         return "closed"
     return "ours" if mine > theirs else "contested"
 
 
-def blockaded(state: GameState, nation: NationId) -> set[Water]:
-    """The waters an enemy at war holds against this realm: a fleet of at least
-    rules.blockade_min, and rules.fleet_command times its own there."""
+def sea_reach(state: GameState, nation: NationId | None, sea: SeaId) -> float:
+    """A realm's sway over a strait's sea: its fleet there, and half of its fleets in the
+    zones next to it, that can sail in when an army crosses."""
+    zone = state.map.seas.get(sea)
+    if nation is None or zone is None:
+        return 0.0
+    near = sum(naval_power(state, nation, z) for z in zone.neighbors)
+    return naval_power(state, nation, sea) + state.rules.fleet_reach * near
+
+
+def blockaded(state: GameState, nation: NationId) -> set[SeaId]:
+    """The sea zones an enemy at war holds against this realm: a fleet of at least
+    rules.blockade_min there, and rules.fleet_command times its own."""
     rules = state.rules
-    out: set[Water] = set()
-    for water in Water:
-        mine = naval_power(state, nation, water)
-        for enemy in state.enemies_of(nation):
-            theirs = naval_power(state, enemy, water)
+    out: set[SeaId] = set()
+    enemies = state.enemies_of(nation)
+    if not enemies:
+        return out
+    for sea in state.map.seas:
+        mine = naval_power(state, nation, sea)
+        for enemy in enemies:
+            theirs = naval_power(state, enemy, sea)
             if theirs >= rules.blockade_min and theirs >= rules.fleet_command * mine:
-                out.add(water)
+                out.add(sea)
     return out
 
 
 def blockaded_ports(state: GameState, nation: NationId) -> list[ProvinceId]:
-    """The realm's provinces whose every coast an enemy fleet holds: their trade is choked."""
+    """The realm's provinces whose every sea an enemy fleet holds: their trade is choked."""
     shut = blockaded(state, nation) if state.wars else set()
     if not shut:
         return []
     return [
         pid
         for pid in state.provinces_of(nation)
-        if (coasts := state.map.provinces[pid].coasts) and set(coasts) <= shut
+        if (seas := state.map.provinces[pid].seas) and set(seas) <= shut
     ]
+
+
+def ocean_blockaded(state: GameState, nation: NationId) -> bool:
+    """Whether every ocean zone the realm's ports open onto is held by an enemy fleet: then
+    no treasure fleet comes home."""
+    shut = blockaded(state, nation) if state.wars else set()
+    if not shut:
+        return False
+    ocean = {
+        z
+        for pid in state.provinces_of(nation)
+        for z in state.map.provinces[pid].seas
+        if state.map.seas[z].water == Water.ATLANTIC
+    }
+    return bool(ocean) and ocean <= shut
+
+
+def landing_sea(
+    state: GameState, nation: NationId, origin: ProvinceId, target: ProvinceId
+) -> SeaId | None:
+    """The sea zone an army could be carried over from `origin` to `target`: one both look
+    onto, where the realm's fleet outmatches whoever holds `target` (best: the most it can
+    carry). None when there is none."""
+    there = state.provinces[target]
+    enemy = there.siege_by if there.siege_by not in (None, nation) else there.holder
+    best, room = None, 0
+    for sea in state.map.shared_seas(origin, target):
+        if enemy not in (None, nation) and sea_command(state, nation, enemy, sea) != "ours":
+            continue
+        if enemy in (None, nation) and any(
+            sea_command(state, nation, e, sea) == "closed" for e in state.enemies_of(nation)
+        ):
+            continue
+        cap = carries(state.rules, state.nations[nation].ships(sea))
+        if cap > room:
+            best, room = sea, cap
+    return best
 
 
 def nation_income(state: GameState, nation: NationId) -> Resources:
@@ -377,7 +445,7 @@ def colonial_dues(state: GameState, nation: NationId) -> Resources:
         bonus = 1 + (spirit.dues.get(region, 0.0) if spirit else 0.0)
         for k, v in rules.regions[region].yields.amounts().items():
             total[k] += v * n * bonus
-    if state.wars and Water.ATLANTIC in blockaded(state, nation):
+    if ocean_blockaded(state, nation):
         total = {k: v * (1 - rules.colonial_blockade) for k, v in total.items()}
     return Resources(**{k: math.floor(v) for k, v in total.items()})
 
@@ -398,8 +466,8 @@ def colonies_in(state: GameState, region: Region) -> int:
 
 
 def ocean_fleet(state: GameState, nation: NationId) -> float:
-    """The fleet that escorts expeditions: the stronger of the crown's Atlantic and Baltic."""
-    return max(naval_power(state, nation, Water.ATLANTIC), naval_power(state, nation, Water.BALTIC))
+    """The fleet that escorts expeditions: the crown's ships on the Atlantic and the Baltic."""
+    return ocean_power(state, nation, (Water.ATLANTIC, Water.BALTIC))
 
 
 def expedition_progress(state: GameState, nation: NationId, region: Region) -> int:
@@ -909,10 +977,12 @@ def defense_multiplier(
     if owner is not None and holder == owner and state.nations[owner].capital == target:
         bonus += rules.capital_bonus  # a capital's own people defend it, not its occupiers
     if state.map.is_sea_crossing(origin, target):  # unless the attacker holds the water
-        water = state.map.strait_water(origin, target)
+        sea = state.map.strait_sea(origin, target)
         crosser = state.provinces[origin].holder
-        if water is None or sea_command(state, crosser, holder, water) != "ours":
+        if sea is None or sea_command(state, crosser, holder, sea) != "ours":
             bonus += rules.sea_crossing_bonus
+    elif not state.map.adjacent(origin, target):  # a landing from the boats
+        bonus += rules.sea_crossing_bonus + rules.landing_bonus
     return rules.defender_advantage * terrain * (1 + bonus)
 
 

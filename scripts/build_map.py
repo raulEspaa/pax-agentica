@@ -53,6 +53,32 @@ SEAS: list[tuple[str, float, float, int, float]] = [
 ]
 WASTE = "_wasteland"
 
+# The sea zones fleets sail: id, name, and seed points (lon, lat). The water is cut among the
+# zones by the nearest seed (a Voronoi diagram), so the seeds shape the borders between them.
+# Seeds of None are water no fleet sails (the Caspian).
+ZONES: list[tuple[str | None, str, list[tuple[float, float]]]] = [
+    ("atlantic", "Atlantic Ocean",
+     [(-20, 55), (-15, 48), (-14, 40), (-12, 34), (-25, 62), (-14, 60), (-11, 44), (-10, 37.5),
+      (-8, 34.5), (-7.5, 36.4)]),
+    ("biscay", "Bay of Biscay", [(-5, 46), (-3, 44.6), (-7, 45), (-2, 45.7)]),
+    ("channel", "English Channel", [(-2.5, 50.1), (0.5, 50.3), (-4.5, 49.7), (1.5, 50.8)]),
+    ("irish_sea", "Irish Sea", [(-5, 53.7), (-4.9, 52.2), (-5.6, 55)]),
+    ("north_sea", "North Sea", [(3, 56), (2.5, 53.5), (6, 58), (1, 58.5), (4, 54), (9, 58)]),
+    ("norwegian_sea", "Norwegian Sea", [(2, 66), (10, 69), (30, 72), (37, 66), (0, 62), (20, 71)]),
+    ("baltic", "Baltic Sea",
+     [(18, 56), (15, 55), (20, 58), (23, 59.6), (12.5, 54.6), (11.5, 57), (12.6, 55.6)]),
+    ("bothnia", "Gulf of Bothnia", [(20, 62.5), (22, 64.5), (19.5, 61), (24, 65.3)]),
+    ("western_med", "Mediterranean Sea",
+     [(4.5, 38.6), (0, 37.5), (-3, 36.2), (6, 41), (3, 42.5), (8, 37.5), (-4.6, 36.0)]),
+    ("tyrrhenian", "Tyrrhenian Sea", [(12, 40), (10.5, 42.5), (13.5, 39), (10.5, 43.5)]),
+    ("adriatic", "Adriatic Sea", [(15.6, 43), (13, 44.5), (18, 41.6), (19, 40.6)]),
+    ("ionian", "Ionian Sea",
+     [(18.6, 37.2), (17, 35), (20, 38.5), (14, 34), (21, 33.5), (12, 36.5)]),
+    ("aegean", "Aegean Sea", [(25, 38.6), (24.5, 40.5), (26, 36), (28, 35), (30, 34.5), (33, 35)]),
+    ("black_sea", "Black Sea", [(34, 43.4), (31, 44), (37, 44), (29, 42), (36, 46), (28.2, 40.7)]),
+    (None, "Caspian Sea", [(50, 42), (50, 45), (52, 40), (49, 38), (51, 46.5)]),
+]  # fmt: skip
+
 # Which game provinces may claim the regions of each country (ISO 3166 alpha-3), and how far
 # (km) a region's centre may lie from the province seat. Farther regions become wasteland.
 COUNTRIES: dict[str, tuple[tuple[str, ...], float]] = {
@@ -499,6 +525,54 @@ def rivers(source: Path, view, scale: float, ox: float, oy: float) -> list[list[
     return out
 
 
+def sea_zones(view, land, shapes, scale: float, ox: float, oy: float):  # type: ignore[no-untyped-def]
+    """Cut the sea into the zones fleets sail: the water nearest each zone's seeds, without the
+    lakes (water no seed lies in). Returns the drawn zones, the pairs of zones that border, and
+    the provinces each zone washes."""
+    from shapely.geometry import MultiPoint, Point
+
+    water = view.difference(land)
+    seeds = [(zid, Point(project(lon, lat))) for zid, _name, pts in ZONES for lon, lat in pts]
+    parts = list(water.geoms) if hasattr(water, "geoms") else [water]
+    sea = unary_union([w for w in parts if any(w.contains(pt) for _z, pt in seeds)])
+    cells = shapely.voronoi_polygons(MultiPoint([pt for _z, pt in seeds]), extend_to=view)
+    owned: dict[str, list] = defaultdict(list)  # type: ignore[type-arg]
+    for cell in cells.geoms:
+        zid = next(z for z, pt in seeds if cell.contains(pt))
+        if zid is not None:
+            owned[zid].append(cell)
+    geoms = {zid: areal(unary_union(cs).intersection(sea)) for zid, cs in owned.items()}
+    names = {zid: name for zid, name, _pts in ZONES if zid}
+    out = []
+    for zid, geom in geoms.items():
+        biggest = max(geom.geoms, key=lambda g: g.area) if isinstance(geom, MultiPolygon) else geom
+        label = polylabel(biggest, tolerance=1.0)
+        out.append(
+            {
+                "id": zid,
+                "name": names[zid],
+                "d": svg_path(geom, scale, ox, oy),
+                "x": round((label.x - ox) * scale, 1),
+                "y": round((label.y - oy) * scale, 1),
+            }
+        )
+    near = 1.5 / scale  # within a pixel and a half: they touch
+    links = set()
+    ids = sorted(geoms)
+    for i, a in enumerate(ids):
+        for b in ids[i + 1 :]:
+            shared = geoms[a].buffer(near).intersection(geoms[b].buffer(near))
+            if not shared.is_empty and shared.area * scale * scale > 30:
+                links.add((a, b))
+    coasts: dict[str, set[str]] = defaultdict(set)
+    for zid, geom in geoms.items():
+        reach = geom.buffer(near)
+        for pid, shape_ in shapes.items():
+            if pid != WASTE and reach.intersection(shape_).area * scale * scale > 4:
+                coasts[zid].add(pid)
+    return out, links, coasts
+
+
 def main(source: Path, river_source: Path | None = None) -> None:
     game_map = europe_map()
     seats = {pid: project(p.lon, p.lat) for pid, p in game_map.provinces.items()}
@@ -566,6 +640,7 @@ def main(source: Path, river_source: Path | None = None) -> None:
                 geographic.add((a, b))
 
     land = unary_union(simple)
+    zones, zone_links, coasts = sea_zones(view, land, shapes, scale, minx, miny)
     seas = [
         {
             "name": name,
@@ -586,11 +661,20 @@ def main(source: Path, river_source: Path | None = None) -> None:
         "borders": borders,
         "rivers": rivers(river_source, view, scale, minx, miny) if river_source else [],
         "seas": seas,
+        "zones": zones,
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data, separators=(",", ":"), ensure_ascii=False) + "\n")
     print(f"wrote {OUT} ({OUT.stat().st_size / 1024:.0f} KiB)")
 
+    sea_links = {tuple(sorted((a, z))) for a, sea in game_map.seas.items() for z in sea.neighbors}
+    print("sea links drawn but not in the game:", sorted(zone_links - sea_links))
+    print("sea links in the game but not drawn:", sorted(sea_links - zone_links))
+    for zid, sea in sorted(game_map.seas.items()):
+        if set(sea.coasts) != coasts.get(zid, set()):
+            drawn, game = coasts.get(zid, set()), set(sea.coasts)
+            only = f"drawn only {sorted(drawn - game)}, game only {sorted(game - drawn)}"
+            print(f"coasts of {zid}: {only}")
     game = {tuple(sorted((a, b))) for a, p in game_map.provinces.items() for b in p.neighbors}
     print("borders on the map but not in the game:", sorted(geographic - game))
     print("borders in the game but not on the map:", sorted(game - geographic))
