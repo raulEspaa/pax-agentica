@@ -29,6 +29,7 @@ from pax_agentica.engine.actions import (
     BuildShips,
     Buy,
     CancelTreaty,
+    ChooseAgenda,
     ChooseOption,
     Convert,
     DeclareWar,
@@ -55,6 +56,7 @@ from pax_agentica.engine.actions import (
     RequestCallToArms,
     Research,
     Respond,
+    RoyalAction,
     SailFleet,
     ScrapShips,
     SeekBattle,
@@ -138,6 +140,7 @@ from pax_agentica.engine.model import (
     ProvinceId,
     ProvinceState,
     Resources,
+    RoyalAct,
     SeaId,
     Ship,
     Stance,
@@ -153,6 +156,8 @@ from pax_agentica.engine.realm import (
     advisor_candidates,
     advisor_hire_cost,
     advisor_salaries,
+    agenda_offers,
+    authority_per_year,
     death_chance,
     designation,
     make_ruler,
@@ -259,6 +264,7 @@ class _Resolver:
             data={**data, **(extra or {})},
         )
         self.events.append(event)
+        self._count_deed(event)
         if kind in DIPLOMATIC and len(nations) >= 2:  # remembered between the courts
             self.s.diplomacy.append(event)
             del self.s.diplomacy[: -self.s.rules.diplomacy_log]
@@ -1479,6 +1485,10 @@ class _Resolver:
                         self._set_focus(nation, action)
                     case SetPolicy():
                         self._set_policy(nation, action)
+                    case RoyalAction():
+                        self._royal(nation, action)
+                    case ChooseAgenda():
+                        self._choose_agenda(nation, action)
                     case BuildShips():
                         self._build_ships(nation, action)
                     case SendExpedition():
@@ -1926,6 +1936,133 @@ class _Resolver:
             ship=a.ship.value,
             count=a.count,
         )
+
+    # ------------------------------------------------------------ the crown's authority
+
+    def _royal(self, nation: NationId, a: RoyalAction) -> None:
+        rules, me = self.s.rules, self.s.nations[nation]
+        spec = rules.royal_acts[a.act]
+        if me.authority < spec.cost:
+            have = me.authority
+            self._reject(nation, a, f"{spec.name} needs {spec.cost} authority; you have {have}")
+            return
+        ruler = me.ruler
+        match a.act:
+            case RoyalAct.EMBASSY:
+                if a.target is None or a.target == nation or a.target not in self.s.nations:
+                    self._reject(nation, a, "an embassy needs a court to go to")
+                    return
+                if not self.s.nations[a.target].alive:
+                    self._reject(nation, a, f"{self._name(a.target)} is no more")
+                    return
+                self._opine(a.target, nation, 25)
+            case RoyalAct.LEVY:
+                skill = ruler.administration if ruler else 1
+                me.resources = me.resources + Resources(ducats=30 + 10 * skill)
+            case RoyalAct.PROGRESS:
+                if me.stability >= rules.max_stability:
+                    self._reject(nation, a, "stability is already at its maximum")
+                    return
+                self._change_stability(nation, 1, "a royal progress")
+            case RoyalAct.BANNERS:
+                skill = ruler.military if ruler else 1
+                me.resources = me.resources + Resources(manpower=2 + skill)
+            case RoyalAct.PARDON:
+                for pid in self.s.provinces_of(nation):
+                    self.s.provinces[pid].unrest = 0
+            case RoyalAct.PRESENCE:
+                if "royal_presence" not in me.flags:
+                    me.flags.append("royal_presence")
+            case RoyalAct.CHURCH:
+                self._prestige(nation, 5, "patronage of the Church")
+        me.authority -= spec.cost
+        embassy = a.act == RoyalAct.EMBASSY and a.target is not None
+        self._emit(
+            EventKind.ROYAL_ACT,
+            f"{self._name(nation)}: {spec.name.lower()}"
+            + (f" to {self._name(a.target)}" if embassy and a.target else ""),
+            nations=(nation, a.target) if embassy and a.target else (nation,),
+            act=a.act.value,
+        )
+
+    def _choose_agenda(self, nation: NationId, a: ChooseAgenda) -> None:
+        me = self.s.nations[nation]
+        if me.ruler is None:
+            self._reject(nation, a, "there is no ruler to take an ambition")
+            return
+        if me.ruler.agenda is not None:
+            self._reject(nation, a, "the reign already has an ambition")
+            return
+        if a.agenda not in agenda_offers(self.s, nation):
+            self._reject(nation, a, f"'{a.agenda}' is not among this reign's ambitions")
+            return
+        spec = self.s.rules.agendas[a.agenda]
+        me.ruler.agenda = a.agenda
+        me.ruler.agenda_start = me.deeds.get(spec.deed, 0)
+        self._emit(
+            EventKind.AGENDA,
+            f"{me.ruler.title} {me.ruler.name} of {me.name} resolves to {spec.text}",
+            nations=(nation,),
+            agenda=a.agenda,
+            done=False,
+        )
+
+    def _reign(self) -> None:
+        """Every crown gathers authority; a fulfilled ambition is rewarded; the ruler leaves
+        the army's head at the year's end."""
+        rules = self.s.rules
+        for nation in self.s.alive_nations():
+            me = self.s.nations[nation]
+            gain = authority_per_year(self.s, nation)
+            me.authority = min(rules.authority_max, me.authority + gain)
+            if "royal_presence" in me.flags:
+                me.flags.remove("royal_presence")
+            ruler = me.ruler
+            if ruler is None or ruler.agenda is None:
+                continue
+            spec = rules.agendas[ruler.agenda]
+            if me.deeds.get(spec.deed, 0) - ruler.agenda_start < spec.target:
+                continue
+            ruler.agenda, ruler.agendas_done = None, ruler.agendas_done + 1
+            me.authority = min(rules.authority_max, me.authority + rules.agenda_authority)
+            self._prestige(nation, rules.agenda_prestige, spec.name.lower())
+            self._emit(
+                EventKind.AGENDA,
+                f"{ruler.title} {ruler.name} of {me.name} fulfils an ambition: {spec.name}",
+                nations=(nation,),
+                agenda=spec.name,
+                done=True,
+            )
+
+    def _count_deed(self, event: Event) -> None:
+        """What the realms did, counted for their reigns' ambitions."""
+        d, who, deed = event.data, None, ""
+        first = event.nations[0] if event.nations else None
+        match event.kind:
+            case EventKind.PROVINCE_CAPTURED:
+                who, deed = first, "provinces"
+            case EventKind.PROVINCE_CEDED:
+                who, deed = (event.nations[1] if len(event.nations) > 1 else None), "provinces"
+            case EventKind.BATTLE | EventKind.NAVAL_BATTLE:
+                side = d.get("attacker") if d.get("attacker_won") else d.get("defender")
+                who, deed = (str(side) if side else None), "battles"
+            case EventKind.DEVELOPED:
+                who, deed = first, "development"
+            case EventKind.BUILT:
+                who, deed = first, "works"
+            case EventKind.PROVINCE_CONVERTED:
+                if first and d.get("faith") == self.s.nations[first].faith.value:
+                    who, deed = first, "conversions"
+            case EventKind.TREATY_SIGNED:
+                if d.get("treaty") in ("alliance", "non_aggression", "marriage"):
+                    for n in event.nations:
+                        deeds = self.s.nations[n].deeds
+                        deeds["treaties"] = deeds.get("treaties", 0) + 1
+            case _:
+                pass
+        if who and who in self.s.nations:
+            deeds = self.s.nations[who].deeds
+            deeds[deed] = deeds.get(deed, 0) + 1
 
     def _set_policy(self, nation: NationId, a: SetPolicy) -> None:
         rules, me = self.s.rules, self.s.nations[nation]
@@ -3343,6 +3480,7 @@ class _Resolver:
             province.veterancy = round(max(0.0, province.veterancy - decay), 3)
             province.siege_veterancy = round(max(0.0, province.siege_veterancy - decay), 3)
         self._age_rulers()
+        self._reign()
         for treaty in [t for t in self.s.treaties if t.until is not None and t.until <= self.turn]:
             self.s.treaties.remove(treaty)
             a, b = treaty.parties

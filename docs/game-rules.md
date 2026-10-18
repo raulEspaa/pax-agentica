@@ -333,6 +333,19 @@ names the one taken (`choice`), and the other is lost for good, so no two realms
 **The ruler.** Every nation starts with the head of its historical line (Louis XII of France,
 Bayezid II of the Ottomans...). A ruler has three skills from 1 to 6:
 
+**Authority.** Every year the crown gathers authority equal to its ruler's three skills
+together (up to 100), and spends it on royal acts (`royal_action`): an extraordinary levy (30:
+30 ducats and 10 more per point of administration), a royal progress (40: +1 stability), calling
+the banners (25: 2 manpower and 1 more per point of military skill), a general pardon (30: unrest
+ends everywhere), a royal embassy (15: a court thinks 25 better of you), the ruler at the head of
+the army (30: +8% morale for the year) and patronage of the Church (25: +5 prestige).
+
+**The reign's ambition.** A ruler may take one of three ambitions offered by their best skills
+(`choose_agenda`): win two provinces, win four battles, raise three works or levels, develop the
+provinces five levels, bring two provinces to the realm's faith, or sign two alliances, pacts or
+marriages. Fulfilled, it brings 10 prestige and 30 authority, and the ruler may take another; a
+new reign starts with none.
+
 | Skill | Effect |
 |---|---|
 | Administration | +2% ducat income per point |

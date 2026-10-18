@@ -755,6 +755,7 @@ def morale(state: GameState, nation: NationId | None) -> float:
         + rules.morale_per_stability * me.stability
         - rules.morale_per_exhaustion * me.war_exhaustion
         + modifiers(state, nation).morale
+        + (rules.presence_morale if "royal_presence" in me.flags else 0.0)
     )
 
 

@@ -1042,6 +1042,85 @@ class Ruler(BaseModel):
     reign: int = 0  # how many rulers came before in this game
     bio: str = ""  # who they were, as history remembers them
     traits: list[Trait] = Field(default_factory=list)  # their character
+    agenda: str | None = None  # the reign's ambition (Rules.agendas)
+    agenda_start: int = 0  # the deed's count when the agenda was taken
+    agendas_done: int = 0  # ambitions fulfilled this reign
+
+
+class RoyalAct(StrEnum):
+    """What a crown can do by its own authority (see Rules.royal_acts)."""
+
+    LEVY = "levy"  # an extraordinary levy: ducats
+    PROGRESS = "progress"  # a royal progress through the provinces: stability
+    BANNERS = "banners"  # call the banners: manpower
+    PARDON = "pardon"  # a general pardon: unrest ends everywhere
+    EMBASSY = "embassy"  # a royal embassy: a court thinks better of the realm
+    PRESENCE = "presence"  # the ruler at the head of the army: morale this year
+    CHURCH = "church"  # patronage of the Church: prestige
+
+
+class RoyalActSpec(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    cost: int  # authority
+    effect: str
+    lore: str = ""
+
+
+def default_royal_acts() -> dict[RoyalAct, RoyalActSpec]:
+    a = RoyalActSpec
+    return {
+        RoyalAct.LEVY: a(name="An extraordinary levy", cost=30,
+                         effect="30 ducats, and 10 more for every point of administration",
+                         lore="The Cortes are summoned, and grant the crown a servicio."),
+        RoyalAct.PROGRESS: a(name="A royal progress", cost=40, effect="+1 stability",
+                             lore="The court travels the realm, and every town sees its king."),
+        RoyalAct.BANNERS: a(name="Call the banners", cost=25,
+                            effect="2 manpower, and 1 more for every point of military skill",
+                            lore="The nobles bring their men, as their oath demands."),
+        RoyalAct.PARDON: a(name="A general pardon", cost=30,
+                           effect="unrest ends in every province",
+                           lore="Rebels forgiven are subjects regained."),
+        RoyalAct.EMBASSY: a(name="A royal embassy", cost=15,
+                            effect="a court of your choice thinks 25 better of you",
+                            lore="A prince of the blood, gifts and a long letter."),
+        RoyalAct.PRESENCE: a(name="The ruler leads the army", cost=30,
+                             effect="+8% morale this year",
+                             lore="The king rides with his soldiers, and they fight for him."),
+        RoyalAct.CHURCH: a(name="Patronage of the Church", cost=25, effect="+5 prestige",
+                           lore="Chapels, relics and bishops who preach the crown's cause."),
+    }  # fmt: skip
+
+
+class AgendaSpec(BaseModel):
+    """A reign's ambition: a deed to do so many times while the ruler reigns."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    deed: str  # the counter in NationState.deeds it measures
+    target: int
+    text: str
+    skill: str  # the ruler's skill that makes it likelier to be offered
+
+
+def default_agendas() -> dict[str, AgendaSpec]:
+    g = AgendaSpec
+    return {
+        "expand": g(name="Enlarge the realm", deed="provinces", target=2,
+                    text="win two provinces", skill="military"),
+        "victory": g(name="A warrior's glory", deed="battles", target=4,
+                     text="win four battles", skill="military"),
+        "build": g(name="A builder's reign", deed="works", target=3,
+                   text="raise three works or levels of them", skill="administration"),
+        "develop": g(name="A prosperous realm", deed="development", target=5,
+                     text="develop the provinces five levels", skill="administration"),
+        "faith": g(name="Defender of the faith", deed="conversions", target=2,
+                   text="bring two provinces to the realm's faith", skill="diplomacy"),
+        "alliances": g(name="The peacemaker", deed="treaties", target=2,
+                       text="sign two alliances, pacts or marriages", skill="diplomacy"),
+    }  # fmt: skip
 
 
 class Advisor(BaseModel):
@@ -1865,6 +1944,15 @@ class Rules(BaseModel):
     policy_stability: int = 1  # stability a change of policy costs (the first choice is free)
     policy_years: int = 10  # before a policy can change again
     league_galleys: int = 6  # papal and Venetian galleys for each crown of the Holy League
+    # kings: authority gathered from the ruler's skills, spent on royal acts; a reign's agenda
+    authority_max: int = 100
+    authority_start: int = 20
+    royal_acts: dict[RoyalAct, RoyalActSpec] = Field(default_factory=default_royal_acts)
+    presence_morale: float = 0.08
+    agendas: dict[str, AgendaSpec] = Field(default_factory=default_agendas)
+    agenda_offers: int = 3
+    agenda_prestige: int = 10
+    agenda_authority: int = 30
     learning_research_discount: float = 0.03  # each province of learning, up to the cap
     learning_research_cap: float = 0.15
     develop_goods_from: int = 5  # from this development, developing also takes goods
@@ -2309,6 +2397,8 @@ class NationState(BaseModel):
     flags: list[str] = Field(default_factory=list)  # choices that last, e.g. "quarantine"
     policies: dict[PolicyAxis, int] = Field(default_factory=dict)  # the side taken on each axis
     policy_since: dict[PolicyAxis, int] = Field(default_factory=dict)  # the turn it was taken
+    authority: int = Field(default=20, ge=0)  # the crown's to spend on royal acts
+    deeds: dict[str, int] = Field(default_factory=dict)  # counts of what the realm has done
     fleets: dict[SeaId, dict[Ship, int]] = Field(default_factory=dict)  # by sea zone; public
     colonies: dict[Region, int] = Field(default_factory=dict)  # public: every crown's empire
     expeditions: list[Expedition] = Field(default_factory=list)  # under way

@@ -386,6 +386,13 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                 a.value: [{"name": x.name, "effect": x.effect, "lore": x.lore} for x in sides]
                 for a, sides in rules.policies.items()
             },
+            "royalActs": {
+                a.value: {"name": x.name, "cost": x.cost, "effect": x.effect, "lore": x.lore}
+                for a, x in rules.royal_acts.items()
+            },
+            "authorityMax": rules.authority_max,
+            "agendaPrestige": rules.agenda_prestige,
+            "agendaAuthority": rules.agenda_authority,
             "policyYears": rules.policy_years,
             "policyStability": rules.policy_stability,
             "focus": {

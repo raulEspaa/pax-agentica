@@ -25,6 +25,7 @@ from pax_agentica.engine.actions import (
     Build,
     BuildShips,
     Buy,
+    ChooseAgenda,
     ChooseOption,
     Convert,
     DeclareWar,
@@ -45,6 +46,7 @@ from pax_agentica.engine.actions import (
     Recruit,
     Research,
     Respond,
+    RoyalAction,
     SailFleet,
     SeekBattle,
     SeizeColony,
@@ -72,6 +74,7 @@ from pax_agentica.engine.model import (
     Posture,
     ProposalKind,
     ProvinceId,
+    RoyalAct,
     Ship,
     Stance,
     Tactic,
@@ -804,6 +807,7 @@ class _Planner:
         self._research(reserve)
         self._council(reserve)
         self._policies()
+        self._crown()
         self._focus(reserve)  # cheap and for good: before the works
         self._navy(reserve)
         self._colonize(reserve)
@@ -1110,6 +1114,31 @@ class _Planner:
         if best is not None and best[0] >= 4:
             self.actions.append(SetFocus(province=best[1], focus=best[2]))
             self.budget = self.budget - rules.focus_cost
+
+    def _crown(self) -> None:
+        """The crown's own deeds: an ambition for the reign, and one royal act a year where it
+        is needed most (or before the authority overflows)."""
+        if self.me.agenda is None and self.me.agenda_offers:
+            self.actions.append(ChooseAgenda(agenda=self.me.agenda_offers[0].id))
+        acts, have = self.v.rules.royal_acts, self.me.authority
+        unrest = sum(1 for p in self.owned if self.provinces[p].unrest)
+        wish: list[RoyalAct] = []
+        if self.me.stability < 1:
+            wish.append(RoyalAct.PROGRESS)
+        if unrest >= 2:
+            wish.append(RoyalAct.PARDON)
+        if self.enemies and self.budget.manpower < 6:
+            wish.append(RoyalAct.BANNERS)
+        if self.enemies and any(isinstance(a, Attack) for a in self.actions):
+            wish.append(RoyalAct.PRESENCE)
+        if self.budget.ducats < 60:
+            wish.append(RoyalAct.LEVY)
+        if have >= 90:
+            wish += [RoyalAct.PROGRESS, RoyalAct.CHURCH]
+        for act in wish:
+            if have >= acts[act].cost:
+                self.actions.append(RoyalAction(act=act))
+                return
 
     def _policies(self) -> None:
         """Take a side on each great choice once, as the realm is: a professional army for a

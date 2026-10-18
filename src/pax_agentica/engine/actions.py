@@ -23,6 +23,7 @@ from pax_agentica.engine.model import (
     ProvinceId,
     Region,
     Resources,
+    RoyalAct,
     SeaId,
     Ship,
     Stance,
@@ -491,6 +492,26 @@ class SetPolicy(_Action):
     side: int = Field(ge=0, le=1)
 
 
+class RoyalAction(_Action):
+    """Spend the crown's authority (it gathers every year by the ruler's skills) on a royal
+    act (see rules.royal_acts for each one's cost and effect): an extraordinary levy, a royal
+    progress, calling the banners, a general pardon, a royal embassy to `target`, leading the
+    army in person, or patronage of the Church."""
+
+    type: Literal["royal_action"] = "royal_action"
+    act: RoyalAct
+    target: NationId | None = Field(default=None, description="The court an embassy goes to.")
+
+
+class ChooseAgenda(_Action):
+    """Give the reign an ambition, one of the agendas offered in your view (`agenda_offers`).
+    Fulfilled, it brings rules.agenda_prestige prestige and rules.agenda_authority authority,
+    and the ruler may take another."""
+
+    type: Literal["choose_agenda"] = "choose_agenda"
+    agenda: str
+
+
 class SendExpedition(_Action):
     """Send settlers and soldiers to found a colony in a region beyond the sea (see
     `new_world` in your view: what each region yields, when it opens, how many places are left
@@ -597,6 +618,8 @@ type Action = Annotated[
     | SetFocus
     | SetPosture
     | SetPolicy
+    | RoyalAction
+    | ChooseAgenda
     | BuildShips
     | ScrapShips
     | SailFleet

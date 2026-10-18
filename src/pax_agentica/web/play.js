@@ -1319,7 +1319,21 @@
         ${now === k || locked ? "disabled" : ""} title="${esc(side.lore)}"><b>${esc(side.name)}</b><small>${esc(side.effect)}</small></button>`).join("");
       return `<div class="policy"><div class="phead"><span class="ic">${ic}</span><b>${label}</b>${locked ? `<small>until ${R.startYear + until - 1}</small>` : now === undefined ? `<small>not chosen: free</small>` : `<small>a change costs ${R.policyStability} stability</small>`}</div><div class="doctrines">${sides}</div></div>`;
     }).join("");
+    const ACT_IC = {levy: "💰", progress: "👑", banners: "⚔", pardon: "🕊", embassy: "✉", presence: "🐎", church: "⛪"};
+    const usedAuth = orders.filter((o) => o.type === "royal_action").reduce((a, o) => a + R.royalActs[o.act].cost, 0);
+    const auth = V.me.authority - usedAuth;
+    const acts = Object.entries(R.royalActs).map(([id, a]) => {
+      const queued = orders.some((o) => o.type === "royal_action" && o.act === id);
+      const target = id === "embassy" ? `<select class="field" data-embassy aria-label="The court">${V.nations.filter((n) => n.alive && n.id !== G.human).map((n) => `<option value="${n.id}">${esc(n.name)}</option>`).join("")}</select>` : "";
+      return `<div class="royalact ${queued ? "queued" : ""}"><span class="ic">${ACT_IC[id] || "👑"}</span><div><b>${esc(a.name)}</b><small>${esc(a.effect)}</small></div>
+        ${target}<button class="btn" data-royal="${id}" ${a.cost > auth ? "disabled" : ""} title="${esc(a.lore)}">${a.cost} 👑</button></div>`; }).join("");
+    const ag = V.me.agenda, offers = V.me.agenda_offers || [], chosenAgenda = orders.find((o) => o.type === "choose_agenda");
+    const agenda = ag ? `<div class="agenda"><b>${esc(ag.name)}</b>: ${esc(ag.text)}<i class="bar"><b style="width:${Math.min(100, Math.round(100 * ag.progress / ag.target))}%"></b></i><small>${ag.progress} of ${ag.target}</small></div>`
+      : offers.length ? `<p class="sub">Choose an ambition for this reign: fulfilled, it brings ${R.agendaPrestige} prestige and ${R.agendaAuthority} authority.</p><div class="doctrines">${offers.map((o) => `<button class="btn doctrine ${chosenAgenda && chosenAgenda.agenda === o.id ? "on" : ""}" data-agenda="${o.id}"><b>${esc(o.name)}</b><small>${esc(o.text)}</small></button>`).join("")}</div>` : "";
+    const crown = `<div class="authority"><span>👑 Authority <b>${auth}</b> of ${R.authorityMax}</span><i class="bar"><b style="width:${Math.round(100 * auth / R.authorityMax)}%"></b></i><small>+${V.me.authority_per_year} a year: the ruler's three skills</small></div>
+      <div class="royalacts">${acts}</div><h5 class="bshelf">The reign's ambition</h5>${agenda}`;
     return `<div class="pad"><h4>Glory</h4>${patronage}${spirit}
+      <h4>The king's authority</h4>${crown}
       <h4>The realm's policies</h4><div class="policies">${policies}</div>
       <p class="sub">The first side taken on each axis is free; changing it costs ${R.policyStability} stability, and a policy stands at least ${R.policyYears} years.</p>
       <h4>The crown</h4>${rulerHtml}
@@ -1940,6 +1954,10 @@
       orders = orders.filter((o) => o.type !== "set_taxes");
       if (level !== V.me.tax) queue({type: "set_taxes", level}); else render(); };
     const patronize = panel.querySelector("#patronize"); if (patronize) patronize.onclick = () => queue({type: "patronize"});
+    panel.querySelectorAll("[data-royal]").forEach((b) => b.onclick = () => { const act = b.dataset.royal;
+      const target = act === "embassy" ? b.parentElement.querySelector("[data-embassy]").value : null;
+      queue(target ? {type: "royal_action", act, target} : {type: "royal_action", act}); });
+    panel.querySelectorAll("[data-agenda]").forEach((b) => b.onclick = () => { orders = orders.filter((o) => o.type !== "choose_agenda"); queue({type: "choose_agenda", agenda: b.dataset.agenda}); });
     panel.querySelectorAll("[data-policy]").forEach((b) => b.onclick = () => { const [axis, side] = b.dataset.policy.split(":");
       orders = orders.filter((o) => !(o.type === "set_policy" && o.axis === axis)); queue({type: "set_policy", axis, side: +side}); });
     const proclaim = panel.querySelector("#proclaim");
@@ -2037,6 +2055,8 @@
       case "scrap_ships": return `⚓ Lay up ${o.count} ${o.ship}${o.count > 1 ? "s" : ""} in the ${esc(seaName(o.sea))}`;
       case "sail_fleet": { const n = Object.values(o.ships).reduce((a, b) => a + b, 0); return `⛵ Sail ${n} ships from the ${esc(seaName(o.origin))} to the ${esc(seaName(o.target))}`; }
       case "seek_battle": return `⚔ Seek out the fleet of ${nn(o.enemy)} in the ${esc(seaName(o.sea))}`;
+      case "royal_action": return `👑 ${esc(R.royalActs[o.act].name)}${o.target ? ` to ${nn(o.target)}` : ""}`;
+      case "choose_agenda": { const a = (V.me.agenda_offers || []).find((x) => x.id === o.agenda); return `👑 Resolve: ${esc(a ? a.name : o.agenda)}`; }
       case "set_policy": return `🏛 Adopt ${esc(R.policies[o.axis][o.side].name)}`;
       case "set_posture": { const k = postureOf(o.posture); return `${k[1]} ${pn(o.province)}: ${k[2].toLowerCase()}`; }
       case "set_focus": { const f = FOCI.find(([k]) => k === o.focus); return `${f ? f[1] : "🎯"} Turn ${pn(o.province)} to ${f ? f[2].toLowerCase() : o.focus}`; }

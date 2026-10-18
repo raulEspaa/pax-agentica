@@ -89,6 +89,8 @@ from pax_agentica.engine.realm import (
     Modifiers,
     advisor_candidates,
     advisor_hire_cost,
+    agenda_offers,
+    authority_per_year,
     designation,
     designation_name,
     modifiers,
@@ -243,6 +245,14 @@ class GrudgeView(_View):
     weight: int  # opinion lost each year while it lasts; from rules.grudge_refuses, no treaties
 
 
+class AgendaView(_View):
+    id: str
+    name: str
+    text: str  # what it asks
+    progress: int  # done so far this reign (taken: since it was taken)
+    target: int
+
+
 class MyNation(_View):
     id: NationId
     name: str
@@ -286,6 +296,10 @@ class MyNation(_View):
     doctrines: dict[TechBranch, list[int]]  # the doctrine chosen at each level reached
     policies: dict[PolicyAxis, int]  # the side taken on each axis (rules.policies)
     policy_locked_until: dict[PolicyAxis, int]  # the turn from which each may change again
+    authority: int  # the crown's to spend on royal acts (rules.royal_acts)
+    authority_per_year: int  # gathered every year: the ruler's three skills
+    agenda: AgendaView | None  # the reign's ambition, if it has one
+    agenda_offers: tuple[AgendaView, ...]  # the ambitions it may take (choose_agenda)
     research_costs: dict[TechBranch, Resources | None]  # None: already at the top
     building_costs: dict[BuildingKind, Resources]  # after engineering
     generals: tuple[GeneralView, ...]
@@ -425,6 +439,14 @@ def _new_world(state: GameState, nation: NationId) -> tuple[RegionView, ...]:
             )
         )
     return tuple(out)
+
+
+def _agenda(state: GameState, nation: NationId, agenda: str) -> AgendaView:
+    spec = state.rules.agendas[agenda]
+    me = state.nations[nation]
+    since = me.ruler.agenda_start if me.ruler and me.ruler.agenda == agenda else 0
+    done = me.deeds.get(spec.deed, 0) - since if me.ruler and me.ruler.agenda == agenda else 0
+    return AgendaView(id=agenda, name=spec.name, text=spec.text, progress=done, target=spec.target)
 
 
 def _naval(state: GameState, nation: NationId) -> dict[SeaId, float]:
@@ -646,6 +668,10 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         technology=dict(me.technology),
         doctrines={b: list(c) for b, c in me.doctrines.items()},
         policies=dict(me.policies),
+        authority=me.authority,
+        authority_per_year=authority_per_year(state, nation),
+        agenda=_agenda(state, nation, me.ruler.agenda) if me.ruler and me.ruler.agenda else None,
+        agenda_offers=tuple(_agenda(state, nation, a) for a in agenda_offers(state, nation)),
         policy_locked_until={a: t + state.rules.policy_years for a, t in me.policy_since.items()},
         research_costs={
             b: research_cost(state.rules, b, level, mods.research_discount)

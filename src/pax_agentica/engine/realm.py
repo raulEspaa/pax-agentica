@@ -175,6 +175,29 @@ def designations_of(state: GameState, nation: NationId) -> tuple[tuple[str, Focu
     return tuple(out)
 
 
+def authority_per_year(state: GameState, nation: NationId) -> int:
+    """The authority a crown gathers a year: its ruler's three skills together."""
+    ruler = state.nations[nation].ruler
+    return ruler.administration + ruler.diplomacy + ruler.military if ruler else 0
+
+
+def agenda_offers(state: GameState, nation: NationId) -> list[str]:
+    """The ambitions a ruler may take: the ones their best skills favour, a few of them."""
+    me = state.nations[nation]
+    ruler = me.ruler
+    if ruler is None or ruler.agenda is not None:
+        return []
+    skill = {"administration": ruler.administration, "diplomacy": ruler.diplomacy,
+             "military": ruler.military}  # fmt: skip
+
+    def rank(agenda: str) -> tuple[int, int]:
+        spec = state.rules.agendas[agenda]
+        flavour = sum(ord(c) for c in ruler.name + agenda) % 7  # a ruler's own leaning
+        return (-skill.get(spec.skill, 0), flavour)
+
+    return sorted(state.rules.agendas, key=rank)[: state.rules.agenda_offers]
+
+
 def _has(state: GameState, nation: NationId, milestone: tuple[TechBranch, int]) -> bool:
     branch, level = milestone
     return state.nations[nation].technology[branch] >= level
