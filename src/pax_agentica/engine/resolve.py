@@ -1198,6 +1198,10 @@ class _Resolver:
     ) -> None:
         key = pair(attacker, defender)
         broken = [t for t in self.s.treaties if t.parties == key]
+        if joined_for is not None:  # called to arms: a truce lapses, it is not betrayed
+            for truce in [t for t in broken if t.kind == TreatyKind.TRUCE]:
+                self.s.treaties.remove(truce)
+            broken = [t for t in broken if t.kind != TreatyKind.TRUCE]
         for treaty in broken:
             self.s.treaties.remove(treaty)
             self._emit(

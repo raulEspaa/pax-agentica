@@ -186,14 +186,13 @@ def landing(view: NationView, origin: ProvinceId, target: ProvinceId) -> int:
     for sea in _province(view, origin).seas:
         if sea not in there:
             continue
-        mine = naval_power(view, me, sea)
+        # as the engine judges it: each side's sway, its fleet there and half those next to it
+        mine = sea_reach(view, me, sea)
         if enemy not in (None, me):
-            if mine <= naval_power(view, enemy, sea):
+            if mine <= sea_reach(view, enemy, sea):
                 continue
         elif any(
-            naval_power(view, e, sea) >= rules.fleet_command * mine
-            and naval_power(view, e, sea) > 0
-            for e in view.me.at_war_with
+            0 < sea_reach(view, e, sea) >= rules.fleet_command * mine for e in view.me.at_war_with
         ):
             continue
         ships = view.me.fleets.get(sea, {})

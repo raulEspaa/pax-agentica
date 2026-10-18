@@ -221,3 +221,21 @@ def test_messages_are_private_and_change_nothing(state: GameState, play: Play) -
     assert message.data["text"] == text
     assert message in view_for(new, "france").last_turn_events
     assert message not in view_for(new, "spain").last_turn_events
+
+
+def test_an_ally_called_to_arms_lets_its_truce_lapse_without_shame(
+    state: GameState, play: Play
+) -> None:
+    from pax_agentica.engine.model import Treaty, pair
+
+    friends = allied(state, "england", "sweden", play)
+    friends.treaties.append(
+        Treaty(kind=TreatyKind.TRUCE, parties=pair("england", "russia"), since=1)
+    )
+    stability = friends.nations["england"].stability
+    attacked = play(friends, russia=[DeclareWar(target="sweden")])
+    call = view_for(attacked, "england").proposals_to_answer[0]
+    joined = play(attacked, england=[Respond(proposal_id=call.id, accept=True)])
+    assert joined.at_war("england", "russia")
+    assert EventKind.TREATY_BROKEN not in kinds(joined)
+    assert joined.nations["england"].stability >= stability  # no betrayal's price

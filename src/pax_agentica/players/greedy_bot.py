@@ -1393,6 +1393,8 @@ class _Planner:
     def _patronize(self, reserve: int) -> None:
         """A treasury with nothing better to buy pays for painters and feasts."""
         cost = self.me.patronage_cost
+        if self.me.prestige >= self.v.rules.prestige_max:
+            return  # glory at its height: painters add nothing
         if self.budget.ducats >= cost + reserve + 150 + 2 * self.me.income_per_turn.ducats:
             self.actions.append(Patronize())
             self.budget = self.budget - Resources(ducats=cost)

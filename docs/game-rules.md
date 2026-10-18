@@ -869,7 +869,9 @@ to arms −30, and breaking a treaty −10 with **every** court (−20 more with
 fade by a tenth every year. The rules never act on opinion; rulers do.
 
 **Treaties are promises, not rules.** You can declare war on an ally, a pact partner or a nation
-under truce. That breaks the treaty in front of everyone and costs **2 stability**.
+under truce. That breaks the treaty in front of everyone and costs **2 stability**. A crown
+that joins a war because an ally or a league called it to arms only lets its truce lapse: no
+betrayal, no price (breaking a pact or a marriage is still betrayal).
 
 **Calls to arms.** When war is declared on you, each of your allies receives a call to arms; you
 can also call an ally into a war you started. An ally who accepts joins the war. An ally who
