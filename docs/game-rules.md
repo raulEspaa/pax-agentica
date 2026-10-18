@@ -556,7 +556,9 @@ year (a tournament may set `pay`, ducats a year at war).
 
 ### The New World
 
-The lands beyond the sea are not on the map: they are in the office of the New World.
+The lands beyond the sea are not on the map of Europe: the office of the New World opens a
+chart of the ocean, from the Americas to the Spice Islands, with each region's places coloured
+by the crowns that hold them, its peoples, the sea roads and the expeditions on them.
 
 | Region | Opens | Places | Good, cargoes a year | Also | Hardness | Peoples (regiments) |
 |---|---|---|---|---|---|---|

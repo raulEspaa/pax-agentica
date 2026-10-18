@@ -155,6 +155,13 @@ def europe_map() -> dict[str, Any]:
     return data
 
 
+def atlantic_chart() -> dict[str, Any]:
+    """The chart of the New World: coasts, the regions, and the sea roads from Europe."""
+    text = files("pax_agentica").joinpath("data/atlantic_chart.json").read_text(encoding="utf-8")
+    data: dict[str, Any] = json.loads(text)
+    return data
+
+
 def _web(name: str) -> str:
     return files("pax_agentica").joinpath("web", name).read_text(encoding="utf-8")
 
@@ -169,6 +176,7 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
     rules = state.rules
     drawn = {z["id"]: z for z in geo.get("zones", [])}
     return {
+        "chart": atlantic_chart(),
         "map": {
             "width": geo["width"],
             "height": geo["height"],
@@ -425,8 +433,35 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                     "hardness": spec.hardness,
                     "lore": spec.lore,
                     "cap": region_cap(rules, r),
+                    "good": spec.good.value,
+                    "cargo": spec.cargo,
+                    "people": spec.people,
+                    "natives": spec.natives,
+                    "plunder": spec.plunder,
                 }
                 for r, spec in rules.regions.items()
+            },
+            "goods": {
+                g.value: {
+                    "name": spec.name,
+                    "price": spec.price,
+                    "glut": spec.glut,
+                    "lore": spec.lore,
+                }
+                for g, spec in rules.goods.items()
+            },
+            "colonyKinds": {
+                k.value: {
+                    "name": spec.name,
+                    "cost": spec.cost,
+                    "progress": spec.progress,
+                    "cargo": spec.cargo,
+                    "most": spec.most,
+                    "militia": spec.militia,
+                    "anger": spec.anger,
+                    "effect": spec.effect,
+                }
+                for k, spec in rules.colony_kinds.items()
             },
             "colonial": {
                 "cost": amounts(rules.expedition_cost),
@@ -434,6 +469,15 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                 "atOnce": rules.expeditions_at_once,
                 "seize": rules.seize_command,
                 "blockade": rules.colonial_blockade,
+                "garrisonPay": rules.garrison_pay,
+                "fortCost": amounts(rules.colonial_fort_cost),
+                "fortMax": rules.colonial_fort_max,
+                "fortDefence": rules.colonial_fort_defence,
+                "viceroyCost": amounts(rules.viceroyalty_cost),
+                "viceroyAuthority": rules.viceroyalty_authority,
+                "viceroyColonies": rules.viceroyalty_colonies,
+                "viceroyCargo": rules.viceroy_cargo,
+                "inflationMax": rules.inflation_max,
                 "spirits": {
                     nid: {"title": c.title, "words": c.words, "seize": c.seize}
                     for nid, c in COLONIAL_SPIRITS.items()

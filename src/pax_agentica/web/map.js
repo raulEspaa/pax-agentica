@@ -61,7 +61,7 @@ const PaxMap = (() => {
                  military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭", workshop: "🔨",
                  arms_manufactory: "🗡", powder_mill: "🧨"};
   const UICON = {infantry: "⚔", archers: "🏹", cavalry: "🐎", artillery: "💣"};
-  const ICON = {grudge: "💢", colony_founded: "🏝", expedition_sent: "⛵", expedition_lost: "🌊", colony_seized: "🏴", naval_battle: "⚓", ships_built: "⛵", fleet_sailed: "⛵", siege: "🏰", proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
+  const ICON = {grudge: "💢", colony_founded: "🏝", expedition_sent: "⛵", expedition_lost: "🌊", colony_seized: "🏴", viceroyalty: "♛", troops_shipped: "⛵", colonial_fort: "🏰", colonial_battle: "⚔", natives_war: "🏹", treasure_taken: "🏴‍☠️", naval_battle: "⚓", ships_built: "⛵", fleet_sailed: "⛵", siege: "🏰", proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
     war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
     treaty_broken: "💔", treaty_cancelled: "✂", treaty_expired: "⌛", peace_signed: "🕊", trade_completed: "⚖",
     trade_failed: "✗", gift: "🎁", battle: "⚔", province_captured: "⚑", capital_moved: "♛", nation_eliminated: "☠",
@@ -482,7 +482,7 @@ const PaxMap = (() => {
       view.w = Math.min(maxW(), Math.max(W / 12, view.w)); view.h = view.w / aspect();
       // zoomed in, the camera may look a little past the edge of Europe: a coast at the edge can
       // then come out from under the window that opened over it
-      const slack = 0.4 * (1 - view.w / maxW()), sx = view.w * slack, sy = view.h * slack;
+      const slack = 0.6 * (1 - view.w / maxW()), sx = view.w * slack, sy = view.h * slack;
       view.x = Math.min(W - view.w + sx, Math.max(-sx, view.x)); view.y = Math.min(H - view.h + sy, Math.max(-sy, view.y));
       svg.setAttribute("viewBox", `${view.x} ${view.y} ${view.w} ${view.h}`);
       gPLabels.style.display = view.w < maxW() * 0.6 ? "" : "none";

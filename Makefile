@@ -37,6 +37,10 @@ map: ## Rebuild the map asset from Natural Earth (downloads ~48 MB the first tim
 	uv run --group mapgen python scripts/build_map.py \
 		$(NE)/ne_10m_admin_1_states_provinces_lakes.geojson $(NE)/ne_10m_rivers_lake_centerlines.geojson
 
+chart: ## Rebuild the chart of the New World from the Natural Earth input of `make map`
+	uv run --group mapgen python scripts/build_chart.py \
+		$(NE)/ne_10m_admin_1_states_provinces_lakes.geojson
+
 host: ## Host multiplayer tables on your network (http://<this machine>:8000)
 	uv run pax host --host 0.0.0.0 --port 8000
 

@@ -161,7 +161,8 @@
     attack: ["order", "⚔"], move: ["order", "➜"], buy: ["coins", null], sell: ["coins", null], gift: ["coins", null], convert: ["order", "✝"],
     lift_siege: ["unorder", "🏳"], declare_war: ["war", null], send_message: ["seal", null], respond: ["seal", null],
     choose_option: ["seal", null], set_taxes: ["coins", null], boost_stability: ["coins", null], patronize: ["coins", null],
-    hire_general: ["order", "★"], assign_general: ["order", "★"], build_ships: ["build", null], send_expedition: ["seal", null], seize_colony: ["war", null], sail_fleet: ["order", null], seek_battle: ["war", null], scrap_ships: ["unorder", null]};
+    hire_general: ["order", "★"], assign_general: ["order", "★"], build_ships: ["build", null], send_expedition: ["seal", null], seize_colony: ["war", null], ship_troops: ["order", null], build_colonial_fort: ["build", "🏰"],
+    found_viceroyalty: ["seal", "♛"], conquer_natives: ["war", null], sail_fleet: ["order", null], seek_battle: ["war", null], scrap_ships: ["unorder", null]};
   function queue(order) {
     if (orders.length >= MAX_ORDERS) return flash(`A realm can give at most ${MAX_ORDERS} orders a year.`);
     orders.push(order);
@@ -202,7 +203,9 @@
     if (o.type === "develop") sub(unbundle(prov(pIndex[o.province]).develop_cost));
     if (o.type === "set_focus") sub(R.focus.cost);
     if (o.type === "build_ships") sub(R.ships[o.ship].cost.map((v) => v * o.count));
-    if (o.type === "send_expedition") sub(R.colonial.cost);
+    if (o.type === "send_expedition") sub(kindCost(o.kind || "plantation"));
+    if (o.type === "build_colonial_fort") sub(R.colonial.fortCost);
+    if (o.type === "found_viceroyalty") sub(R.colonial.viceroyCost);
     if (o.type === "improve" && prov(pIndex[o.province]).improve_cost) sub(unbundle(prov(pIndex[o.province]).improve_cost));
     if (o.type === "hire_mercenaries") d[0] -= o.regiments * R.mercenaryCost;
     if (o.type === "patronize") d[0] -= V.me.patronage_cost;
@@ -1116,44 +1119,139 @@
   // ------------------------------------------------------------------ the New World
   const REGION_IC = {caribbean: "🏝", brazil: "🌴", guinea: "🐘", east_indies: "🌶", new_spain: "🥈", peru: "⛰", north_america: "🦫"};
   const regionName = (id) => R.regions[id]?.name || id;
+  // ------------------------------------------------------------------ the New World: a chart
+  // A chart of the ocean from the Americas to the Spice Islands: each region with its places,
+  // coloured by the crowns that hold them, its peoples, the sea roads from Europe and the
+  // expeditions on them. A region picked shows below what it ships, who holds it, and every
+  // order that can be given there.
+  const GOOD_IC = {sugar: "🎋", silver: "🪙", spices: "🌶", furs: "🦫", gold: "🟡"};
+  const KIND_IC = {plantation: "🌾", post: "⚖", settlement: "🏘"};
+  let worldPick = null, worldPort = null, worldN = 2;
+  const oceanZones = () => SEAS.filter((z) => z.water === "atlantic" || z.water === "baltic");
+  const oceanOf = (nid) => oceanZones().reduce((t, z) => t + navalPower(nid, z.id), 0);
+  const overseasQueued = () => orders.reduce((t, o) => t + (["ship_troops", "conquer_natives", "seize_colony"].includes(o.type) && !o.home ? o.regiments || 0 : 0), 0);
+  const oceanCarry = () => oceanZones().reduce((t, z) => t + Object.entries(V.me.fleets[z.id] || {})
+    .reduce((a, [k, n]) => a + n * (R.ships[k] ? R.ships[k].carries : 0), 0), 0) - overseasQueued();
+  const colonialPorts = () => V.me.provinces.filter((pid) => { const i = pIndex[pid];
+    return !prov(i).controller && (P[i].coasts || []).some((w) => w === "atlantic" || w === "baltic"); })
+    .sort((a, b) => portTroops(b) - portTroops(a) || a.localeCompare(b));
+  const portTroops = (pid) => troopsAfter(pIndex[pid]) - orders.reduce((t, o) =>  // less those already sailing
+    t + (o.port === pid && !o.home && ["ship_troops", "conquer_natives", "seize_colony"].includes(o.type) ? o.regiments || 0 : 0), 0);
+  const overseasPower = (n) => n * (1 + (V.me.modifiers.battle_power || 0)) * (V.me.morale || 1);
+  const overseasOdds = (att, dfn) => { const r = att / Math.max(0.1, dfn);
+    return r >= 1.5 ? ["sure", "ok"] : r >= 1.2 ? ["likely", "ok"] : r >= 0.85 ? ["a gamble", "warn"] : ["hopeless", "neg"]; };
+  const kindCost = (k) => R.colonial.cost.map((v) => Math.ceil(v * R.colonyKinds[k].cost));
+  function along(a, t) { // the point t of the way along a sea road
+    const seg = []; let total = 0;
+    for (let k = 1; k < a.length; k++) { const d = Math.hypot(a[k][0] - a[k - 1][0], a[k][1] - a[k - 1][1]); seg.push(d); total += d; }
+    let goal = t * total;
+    for (let k = 0; k < seg.length; k++) {
+      if (goal <= seg[k]) { const f = goal / seg[k]; return [a[k][0] + (a[k + 1][0] - a[k][0]) * f, a[k][1] + (a[k + 1][1] - a[k][1]) * f]; }
+      goal -= seg[k];
+    }
+    return a[a.length - 1];
+  }
+  function chartSvg() {
+    const C = S.chart, w = C.width, h = C.height;
+    const line = (a) => a.map(([x, y]) => `${x},${y}`).join(" ");
+    const sent = V.me.expeditions || [];
+    const roads = Object.entries(C.routes).map(([r, a]) => `<polyline class="road ${r === worldPick ? "on" : ""} ${sent.some((e) => e.region === r) ? "sailing" : ""}" points="${line(a)}"/>`).join("");
+    const sails = sent.map((e) => { const [x, y] = along(C.routes[e.region], e.progress / 100);
+      return `<text class="sail" x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">⛵</text>`; }).join("");
+    const regions = V.new_world.map((r) => {
+      const [x, y] = C.regions[r.id], held = Object.entries(r.held).sort(([a], [b]) => (b === G.human) - (a === G.human));
+      const taken = held.reduce((t, [, c]) => t + c, 0), size = 18, gap = 3, width = r.slots * (size + gap) - gap;
+      const places = [...held.flatMap(([n, c]) => Array(c).fill(n)), ...Array(Math.max(0, r.slots - taken)).fill(null)]
+        .map((n, k) => `<rect class="slot ${n ? "" : "free"}" x="${x - width / 2 + k * (size + gap)}" y="${y + 10}" width="${size}" height="${size}" rx="2"${n ? ` fill="${N[nIndex[n]].color}"` : ""}><title>${esc(n ? nameOf(n) : "a free place")}</title></rect>`).join("");
+      const vice = Object.keys(r.viceroys || {}).length ? "♛ " : "";
+      const people = r.natives ? `<text class="natives" x="${x + width / 2 + 6}" y="${y + 25}">🏹${r.natives}</text>` : "";
+      return `<g class="rgn ${r.id === worldPick ? "sel" : ""} ${r.open ? "" : "closed"} ${held.some(([n]) => n === G.human) ? "ours" : ""}" data-wregion="${r.id}" tabindex="0" role="button" aria-label="${esc(r.name)}">
+        <circle class="pin" cx="${x}" cy="${y}" r="8"/><text class="rname" x="${x}" y="${y - 14}" text-anchor="middle">${vice}${GOOD_IC[r.good] || ""} ${esc(r.name)}</text>
+        ${r.open ? places + people : `<text class="later" x="${x}" y="${y + 24}" text-anchor="middle">from ${r.opens}</text>`}</g>`;
+    }).join("");
+    const [hx, hy] = C.home;
+    const home = `<g class="home"><circle cx="${hx}" cy="${hy}" r="6"/><text x="${hx + 10}" y="${hy + 4}">Europe</text></g>`;
+    const rose = `<g class="rose" transform="translate(${w * 0.36},${h * 0.8})"><circle r="34"/><path d="M0,-44L7,0L0,44L-7,0Z M-44,0L0,7L44,0L0,-7Z"/><text y="-50" text-anchor="middle">N</text></g>`;
+    return `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="The chart of the New World"><rect class="chsea" width="${w}" height="${h}"/>
+      <path class="chland" d="${C.land}"/>${rose}<text class="ocean" x="${w * 0.27}" y="${h * 0.5}">Mar Océano</text>${roads}${home}${regions}${sails}</svg>`;
+  }
+  function regionDetail(r) {
+    const spec = R.regions[r.id], good = R.goods[r.good], C = R.colonial, mineN = (V.me.colonies || {})[r.id] || 0;
+    const taken = Object.values(r.held).reduce((a, b) => a + b, 0), here = (V.me.garrisons || {})[r.id] || 0;
+    const fort = (V.me.colonial_forts || {})[r.id] || 0, power = overseasPower(1);
+    const crowns = Object.keys({...r.held, ...r.garrisons}).sort((a, b) => (b === G.human) - (a === G.human) || a.localeCompare(b));
+    const holders = crowns.length ? `<table class="ctable"><thead><tr><th>Crown</th><th class="num">Colonies</th><th class="num">Garrison</th><th class="num">Fort</th><th>Viceroy</th><th class="num" title="What they hold out with against a storm">Defence</th></tr></thead><tbody>${crowns.map((n) =>
+      `<tr class="${n === G.human ? "me" : ""}"><td><i class="dot" style="background:${N[nIndex[n]].color}"></i> ${esc(nameOf(n))}</td><td class="num">${r.held[n] || 0}</td><td class="num">${r.garrisons[n] || 0}</td><td class="num">${r.forts[n] || 0}</td><td>${esc((r.viceroys || {})[n] || "")}</td><td class="num">${(r.defence[n] || 0).toFixed(1)}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">No crown holds a place here yet.</p>`;
+    const list = ((V.me.colony_list || {})[r.id] || []).map((c) => `<span class="chip" title="${esc(R.colonyKinds[c.kind].effect)}">${KIND_IC[c.kind]} ${esc(R.colonyKinds[c.kind].name)}, ${R.startYear + c.founded - 1}</span>`).join(" ");
+    const facts = `<div class="rfacts2">
+      <div><span class="sub">Ships</span><b>${GOOD_IC[r.good]} ${esc(good.name)}</b>: ${r.cargo} cargoes a plantation, ${r.price.toFixed(2)} ducats each${r.price < good.price ? ` <small class="neg">(Europe has too much: ${good.price} at most)</small>` : ""}</div>
+      <div><span class="sub">The peoples</span><b>${esc(cap(r.people))}</b>: ${r.natives ? `${r.natives} regiments, ${r.natives_defence.toFixed(1)} on their own ground` : `<span class="ok">broken</span>`}</div>
+      <div><span class="sub">Places</span>${taken} of ${r.slots} taken; one crown may hold ${spec.cap}</div>
+      ${mineN ? `<div><span class="sub">Your colonies</span>${list}</div>` : ""}
+      ${mineN && r.resistance ? `<div><span class="sub">Resistance</span><span class="warn">${Math.round(r.resistance * 100)}% of your dues here denied</span>: soldiers and settlers calm it, conquest ends it</div>` : ""}
+      </div>`;
+    if (!r.open) return `<div class="tdetail"><div class="tdhead"><b>${REGION_IC[r.id] || "🌎"} ${esc(r.name)}</b><span class="tstatus locked">The way is known from ${r.opens}</span></div><p class="lore">${esc(r.lore)}</p>${facts}</div>`;
+    // an expedition, of the kind chosen
+    const exp = (V.me.expeditions || []).find((e) => e.region === r.id), queuedExp = orders.find((o) => o.type === "send_expedition" && o.region === r.id);
+    const send = exp ? `<div class="expedition"><span>⛵ Your ${esc(R.colonyKinds[exp.kind || "plantation"].name.toLowerCase())} expedition: ${exp.progress}%</span><i class="bar"><b style="width:${exp.progress}%"></b></i></div>`
+      : `${r.send_error && !queuedExp ? `<p class="note">${esc(cap(r.send_error))}.</p>` : ""}<div class="choices">${Object.entries(R.colonyKinds).map(([k, spec]) => {
+        const cost = kindCost(k), years = Math.max(1, Math.ceil(100 / Math.max(5, (r.progress_by_kind[k] ?? r.your_progress) + 17.5)));
+        return choiceCard({name: `${KIND_IC[k]} ${spec.name}`, effect: `${costText(cost)}, about ${years} year${years > 1 ? "s" : ""}. ${cap(spec.effect)}.`,
+          state: queuedExp && (queuedExp.kind || "plantation") === k ? "queued" : "", attrs: `data-expedition="${r.id}:${k}"`, off: !!queuedExp || !!r.send_error || !affordable(cost)}); }).join("")}</div>`;
+    // soldiers overseas: a port, how many, and what they may do
+    const ports = colonialPorts(), carry = oceanCarry();
+    if (!ports.includes(worldPort)) worldPort = ports[0] || null;
+    const avail = worldPort ? portTroops(worldPort) : 0, n = Math.max(0, Math.min(worldN, avail, carry));
+    const portPick = ports.length ? `<div class="row overseas"><label>From <select class="field" id="wport">${ports.map((pid) => `<option value="${pid}" ${pid === worldPort ? "selected" : ""}>${esc(P[pIndex[pid]].name)} (${portTroops(pid)})</option>`).join("")}</select></label>
+      <span class="stepper"><button class="btn mini" data-wn="-1" aria-label="Fewer">−</button><b class="num">${n}</b><button class="btn mini" data-wn="1" aria-label="More">+</button></span>
+      <small class="sub">regiments; your ships on the ocean carry ${Math.max(0, carry)} more this year</small></div>` : `<p class="muted">No port of yours on the ocean or the Baltic.</p>`;
+    const actions = [];
+    if (mineN) {
+      actions.push(`<button class="btn" data-shiptroops="${r.id}" ${n > 0 ? "" : "disabled"}>⛵ Garrison: ship ${n}</button>`);
+      if (here) actions.push(`<button class="btn" data-shiphome="${r.id}" ${worldPort ? "" : "disabled"}>⚓ Bring ${Math.min(here, Math.max(1, worldN))} home</button>`);
+      actions.push(`<button class="btn" data-cfort="${r.id}" ${fort < C.fortMax && affordable(C.fortCost) ? "" : "disabled"} title="${esc(costText(C.fortCost))}">🏰 ${fort ? `Fort to level ${fort + 1}` : "Raise a fort"}${fort >= C.fortMax ? " (at its height)" : ""}</button>`);
+      if (!(r.id in (V.me.viceroys || {}))) actions.push(`<button class="btn" data-viceroy="${r.id}" ${r.viceroyalty_error || !affordable(C.viceroyCost) ? "disabled" : ""} title="${esc(r.viceroyalty_error ? cap(r.viceroyalty_error) : `${costText(C.viceroyCost)} and ${C.viceroyAuthority} authority: ${Math.round(C.viceroyCargo * 100)}% more cargo a point of the viceroy's skill`)}">♛ Viceroyalty</button>`);
+      if (r.natives) { const att = overseasPower(here + n), [word, cls] = overseasOdds(att, r.natives_defence);
+        actions.push(`<button class="btn" data-conquer="${r.id}" ${here + n > 0 ? "" : "disabled"}>🏹 March on the peoples</button><small class="${cls}">${here + n} regiments (${att.toFixed(1)}) against ${r.natives_defence.toFixed(1)}: ${word}</small>`); }
+    }
+    const wars = V.me.wars.filter((w) => w.attacks_allowed_from_turn <= V.turn && r.held[w.enemy]).map((w) => {
+      const dfn = r.defence[w.enemy] || 0, mine = oceanOf(G.human), theirs = oceanOf(w.enemy);
+      if (!dfn) { const spirit = C.spirits[G.human], need = spirit && spirit.seize ? spirit.seize : C.seize, ok = mine >= C.ships && mine >= need * theirs;
+        return `<button class="btn" data-seize="${r.id}:${w.enemy}" ${ok ? "" : "disabled"} title="${esc(`Your ocean fleet ${mine.toFixed(1)} against ${nameOf(w.enemy)}'s ${theirs.toFixed(1)}: you need ${need} times theirs`)}">⚔ Take ${esc(nameOf(w.enemy))}'s colony (nobody holds it)</button>`; }
+      const att = overseasPower(here + n), [word, cls] = overseasOdds(att, dfn);
+      return `<button class="btn" data-storm="${r.id}:${w.enemy}" ${here + n > 0 && mine >= theirs ? "" : "disabled"} title="${esc(mine < theirs ? `your ocean fleet (${mine.toFixed(1)}) must hold the sea against theirs (${theirs.toFixed(1)})` : "")}">⚔ Storm ${esc(nameOf(w.enemy))}'s colony</button><small class="${cls}">${here + n} regiments (${att.toFixed(1)}) against ${dfn.toFixed(1)}: ${word}</small>`; });
+    return `<div class="tdetail"><div class="tdhead"><b>${REGION_IC[r.id] || "🌎"} ${esc(r.name)}</b>${mineN ? `<span class="tstatus done">${mineN} yours${here ? `, ${here} regiments` : ""}</span>` : ""}</div>
+      <p class="lore">${esc(r.lore)}</p>${facts}${holders}
+      <h5 class="bshelf">${exp ? "On its way" : "Found a colony"}</h5>${send}
+      ${mineN || wars.length ? `<h5 class="bshelf">Soldiers overseas</h5>${portPick}<div class="row wactions">${[...actions, ...wars].join("")}</div>` : ""}</div>`;
+  }
   function worldTab() {
     const C = R.colonial, mine = V.me.colonies || {}, sent = V.me.expeditions || [];
     const total = Object.values(mine).reduce((a, b) => a + b, 0), dues = V.me.colonial_dues || {};
-    const dueArr = RES.map(([k]) => dues[k] || 0);
     const yieldText = (arr, sign = "+") => RES.map(([, label, ic], k) => arr[k] ? `<span class="amt" title="${label}">${sign}${arr[k]}${ic}</span>` : "").join(" ");
-    const spirit = C.spirits[G.human], seizeAt = spirit && spirit.seize ? spirit.seize : C.seize;
-    const ocean = navalPower(G.human, "atlantic");
-    const queued = (r) => orders.some((o) => o.type === "send_expedition" && o.region === r);
-    const blockade = (V.me.blockaded || []).includes("atlantic");
-    const cards = [...V.new_world].sort((a, b) => a.opens - b.opens).map((r) => {
-      const spec = R.regions[r.id], have = mine[r.id] || 0, taken = Object.values(r.held).reduce((a, b) => a + b, 0);
-      const dots = [...Object.entries(r.held).flatMap(([n, c]) => Array(c).fill(n))].map((n) => `<i class="place" style="background:${N[nIndex[n]].color}" title="${esc(nameOf(n))}"></i>`).join("")
-        + `<i class="place free"></i>`.repeat(Math.max(0, r.slots - taken));
-      const exp = sent.find((e) => e.region === r.id);
-      const years = Math.max(1, Math.ceil(100 / Math.max(5, r.your_progress + 17.5)));
-      const why = queued(r.id) ? "" : r.send_error;
-      const send = exp ? `<div class="expedition"><span>⛵ Your expedition: ${exp.progress}%</span><i class="bar"><b style="width:${exp.progress}%"></b></i></div>`
-        : queued(r.id) ? `<p class="ok">⛵ The expedition sails this year.</p>`
-        : `<div class="act"><button class="btn" data-expedition="${r.id}" ${why || !affordable(C.cost) ? "disabled" : ""} ${why ? `title="${esc(cap(why))}"` : ""}>⛵ Send an expedition</button><span class="cost">${why ? esc(cap(why)) : `${costText(C.cost)}; about ${years} year${years > 1 ? "s" : ""}`}</span></div>`;
-      const seize = V.me.wars.filter((w) => w.attacks_allowed_from_turn <= V.turn && r.held[w.enemy]).map((w) => {
-        const theirs = navalPower(w.enemy, "atlantic"), ok = ocean >= C.ships && ocean >= seizeAt * theirs;
-        const already = orders.some((o) => o.type === "seize_colony" && o.region === r.id && o.enemy === w.enemy);
-        return `<button class="btn" data-seize="${r.id}:${w.enemy}" ${ok && !already ? "" : "disabled"} title="${esc(`Your Atlantic fleet ${ocean.toFixed(1)} against ${nameOf(w.enemy)}'s ${theirs.toFixed(1)}: you need ${seizeAt} times theirs`)}">⚔ Take a colony from ${esc(nameOf(w.enemy))}</button>`; }).join("");
-      return `<div class="regioncard ${r.open ? "" : "closed"} ${have ? "ours" : ""}"><div class="rhead"><span class="ic">${REGION_IC[r.id] || "🌎"}</span><b>${esc(r.name)}</b>${have ? `<span class="chip">${have} yours</span>` : ""}</div>
-        <p class="lore">${esc(r.lore)}</p>
-        <div class="rfacts"><span>${esc(cap(r.goods))}: ${yieldText(spec.yields)} a colony</span><span class="slots" title="${taken} of ${r.slots} places taken; at most ${spec.cap} for one crown">${dots}</span></div>
-        ${r.open ? send + (seize ? `<div class="row">${seize}</div>` : "") : `<p class="sub">The way there is known from ${r.opens}.</p>`}</div>`;
-    }).join("");
-    return `<div class="pad"><h4>${I("globe")} The New World</h4>
+    const spirit = C.spirits[G.human], blockade = (V.me.blockaded || []).includes("atlantic");
+    if (!worldPick || !V.new_world.some((r) => r.id === worldPick)) {
+      const ours = V.new_world.find((r) => mine[r.id]);
+      worldPick = (ours || V.new_world.find((r) => r.open) || V.new_world[0]).id;
+    }
+    const garrisons = Object.values(V.me.garrisons || {}).reduce((a, b) => a + b, 0);
+    const trade = (V.me.trade || []).length ? `<table class="ctable"><thead><tr><th>Good</th><th class="num">Cargoes</th><th class="num">Price</th><th class="num">Ducats</th><th class="num" title="Every crown's cargoes, against what Europe wants at full price">Shipped by all</th><th></th></tr></thead><tbody>${V.me.trade.map((t) =>
+      `<tr><td>${GOOD_IC[t.good]} ${esc(R.goods[t.good].name)}</td><td class="num">${t.cargo.toFixed(1)}</td><td class="num">${t.price.toFixed(2)}</td><td class="num">${t.ducats.toFixed(0)}</td><td class="num">${t.shipped.toFixed(1)} / ${R.goods[t.good].glut}</td><td>${t.monopoly ? `<span class="chip" title="You ship most of it: ${Math.round(100 * 0.25)}% more">★ master</span>` : ""}</td></tr>`).join("")}</tbody></table>` : "";
+    const infl = V.me.inflation || 0;
+    return `<div class="pad">
       <div class="stocks">
-        <div class="stock"><span class="ic">🏝</span><div><b class="num">${total}</b><span class="label">colonies</span></div><div class="flow">${yieldText(dueArr) || "<small>none yet</small>"}<small>a year</small></div></div>
+        <div class="stock"><span class="ic">🏝</span><div><b class="num">${total}</b><span class="label">colonies</span></div><div class="flow">${yieldText(RES.map(([k]) => dues[k] || 0)) || "<small>none yet</small>"}<small>a year</small></div></div>
         <div class="stock"><span class="ic">⛵</span><div><b class="num">${sent.length + orders.filter((o) => o.type === "send_expedition").length}</b><span class="label">expeditions of ${C.atOnce}</span></div></div>
-        <div class="stock"><span class="ic">🌊</span><div><b class="num">${ocean.toFixed(1)}</b><span class="label">Atlantic fleet</span></div><div class="flow"><small>${C.ships} escorts an expedition</small></div></div>
+        <div class="stock"><span class="ic">⚔</span><div><b class="num">${garrisons}</b><span class="label">regiments overseas</span></div><div class="flow"><small>${C.garrisonPay} ducat a year each</small></div></div>
+        <div class="stock"><span class="ic">🌊</span><div><b class="num">${oceanOf(G.human).toFixed(1)}</b><span class="label">ocean fleet</span></div><div class="flow"><small>carries ${Math.max(0, oceanCarry())} regiments</small></div></div>
+        <div class="stock ${infl >= 0.1 ? "warn" : ""}"><span class="ic">📈</span><div><b class="num">${(infl * 100).toFixed(1)}%</b><span class="label">inflation</span></div><div class="flow"><small>${V.me.inflation_loss ? `−${V.me.inflation_loss} ducats a year` : "silver feeds it"}</small></div></div>
       </div>
       ${spirit ? `<p class="cspirit"><b>${esc(spirit.title)}</b>: ${esc(spirit.words)}.</p>` : ""}
       ${blockade ? `<p class="note war">⚓ An enemy fleet blockades the Atlantic: the colonies send home ${Math.round(C.blockade * 100)}% less.</p>` : ""}
-      <div class="regions">${cards}</div>
-      <p class="sub">An expedition needs a port of yours on the Atlantic or the Baltic and a fleet to escort it. Each year it makes progress by a die, your fleet and your crown's way, less the region's hardness; at 100% it founds a colony, unless every place was taken first. At war, an Atlantic fleet ${C.seize} times the enemy's takes its colonies; an enemy that rules the Atlantic halves what they send home.</p></div>`;
+      <div class="chartbox">${chartSvg()}</div>
+      ${regionDetail(V.new_world.find((r) => r.id === worldPick))}
+      ${trade ? `<h4>The trade of the Indies</h4>${trade}<p class="sub">Past what Europe wants, every cargo more lowers a good's price. Silver feeds inflation, which eats the ducats of your land (${(infl * 100).toFixed(1)}% now, falling 1% a year).</p>` : ""}
+      <p class="sub">Expeditions sail from a port of yours on the ocean or the Baltic with a fleet to escort them; at 100% they found the colony, unless every place was taken first. At war, an enemy fleet on the ocean may fall on your treasure fleet.</p></div>`;
   }
   const BRANCH_IC = {military: "⚔", economy: "💰", engineering: "⚒", naval: "⚓", administration: "📜"};
   const branchName = (id) => (T.find((b) => b.id === id) || {name: id}).name;
@@ -1965,7 +2063,7 @@
     const panel = $("office");
     if (!panelOpen) { panel.innerHTML = ""; return; }
     const keep = panel.scrollTop, same = panel.dataset.tab === tab;
-    panelEl.classList.toggle("wide", tab === "tech");
+    panelEl.classList.toggle("wide", tab === "tech" || tab === "world");
     panel.innerHTML = {realm: realmTab, crown: crownTab, reign: reignTab, missions: missionsTab, army: armyTab, world: worldTab, tech: techTab, diplomacy: diplomacyTab, letters: lettersTab, ledger: ledgerTab, chronicle: chronicleTab}[tab]();
     panel.dataset.tab = tab; if (same) panel.scrollTop = keep;
     const focusOn = (i) => { picked = i; send = Infinity; lead = true; if (!pinned) panelOpen = false; map.centerOn(i, 2.2, innerWidth > 960 ? 300 : 0); render(); };
@@ -1998,7 +2096,21 @@
     const ra = panel.querySelector("#recruitat"); if (ra) ra.onchange = () => { recruitAt = ra.value; render(); };
     wireYards(panel);
     panel.querySelectorAll("tr[data-sea]").forEach((tr) => tr.onclick = () => { pickedSea = +tr.dataset.sea; picked = -1; if (!pinned) panelOpen = false; render(); });
-    panel.querySelectorAll("[data-expedition]").forEach((b) => b.onclick = () => queue({type: "send_expedition", region: b.dataset.expedition}));
+    panel.querySelectorAll("[data-expedition]").forEach((b) => b.onclick = () => { const [region, kind] = b.dataset.expedition.split(":"); queue({type: "send_expedition", region, kind: kind || "plantation"}); });
+    panel.querySelectorAll("[data-wregion]").forEach((g) => { const pick = () => { worldPick = g.dataset.wregion; render(); };
+      g.onclick = pick; g.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } }; });
+    const wport = panel.querySelector("#wport"); if (wport) wport.onchange = () => { worldPort = wport.value; render(); };
+    panel.querySelectorAll("[data-wn]").forEach((b) => b.onclick = () => { worldN = Math.max(0, worldN + +b.dataset.wn); render(); });
+    const sendN = () => Math.max(0, Math.min(worldN, worldPort ? portTroops(worldPort) : 0, oceanCarry()));
+    panel.querySelectorAll("[data-shiptroops]").forEach((b) => b.onclick = () => { const n = sendN(); if (n) queue({type: "ship_troops", region: b.dataset.shiptroops, port: worldPort, regiments: n}); });
+    panel.querySelectorAll("[data-shiphome]").forEach((b) => b.onclick = () => { const here = (V.me.garrisons || {})[b.dataset.shiphome] || 0;
+      queue({type: "ship_troops", region: b.dataset.shiphome, port: worldPort, regiments: Math.min(here, Math.max(1, worldN)), home: true}); });
+    panel.querySelectorAll("[data-cfort]").forEach((b) => b.onclick = () => queue({type: "build_colonial_fort", region: b.dataset.cfort}));
+    panel.querySelectorAll("[data-viceroy]").forEach((b) => b.onclick = () => queue({type: "found_viceroyalty", region: b.dataset.viceroy}));
+    panel.querySelectorAll("[data-conquer]").forEach((b) => b.onclick = () => { const n = sendN();
+      queue(n ? {type: "conquer_natives", region: b.dataset.conquer, regiments: n, port: worldPort} : {type: "conquer_natives", region: b.dataset.conquer}); });
+    panel.querySelectorAll("[data-storm]").forEach((b) => b.onclick = () => { const [r, e] = b.dataset.storm.split(":"), n = sendN();
+      queue(n ? {type: "seize_colony", region: r, enemy: e, regiments: n, port: worldPort} : {type: "seize_colony", region: r, enemy: e}); });
     panel.querySelectorAll("[data-seize]").forEach((b) => b.onclick = () => { const [r, e] = b.dataset.seize.split(":"); queue({type: "seize_colony", region: r, enemy: e}); });
     const rgo = panel.querySelector("#recruitgo"); if (rgo) rgo.onclick = () => { U.forEach((u) => { const n = recruitN[u.id] || 0;
       if (n > 0) queue({type: "recruit", province: recruitAt, regiments: n, unit: u.id}); }); recruitN = {}; render(); };
@@ -2106,8 +2218,12 @@
       case "upgrade_monument": return `🏛 Raise ${esc(M[o.province]?.name || "the monument")}`;
       case "disband": return `Disband ${o.regiments}${o.unit ? ` ${o.unit}` : ""} in ${pn(o.province)}`;
       case "develop": return `Develop ${pn(o.province)}`;
-      case "send_expedition": return `⛵ Send an expedition to ${esc(regionName(o.region))}`;
-      case "seize_colony": return `⚔ Take a colony in ${esc(regionName(o.region))} from ${nn(o.enemy)}`;
+      case "send_expedition": return `⛵ Send an expedition to found a ${esc(R.colonyKinds[o.kind || "plantation"].name.toLowerCase())} in ${esc(regionName(o.region))}`;
+      case "seize_colony": return o.regiments ? `⚔ Storm ${nn(o.enemy)}'s colony in ${esc(regionName(o.region))} with ${o.regiments} regiments from ${esc(P[pIndex[o.port]].name)}` : `⚔ Take a colony in ${esc(regionName(o.region))} from ${nn(o.enemy)}`;
+      case "ship_troops": return o.home ? `⚓ Bring ${o.regiments} regiments home from ${esc(regionName(o.region))} to ${esc(P[pIndex[o.port]].name)}` : `⛵ Ship ${o.regiments} regiments from ${esc(P[pIndex[o.port]].name)} to ${esc(regionName(o.region))}`;
+      case "build_colonial_fort": return `🏰 Raise a fort in ${esc(regionName(o.region))}`;
+      case "found_viceroyalty": return `♛ Make ${esc(regionName(o.region))} a viceroyalty`;
+      case "conquer_natives": return `🏹 March on the peoples of ${esc(regionName(o.region))}${o.regiments ? ` with ${o.regiments} regiments from ${esc(P[pIndex[o.port]].name)}` : ""}`;
       case "build_ships": return `${SICON[o.ship]} Launch ${o.count} ${o.ship}${o.count > 1 ? "s" : ""} from ${pn(o.province)}`;
       case "scrap_ships": return `⚓ Lay up ${o.count} ${o.ship}${o.count > 1 ? "s" : ""} in the ${esc(seaName(o.sea))}`;
       case "sail_fleet": { const n = Object.values(o.ships).reduce((a, b) => a + b, 0); return `⛵ Sail ${n} ships from the ${esc(seaName(o.origin))} to the ${esc(seaName(o.target))}`; }
@@ -2267,6 +2383,11 @@
     const colonial = evs.find((e) => ["colony_founded", "colony_seized"].includes(e.kind) && e.nations[0] === G.human);
     if (colonial) return fig(art.colony({color: color(G.human), rival: colonial.data.from ? color(colonial.data.from) : null}),
       `${colonial.kind === "colony_seized" ? `A colony taken from ${nameOf(colonial.data.from)}` : "A colony founded"} in ${regionName(colonial.data.region)}, ${year}`);
+    const conquest = evs.find((e) => e.kind === "natives_war" && e.nations[0] === G.human && e.data.attacker_won);
+    if (conquest) return fig(art.colony({color: color(G.human)}), `${conquest.data.broken ? "The peoples broken" : "A victory over the peoples"} of ${regionName(conquest.data.region)}, ${year}`);
+    const treasure = evs.find((e) => e.kind === "treasure_taken" && e.nations.includes(G.human));
+    if (treasure) return fig(art.seaBattle({a: color(treasure.data.attacker), b: color(treasure.data.defender), seed: treasure.summary}),
+      `${treasure.data.attacker === G.human ? `A treasure fleet of ${nameOf(treasure.data.defender)} taken` : "Your treasure fleet taken"}, ${year}: ${treasure.data.ducats} ducats`);
     const siege = evs.find((e) => e.kind === "siege" && e.nations.includes(G.human) && e.data.started);
     if (siege) return fig(art.siege({by: color(siege.nations[0]), of: color(siege.nations[1]), terrain: P[pIndex[siege.province]].terrain, seed: siege.summary}),
       `The siege of ${pname(siege.province)} begins, ${year}`);
@@ -3032,7 +3153,7 @@
     ["🤝 Diplomacy", "In <b>Envoys</b>, write to every court and attach proposals: alliances, pacts, royal marriages, trade, leagues against a feared conqueror. Courts marked 👤 are other players; the rest are bots that answer and remember. Conquest breeds <b>infamy</b>, and Europe may league against you."],
     ["🛡 Battle", "Before an attack, pick a <b>tactic</b>: an assault, a flank or a bombardment. Every province's army keeps a <b>posture</b> that answers attacks: hold the line, skirmish or sally. Each tactic beats one posture and breaks on another, like stone, paper and scissors. Regiments that fight grow into <b>veterans</b>, and a beaten army's <b>morale</b> carries into the next battle."],
     ["⚓ The seas", "The sea is cut into <b>zones</b> like the land into provinces. Each port launches ships into its own zone; sail them from zone to zone and seek out an enemy's fleet. The crown whose fleet commands a zone crosses its straits, makes <b>landings</b> on any of its shores (the beach is defended harder) and may blockade its ports."],
-    ["🌎 The New World", "From a port on the ocean, the <b>New World</b> office sends expeditions to seven regions overseas. They take years and may be lost; those that arrive found <b>colonies</b> that pay dues every year. Spain, England and France each have their own colonial spirit, and a rival's colony can be seized at war."],
+    ["🌎 The New World", "The <b>New World</b> office opens a chart of seven regions overseas. From a port on the ocean, send expeditions to found <b>colonies</b>: plantations, trading posts or settlements. Each ships its region's good (sugar, silver, spices, furs, gold) at a price that falls when everyone ships it; silver brings <b>inflation</b>. The <b>peoples</b> of the land deny you part of the dues until soldiers hold it, or you conquer them. At war, colonies are stormed with regiments carried by galleon, and enemy fleets fall on the treasure fleets."],
     ["📜 Learning", "Five branches of <b>Learning</b>: military, economy, engineering, naval and administration. Some levels need another branch first, and at every level you choose one of two <b>doctrines</b>, for good: Swiss drill or volleys, charts or shipwrights."],
     ["🏰 Provinces and policies", "Give a province a <b>focus</b> in its deed: with the works it raises, it grows into a <b>designation</b> (a great granary, a trade port, a fortress, a shipyard) that also helps its neighbours. In <b>The Crown</b>, the realm's <b>policies</b> lean each axis one way for ten years."],
     ["👑 The king", "Your ruler's skills gather <b>authority</b> every year, spent on royal acts: a levy, an embassy, a royal progress, a pardon, the ruler at the head of the army. Each reign chooses an <b>ambition</b> to fulfil. Educate your <b>heir</b>: a child on the throne rules under a regency, and a line that fails leaves claims to the crowns married into it."],
