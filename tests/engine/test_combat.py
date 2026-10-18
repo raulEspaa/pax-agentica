@@ -201,3 +201,20 @@ def test_a_joint_attack_drops_an_army_that_cannot_march(state: GameState, play: 
     )
     assert reasons(new) == ["Madrid and Languedoc do not border"]
     assert [e.kind for e in new.last_events].count(EventKind.BATTLE) <= 1
+
+
+def test_a_battle_says_why_each_side_fought_as_it_did(state: GameState, play: Play) -> None:
+    war = play(state, ottomans=[DeclareWar(target="austria")])
+    war.turn += 1
+    war.provinces["croatia"].owner = "ottomans"
+    war.provinces["croatia"].set_army({UnitKind.INFANTRY: 13})
+    fought = play(
+        war,
+        ottomans=[Attack(origin="croatia", target="styria", regiments=13)],
+        austria=[Move(origin="vienna", target="styria", regiments=2)],
+    )
+    battle = next(e for e in fought.last_events if e.kind == EventKind.BATTLE)
+    assert "mountains ×1.50" in str(battle.data["defender_factors"])  # noqa: RUF001
+    assert "defenders' advantage" in str(battle.data["defender_factors"])
+    assert "2 from Vienna" in str(battle.data["reinforced"])
+    assert battle.data["attacker_factors"]

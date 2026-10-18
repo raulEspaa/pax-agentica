@@ -1377,7 +1377,7 @@ def default_buildings() -> dict[BuildingKind, BuildingSpec]:
             name="Lumber mill",
             category=civil,
             cost=Resources(ducats=35, iron=6, timber=4),
-            effect="doubles the province's timber (at least +1); its saws wear an iron a year",
+            effect="doubles the province's timber (at least +2); its saws wear an iron a year",
             consumes=Resources(iron=1),
             max_level=3,
         ),

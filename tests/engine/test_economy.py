@@ -304,3 +304,13 @@ def test_a_game_saved_with_fixed_slots_still_loads(state: GameState) -> None:
     saved["rules"]["development_per_building_slot"] = 4
     loaded = GameState.model_validate(saved)
     assert building_slots(loaded.rules, 7) == 7
+
+
+def test_a_lumber_mill_earns_its_iron_even_where_timber_is_thin(state: GameState) -> None:
+    from pax_agentica.engine.mechanics import building_output
+    from pax_agentica.engine.model import BuildingKind
+
+    p = state.provinces["serbia"]
+    before = building_output(state, "serbia").timber
+    p.buildings = [*p.buildings, BuildingKind.LUMBER_MILL]
+    assert building_output(state, "serbia").timber >= before + 2

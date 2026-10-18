@@ -233,7 +233,8 @@
     orders.map((o, k) => [o, k]).sort((a, b) => PHASE(a[0]) - PHASE(b[0]) || a[1] - b[1]).forEach(([o, k]) => {
       const d = delta(o);
       const short = d.map((v, j) => (v < 0 && t[j] + v < 0 ? RES[j][1].toLowerCase() : null)).filter(Boolean);
-      if (short.length) { out.set(k, short); return; }  // the engine skips it and keeps the money
+      if (short.length) { out.set(k, short); out.need = out.need || new Map();  // the engine skips it and keeps the money
+        out.need.set(k, d.map((v, j) => (v < 0 && t[j] + v < 0 ? -(t[j] + v) : 0))); return; }
       d.forEach((v, j) => (t[j] += v));
     });
     return out;
@@ -527,7 +528,21 @@
     }
     return joint;
   }
-  function odds(from, to, alone = force(from), extraArmies = 0, how = null) {
+  // The regiments the holder of `to` could march in from next door before the battle (moves
+  // are carried out before attacks): what a prediction cannot see coming.
+  function reinforcements(to) {
+    const p = prov(to), holder = p.controller || p.owner;
+    if (!holder || holder === G.human) return {n: 0, holder};
+    const near = [...P[to].land, ...P[to].sea].filter((j) => j !== to && (prov(j).controller || prov(j).owner) === holder && prov(j).troops);
+    return {n: near.reduce((t, j) => t + prov(j).troops, 0), holder, from: near.map((j) => P[j].name)};
+  }
+  // Enemy regiments next to a province of ours: who could fall on an army that marches in.
+  function threatAt(to) {
+    const foes = new Set(V.me.at_war_with || []);
+    return [...P[to].land, ...P[to].sea].reduce((t, j) => { const q = prov(j), h = q.controller || q.owner;
+      return t + (h && foes.has(h) && q.troops ? q.troops : 0); }, 0);
+  }
+  function odds(from, to, alone = force(from), extraArmies = 0, how = null, more = 0) {
     const army = jointWith(from, to, alone);
     const armies = 1 + extraArmies + new Set(orders.filter((o) => o.type === "attack" && pIndex[o.target] === to && pIndex[o.origin] !== from).map((o) => o.origin)).size;
     const coordination = 1 - Math.min(R.jointPenaltyMax || 0, (R.jointPenalty || 0) * (armies - 1));
@@ -546,7 +561,7 @@
     if (p.troops === null || !n) return null;
     if (!p.troops) return 1;
     const mine = strength(army, ground, true) * myFactor(g) * coordination * drill; // joint armies coordinate poorly
-    const theirs = (p.army ? strength(p.army, ground, false, p.controller || p.owner) : p.troops) * veteranFactor(f.vet) * tired;
+    const theirs = (p.army ? strength(p.army, ground, false, p.controller || p.owner) : p.troops) * veteranFactor(f.vet) * tired * (p.troops + more) / p.troops;
     return winChance(mine, theirs, defence(from, to, siege(army)));
   }
 
@@ -827,6 +842,9 @@
         const watch = f.seen && p.troops ? `<p class="note">${seen[1]} The garrison waits: <b>${seen[2].toLowerCase()}</b> (${seen[3]}); ${seasoning(f.vet)}, ${Math.round(f.vet * 100)}% veterancy. Best answer from ${esc(P[best].name)}: <b>${how[1]} ${how[2].toLowerCase()}</b>.</p>` : "";
         body += `<section><h4>Attack</h4>${watch}<p class="note" style="font-style:normal">All ${troopsAfter(best)} regiments of ${esc(P[best].name)}${g ? ` under ${esc(g.name)}` : ""}
           against ${p.troops}: <b>${Math.round(chance * 100)}% to win</b>.${together !== null ? ` With all ${total} from the ${near.length} provinces next door, in one battle: <b>${Math.round(together * 100)}%</b>.` : ""}
+          ${(() => { const help = reinforcements(i); if (!help.n || p.siege_by) return "";
+            const worst = odds(best, i, armyAfter(best), 0, null, help.n) ?? 0;
+            return ` But marches come before battles: if ${esc(nameOf(help.holder))} brings the ${help.n} regiments of ${esc(help.from.join(", "))} first, <b>${Math.round(worst * 100)}%</b>.`; })()}
           ${war ? `Select ${esc(P[best].name)} and right-click here.` : `You must declare war on ${esc(N[o].name)} first.`}</p></section>`;
       }
       body += monumentCard(i, false, projected()) + info.production + `<section>${info.slotsHtml}</section>`;
@@ -2283,25 +2301,40 @@
     $("ordersbtn").innerHTML = I("scroll-text") + (orders.length ? `<span class="count ${failing ? "" : "ok"}">${failing ? `${failing}✗` : orders.length}</span>` : "");
     $("ordersbtn").setAttribute("data-tip", failing ? `<h5>This year's orders</h5><div class="neg">${failing} of them cannot be paid and will fail.</div>` : `<h5>This year's orders</h5><div class="dim">${orders.length} given. Hover to see them.</div>`);
     $("orders").innerHTML = `<h4>This year's orders <small>${orders.length} of ${MAX_ORDERS}</small></h4>` + (orders.length
-      ? (() => { const short = shortfalls(); return orders.map((o, k) => `<div class="order ${short.has(k) ? "short" : ""}"><span>${describe(o)}${short.has(k) ? `<small>✗ not enough ${short.get(k).join(", ")}: it will fail</small>` : ""}</span><button data-drop="${k}" aria-label="Withdraw this order" title="Withdraw">✕</button></div>`).join(""); })()
+      ? (() => { const short = shortfalls();
+        // what the market can make good: the missing materials, bought before the works
+        const buyable = (k) => { const need = (short.need && short.need.get(k)) || [];
+          const lots = need.map((n, j) => [RES[j][0], n]).filter(([key, n]) => n > 0 && V.market[key]);
+          return lots.length && lots.length === need.filter((n) => n > 0).length ? lots : null; };
+        return orders.map((o, k) => { const lots = short.has(k) ? buyable(k) : null;
+          const price = lots ? lots.reduce((t, [key, n]) => t + Math.ceil(n * V.market[key].buy), 0) : 0;
+          return `<div class="order ${short.has(k) ? "short" : ""}"><span>${describe(o)}${short.has(k) ? `<small>✗ not enough ${short.get(k).join(", ")}: it will fail</small>` : ""}
+            ${lots ? `<button class="btn mini buyshort" data-buyshort="${k}" title="Bought at the market before the works">Buy ${lots.map(([key, n]) => `${n} ${key}`).join(" and ")} for ${price} ducats</button>` : ""}</span><button data-drop="${k}" aria-label="Withdraw this order" title="Withdraw">✕</button></div>`; }).join(""); })()
       : `<p class="muted pad">No orders yet. Select a province on the map, or open an office above.</p>`);
     $("orders").querySelectorAll("[data-drop]").forEach((b) => b.onclick = () => { orders.splice(+b.dataset.drop, 1); J.play("unorder"); render(); });
+    $("orders").querySelectorAll("[data-buyshort]").forEach((b) => b.onclick = () => { const k = +b.dataset.buyshort, need = shortfalls().need.get(k);
+      need.forEach((n, j) => { if (n > 0) orders.push({type: "buy", resource: RES[j][0], amount: n}); }); J.play("coins"); render(); });
   }
 
   // ------------------------------------------------------------------ the year's report
   // A battle as two armies facing each other: who brought what, who lost what, and what came of it.
   function battleCard(e) {
     const d = e.data, mineAttacking = d.attacker === G.human, won = mineAttacking === d.attacker_won;
-    const side = (nid, name, regiments, army, lost, power, winner) => `<div class="bfight ${winner ? "winner" : ""}">
+    // what made each side's power: one chip a factor ("mountains ×1.50", "walls +40%")
+    const why = (text) => text ? `<div class="bwhy">${String(text).split("; ").map((f) => `<span>${esc(f)}</span>`).join("")}</div>` : "";
+    const side = (nid, name, regiments, army, lost, power, winner, factors) => `<div class="bfight ${winner ? "winner" : ""}">
       <div class="bwho">${nid ? PaxMap.flag(nid, N[nIndex[nid]].color, 26) : "🛡"}<b>${esc(name)}</b>${winner ? `<span class="crownmark">won</span>` : ""}</div>
       <div class="bnums"><span><b>${regiments}</b> regiments</span><span class="neg"><b>−${lost}</b> lost</span><span><b>${power}</b> power</span></div>
-      ${army ? `<small>${esc(army)}</small>` : ""}</div>`;
+      ${army ? `<small>${esc(army)}</small>` : ""}${why(factors)}</div>`;
+    const loser = d.attacker_won ? d.defender_name : d.attacker_name;
     return `<div class="battlecard ${won ? "won" : "lost"}">
       <div class="bhead"><span>⚔ Battle of ${esc(P[pIndex[e.province]].name)}</span><b>${won ? "Victory" : "Defeat"}</b></div>
-      <div class="bsides">${side(d.attacker, d.attacker_name, d.attacker_regiments, d.attacker_army, d.attacker_losses, d.attacker_power, d.attacker_won)}
-        <span class="vs">vs</span>${side(d.defender, d.defender_name, d.defender_regiments, d.defender_army, d.defender_losses, d.defender_power, !d.attacker_won)}</div>
+      <div class="bsides">${side(d.attacker, d.attacker_name, d.attacker_regiments, d.attacker_army, d.attacker_losses, d.attacker_power, d.attacker_won, d.attacker_factors)}
+        <span class="vs">vs</span>${side(d.defender, d.defender_name, d.defender_regiments, d.defender_army, d.defender_losses, d.defender_power, !d.attacker_won, d.defender_factors)}</div>
+      ${d.reinforced ? `<p class="breinf">⚑ ${esc(d.defender ? nameOf(d.defender) : "The defenders")} reinforced ${esc(P[pIndex[e.province]].name)} this year: ${esc(d.reinforced)} marched in before the battle.</p>` : ""}
       ${d.tactic ? `<p class="btactic">${tacticOf(d.tactic)[1]} ${tacticOf(d.tactic)[2]} against ${postureOf(d.posture)[1]} ${postureOf(d.posture)[2].toLowerCase()}: <b>${sign(Math.round((d.edge - 1) * 100))}%</b> to the attack${d.attacker_veterancy || d.defender_veterancy ? `. Veterancy ${Math.round((d.attacker_veterancy || 0) * 100)}% against ${Math.round((d.defender_veterancy || 0) * 100)}%` : ""}</p>` : ""}
-      <p class="bthen">${esc(cap(String(d.then || "")))}. <small>Power is regiments × their kind on this ground × technology, generals, tactics, veterancy, morale and walls × the dice.</small></p></div>`;
+      <p class="bthen">${esc(cap(String(d.then || "")))}. ${esc(loser)}'s beaten army is lost with all its regiments.
+        <small>Power is regiments × their kind on this ground × technology, generals, tactics, veterancy, morale and walls × the dice (0.8 to 1.2 a side).</small></p></div>`;
   }
   // A sea battle: two fleets, what they were worth, and what went down.
   function navalCard(e) {
@@ -3057,11 +3090,18 @@
     let extra = mode === "terrain" ? `${PaxMap.TERRAIN_ICON[P[i].terrain]} ${cap(P[i].terrain)}: ${PaxMap.terrainLines(S, P[i].terrain).join(" · ")}` : "Click to select";
     if (picked >= 0 && owned(picked) && i !== picked) {
       const t = targetsFrom(picked).find(([j]) => j === i), n = KINDS.reduce((sum, k) => sum + force(picked)[k], 0);
-      if (t && t[1] === "move") extra = t[2] !== undefined ? `Right-click to ship ${Math.min(n, t[2])} regiments here by sea` : `Right-click to march ${n} regiments here`;
-      if (t && t[1] === "attack") { const c = odds(picked, i), s = prov(i).siege_by;
-        const verb = s === G.human ? "send them to the siege lines" : s ? "break the siege" : "attack";
+      // short sentences, one span each: every one translates on its own
+      const say = (...bits) => bits.filter(Boolean).map((b) => `<span>${b}</span>`).join(" ");
+      if (t && t[1] === "move") { const foes = threatAt(i);
+        extra = say(t[2] !== undefined ? `Right-click to ship ${Math.min(n, t[2])} regiments here by sea.` : `Right-click to march ${n} regiments here.`,
+          foes ? `Enemy regiments next door: ${foes}.` : "", foes ? `You would hold it with ${troopsAfter(i) + n}.` : ""); }
+      if (t && t[1] === "attack") { const c = odds(picked, i), s = prov(i).siege_by, help = reinforcements(i);
+        const worst = c !== null && help.n && !s ? odds(picked, i, force(picked), 0, null, help.n) : null;
         const joined = orders.filter((o) => o.type === "attack" && pIndex[o.target] === i && pIndex[o.origin] !== picked).reduce((a, o) => a + o.regiments, 0);
-        extra = `Right-click to ${t[2] !== undefined ? "land" : verb} with ${t[2] !== undefined ? Math.min(n, t[2]) : n}${joined ? ` (with the ${joined} already sent: one battle)` : ""}${c !== null ? `: ${Math.round(c * 100)}% to win` : ""}`; }
+        const sent = t[2] !== undefined ? Math.min(n, t[2]) : n;
+        extra = say(t[2] !== undefined ? `Right-click to land with ${sent}.` : s === G.human ? `Right-click to send ${sent} to the siege lines.` : s ? `Right-click to break the siege with ${sent}.` : `Right-click to attack with ${sent}.`,
+          joined ? `With the ${joined} already sent: one battle.` : "", c !== null ? `${Math.round(c * 100)}% to win.` : "",
+          worst !== null ? `${Math.round(worst * 100)}% if ${nameOf(help.holder)} marches in the ${help.n} regiments next door first.` : ""); }
     }
     $("tip").innerHTML = `<b class="t">${esc(P[i].name)}</b><div class="kv">
       <span>Owner</span><b>${p.owner ? esc(nameOf(p.owner)) : "Independent"}</b>
@@ -3153,7 +3193,7 @@
     ["🤝 Diplomacy", "In <b>Envoys</b>, write to every court and attach proposals: alliances, pacts, royal marriages, trade, leagues against a feared conqueror. Courts marked 👤 are other players; the rest are bots that answer and remember. Conquest breeds <b>infamy</b>, and Europe may league against you."],
     ["🛡 Battle", "Before an attack, pick a <b>tactic</b>: an assault, a flank or a bombardment. Every province's army keeps a <b>posture</b> that answers attacks: hold the line, skirmish or sally. Each tactic beats one posture and breaks on another, like stone, paper and scissors. Regiments that fight grow into <b>veterans</b>, and a beaten army's <b>morale</b> carries into the next battle."],
     ["⚓ The seas", "The sea is cut into <b>zones</b> like the land into provinces. Each port launches ships into its own zone; sail them from zone to zone and seek out an enemy's fleet. The crown whose fleet commands a zone crosses its straits, makes <b>landings</b> on any of its shores (the beach is defended harder) and may blockade its ports."],
-    ["🌎 The New World", "The <b>New World</b> office opens a chart of seven regions overseas. From a port on the ocean, send expeditions to found <b>colonies</b>: plantations, trading posts or settlements. Each ships its region's good (sugar, silver, spices, furs, gold) at a price that falls when everyone ships it; silver brings <b>inflation</b>. The <b>peoples</b> of the land deny you part of the dues until soldiers hold it, or you conquer them. At war, colonies are stormed with regiments carried by galleon, and enemy fleets fall on the treasure fleets."],
+    ["🌎 The New World", "In its office, the <b>New World</b> is a chart of seven regions overseas. From a port on the ocean, send expeditions to found <b>colonies</b>: plantations, trading posts or settlements. Each ships its region's good (sugar, silver, spices, furs, gold) at a price that falls when everyone ships it; silver brings <b>inflation</b>. Until your soldiers hold the land, its <b>peoples</b> deny you part of the dues, unless you conquer them. At war, colonies are stormed with regiments carried by galleon, and enemy fleets fall on the treasure fleets."],
     ["📜 Learning", "Five branches of <b>Learning</b>: military, economy, engineering, naval and administration. Some levels need another branch first, and at every level you choose one of two <b>doctrines</b>, for good: Swiss drill or volleys, charts or shipwrights."],
     ["🏰 Provinces and policies", "Give a province a <b>focus</b> in its deed: with the works it raises, it grows into a <b>designation</b> (a great granary, a trade port, a fortress, a shipyard) that also helps its neighbours. In <b>The Crown</b>, the realm's <b>policies</b> lean each axis one way for ten years."],
     ["👑 The king", "Your ruler's skills gather <b>authority</b> every year, spent on royal acts: a levy, an embassy, a royal progress, a pardon, the ruler at the head of the army. Each reign chooses an <b>ambition</b> to fulfil. Educate your <b>heir</b>: a child on the throne rules under a regency, and a line that fails leaves claims to the crowns married into it."],

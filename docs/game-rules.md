@@ -234,7 +234,7 @@ province's trade good are left out of their share; workings deepen those instead
 | Marketplace | civil | 40 ducats, 2 iron, 12 timber | 3 | doubles the province's ducats; consumes 1 goods |
 | Farm estates | civil | 30 ducats, 2 iron, 10 timber | 3 | doubles the province's grain; consumes 1 timber |
 | Ironworks | civil | 45 ducats, 4 iron, 12 timber | 3 | doubles the province's iron; consumes 2 timber; needs engineering 1 |
-| Lumber mill | civil | 35 ducats, 6 iron, 4 timber | 3 | doubles the province's timber; consumes 1 iron |
+| Lumber mill | civil | 35 ducats, 6 iron, 4 timber | 3 | doubles the province's timber (at least +2); consumes 1 iron |
 | University | civil | 75 ducats, 4 iron, 20 timber | 1 | developing this province costs 30% fewer ducats; consumes 1 goods; needs economy 2 |
 | Bank | civil | 65 ducats, 6 iron, 12 timber | 3 | +3 ducats and +50% of the province's ducats; consumes 1 goods; needs economy 1 |
 | Cathedral | civil | 90 ducats, 2 manpower, 6 iron, 30 timber | 2 | +1 manpower and +25% of the province's ducats; unrest ends twice as fast; consumes 1 goods; needs economy 4 |
@@ -393,7 +393,7 @@ bots' tournaments get a little more.
 | France | Gendarmes (cavalry, attack ×1.3, defence ×1.15) | The Most Christian King: +10% ducats · The first army of Christendom: +8% battle power |
 | England | Longbowmen (archers, defence ×1.25, 20% cheaper) | The Navy Royal: +25% fleet strength, a fifth of the merchants' cut waived · The wool staple: +10% ducats |
 | Ottomans | Janissaries (archers, attack ×1.35, defence ×1.15) | The millet system: other faiths cost half · The devshirme: +5% battle power, +10% manpower |
-| Poland-Lithuania | Winged Hussars (cavalry, attack ×1.35, ×1.45 on plains) | The granary of Europe: +20% grain · Golden liberty: stability 10% cheaper |
+| Poland-Lithuania | Winged Hussars (cavalry, attack ×1.35, ×1.45 on plains) | The granary of Europe: +20% grain, +25% ducats · Golden liberty: stability 10% cheaper |
 | Russia | Streltsy (archers, defence ×1.2, 15% cheaper) | The lands of Rus': +25% manpower · The Third Rome: buildings and development 10% cheaper |
 | Sweden | Dalecarlians (pikemen, defence ×1.2, ×1.15 in forests and hills) | Baltic fleets and peasant pikes: +25% fleet strength, +5% battle power · The copper of Falun: +10% ducats |
 | Brandenburg-Prussia | Reiters (cavalry, attack ×1.2, no penalty in forests) | Prussian drill: +10% battle power, 15% less grain · A refuge for the persecuted: buildings and development 10% cheaper |
@@ -466,7 +466,10 @@ technology, milestones, ruler and council.
   dilute it, mercenaries arrive at 0.5, and every year it fades by 0.02.
 - **Morale**: an army fights 2% harder for each point of its realm's stability and 0.75% less
   for each point of war exhaustion.
-- **The loser loses every regiment** in the fight. The winner loses about half the ratio of the
+- **The loser loses every regiment** in the fight. The year's report shows, for each battle,
+  what made each side's power (the ground, the defender's advantage, walls, capital, tactic,
+  veterans, morale, technology, general) and the regiments that marched in before it: moves are
+  carried out before attacks, so a defender may reinforce the province you strike. The winner loses about half the ratio of the
   loser's power to its own, and always keeps at least one regiment.
 - **Armies from several provinces join.** Every `attack` a realm orders on the same province in
   the same year becomes one battle: their regiments fight together (the combined arms of all of

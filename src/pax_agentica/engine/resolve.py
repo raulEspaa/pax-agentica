@@ -97,6 +97,7 @@ from pax_agentica.engine.mechanics import (
     colonial_ports,
     colonies_in,
     convert_cost,
+    defense_factors,
     defense_multiplier,
     develop_cost,
     discounted,
@@ -249,6 +250,8 @@ class _Resolver:
         self.upgraded: set[tuple[ProvinceId, BuildingKind]] = set()  # one level a year each
         # joint attacks: the provinces each one's armies came from, for the battle's tale
         self.joined: dict[tuple[NationId, ProvinceId], list[ProvinceId]] = {}
+        # regiments that marched in this year, by province: (realm, from where, how many)
+        self.arrived: dict[ProvinceId, list[tuple[NationId, ProvinceId, int]]] = {}
         self.flow: dict[str, int] = dict.fromkeys(TRADED, 0)  # net market purchases this year
         self.fallen: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)
         self.mercenaries: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)  # hired this year
@@ -2996,6 +2999,7 @@ class _Resolver:
                 seasoned = source.veterancy  # before they leave: an empty province has none
                 moved = source.take(a.regiments, a.units)
                 self.s.provinces[a.target].add(moved, veterancy=seasoned)
+                self.arrived.setdefault(a.target, []).append((nation, a.origin, a.regiments))
                 if general:
                     general.province = a.target
                 self._emit(
@@ -3381,6 +3385,44 @@ class _Resolver:
             if result.attacker_won
             else "the attack is thrown back"
         )
+        times, bonuses = defense_factors(self.s, a.origin, a.target, siege_levels(rules, force))
+
+        def shown(label: str, value: float) -> str | None:
+            return None if abs(value - 1) < 0.005 else f"{label} ×{value:.2f}"  # noqa: RUF001
+
+        quality_att = army_strength(rules, force, ground, attacking=True, nation=nation) / committed
+        quality_def = army_strength(rules, held, ground, attacking=False, nation=defender) / (
+            target.troops
+        )
+        attacking = [
+            shown("their arms on this ground", quality_att),
+            shown("technology and the realm", battle_factor(self.s, nation)),
+            shown("the general", 1 + rules.general_bonus_per_skill * general.skill)
+            if general
+            else None,
+            shown("the tactic", edge),
+            shown("veterans", veteran(rules, seasoned)),
+            shown("morale", morale(self.s, nation)),
+            shown("armies joined", self._coordination(nation, a.target)),
+            shown("rivalry", self._rivalry(nation, defender)),
+        ]
+        defending = [
+            shown("their arms on this ground", quality_def),
+            *(shown(label, v) for label, v in times),
+            *(f"{label} +{round(v * 100)}%" for label, v in bonuses if v),
+            shown("technology and the realm", battle_factor(self.s, defender)),
+            shown("the general", 1 + rules.general_bonus_per_skill * guard.skill)
+            if guard
+            else None,
+            shown("veterans", veteran(rules, target.veterancy)),
+            shown("morale", morale(self.s, defender)),
+            shown("rivalry", self._rivalry(defender, nation)),
+        ]
+        came = [
+            f"{n} from {self._pname(o)}"
+            for who, o, n in self.arrived.get(a.target, [])
+            if who == defender
+        ]
         self._battle_event(
             a,
             nation,
@@ -3398,6 +3440,9 @@ class _Resolver:
             edge=round(edge, 3),
             attacker_veterancy=round(seasoned, 2),
             defender_veterancy=round(target.veterancy, 2),
+            attacker_factors="; ".join(f for f in attacking if f),
+            defender_factors="; ".join(f for f in defending if f),
+            reinforced=", ".join(came),
         )
         self._battle_counts(nation, defender, won=result.attacker_won)
         if result.attacker_won:

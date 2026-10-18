@@ -176,7 +176,8 @@ def buildings_yield(
         f = level_factor(rules, (levels or {}).get(building, 1))
         if field := OUTPUT_BUILDINGS.get(building):
             share = (shares.get(building) or rules.building_output_bonus) * f
-            extra[field] += max(1, math.floor(amounts[field] * share))
+            least = 2 if building == BuildingKind.LUMBER_MILL else 1  # its saws earn their iron
+            extra[field] += max(least, math.floor(amounts[field] * share))
         elif building == BuildingKind.BANK:
             extra["ducats"] += math.floor((3 + amounts["ducats"] * 0.5) * f)
         elif building == BuildingKind.CATHEDRAL:
@@ -1195,35 +1196,53 @@ def stability_cost(rules: Rules, discount: float = 0.0) -> Resources:
 # ---------------------------------------------------------------- combat
 
 
+def defense_factors(
+    state: GameState, origin: ProvinceId, target: ProvinceId, siege: int = 0
+) -> tuple[list[tuple[str, float]], list[tuple[str, float]]]:
+    """Why the defenders of `target` fight harder against an attack from `origin`: the factors
+    that multiply (the defender's advantage, the ground) and the bonuses that add up (walls, a
+    capital, a strait...), each with what it is. `siege`: fort levels the attackers' guns knock
+    off."""
+    rules = state.rules
+    target_state = state.provinces[target]
+    ground = state.map.provinces[target].terrain
+    owner, holder = target_state.owner, target_state.holder
+    attacker = modifiers(state, state.provinces[origin].holder)
+    times = [("defenders' advantage", rules.defender_advantage)]
+    times.append((ground.value, rules.terrain_defense[ground]))
+    bonuses: list[tuple[str, float]] = []
+    forts = max(0, target_state.fort - attacker.ignores_fort_levels - siege)
+    # the walls fight for whoever holds them, with that realm's art of fortification
+    if forts:
+        bonuses.append(("walls", modifiers(state, holder).fort_bonus_per_level * forts))
+    if target_state.focus == Focus.GARRISON and holder == owner:  # its own people man the walls
+        bonuses.append(("a garrison province", focus_bonus(state, target) / 2))
+    if holder == owner and (help := neighbour_shares(state, target).get("defence", 0.0)):
+        bonuses.append(("a great fortress next door", help))
+    if BuildingKind.TRAINING_GROUNDS in target_state.buildings:
+        drill = 0.2 * level_factor(rules, target_state.level(BuildingKind.TRAINING_GROUNDS))
+        bonuses.append(("training grounds", drill))
+    if owner is not None and holder == owner and state.nations[owner].capital == target:
+        bonuses.append(("the capital", rules.capital_bonus))  # its own people defend it
+    if state.map.is_sea_crossing(origin, target):  # unless the attacker holds the water
+        sea = state.map.strait_sea(origin, target)
+        crosser = state.provinces[origin].holder
+        if sea is None or sea_command(state, crosser, holder, sea) != "ours":
+            bonuses.append(("a strait", rules.sea_crossing_bonus))
+    elif not state.map.adjacent(origin, target):  # a landing from the boats
+        beach = max(0.0, rules.sea_crossing_bonus + rules.landing_bonus - attacker.landing)
+        if beach:
+            bonuses.append(("a landing", beach))
+    return times, bonuses
+
+
 def defense_multiplier(
     state: GameState, origin: ProvinceId, target: ProvinceId, siege: int = 0
 ) -> float:
     """How much harder the defenders of `target` fight against an attack from `origin`.
     `siege`: fort levels the attackers' guns knock off."""
-    rules = state.rules
-    target_state = state.provinces[target]
-    terrain = rules.terrain_defense[state.map.provinces[target].terrain]
-    owner, holder = target_state.owner, target_state.holder
-    attacker = modifiers(state, state.provinces[origin].holder)
-    forts = max(0, target_state.fort - attacker.ignores_fort_levels - siege)
-    # the walls fight for whoever holds them, with that realm's art of fortification
-    bonus = modifiers(state, holder).fort_bonus_per_level * forts
-    if target_state.focus == Focus.GARRISON and holder == owner:  # its own people man the walls
-        bonus += focus_bonus(state, target) / 2
-    if holder == owner:  # a great fortress next door sends its men to the walls
-        bonus += neighbour_shares(state, target).get("defence", 0.0)
-    if BuildingKind.TRAINING_GROUNDS in target_state.buildings:
-        bonus += 0.2 * level_factor(rules, target_state.level(BuildingKind.TRAINING_GROUNDS))
-    if owner is not None and holder == owner and state.nations[owner].capital == target:
-        bonus += rules.capital_bonus  # a capital's own people defend it, not its occupiers
-    if state.map.is_sea_crossing(origin, target):  # unless the attacker holds the water
-        sea = state.map.strait_sea(origin, target)
-        crosser = state.provinces[origin].holder
-        if sea is None or sea_command(state, crosser, holder, sea) != "ours":
-            bonus += rules.sea_crossing_bonus
-    elif not state.map.adjacent(origin, target):  # a landing from the boats
-        bonus += max(0.0, rules.sea_crossing_bonus + rules.landing_bonus - attacker.landing)
-    return rules.defender_advantage * terrain * (1 + bonus)
+    times, bonuses = defense_factors(state, origin, target, siege)
+    return math.prod(v for _, v in times) * (1 + sum(v for _, v in bonuses))
 
 
 @dataclass(frozen=True)

@@ -871,7 +871,7 @@ const PaxMap = (() => {
       header: `<header class="deedhead">${d.view ? `<figure class="view"><img src="${d.view.src}" alt="A period view of ${esc(d.view.city)}" width="570" height="225">
           <figcaption>${esc(d.view.city)}, as ${esc(d.view.by)} engraved it</figcaption></figure>` : vista(S, i, d)}
         <div class="ribbon">${d.owner >= 0 ? flag(N[d.owner].id, N[d.owner].color, 36) : `<span class="shield" style="background:var(--free)"></span>`}
-          <div><h2 id="deedname">${esc(p.name)}</h2><div class="owner">${d.owner >= 0 ? `${kind} of ${owner}` : `Independent ${kind.toLowerCase()}`}</div></div></div>
+          <div><h2 id="deedname">${esc(p.name)}</h2><div class="owner">${d.owner >= 0 ? `Province of ${owner}` : "An independent province"}</div></div></div>
         <button class="x" data-close aria-label="Close the province deed" title="Close (Esc)">×</button></header>`,
       facts: `<section class="strip num">
         <div title="Development ${d.dev} of ${maxDev}: output and score. A ${esc(kind.toLowerCase())}, with room for ${here ? here.building_slots : slots} works.${growth}"><span>🏛</span><b>${d.dev}</b><i style="width:${Math.round(d.dev / maxDev * 100)}%"></i><small>${esc(kind.toLowerCase())}</small></div>

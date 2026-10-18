@@ -112,7 +112,11 @@ TRADITIONS: dict[NationId, tuple[tuple[str, str, dict[str, float]], ...]] = {
         ),
     ),
     "poland": (
-        ("The granary of Europe", "+20% grain", {"grain_income": 0.20}),
+        (  # the grain of the Vistula, shipped from Danzig to Amsterdam
+            "The granary of Europe",
+            "+20% grain and +25% ducats",
+            {"grain_income": 0.20, "ducat_income": 0.25},
+        ),
         ("Golden liberty", "stability 10% cheaper", {"stability": 0.10}),
     ),
     "russia": (
