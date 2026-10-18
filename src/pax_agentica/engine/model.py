@@ -1864,6 +1864,7 @@ class Rules(BaseModel):
     )
     policy_stability: int = 1  # stability a change of policy costs (the first choice is free)
     policy_years: int = 10  # before a policy can change again
+    league_galleys: int = 6  # papal and Venetian galleys for each crown of the Holy League
     learning_research_discount: float = 0.03  # each province of learning, up to the cap
     learning_research_cap: float = 0.15
     develop_goods_from: int = 5  # from this development, developing also takes goods
@@ -2437,6 +2438,7 @@ class GameState(BaseModel):
     finished: bool = False
     winner: NationId | None = None
     crisis: Crisis | None = None  # the age's great trouble, drawn on the first turn
+    history: list[str] = Field(default_factory=list)  # the great events already met
 
     @model_validator(mode="after")
     def _chart_the_seas(self) -> Self:

@@ -442,11 +442,31 @@ class _Planner:
         """Weigh each answer to the crown's pending events by what it gives and takes."""
         for pending in self.me.pending_events:
             spec = EVENTS_BY_ID[pending.event]
-            best = max(
-                range(len(spec.options)), key=lambda k: (self._option_worth(spec.options[k]), -k)
-            )
+            best = self._great_choice(spec.id)
+            if best is None:
+                best = max(
+                    range(len(spec.options)),
+                    key=lambda k: (self._option_worth(spec.options[k]), -k),
+                )
             self.actions.append(ChooseOption(event_id=pending.id, option=best))
             self.decided.append(f"{spec.title}: {spec.options[best].label.lower()}")
+
+    def _great_choice(self, event: str) -> int | None:
+        """The great events of the age, weighed as a crown would: land is land, a league is
+        worth its galleys when the treasury can pay, and Vienna is worth a war when the
+        janissaries outnumber the defenders."""
+        if event == "burgundy":
+            return 0
+        if event == "holy_league":
+            return 0 if self.budget.ducats >= 80 else 1
+        if event == "vienna":
+            ours = sum(self.troops.values())
+            austria = next((n for n in self.v.nations if n.id == "austria"), None)
+            theirs = austria.provinces * 4 if austria else 99  # a guess: their armies are hidden
+            return 0 if ours > theirs else 1
+        if event == "cloth_of_gold":
+            return 0 if self.budget.ducats >= 120 else 1
+        return None
 
     def _option_worth(self, o: Option) -> float:
         if -o.ducats > self.budget.ducats:

@@ -572,12 +572,189 @@ class _Resolver:
         if o.general_skill and (generals := self.s.generals_of(nation)):
             best = max(generals, key=lambda g: (g.skill, -g.id))
             best.skill = min(3, best.skill + o.general_skill)
+        self._history_effects(nation, spec.id, option)
         self._emit(
             EventKind.EVENT_DECIDED,
             f"{me.name}, {spec.title.lower()}: {o.label.lower()}",
             nations=(nation,),
             event=spec.id,
             option=option,
+        )
+
+    # ------------------------------------------------------------ the great events of the age
+
+    def _history(self) -> None:
+        """The age's great events: each once a game, in its years, when Europe is ready; the
+        crowns it falls to must decide by the end of next year. A year after the Holy League
+        gathers, its fleets fight the Sultan's as one."""
+        year = self.s.year
+        for h in fortune.HISTORY:
+            spec = h.event
+            if spec.id in self.s.history or not h.first <= year <= h.last:
+                continue
+            if not h.ready(self.s, ""):
+                continue
+            crowns = [n for n in h.who(self.s) if self.s.nations[n].alive]
+            if not crowns:
+                continue
+            self.s.history.append(spec.id)
+            for nation in crowns:
+                self.s.nations[nation].pending_events.append(
+                    PendingEvent(id=self.s.next_event_id, event=spec.id, turn=self.turn)
+                )
+                self.s.next_event_id += 1
+            self._emit(
+                EventKind.EVENT_HAPPENED,
+                f"{spec.title}: {', '.join(self._name(n) for n in crowns)} must decide",
+                nations=tuple(crowns),
+                event=spec.id,
+                great=True,
+            )
+        if "holy_league" in self.s.history and "holy_league_battle" not in self.s.history:
+            self._league_battle()
+
+    def _history_effects(self, nation: NationId, event: str, option: int) -> None:
+        """What a great event's answer does beyond the numbers."""
+        rules = self.s.rules
+        if event == "burgundy" and option in (0, 1):
+            heir = nation if option == 0 else "spain"
+            if not self.s.nations.get(heir) or not self.s.nations[heir].alive:
+                return
+            for pid in ("flanders", "holland"):
+                p = self.s.provinces.get(pid)
+                if p is None or p.owner is not None:
+                    continue
+                p.owner = heir
+                self._emit(
+                    EventKind.PROVINCE_CAPTURED,
+                    f"{self._name(heir)} inherits {self._pname(pid)}: the Burgundian inheritance",
+                    nations=(heir,),
+                    province=pid,
+                    inherited=True,
+                )
+            if option == 0 and self.s.nations.get("france") and self.s.nations["france"].alive:
+                self._opine("france", nation, -25)
+                self._remember("france", nation, "took the Burgundian inheritance", (15, 2))
+            if option == 1:
+                self._opine("spain", nation, 20)
+        elif event == "cloth_of_gold" and option == 0:
+            self._opine("france", "england", 25)
+            self._opine("england", "france", 25)
+        elif event == "vienna" and option == 0:
+            if self.s.at_war(nation, "austria") or not self.s.nations["austria"].alive:
+                return
+            self._start_war(nation, "austria")
+            self._emit(
+                EventKind.WAR_DECLARED,
+                f"{self._name(nation)} marches on Vienna: war with {self._name('austria')}",
+                nations=(nation, "austria"),
+            )
+            austrian = set(self.s.provinces_of("austria"))
+            vienna = self.s.map.provinces.get("vienna")
+            border = sorted(
+                (
+                    p
+                    for p in self.s.held_by(nation)
+                    if austrian & set(self.s.map.provinces[p].neighbors)
+                ),
+                key=lambda p: (
+                    (self.s.map.provinces[p].lon - vienna.lon) ** 2
+                    + (self.s.map.provinces[p].lat - vienna.lat) ** 2
+                    if vienna
+                    else 0,
+                    p,
+                ),
+            )
+            if border:
+                self.s.provinces[border[0]].add({UnitKind.ARCHERS: 8}, veterancy=0.5)
+            if "vienna" in austrian:  # the city calls its burghers to the walls
+                self.s.provinces["vienna"].add({UnitKind.INFANTRY: 4}, veterancy=0.0)
+        elif event == "holy_league" and option == 0:
+            me = self.s.nations[nation]
+            if "holy_league" not in me.flags:
+                me.flags.append("holy_league")
+            med = [z for z, zone in self.s.map.seas.items() if zone.water.value == "mediterranean"]
+            ports = [z for p in self.s.provinces_of(nation) for z in self.s.map.provinces[p].seas]
+            home = max(med, key=lambda z: (ports.count(z), z))
+            ships = me.ships(home)
+            ships[Ship.GALLEY] += rules.league_galleys
+            me.set_ships(home, ships)
+            if not self.s.at_war(nation, "ottomans") and self.s.nations["ottomans"].alive:
+                self._start_war(nation, "ottomans", joined_for=None)
+                self._emit(
+                    EventKind.WAR_DECLARED,
+                    f"{self._name(nation)} joins the Holy League against {self._name('ottomans')}",
+                    nations=(nation, "ottomans"),
+                )
+
+    def _league_battle(self) -> None:
+        """The League's fleets in the inland sea against the Sultan's, all of them at once."""
+        rules = self.s.rules
+        members = [
+            n
+            for n, ns in self.s.nations.items()
+            if ns.alive
+            and "holy_league" in ns.flags
+            and (war := self.s.war(n, "ottomans")) is not None
+            and war.since < self.turn  # the League sails the year after it gathers
+        ]
+        med = [z for z, zone in self.s.map.seas.items() if zone.water.value == "mediterranean"]
+
+        def fleet(nation: NationId) -> float:
+            return sum(naval_power(self.s, nation, z) for z in med)
+
+        league = sum(fleet(n) for n in members)
+        sultan = fleet("ottomans") if self.s.nations["ottomans"].alive else 0.0
+        if not members or not league or not sultan:
+            return  # no League at sea this year, or no Sultan's fleet to fight
+        self.s.history.append("holy_league_battle")
+        lo, hi = rules.roll_min, rules.roll_max
+        att = league * self.rng.uniform(lo, hi)
+        dfn = sultan * morale(self.s, "ottomans") * self.rng.uniform(lo, hi)
+        won = att > dfn
+        ratio = min(att, dfn) / max(att, dfn)
+
+        def sink(nation: NationId, share: float) -> int:
+            me, gone = self.s.nations[nation], 0
+            for z in med:
+                ships = me.ships(z)
+                lost = {
+                    k: math.ceil(n * share) if share >= 0.5 else round(n * share)
+                    for k, n in ships.items()
+                }
+                gone += sum(lost.values())
+                me.set_ships(z, {k: ships[k] - lost[k] for k in Ship})
+            return gone
+
+        winners, losers = (members, ["ottomans"]) if won else (["ottomans"], members)
+        lost_w = sum(sink(n, rules.naval_winner_loss * ratio) for n in winners)
+        lost_l = sum(sink(n, rules.naval_loser_loss) for n in losers)
+        for n in members:
+            self._battle_counts(n, "ottomans", won=won)
+        for n in winners:
+            self._prestige(n, 3 * rules.prestige_battle * 2, "the battle of the Holy League")
+        for n in losers:
+            self._prestige(n, -3 * rules.prestige_battle * 2, "the battle of the Holy League")
+        names = ", ".join(self._name(n) for n in members)
+        self._emit(
+            EventKind.NAVAL_BATTLE,
+            f"The battle of the Holy League: the galleys of {names} against the "
+            f"{self._name('ottomans')}'s. "
+            f"{'The League' if won else self._name('ottomans')} wins. Ships lost: "
+            f"{lost_w} to {lost_l}",
+            nations=(*members, "ottomans"),
+            sea="ionian",
+            attacker=members[0],
+            defender="ottomans",
+            attacker_fleet=f"the League ({names})",
+            defender_fleet="the Sultan's galleys",
+            attacker_power=round(att, 1),
+            defender_power=round(dfn, 1),
+            attacker_won=won,
+            winner_lost=lost_w,
+            loser_lost=lost_l,
+            great=True,
+            league=True,
         )
 
     def _accept(self, p: Proposal) -> None:
@@ -3154,6 +3331,7 @@ class _Resolver:
         self._drift_opinions()
         self._weary()
         self._fortune()
+        self._history()
         self._crisis()
         self._move_prices()
         self._sieges()

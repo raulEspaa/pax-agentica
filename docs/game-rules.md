@@ -664,6 +664,18 @@ end of the next year, it takes its first option.
 | A great fair | any year | a charter for gold and goodwill, or a heavy tax |
 | A new vein | in an iron or gold province | open a mine (+1 development) or sell the rights |
 
+### The great events of the age
+
+Once a game each, in their years, when Europe is as they need. The crowns they fall to decide by
+the end of the next year (or take the first answer).
+
+| Event | Years | Who decides | What it can do |
+|---|---|---|---|
+| The Burgundian inheritance | 1504–1512, while Flanders or Holland is free | Austria | Flanders and Holland pass to Austria (France will not forget it) or to Spain, or stay free |
+| The Field of the Cloth of Gold | 1518–1522, England and France at peace | England | 60 ducats for +5 prestige and +25 opinion between the two crowns |
+| The road to Vienna | 1526–1535, when the Sultan borders Austria | the Ottomans | war with Austria and 8 veteran janissaries on its border; Vienna calls 4 regiments of burghers |
+| The Holy League | 1530–1549, when the Sultan's galleys are worth 12 or more in the Mediterranean | every Catholic crown with a Mediterranean port | 40 ducats for 6 galleys, +3 prestige and war with the Sultan; a year later all the League's Mediterranean fleets fight all of the Sultan's in one great battle (+6 or −6 prestige) |
+
 ## Diplomacy
 
 | Action | What happens |

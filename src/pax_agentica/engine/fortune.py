@@ -319,7 +319,156 @@ CRISIS_EVENTS: tuple[EventSpec, ...] = (
     ),
 )
 
-EVENTS_BY_ID = {e.id: e for e in (*EVENTS, *CRISIS_EVENTS)}
+# ---------------------------------------------------------------- the great events of the age
+# Each happens once a game, in its years, when Europe is as it needs to be: the crowns it falls
+# to decide, and what they decide goes beyond the numbers (see resolve._history_effects).
+
+
+class HistorySpec(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", arbitrary_types_allowed=True)
+
+    event: EventSpec
+    first: int  # the years it may happen in
+    last: int
+    ready: Check = Field(exclude=True)  # Europe is as it needs to be (the nation is unused)
+    who: Callable[[GameState], list[NationId]] = Field(exclude=True)  # the crowns that decide
+
+
+def _alive(state: GameState, *nations: NationId) -> bool:
+    return all(n in state.nations and state.nations[n].alive for n in nations)
+
+
+def _free(state: GameState, *provinces: ProvinceId) -> bool:
+    return any(state.provinces[p].owner is None for p in provinces if p in state.provinces)
+
+
+def _sultans_sea(state: GameState) -> float:
+    from pax_agentica.engine.mechanics import naval_power  # here: mechanics imports this module
+
+    return sum(
+        naval_power(state, "ottomans", z)
+        for z, zone in state.map.seas.items()
+        if zone.water.value == "mediterranean"
+    ) if _alive(state, "ottomans") else 0.0  # fmt: skip
+
+
+def _league_crowns(state: GameState) -> list[NationId]:
+    return [
+        n
+        for n, ns in state.nations.items()
+        if ns.alive
+        and n != "ottomans"
+        and ns.faith == Faith.CATHOLIC
+        and any(
+            state.map.seas[z].water.value == "mediterranean"
+            for p in state.provinces_of(n)
+            for z in state.map.provinces[p].seas
+        )
+    ]
+
+
+def _sultan_borders_austria(state: GameState) -> bool:
+    if not _alive(state, "ottomans", "austria") or state.at_war("ottomans", "austria"):
+        return False
+    austrian = set(state.provinces_of("austria"))
+    return any(
+        q in austrian
+        for p in state.provinces_of("ottomans")
+        for q in state.map.provinces[p].neighbors
+    )
+
+
+HISTORY: tuple[HistorySpec, ...] = (
+    HistorySpec(
+        event=EventSpec(
+            id="burgundy",
+            title="The Burgundian inheritance",
+            text=(
+                "Philip the Handsome, lord of the Low Countries, is dead, and his heirs are "
+                "Habsburgs. Flanders and Holland, the richest towns north of the Alps, look to "
+                "{ruler} for their next lord."
+            ),
+            weight=0,
+            options=(
+                Option(label="Claim the Low Countries for the house of Habsburg", prestige=5,
+                       note="Flanders and Holland, if still free, become yours; France will not "
+                       "forget it"),
+                Option(label="Let the Spanish branch have them", prestige=2,
+                       note="Flanders and Holland, if still free, pass to Spain, who will be "
+                       "grateful"),
+                Option(label="Leave the Estates to rule themselves", stability=1),
+            ),
+        ),
+        first=1504,
+        last=1512,
+        ready=lambda st, _n: _alive(st, "austria") and _free(st, "flanders", "holland"),
+        who=lambda _st: ["austria"],
+    ),
+    HistorySpec(
+        event=EventSpec(
+            id="cloth_of_gold",
+            title="The Field of the Cloth of Gold",
+            text=(
+                "Near Calais the King of France pitches tents of gold brocade, and asks {ruler} "
+                "to meet him there: jousts, banquets and a peace to astonish Europe."
+            ),
+            weight=0,
+            options=(
+                Option(label="Meet the French king in all splendour", ducats=-60, prestige=5,
+                       note="France and England think better of each other (+25)"),
+                Option(label="Send an ambassador instead"),
+            ),
+        ),
+        first=1518,
+        last=1522,
+        ready=lambda st, _n: _alive(st, "england", "france") and not st.at_war("england", "france"),
+        who=lambda _st: ["england"],
+    ),
+    HistorySpec(
+        event=EventSpec(
+            id="vienna",
+            title="The road to Vienna",
+            text=(
+                "Hungary lies open, and the Sultan's council speaks of the golden apple: "
+                "Vienna. The janissaries are ready to march if {ruler} commands it."
+            ),
+            weight=0,
+            options=(
+                Option(label="March on Vienna", war_exhaustion=1.0,
+                       note="war with Austria, and 8 veteran janissaries on its border"),
+                Option(label="Not this year: consolidate the conquests", stability=1),
+            ),
+        ),
+        first=1526,
+        last=1535,
+        ready=lambda st, _n: _sultan_borders_austria(st),
+        who=lambda _st: ["ottomans"],
+    ),
+    HistorySpec(
+        event=EventSpec(
+            id="holy_league",
+            title="The Holy League",
+            text=(
+                "The Sultan's galleys rule the inland sea. The Pope calls the Catholic crowns to "
+                "a Holy League: Venice and the Papal States will send their galleys to whoever "
+                "joins, and next year the League's fleets will seek the Sultan's as one."
+            ),
+            weight=0,
+            options=(
+                Option(label="Join the Holy League", ducats=-40, prestige=3,
+                       note="6 papal and Venetian galleys join your fleet; war with the "
+                       "Sultan; next year a great battle of the League"),
+                Option(label="Stay out of it", prestige=-2),
+            ),
+        ),
+        first=1530,
+        last=1549,
+        ready=lambda st, _n: _sultans_sea(st) >= 12 and bool(_league_crowns(st)),
+        who=_league_crowns,
+    ),
+)  # fmt: skip
+
+EVENTS_BY_ID = {e.id: e for e in (*EVENTS, *CRISIS_EVENTS, *(h.event for h in HISTORY))}
 
 
 def roll(
