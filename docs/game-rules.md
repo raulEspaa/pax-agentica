@@ -537,7 +537,9 @@ year (a tournament may set `pay`, ducats a year at war).
   defender takes away the strait's 25% defence bonus.
 - **Landings.** From a coastal province, an army may attack (or move to) any province on the same
   zone, if your fleet there is stronger than the defender's and its ships can carry every
-  regiment. The defenders fight 25% (the strait) + 25% (the beach) harder.
+  regiment. The defenders fight 25% (the strait) + 25% (the beach) harder. The greedy bot
+  lands too: at war, it weighs every enemy shore its ships can reach a little below a march,
+  and sends no more regiments than they carry.
 - **Sea battles.** `seek_battle` sends your fleet in a zone against an enemy's in the same zone,
   after the fleets sail and before the armies march. Strength × morale × a roll of 0.8 to 1.2
   decides it; the beaten fleet loses half its ships, the winner 30% of the loser's strength
@@ -828,8 +830,12 @@ save or share.
 The year's report opens on the **deed of the year**, drawn: the greatest battle, a town won, a
 siege, a peace, an ambition, the crisis of the age. A new ruler is **crowned** on screen.
 **Deeds of renown** (22 achievements, from first blood to victory with Brandenburg-Prussia) are
-kept by your browser across games. A first game is **guided**: eight first steps, each with a
-"Show me", crossed out by themselves (bring them back from the guide). The top bar has a switch
+kept by your browser across games. A first game is **guided**: a guide of eleven pages (the realm,
+provinces, war, diplomacy, battle, the seas, the New World, learning, provinces and policies, the
+king, the year) and thirteen first steps, from developing the capital to an ambition, a policy,
+a focus, the fleets and the New World, each with a "Show me", crossed out by themselves. "Skip
+the tutorial" hides both; bring them back from the guide or the options. Sea battles, colonies
+and expeditions have their own paintings in the deed of the year. The top bar has a switch
 for the **music** (a lute playing Greensleeves and pavanes and galliards over the grounds of the
 age, synthesised in the browser) and one for all **sound**.
 

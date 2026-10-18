@@ -70,5 +70,21 @@
  "mine": {
   "label": "The Annaberg miners' altar",
   "by": "Hans Hesse"
+ },
+ "sea-lepanto": {
+  "label": "The Battle of Lepanto",
+  "by": "Andrea Vicentino"
+ },
+ "sea-armada": {
+  "label": "English Ships and the Spanish Armada",
+  "by": "anonymous"
+ },
+ "colony": {
+  "label": "A Scene of the Conquest of America",
+  "by": "Jan Mostaert"
+ },
+ "landfall": {
+  "label": "Columbus lands on Hispaniola",
+  "by": "Theodor de Bry"
  }
 }

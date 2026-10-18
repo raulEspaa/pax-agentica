@@ -164,6 +164,38 @@ SCENES = [
         "Fair with a theatrical presentation",
     ),
     Art("mine", "Annaberger-Bergaltar2 (cropped).jpg", 0.5, 0.5, 1, "The Annaberg miners' altar"),
+    Art(
+        "sea-lepanto",
+        "Battle of Lepanto, 1571 (by Andrea Vicentino) - Doge's Palace, Venice (2).jpg",
+        0.5,
+        0.5,
+        0.8,
+        "The Battle of Lepanto",
+    ),
+    Art(
+        "sea-armada",
+        "English Ships and the Spanish Armada, August 1588 RMG BHC0262.jpg",
+        0.5,
+        0.5,
+        0.9,
+        "English Ships and the Spanish Armada",
+    ),
+    Art(
+        "colony",
+        "Jan Mostaert - Landscape with a Scene of the Conquest of America.jpg",
+        0.5,
+        0.55,
+        1,
+        "A Scene of the Conquest of America",
+    ),
+    Art(
+        "landfall",
+        "Columbus landing on Hispaniola.JPG",
+        0.5,
+        0.45,
+        1,
+        "Columbus lands on Hispaniola",
+    ),
 ]
 
 FACES = [

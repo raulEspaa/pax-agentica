@@ -22,11 +22,14 @@ window.PaxScenes = (() => {
   const plague = () => painting("plague");
   const frost = () => painting("frost");
   const galleon = () => painting("fleet");
+  const seaBattle = ({a, b, seed = ""}) => painting(hash(seed) % 2 ? "sea-armada" : "sea-lepanto", [a, b]);
+  const landfall = ({color}) => painting("landfall", [color]); // an expedition reaching the far shore
+  const colony = ({color, rival}) => painting("colony", rival ? [color, rival] : [color]);
   const comet = () => painting("comet");
   // the painting for a fortune of the age, by its id; null when it has none
   const EVENT = {reformation: "reformation", reformer: "drill", plague: "plague", great_plague: "plague", harvest: "harvest", fuggers: "money",
     artist: "painter", revolt: "revolt", silver: "fleet", silver_flood: "fleet", price_revolution: "fleet", comet: "comet", nobles: "court",
     fair: "fair", mine: "mine", frozen_harvests: "frost", ice_age: "frost"};
   const ofEvent = (id) => (EVENT[id] ? painting(EVENT[id]) : null);
-  return {use, painting, battle, siege, treaty, laurels, plague, frost, galleon, comet, ofEvent};
+  return {use, painting, battle, siege, treaty, laurels, plague, frost, galleon, comet, seaBattle, landfall, colony, ofEvent};
 })();

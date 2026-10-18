@@ -2218,9 +2218,19 @@
     if (battles.length) { const b = battles[0], d = b.data;
       return fig(art.battle({a: color(d.attacker), b: color(d.defender), terrain: P[pIndex[b.province]].terrain, attackerWon: !!d.attacker_won, seed: b.summary}),
         `The battle of ${pname(b.province)}, ${year}: ${d.attacker_won ? nameOf(d.attacker) : d.defender ? nameOf(d.defender) : "the defenders"} carried the field`); }
+    const naval = evs.filter((e) => e.kind === "naval_battle" && e.nations.includes(G.human))
+      .sort((x, y) => (y.data.winner_lost + y.data.loser_lost) - (x.data.winner_lost + x.data.loser_lost))[0];
+    if (naval) { const d = naval.data, sea = SEAS[ZI[d.sea]], winner = d.attacker_won ? d.attacker : d.defender;
+      return fig(art.seaBattle({a: color(d.attacker), b: color(d.defender), seed: naval.summary}),
+        `${d.great ? "The great sea battle" : "The sea battle"} of ${sea ? sea.name : "the seas"}, ${year}: the ships of ${nameOf(winner)} hold the water`); }
+    const colonial = evs.find((e) => ["colony_founded", "colony_seized"].includes(e.kind) && e.nations[0] === G.human);
+    if (colonial) return fig(art.colony({color: color(G.human), rival: colonial.data.from ? color(colonial.data.from) : null}),
+      `${colonial.kind === "colony_seized" ? `A colony taken from ${nameOf(colonial.data.from)}` : "A colony founded"} in ${regionName(colonial.data.region)}, ${year}`);
     const siege = evs.find((e) => e.kind === "siege" && e.nations.includes(G.human) && e.data.started);
     if (siege) return fig(art.siege({by: color(siege.nations[0]), of: color(siege.nations[1]), terrain: P[pIndex[siege.province]].terrain, seed: siege.summary}),
       `The siege of ${pname(siege.province)} begins, ${year}`);
+    const sailed = evs.find((e) => e.kind === "expedition_sent" && e.nations[0] === G.human);
+    if (sailed) return fig(art.landfall({color: color(G.human)}), `The ships of ${nameOf(G.human)} sail for ${regionName(sailed.data.region)}, ${year}`);
     const mission = evs.find((e) => e.kind === "mission_completed" && e.nations[0] === G.human);
     if (mission) return fig(art.laurels({color: color(G.human)}), `${mission.summary.split(": ").slice(1).join(": ") || "An ambition fulfilled"}, ${year}`);
     const peace = evs.find((e) => e.kind === "peace_signed" && e.nations.includes(G.human));
@@ -2234,15 +2244,17 @@
     return "";
   }
   // ------------------------------------------------------------------ first steps: a guided first game
-  // Eight things every ruler does in the first years, each with a "Show me" that opens the
-  // right window, crossed out by itself when done. Kept by the browser; it can be hidden, and
-  // brought back from the guide.
+  // The things every ruler does in the first years, each with a "Show me" that opens the
+  // right window, crossed out by itself when done. Kept by the browser; it can be skipped, and
+  // brought back from the guide or the options.
   const STEPS_KEY = "pax-steps";
   const stepsKept = () => { try { return JSON.parse(localStorage.getItem(STEPS_KEY) || "{}"); } catch { return {}; } };
   const stepsSave = (s) => { try { localStorage.setItem(STEPS_KEY, JSON.stringify(s)); } catch {} };
   const queued = (type, test = () => true) => orders.some((o) => o.type === type && test(o));
   const happened = (kind, test = () => true) => (V.last_turn_events || []).some((e) => e.kind === kind && e.nations[0] === G.human && test(e));
   const capital = () => pIndex[V.me.capital];
+  const seenOffice = (key, office) => () => { const s = stepsKept(); s[key] = true; stepsSave(s); pinned = true; openOffice(office); };
+  function skipTutorial() { const s = stepsKept(); s.hidden = true; stepsSave(s); $("steps").hidden = true; }
   function showProvince(i, tabName) { // the deed opens on the left: keep the province in sight to its right
     if (i === undefined || i < 0) return; closeOffice(); picked = i; ownTab = tabName; deedMin = false; map.centerOn(i, 3, 220); render(); }
   function weakestMinor() { // the independent province next door with the fewest defenders
@@ -2270,6 +2282,16 @@
         showProvince(w[2], "army"); deedMin = true; deed(); hint(`Right-click ${P[w[1]].name} (${w[0]} defenders) to attack it with the regiments of ${P[w[2]].name}.`); }],
     ["endyear", "⏳", "End the year", "Your orders are carried out together, with everyone else's.",
       () => V.turn > 1, () => { $("endturn").classList.add("ready"); $("endturn").focus(); }],
+    ["agenda", "👑", "Give your reign an ambition", "In The Crown: fulfilled, it brings prestige and authority to spend on royal acts.",
+      () => !!V.me.agenda || queued("choose_agenda"), () => { pinned = true; openOffice("crown"); }],
+    ["policy", "⚖", "Adopt a policy", "Each of the realm's policies leans one way: the first choice is free, a change costs stability.",
+      () => queued("set_policy") || Object.keys(V.me.policies || {}).length > 0, () => { pinned = true; openOffice("crown"); }],
+    ["focus", "🏰", "Give a province a focus", "With its works it grows into a designation: a great granary, a fortress, a shipyard.",
+      () => queued("set_focus") || V.me.provinces.some((pid) => prov(pIndex[pid]).focus), () => showProvince(capital(), "economy")],
+    ["fleet", "⚓", "Look to your fleets", "Build or sail ships: whoever commands a sea may land armies on any of its shores.",
+      (s) => !!s.sawFleet || queued("build_ships") || queued("sail_fleet") || happened("ships_built"), seenOffice("sawFleet", "army")],
+    ["world", "🌎", "Look to the New World", "From an ocean port, send an expedition to found colonies that pay dues every year.",
+      (s) => !!s.sawWorld || queued("send_expedition") || happened("expedition_sent"), seenOffice("sawWorld", "world")],
   ];
   function firstSteps() {
     const box = $("steps"), kept = stepsKept();
@@ -2287,11 +2309,12 @@
     fresh.forEach(([icon, title], k) => setTimeout(() => { J.play("coins"); J.floatText(box, `✓ ${title}`, "gold"); }, k * 500));
     const next = STEPS.find(([id]) => !kept[id]);
     box.hidden = false;
-    box.innerHTML = `<div class="shead"><b>First steps</b><span>${done} of ${STEPS.length}</span><button class="sx" data-hide title="Hide the first steps (bring them back from the guide)">×</button></div>
+    box.innerHTML = `<div class="shead"><b>First steps</b><span>${done} of ${STEPS.length}</span><button class="sx" data-hide title="Skip the tutorial (bring it back from the guide or the options)">×</button></div>
       <i class="bar"><b style="width:${Math.round(100 * done / STEPS.length)}%"></b></i>
       <ol>${STEPS.map(([id, icon, title, help]) => `<li class="${kept[id] ? "done" : id === next[0] ? "now" : ""}"><span class="ic">${kept[id] ? "✓" : icon}</span>
-        <div><b>${esc(title)}</b>${id === next[0] ? `<small>${esc(help)}</small><button class="btn" data-show="${id}">Show me</button>` : ""}</div></li>`).join("")}</ol>`;
-    box.querySelector("[data-hide]").onclick = () => { const s = stepsKept(); s.hidden = true; stepsSave(s); box.hidden = true; };
+        <div><b>${esc(title)}</b>${id === next[0] ? `<small>${esc(help)}</small><button class="btn" data-show="${id}">Show me</button>` : ""}</div></li>`).join("")}</ol>
+      <button class="skip" data-hide>Skip the tutorial</button>`;
+    box.querySelectorAll("[data-hide]").forEach((b) => b.onclick = skipTutorial);
     box.querySelectorAll("[data-show]").forEach((b) => b.onclick = () => { J.play("click"); STEPS.find(([id]) => id === b.dataset.show)[5](); firstSteps(); });
   }
   // ------------------------------------------------------------------ the card of a reign, to share
@@ -2966,7 +2989,13 @@
     ["🏛 Your provinces", "Click one of your provinces to open its deed: <b>develop</b> it (more output and score), raise its <b>workings</b> (its mine, vineyard or looms) and <b>build</b> in its slots. Some buildings eat materials every year; without them they stand idle."],
     ["⚔ War", "Declare war in the <b>Envoys</b> office; armies need a year to mobilise. Select a province with regiments, then right-click (or use the March buttons on a phone) to march or attack. Taken land is occupied: only a <b>peace treaty</b> moves borders, and your war score sets what you may demand."],
     ["🤝 Diplomacy", "In <b>Envoys</b>, write to every court and attach proposals: alliances, pacts, royal marriages, trade, leagues against a feared conqueror. Courts marked 👤 are other players; the rest are bots that answer and remember. Conquest breeds <b>infamy</b>, and Europe may league against you."],
-    ["📜 The year", "Queue your orders, then <b>End the year</b>: every ruler's orders are carried out together. Your <b>Crown</b> office holds your missions, your court and patronage. After the last year, the highest standing (development plus half your prestige) wins."],
+    ["🛡 Battle", "Before an attack, pick a <b>tactic</b>: an assault, a flank or a bombardment. Every province's army keeps a <b>posture</b> that answers attacks: hold the line, skirmish or sally. Each tactic beats one posture and breaks on another, like stone, paper and scissors. Regiments that fight grow into <b>veterans</b>, and a beaten army's <b>morale</b> carries into the next battle."],
+    ["⚓ The seas", "The sea is cut into <b>zones</b> like the land into provinces. Each port launches ships into its own zone; sail them from zone to zone and seek out an enemy's fleet. The crown whose fleet commands a zone crosses its straits, makes <b>landings</b> on any of its shores (the beach is defended harder) and may blockade its ports."],
+    ["🌎 The New World", "From a port on the ocean, the <b>New World</b> office sends expeditions to seven regions overseas. They take years and may be lost; those that arrive found <b>colonies</b> that pay dues every year. Spain, England and France each have their own colonial spirit, and a rival's colony can be seized at war."],
+    ["📜 Learning", "Five branches of <b>Learning</b>: military, economy, engineering, naval and administration. Some levels need another branch first, and at every level you choose one of two <b>doctrines</b>, for good: Swiss drill or volleys, charts or shipwrights."],
+    ["🏰 Provinces and policies", "Give a province a <b>focus</b> in its deed: with the works it raises, it grows into a <b>designation</b> (a great granary, a trade port, a fortress, a shipyard) that also helps its neighbours. In <b>The Crown</b>, the realm's <b>policies</b> lean each axis one way for ten years."],
+    ["👑 The king", "Your ruler's skills gather <b>authority</b> every year, spent on royal acts: a levy, an embassy, a royal progress, a pardon, the ruler at the head of the army. Each reign chooses an <b>ambition</b> to fulfil. Educate your <b>heir</b>: a child on the throne rules under a regency, and a line that fails leaves claims to the crowns married into it."],
+    ["📜 The year", "Queue your orders, then <b>End the year</b>: every ruler's orders are carried out together. The <b>First steps</b> on the right walk you through your first years. After the last year, the highest standing (development plus half your prestige) wins."],
   ];
   function guide(step = 0) {
     const [title, text] = GUIDE[step];
@@ -2974,10 +3003,12 @@
       <div class="row"><span class="sub">${step + 1} of ${GUIDE.length}</span>
       ${step > 0 ? `<button class="btn" id="gprev">Back</button>` : ""}
       <button class="btn" id="gnext">${step + 1 < GUIDE.length ? "Next" : "To the throne"}</button>
-      <button class="btn quiet" id="gsteps" title="The guided first steps, from the beginning">First steps again</button></div>`;
+      <button class="btn quiet" id="gsteps" title="The guided first steps, from the beginning">First steps again</button>
+      <button class="btn quiet" id="gskip" title="Close the guide and hide the first steps (bring them back from the options)">Skip the tutorial</button></div>`;
     $("modal").classList.add("open");
     if (step > 0) $("gprev").onclick = () => guide(step - 1);
     $("gsteps").onclick = () => { stepsSave({}); $("modal").classList.remove("open"); firstSteps(); };
+    $("gskip").onclick = () => { skipTutorial(); $("modal").classList.remove("open"); eventSheet(); };
     $("gnext").onclick = () => { if (step + 1 < GUIDE.length) guide(step + 1); else { $("modal").classList.remove("open"); eventSheet(); } };
   }
   $("guide").onclick = () => guide(0);
