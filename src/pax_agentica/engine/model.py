@@ -2197,6 +2197,23 @@ class Rules(BaseModel):
     viceroyalty_cost: Resources = Resources(ducats=80)
     viceroyalty_authority: int = 20
     viceroy_cargo: float = 0.1  # more cargo in the region per point of the viceroy's skill
+    # war beyond the sea
+    garrison_pay: int = 1  # ducats a year for each regiment kept overseas
+    colonial_fort_cost: Resources = Resources(ducats=60, iron=5)
+    colonial_fort_max: int = 2
+    colonial_fort_defence: float = 0.5  # the colonies' defence, more for each level of fort
+    viceroy_defence: float = 0.25  # more defence where a viceroy rules
+    colonial_defender: float = 1.25  # defenders' advantage overseas, behind palisades
+    native_anger: float = 0.01  # dues lost, per regiment of the peoples and point of anger
+    native_resistance_max: float = 0.5  # the most of a region's dues its peoples deny
+    native_calm: float = 4.0  # defenders that halve the peoples' resistance
+    native_terrain: float = 0.05  # more for the peoples per point of the region's hardness
+    raid_min: float = 8.0  # the ocean fleet an enemy needs to raid the treasure fleets
+    raid_chance: float = 0.35  # the most a raid succeeds, by the fleets on the ocean
+    raid_privateers: float = 0.1  # more for privateers, and for the Sea Dogs
+    raid_share: float = 0.5  # of the year's cargoes a raid takes
+    prestige_natives: int = 5  # for breaking a people
+    infamy_natives: float = 1.0  # for every victory over a people
     # from a hamlet to a great city, by development: each step up gives room for one more work
     settlements: tuple[Settlement, ...] = Field(default_factory=default_settlements)
     # what a building does and eats at each level, times its first level's
@@ -2600,6 +2617,8 @@ class NationState(BaseModel):
     expeditions: list[Expedition] = Field(default_factory=list)  # under way
     inflation: float = 0.0  # 0 to rules.inflation_max: the silver that made every price rise
     viceroys: dict[Region, Viceroy] = Field(default_factory=dict)  # public
+    garrisons: dict[Region, int] = Field(default_factory=dict)  # regiments overseas; public
+    colonial_forts: dict[Region, int] = Field(default_factory=dict)  # fort levels; public
 
     @model_validator(mode="before")
     @classmethod
@@ -2633,6 +2652,7 @@ class NationState(BaseModel):
         if not held:
             del self.colonies[region]
             self.viceroys.pop(region, None)
+            self.colonial_forts.pop(region, None)
         return lost
 
     def ships(self, sea: SeaId) -> dict[Ship, int]:
@@ -2762,6 +2782,7 @@ class GameState(BaseModel):
     winner: NationId | None = None
     crisis: Crisis | None = None  # the age's great trouble, drawn on the first turn
     history: list[str] = Field(default_factory=list)  # the great events already met
+    natives: dict[Region, int] = Field(default_factory=dict)  # peoples' strength, once fought
 
     @model_validator(mode="after")
     def _chart_the_seas(self) -> Self:

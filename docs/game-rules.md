@@ -597,8 +597,32 @@ names a viceroy of skill 1 to 3: 10% more cargo there per point of skill.
 - A region's places are shared by every crown; one crown may hold at most half of them.
 - The colonies' dues (cargoes and other dues) are part of the yearly income. While enemy fleets hold every ocean zone
   your ports look onto, the treasure fleets cannot sail: the dues are halved.
-- At war, `seize_colony` takes one colony a year from each enemy, if your fleets on the ocean
-  zones are twice the enemy's (+3 prestige to you, −3 to them).
+- At war, `seize_colony` takes one colony a year from each enemy. Colonies nobody defends
+  fall to a fleet twice the enemy's on the ocean zones (+3 prestige to you, −3 to them).
+  Colonies held by a garrison or by settlers must be **stormed**: regiments carried from one of
+  your ports (and your garrison in the region) against their defenders, × 1.25 behind their
+  palisades, +50% a level of fort, +25% under a viceroy; your ocean fleet must be at least the
+  enemy's. Win and the colony is yours, the survivors its garrison; lose and they sail home.
+
+**Garrisons and forts.** `ship_troops` carries regiments from a port of yours on the ocean or
+the Baltic to your colonies in a region (or home again): as many as your ships there carry (a
+galleon 2, a galley 1), and not while an enemy fleet twice yours commands the ocean. Each costs
+1 ducat a year; unpaid, they go home for good. `build_colonial_fort` (60 ducats, 5 iron; two
+levels) stiffens the colonies of a region.
+
+**The peoples of the land.** Each region's peoples deny you a share of its dues: 1% per
+regiment of theirs and point of anger (a plantation 1.5, a settlement 1, a trading post 0.5),
+at most half, and halved by every 4 regiments of soldiers or settlers you hold there (a viceroy
+counts for 2). `conquer_natives`, from a region where you hold a colony, sends your garrison
+and regiments from a port against their strength on their own ground (+5% a point of the
+region's hardness). Each victory kills many of their warriors and brings plunder in proportion
+(the Mexica 150 ducats in all, the Inca 200), and 1 infamy; break them for 5 prestige, and they
+deny no one the region's dues again.
+
+**The treasure fleets.** At war, every year an enemy with a fleet of strength 8 or more on the
+ocean may fall on your treasure fleet: a chance of 35% × its fleet / (its fleet + your escort,
+more with convoys), 10% more for privateers or the Sea Dogs. It carries off half the year's
+colonial dues (+2 prestige to it, −2 to you).
 - Spain starts with Hispaniola. Three crowns sail in their own way: Spain's Casa de
   Contratación (every expedition 5 progress more, the silver of New Spain and Peru half again),
   England's Sea Dogs (take colonies with a fleet only 1.5 times the enemy's, 10 progress more in

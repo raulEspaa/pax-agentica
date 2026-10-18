@@ -556,12 +556,52 @@ class FoundViceroyalty(_Action):
 
 
 class SeizeColony(_Action):
-    """At war, take one of an enemy's colonies in a region: your Atlantic fleet must be
-    rules.seize_command times the enemy's (England's Sea Dogs need less)."""
+    """At war, take one of an enemy's colonies in a region. Colonies nobody defends fall to a
+    fleet: your Atlantic fleet must be rules.seize_command times the enemy's (England's Sea Dogs
+    need less). Colonies held by a garrison or by settlers must be stormed: `regiments` sail
+    from your `port` (and your own garrison in the region joins them), your ocean fleet at least
+    the enemy's; they fight the defenders behind their forts. Win, and the colony is yours and
+    the survivors garrison it; lose, and they come back to the port."""
 
     type: Literal["seize_colony"] = "seize_colony"
     region: Region
     enemy: NationId
+    regiments: int = Field(default=0, ge=0)
+    port: ProvinceId | None = None
+
+
+class ShipTroops(_Action):
+    """Carry regiments from one of your ports on the ocean or the Baltic to garrison your
+    colonies in a region (rules.garrison_pay ducats a year each; they calm the peoples and hold
+    the colonies against a storm), or with `home` bring them back to the port. Your ships on the
+    ocean must carry them, and no enemy fleet command the ocean."""
+
+    type: Literal["ship_troops"] = "ship_troops"
+    region: Region
+    port: ProvinceId
+    regiments: int = Field(ge=1)
+    home: bool = False
+
+
+class BuildColonialFort(_Action):
+    """Raise a fort over your colonies in a region (rules.colonial_fort_cost a level, up to
+    rules.colonial_fort_max): their defenders hold out rules.colonial_fort_defence better a
+    level."""
+
+    type: Literal["build_colonial_fort"] = "build_colonial_fort"
+    region: Region
+
+
+class ConquerNatives(_Action):
+    """March on the peoples of a region where you hold a colony: your garrison there and
+    `regiments` carried from your `port` against their strength on their own ground. Each
+    victory kills many of their warriors and brings plunder (and a little infamy); break them
+    and the plunder of an empire is yours, and they no longer deny anyone the region's dues."""
+
+    type: Literal["conquer_natives"] = "conquer_natives"
+    region: Region
+    regiments: int = Field(default=0, ge=0)
+    port: ProvinceId | None = None
 
 
 class UpgradeMonument(_Action):
@@ -661,6 +701,9 @@ type Action = Annotated[
     | SendExpedition
     | FoundViceroyalty
     | SeizeColony
+    | ShipTroops
+    | BuildColonialFort
+    | ConquerNatives
     | Convert
     | BoostStability
     | Research

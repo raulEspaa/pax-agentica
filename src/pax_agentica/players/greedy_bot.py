@@ -24,10 +24,12 @@ from pax_agentica.engine.actions import (
     Attack,
     BoostStability,
     Build,
+    BuildColonialFort,
     BuildShips,
     Buy,
     ChooseAgenda,
     ChooseOption,
+    ConquerNatives,
     Convert,
     DeclareWar,
     Develop,
@@ -62,6 +64,7 @@ from pax_agentica.engine.actions import (
     SetPosture,
     SetStance,
     SetTaxes,
+    ShipTroops,
     Terms,
     UpgradeBuilding,
     UpgradeMonument,
@@ -130,6 +133,7 @@ class _Planner:
         self.provinces = {p.id: p for p in view.provinces}
         self.seas = {z.id: z for z in view.seas}
         self.landings: dict[tuple[ProvinceId, ProvinceId], int] = {}  # what ships carry
+        self.shipped = 0  # regiments carried overseas this year
         me = view.me.id
         # Where our regiments stand (our land and what we occupy), and what we can build on.
         self.mine = {p.id for p in view.provinces if (p.controller or p.owner) == me}
@@ -854,6 +858,7 @@ class _Planner:
         self._focus(reserve)  # cheap and for good: before the works
         self._navy(reserve)
         self._colonize(reserve)
+        self._colonial_forts(reserve)
         for _ in range(1 + (self.budget.ducats > 250) + (self.budget.ducats > 500)):
             self._build(reserve)  # a rich treasury raises more than one work a year
         self._improve(reserve)
@@ -984,21 +989,117 @@ class _Planner:
             z.power.get(nation, 0.0) for z in self.seas.values() if z.water == Water.ATLANTIC
         )
 
+    def _ports(self) -> list[ProvinceId]:
+        """Our ports on the ocean or the Baltic that can spare regiments, the most first."""
+        return sorted(
+            (
+                pid
+                for pid in self.mine
+                if {Water.ATLANTIC, Water.BALTIC} & set(self.provinces[pid].coasts)
+                and not self.provinces[pid].controller
+                and self.troops.get(pid, 0) - self._reserve(pid) > 0
+            ),
+            key=lambda pid: (-(self.troops[pid] - self._reserve(pid)), pid),
+        )
+
+    def _carry(self) -> int:
+        """The regiments our ships on the ocean and the Baltic can still carry this year."""
+        ships = self.v.rules.ships
+        room = sum(
+            n * ships[k].carries
+            for z, zone in self.seas.items()
+            if zone.water in (Water.ATLANTIC, Water.BALTIC)
+            for k, n in self.me.fleets.get(z, {}).items()
+        )
+        mine = self._ocean(self.me.id)
+        rules = self.v.rules
+        if any(self._ocean(e) >= rules.fleet_command * max(mine, 0.1) for e in self.enemies):
+            return 0  # an enemy commands the ocean: nothing sails
+        return room - self.shipped
+
+    def _embark(self, wanted: int) -> tuple[ProvinceId | None, int]:
+        """A port and the regiments it sends overseas (no more than the ships carry)."""
+        room = min(wanted, self._carry())
+        for pid in self._ports():
+            n = min(room, self.troops[pid] - self._reserve(pid))
+            if n > 0:
+                self.troops[pid] -= n
+                self.shipped += n
+                return pid, n
+        return None, 0
+
     def _seize_colonies(self) -> None:
-        """At war, take an enemy's colony wherever our Atlantic fleet far outmatches theirs."""
+        """Beyond the sea: at war, take the enemy's colonies (by sea where nobody holds them,
+        by storm where they do); hold the colonies the peoples resist, and break the peoples
+        when the regiments there are enough."""
         rules = self.v.rules
         mine = self._ocean(self.me.id)
-        if mine < rules.expedition_ships:
-            return
+        power = 1 + self.me.modifiers.battle_power
+        regions = {r.id: r for r in self.v.new_world}
         for enemy in sorted(self.enemies - self.mobilising):
             other = next((n for n in self.v.nations if n.id == enemy), None)
-            if other is None or not other.colonies:
+            if other is None or not other.colonies or mine < rules.expedition_ships:
                 continue
-            if mine < rules.seize_command * self._ocean(enemy):  # the Sea Dogs need less
+            theirs = self._ocean(enemy)
+            best = max(other.colonies, key=lambda r: (regions[r].cargo, r.value))
+            defence = regions[best].defence.get(enemy, 0.0)
+            if not defence:
+                if mine >= rules.seize_command * theirs:  # the Sea Dogs need less
+                    self.actions.append(SeizeColony(region=best, enemy=enemy))
                 continue
-            regions = rules.regions
-            region = max(other.colonies, key=lambda r: (regions[r].cargo, r.value))
-            self.actions.append(SeizeColony(region=region, enemy=enemy))
+            if mine < theirs:
+                continue
+            here = self.me.garrisons.get(best, 0)
+            need = max(0, math.ceil(1.5 * defence / power) - here)
+            if need > self._carry():
+                continue
+            port, n = self._embark(need) if need else (None, 0)
+            if n < need:
+                continue
+            self.actions.append(SeizeColony(region=best, enemy=enemy, regiments=n, port=port))
+        for region, held in sorted(self.me.colonies.items(), key=lambda c: c[0].value):
+            r = regions[region]
+            here = self.me.garrisons.get(region, 0)
+            if r.natives:  # build up a garrison, then strike
+                need = math.ceil(1.4 * r.natives_defence / power)
+                if here >= need:
+                    self.actions.append(ConquerNatives(region=region))
+                    continue
+                worth = r.resistance >= 0.1 or r.cargo * r.price * held >= 6
+                if not worth:
+                    continue
+                if here + self._carry() >= need:
+                    port, n = self._embark(need - here)
+                    if port is not None and here + n >= need:
+                        self.actions.append(ConquerNatives(region=region, regiments=n, port=port))
+                        continue
+                    if port is not None:
+                        self.actions.append(ShipTroops(region=region, port=port, regiments=n))
+                        continue
+                port, n = self._embark(min(4, need - here))
+                if port is not None:
+                    self.actions.append(ShipTroops(region=region, port=port, regiments=n))
+                continue
+            rivals = any(n != self.me.id for n in r.held) and bool(self.enemies)
+            if rivals and here < 2:
+                port, n = self._embark(2 - here)
+                if port is not None:
+                    self.actions.append(ShipTroops(region=region, port=port, regiments=n))
+
+    def _colonial_forts(self, reserve: int) -> None:
+        """A fort over the richest colonies a rival could storm."""
+        rules = self.v.rules
+        cost = rules.colonial_fort_cost
+        if self.budget.ducats < cost.ducats + reserve + 60 or not self.budget.covers(cost):
+            return
+        for r in sorted(self.v.new_world, key=lambda r: (-r.cargo * r.price, r.id.value)):
+            held = self.me.colonies.get(r.id, 0)
+            rivals = any(n != self.me.id for n in r.held)
+            level = self.me.colonial_forts.get(r.id, 0)
+            if held >= 2 and rivals and level < rules.colonial_fort_max:
+                self.actions.append(BuildColonialFort(region=r.id))
+                self.budget = self.budget - cost
+                return
 
     def _sea_battles(self) -> None:
         """Seek out an enemy fleet we clearly outmatch, where ours is or a zone away (the fleet

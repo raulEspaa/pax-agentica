@@ -27,6 +27,7 @@ from pax_agentica.engine.mechanics import (
     building_cost,
     building_output,
     building_slots,
+    colonial_defence,
     colonial_dues,
     colonial_trade,
     convert_cost,
@@ -47,6 +48,9 @@ from pax_agentica.engine.mechanics import (
     morale,
     nation_income,
     nation_upkeep,
+    native_resistance,
+    natives_defence,
+    natives_left,
     naval_power,
     province_output,
     province_slots,
@@ -303,6 +307,8 @@ class MyNation(_View):
     viceroys: dict[Region, Viceroy]  # your viceroyalties
     inflation: float  # 0 to rules.inflation_max: the land's ducats fall by it; silver feeds it
     inflation_loss: int  # the ducats it takes this year
+    garrisons: dict[Region, int]  # your regiments overseas (rules.garrison_pay a year each)
+    colonial_forts: dict[Region, int]  # your forts over the colonies, by level
     prestige: int  # 0 to 100: ducats, cheaper stability, and half of it counts towards victory
     standing: int  # development plus half the prestige: what wins when time runs out
     faith: Faith
@@ -364,6 +370,7 @@ class NationSummary(_View):
     naval_power: dict[SeaId, float]  # what they are worth there
     colonies: dict[Region, int]  # its colonies beyond the sea (public)
     viceroys: dict[Region, str]  # its viceroys, by region (public)
+    garrisons: dict[Region, int]  # its regiments overseas, by region (public)
     stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
     infamy: float  # its conquests' weight on Europe; from rules.coalition_infamy, a league may form
     leagued_against: tuple[NationId, ...]  # the conquerors this court has leagued against
@@ -420,7 +427,12 @@ class RegionView(_View):
     cargo: int  # cargoes a plantation there ships a year
     price: float  # ducats a cargo of its good today
     people: str  # who lives there
-    natives: int  # the regiments its peoples can field
+    natives: int  # the regiments its peoples can still field (0: broken)
+    natives_defence: float  # what they fight with on their own ground (conquer_natives)
+    resistance: float  # the share of your dues there they deny you
+    defence: dict[NationId, float]  # what each crown's colonies there hold out with (seize_colony)
+    garrisons: dict[NationId, int]  # each crown's regiments there
+    forts: dict[NationId, int]  # each crown's fort there
     viceroys: dict[NationId, str]  # the crowns that made it a viceroyalty, and their viceroys
     progress_by_kind: dict[ColonyKind, int]  # your progress a year, by the kind of colony
     cost_by_kind: dict[ColonyKind, Resources]  # what an expedition of each kind costs
@@ -481,7 +493,20 @@ def _new_world(state: GameState, nation: NationId) -> tuple[RegionView, ...]:
                 cargo=spec.cargo,
                 price=round(good_price(state, spec.good, supply), 2),
                 people=spec.people,
-                natives=spec.natives,
+                natives=natives_left(state, region),
+                natives_defence=round(natives_defence(state, region), 1),
+                resistance=round(native_resistance(state, nation, region), 3),
+                defence={n: round(colonial_defence(state, n, region), 1) for n in held},
+                garrisons={
+                    n: g
+                    for n, ns in state.nations.items()
+                    if ns.alive and (g := ns.garrisons.get(region, 0))
+                },
+                forts={
+                    n: f
+                    for n, ns in state.nations.items()
+                    if ns.alive and (f := ns.colonial_forts.get(region, 0))
+                },
                 viceroys={
                     n: ns.viceroys[region].name
                     for n, ns in state.nations.items()
@@ -707,6 +732,8 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         ),
         viceroys=dict(me.viceroys),
         inflation=me.inflation,
+        garrisons=dict(me.garrisons),
+        colonial_forts=dict(me.colonial_forts),
         inflation_loss=inflation_loss(state, nation),
         prestige=me.prestige,
         standing=state.standing(nation),
@@ -794,6 +821,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             naval_power=_naval(state, nid),
             colonies={r: len(c) for r, c in ns.colonies.items()},
             viceroys={r: v.name for r, v in ns.viceroys.items()},
+            garrisons=dict(ns.garrisons),
             opinion_of_you=state.opinion(nid, nation),
             stances=dict(ns.stances),
             war_exhaustion=ns.war_exhaustion,
@@ -949,7 +977,8 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
     army = army_upkeep(state.rules, army_of(state, nation), factor)
     me = state.nations[nation]
     fleet = Resources(ducats=fleet_pay(state, nation))
-    council = nation_upkeep(state, nation) - army - fleet
+    overseas = Resources(ducats=state.rules.garrison_pay * sum(me.garrisons.values()))
+    council = nation_upkeep(state, nation) - army - fleet - overseas
     lines = [
         LedgerLine(kind="income", source="land", amount=land.amounts()),
         LedgerLine(kind="income", source="buildings", amount=buildings.amounts()),
@@ -961,6 +990,7 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
         LedgerLine(kind="income", source="inflation", amount={"ducats": -inflated}),
         LedgerLine(kind="expense", source="the army", amount=army.amounts()),
         LedgerLine(kind="expense", source="the fleets", amount=fleet.amounts()),
+        LedgerLine(kind="expense", source="garrisons overseas", amount=overseas.amounts()),
         LedgerLine(kind="expense", source="the council", amount=council.amounts()),
         LedgerLine(
             kind="expense", source="building inputs", amount=inputs_upkeep(state, nation).amounts()

@@ -26,11 +26,13 @@ from pax_agentica.engine.actions import (
     Attack,
     BoostStability,
     Build,
+    BuildColonialFort,
     BuildShips,
     Buy,
     CancelTreaty,
     ChooseAgenda,
     ChooseOption,
+    ConquerNatives,
     Convert,
     DeclareWar,
     Develop,
@@ -72,11 +74,12 @@ from pax_agentica.engine.actions import (
     SetPosture,
     SetStance,
     SetTaxes,
+    ShipTroops,
     Terms,
     UpgradeBuilding,
     UpgradeMonument,
 )
-from pax_agentica.engine.colonies import GOVERNORS, VICEROYS
+from pax_agentica.engine.colonies import COLONIAL_SPIRITS, GOVERNORS, VICEROYS
 from pax_agentica.engine.events import Event, EventKind, EventValue
 from pax_agentica.engine.mechanics import (
     BattleResult,
@@ -88,6 +91,10 @@ from pax_agentica.engine.mechanics import (
     building_cost,
     building_inputs,
     carries,
+    colonial_defence,
+    colonial_defenders,
+    colonial_dues,
+    colonial_ports,
     colonies_in,
     convert_cost,
     defense_multiplier,
@@ -106,8 +113,13 @@ from pax_agentica.engine.mechanics import (
     market_total,
     morale,
     nation_income,
+    natives_defence,
+    natives_left,
     naval_power,
+    ocean_fleet,
     ocean_power,
+    overseas_error,
+    overseas_power,
     peace_cost,
     province_slots,
     recruit_cost,
@@ -148,6 +160,7 @@ from pax_agentica.engine.model import (
     ProposalKind,
     ProvinceId,
     ProvinceState,
+    Region,
     Resources,
     RoyalAct,
     Ruler,
@@ -1514,6 +1527,12 @@ class _Resolver:
                         self._seize_colony(nation, action)
                     case FoundViceroyalty():
                         self._found_viceroyalty(nation, action)
+                    case ShipTroops():
+                        self._ship_troops(nation, action)
+                    case BuildColonialFort():
+                        self._colonial_fort(nation, action)
+                    case ConquerNatives():
+                        self._conquer_natives(nation, action)
                     case ScrapShips():
                         here = self.s.nations[nation].ships(action.sea)
                         if here[action.ship] < action.count:
@@ -1868,15 +1887,18 @@ class _Resolver:
             self._reject(nation, a, f"{self._name(a.enemy)} holds no colony in {name}")
             return
         if any(
-            e.kind == EventKind.COLONY_SEIZED
-            and e.data.get("from") == a.enemy
+            e.kind in (EventKind.COLONY_SEIZED, EventKind.COLONIAL_BATTLE)
+            and e.data.get("from", e.data.get("defender")) == a.enemy
             and nation in e.nations
             for e in self.events
         ):
-            self._reject(nation, a, "one colony a year from each enemy")
+            self._reject(nation, a, "one blow a year at each enemy's colonies")
             return
         mine = ocean_power(self.s, nation)
         theirs = ocean_power(self.s, a.enemy)
+        if colonial_defenders(self.s, a.enemy, a.region) or a.regiments:
+            self._storm_colony(nation, a, mine, theirs)
+            return
         need = seize_factor(self.s, nation)
         if mine < rules.expedition_ships or mine < need * theirs:
             self._reject(
@@ -1886,19 +1908,269 @@ class _Resolver:
                 f"({theirs:.1f}) to take its colonies",
             )
             return
-        taken = enemy.lose_colony(a.region)
-        me = self.s.nations[nation]
+        self._take_colony(nation, a.enemy, a.region)
+
+    def _take_colony(self, nation: NationId, enemy: NationId, region: Region) -> None:
+        rules = self.s.rules
+        name = rules.regions[region].name
+        taken = self.s.nations[enemy].lose_colony(region)
         if taken is not None:
-            me.add_colony(a.region, taken)
+            self.s.nations[nation].add_colony(region, taken)
         self._prestige(nation, rules.prestige_colony, f"a colony in {name} taken")
-        self._prestige(a.enemy, -rules.prestige_colony, f"a colony in {name} lost")
+        self._prestige(enemy, -rules.prestige_colony, f"a colony in {name} lost")
         self._emit(
             EventKind.COLONY_SEIZED,
-            f"{self._name(nation)} takes a colony in {name} from {self._name(a.enemy)}",
+            f"{self._name(nation)} takes a colony in {name} from {self._name(enemy)}",
+            nations=(nation, enemy),
+            region=region.value,
+            extra={"from": enemy},
+        )
+
+    def _overseas(self, nation: NationId, a: SeizeColony | ConquerNatives) -> int | None:
+        """The regiments that fight overseas: those carried from the port this year, and the
+        crown's garrison in the region. None (and the order rejected) when none can."""
+        here = self.s.nations[nation].garrisons.get(a.region, 0)
+        if a.regiments:
+            if a.port is None:
+                self._reject(nation, a, "name the port the regiments sail from")
+                return None
+            if error := overseas_error(self.s, nation, a.port, a.regiments):
+                self._reject(nation, a, error)
+                return None
+        if not a.regiments + here:
+            self._reject(nation, a, "send regiments: none of yours are there to fight")
+            return None
+        if a.regiments and a.port is not None:
+            self.s.provinces[a.port].take(a.regiments)
+        self.s.nations[nation].garrisons.pop(a.region, None)
+        return a.regiments + here
+
+    def _garrison(
+        self, nation: NationId, region: Region, regiments: int, port: ProvinceId | None
+    ) -> None:
+        """Survivors stay where the crown holds a colony, or sail back to their port."""
+        me = self.s.nations[nation]
+        if regiments <= 0:
+            return
+        if me.colony_count(region):
+            me.garrisons[region] = me.garrisons.get(region, 0) + regiments
+        elif port is not None and self.s.provinces[port].holder == nation:
+            self.s.provinces[port].add({UnitKind.INFANTRY: regiments})
+
+    def _storm_colony(self, nation: NationId, a: SeizeColony, mine: float, theirs: float) -> None:
+        rules = self.s.rules
+        name = rules.regions[a.region].name
+        if mine < max(theirs, rules.expedition_ships):
+            self._reject(
+                nation,
+                a,
+                f"to storm colonies your ocean fleet ({mine:.1f}) must hold the sea against "
+                f"{self._name(a.enemy)}'s ({theirs:.1f})",
+            )
+            return
+        defence = colonial_defence(self.s, a.enemy, a.region)
+        sent = self._overseas(nation, a)
+        if sent is None:
+            return
+        att = overseas_power(self.s, nation, sent) * self.rng.uniform(0.8, 1.2)
+        dfn = defence * self.rng.uniform(0.8, 1.2)
+        enemy = self.s.nations[a.enemy]
+        held = enemy.garrisons.get(a.region, 0)
+        won = att > dfn
+        if won:
+            lost = round(sent * min(0.5, 0.3 * dfn / max(att, 0.1)))
+            enemy.garrisons.pop(a.region, None)
+            self._take_colony(nation, a.enemy, a.region)
+        else:
+            lost = min(sent, round(sent * 0.4) + 1)
+            if held:
+                enemy.garrisons[a.region] = held - min(held, round(held * 0.2))
+        self._garrison(nation, a.region, sent - lost, a.port)
+        self._emit(
+            EventKind.COLONIAL_BATTLE,
+            f"{self._name(nation)} storms {self._name(a.enemy)}'s colonies in {name} with "
+            f"{sent} regiments against {held} and their settlers: "
+            f"{'they fall' if won else 'the assault is thrown back'}. Regiments lost: {lost}",
             nations=(nation, a.enemy),
             region=a.region.value,
-            extra={"from": a.enemy},
+            attacker=nation,
+            defender=a.enemy,
+            regiments=sent,
+            lost=lost,
+            attacker_won=won,
         )
+
+    def _conquer_natives(self, nation: NationId, a: ConquerNatives) -> None:
+        rules, me = self.s.rules, self.s.nations[nation]
+        spec = rules.regions[a.region]
+        left = natives_left(self.s, a.region)
+        if not left:
+            self._reject(nation, a, f"the peoples of {spec.name} are broken already")
+            return
+        if not me.colony_count(a.region):
+            self._reject(nation, a, f"you need a colony in {spec.name} to march from")
+            return
+        if any(
+            e.kind == EventKind.NATIVES_WAR and e.data.get("region") == a.region.value
+            for e in self.events
+        ):
+            self._reject(nation, a, f"one campaign a year against the peoples of {spec.name}")
+            return
+        sent = self._overseas(nation, a)
+        if sent is None:
+            return
+        att = overseas_power(self.s, nation, sent) * self.rng.uniform(0.8, 1.2)
+        dfn = natives_defence(self.s, a.region) * self.rng.uniform(0.8, 1.2)
+        won = att > dfn
+        if won:
+            share = min(1.0, (att - dfn) / max(dfn, 0.1) + 0.4)
+            killed = min(left, max(2, math.ceil(left * share)))
+            lost = round(sent * min(0.5, 0.3 * dfn / max(att, 0.1)))
+            plunder = round(spec.plunder * killed / max(1, spec.natives))
+        else:
+            killed, lost, plunder = min(left, 1), min(sent, round(sent * 0.4) + 1), 0
+        self.s.natives[a.region] = left - killed
+        me.resources = me.resources + Resources(ducats=plunder)
+        if won:
+            me.infamy += rules.infamy_natives
+        broken = left - killed == 0
+        if broken:
+            self._prestige(nation, rules.prestige_natives, f"the peoples of {spec.name} broken")
+        self._garrison(nation, a.region, sent - lost, a.port)
+        outcome = (
+            f"{'they are broken' if broken else 'a victory'}, {plunder} ducats of plunder"
+            if won
+            else "they hold the land"
+        )
+        self._emit(
+            EventKind.NATIVES_WAR,
+            f"{self._name(nation)} marches {sent} regiments against {spec.people} in "
+            f"{spec.name}: {outcome}. Regiments lost: {lost}",
+            nations=(nation,),
+            region=a.region.value,
+            regiments=sent,
+            lost=lost,
+            killed=killed,
+            plunder=plunder,
+            attacker_won=won,
+            broken=broken,
+        )
+
+    def _ship_troops(self, nation: NationId, a: ShipTroops) -> None:
+        me = self.s.nations[nation]
+        name = self.s.rules.regions[a.region].name
+        if a.home:
+            here = me.garrisons.get(a.region, 0)
+            if a.regiments > here:
+                self._reject(nation, a, f"only {here} regiments of yours in {name}")
+                return
+            if a.port not in colonial_ports(self.s, nation):
+                self._reject(nation, a, "they can only land at a port of yours on the ocean")
+                return
+            me.garrisons[a.region] = here - a.regiments
+            if not me.garrisons[a.region]:
+                del me.garrisons[a.region]
+            self.s.provinces[a.port].add({UnitKind.INFANTRY: a.regiments})
+        else:
+            if not me.colony_count(a.region):
+                self._reject(nation, a, f"you hold no colony in {name} to garrison")
+                return
+            if error := overseas_error(self.s, nation, a.port, a.regiments):
+                self._reject(nation, a, error)
+                return
+            self.s.provinces[a.port].take(a.regiments)
+            me.garrisons[a.region] = me.garrisons.get(a.region, 0) + a.regiments
+        self._emit(
+            EventKind.TROOPS_SHIPPED,
+            f"{self._name(nation)} ships {a.regiments} regiments "
+            + (f"home from {name}" if a.home else f"to {name}"),
+            nations=(nation,),
+            region=a.region.value,
+            regiments=a.regiments,
+            home=a.home,
+            audience=(nation,),
+        )
+
+    def _colonial_fort(self, nation: NationId, a: BuildColonialFort) -> None:
+        rules, me = self.s.rules, self.s.nations[nation]
+        name = rules.regions[a.region].name
+        if not me.colony_count(a.region):
+            self._reject(nation, a, f"you hold no colony in {name}")
+            return
+        level = me.colonial_forts.get(a.region, 0)
+        if level >= rules.colonial_fort_max:
+            self._reject(nation, a, f"your fort in {name} is as strong as it gets")
+            return
+        if error := self._pay(nation, rules.colonial_fort_cost):
+            self._reject(nation, a, error)
+            return
+        me.colonial_forts[a.region] = level + 1
+        self._emit(
+            EventKind.COLONIAL_FORT,
+            f"{self._name(nation)} raises a fort over its colonies in {name} (level {level + 1})",
+            nations=(nation,),
+            region=a.region.value,
+            level=level + 1,
+        )
+
+    def _pay_garrisons(self, nation: NationId) -> None:
+        """The regiments overseas are paid, or the unpaid go home for good."""
+        me = self.s.nations[nation]
+        pay = self.s.rules.garrison_pay
+        total = sum(me.garrisons.values())
+        if not total or not pay:
+            return
+        paid = min(total, me.resources.ducats // pay)
+        me.resources = me.resources - Resources(ducats=paid * pay)
+        unpaid = total - paid
+        for region in sorted(me.garrisons, key=lambda r: (-me.garrisons[r], r.value)):
+            if unpaid <= 0:
+                break
+            gone = min(unpaid, me.garrisons[region])
+            me.garrisons[region] -= gone
+            unpaid -= gone
+        me.garrisons = {r: n for r, n in me.garrisons.items() if n > 0}
+
+    def _treasure_fleets(self) -> None:
+        """At war, an enemy fleet on the ocean may fall on a crown's treasure fleet and carry
+        off half the year's cargoes: the more likely the more it outmatches the escorts."""
+        rules = self.s.rules
+        for nation in self.order:
+            me = self.s.nations[nation]
+            if not me.alive or not me.colonies or not self.s.enemies_of(nation):
+                continue
+            value = colonial_dues(self.s, nation).ducats
+            if value <= 0:
+                continue
+            escort = ocean_fleet(self.s, nation) * (1 + modifiers(self.s, nation).convoys)
+            for enemy in sorted(self.s.enemies_of(nation)):
+                raiders = ocean_fleet(self.s, enemy)
+                if raiders < rules.raid_min:
+                    continue
+                spirit = COLONIAL_SPIRITS.get(enemy)
+                bold = modifiers(self.s, enemy).privateers or (spirit and spirit.seize)
+                chance = rules.raid_chance * raiders / (raiders + escort)
+                chance += rules.raid_privateers if bold else 0.0
+                if self.rng.random() >= chance:
+                    continue
+                taken = min(me.resources.ducats, math.floor(value * rules.raid_share))
+                if taken <= 0:
+                    break
+                me.resources = me.resources - Resources(ducats=taken)
+                raider = self.s.nations[enemy]
+                raider.resources = raider.resources + Resources(ducats=taken)
+                self._prestige(enemy, 2, "a treasure fleet taken")
+                self._prestige(nation, -2, "a treasure fleet lost")
+                self._emit(
+                    EventKind.TREASURE_TAKEN,
+                    f"{self._name(enemy)}'s ships fall on {self._name(nation)}'s treasure fleet "
+                    f"and carry off {taken} ducats",
+                    nations=(enemy, nation),
+                    ducats=taken,
+                    attacker=enemy,
+                    defender=nation,
+                )
+                break
 
     def _expeditions(self) -> None:
         """Every expedition rolls its year: a die, the crown's ships and its way, the region's
@@ -3629,6 +3901,7 @@ class _Resolver:
         state.alive = False
         state.resources = Resources()
         state.fleets, state.colonies, state.expeditions = {}, {}, []
+        state.garrisons, state.colonial_forts, state.viceroys = {}, {}, {}
         for p in self.s.provinces.values():
             if p.controller == nation:  # its occupying armies melt away
                 p.controller = None
@@ -3651,6 +3924,7 @@ class _Resolver:
     def _end_of_turn(self) -> None:
         for nation in self.s.alive_nations():
             self._produce_and_feed(nation)
+        self._treasure_fleets()
         self._pay_tributes()
         self._taxes()
         self._faiths()
@@ -3950,6 +4224,7 @@ class _Resolver:
             state.resources = state.resources.model_copy(update={"manpower": cap})
         self._pay_council(nation)
         self._pay_fleet(nation)
+        self._pay_garrisons(nation)
         factor = modifiers(self.s, nation).grain_upkeep_factor
         upkeep = army_upkeep(rules, army_of(self.s, nation), factor)
         paid = upkeep.capped_by(state.resources)

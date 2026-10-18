@@ -27,7 +27,7 @@ def reasons(state: GameState) -> list[str]:
 
 def test_spain_starts_with_hispaniola(state: GameState) -> None:
     assert held(state, "spain") == {Region.CARIBBEAN: 1}
-    assert colonial_dues(state, "spain").ducats == 4
+    assert colonial_dues(state, "spain").ducats == 3  # 4, less what the Taíno deny
     caribbean = next(r for r in view_for(state, "france").new_world if r.id == Region.CARIBBEAN)
     assert caribbean.held == {"spain": 1}
 

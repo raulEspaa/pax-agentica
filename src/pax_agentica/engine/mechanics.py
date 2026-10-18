@@ -562,13 +562,92 @@ def colonial_dues(state: GameState, nation: NationId) -> Resources:
     for region, held in me.colonies.items():
         spec = rules.regions[region]
         bonus = 1 + (spirit.dues.get(region, 0.0) if spirit else 0.0) + learnt
-        total["ducats"] += cargo.get(region, 0.0) * prices.get(spec.good, 0.0) * bonus
+        kept = 1 - native_resistance(state, nation, region)
+        total["ducats"] += cargo.get(region, 0.0) * prices.get(spec.good, 0.0) * bonus * kept
         share = sum(colony_share(rules, c, state.turn) for c in held)
         for k, v in spec.yields.amounts().items():
-            total[k] += v * share * bonus
+            total[k] += v * share * bonus * kept
     if ocean_blockaded(state, nation):
         total = {k: v * (1 - rules.colonial_blockade) for k, v in total.items()}
     return Resources(**{k: math.floor(v) for k, v in total.items()})
+
+
+def natives_left(state: GameState, region: Region) -> int:
+    """The regiments a region's peoples can still field."""
+    return state.natives.get(region, state.rules.regions[region].natives)
+
+
+def colonial_defenders(state: GameState, nation: NationId, region: Region) -> int:
+    """The regiments that hold a crown's colonies in a region: its garrison and its settlers."""
+    me, rules = state.nations[nation], state.rules
+    militia = sum(rules.colony_kinds[c.kind].militia for c in me.colonies.get(region, []))
+    return me.garrisons.get(region, 0) + militia
+
+
+def colonial_defence(state: GameState, nation: NationId, region: Region) -> float:
+    """What a crown's colonies in a region hold out with: their defenders, behind palisades
+    and forts, the better where a viceroy rules."""
+    me, rules = state.nations[nation], state.rules
+    fort = 1 + rules.colonial_fort_defence * me.colonial_forts.get(region, 0)
+    viceroy = 1 + (rules.viceroy_defence if region in me.viceroys else 0.0)
+    held = colonial_defenders(state, nation, region)
+    return held * fort * viceroy * rules.colonial_defender * morale(state, nation)
+
+
+def overseas_power(state: GameState, nation: NationId, regiments: int) -> float:
+    """What regiments carried overseas fight with: the realm's battle power and morale."""
+    return regiments * (1 + modifiers(state, nation).battle_power) * morale(state, nation)
+
+
+def natives_defence(state: GameState, region: Region) -> float:
+    """What a region's peoples fight with, on their own ground."""
+    rules = state.rules
+    return natives_left(state, region) * (1 + rules.native_terrain * rules.regions[region].hardness)
+
+
+def native_resistance(state: GameState, nation: NationId, region: Region) -> float:
+    """The share of a crown's dues in a region its peoples deny it: the more of them and the
+    angrier its colonies make them, the less where soldiers and settlers hold the land."""
+    rules, me = state.rules, state.nations[nation]
+    left = natives_left(state, region)
+    if not left or not me.colonies.get(region):
+        return 0.0
+    anger = sum(rules.colony_kinds[c.kind].anger for c in me.colonies[region])
+    raw = min(rules.native_resistance_max, left * anger * rules.native_anger)
+    held = colonial_defenders(state, nation, region) + (2 if region in me.viceroys else 0)
+    return raw * rules.native_calm / (rules.native_calm + held)
+
+
+def ocean_carry(state: GameState, nation: NationId) -> int:
+    """How many regiments the crown's ships on the ocean and the Baltic carry overseas."""
+    me = state.nations[nation]
+    return sum(
+        carries(state.rules, me.ships(z))
+        for z, zone in state.map.seas.items()
+        if zone.water in (Water.ATLANTIC, Water.BALTIC)
+    )
+
+
+def overseas_error(
+    state: GameState, nation: NationId, port: ProvinceId, regiments: int
+) -> str | None:
+    """Why regiments cannot sail overseas from this port now (None: they can)."""
+    if port not in colonial_ports(state, nation):
+        where = state.map.provinces[port].name if port in state.map.provinces else port
+        return f"{where} is no port of yours on the ocean or the Baltic"
+    if regiments <= 0:
+        return "send at least one regiment"
+    if state.provinces[port].troops < regiments:
+        return f"only {state.provinces[port].troops} regiments in {state.map.provinces[port].name}"
+    room = ocean_carry(state, nation)
+    if regiments > room:
+        return f"your ships on the ocean carry only {room} regiments"
+    mine = ocean_fleet(state, nation)
+    for enemy in sorted(state.enemies_of(nation)):
+        theirs = ocean_fleet(state, enemy)
+        if theirs >= state.rules.fleet_command * max(mine, 0.1) and theirs > 0:
+            return f"{state.nations[enemy].name}'s fleets command the ocean"
+    return None
 
 
 def silver_shipped(state: GameState, nation: NationId) -> float:
@@ -927,7 +1006,8 @@ def nation_upkeep(state: GameState, nation: NationId) -> Resources:
     army = army_upkeep(state.rules, army_of(state, nation), mods.grain_upkeep_factor)
     me = state.nations[nation]
     salaries = advisor_salaries(state.rules, me.advisors)
-    return army + Resources(ducats=salaries + fleet_pay(state, nation))
+    overseas = state.rules.garrison_pay * sum(me.garrisons.values())
+    return army + Resources(ducats=salaries + fleet_pay(state, nation) + overseas)
 
 
 def fleet_pay(state: GameState, nation: NationId) -> int:
