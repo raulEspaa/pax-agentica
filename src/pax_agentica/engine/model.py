@@ -338,6 +338,101 @@ def default_ships() -> dict[Ship, ShipSpec]:
     }
 
 
+class Region(StrEnum):
+    """The lands beyond the sea that crowns may colonise: not on the map, but in the menu of
+    the New World."""
+
+    CARIBBEAN = "caribbean"
+    BRAZIL = "brazil"
+    GUINEA = "guinea"
+    NEW_SPAIN = "new_spain"
+    EAST_INDIES = "east_indies"
+    PERU = "peru"
+    NORTH_AMERICA = "north_america"
+
+
+class RegionSpec(BaseModel):
+    """What a region beyond the sea offers, and how hard it is to hold."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    opens: int  # the year the way there is known
+    slots: int  # colonies it can hold, among all the crowns together
+    yields: Resources  # each colony's yearly due to its crown
+    hardness: int  # taken off each year's progress: distance, fevers, those who live there
+    goods: str  # what it sends home, in words
+    lore: str
+
+
+def default_regions() -> dict[Region, RegionSpec]:
+    return {
+        Region.CARIBBEAN: RegionSpec(
+            name="The Caribbean",
+            opens=1500,
+            slots=4,
+            yields=Resources(ducats=4, goods=1),
+            hardness=0,
+            goods="sugar and logwood",
+            lore="Hispaniola, Cuba, the Antilles: the first landfall of the Indies.",
+        ),
+        Region.BRAZIL: RegionSpec(
+            name="Brazil",
+            opens=1500,
+            slots=3,
+            yields=Resources(ducats=3, timber=2),
+            hardness=5,
+            goods="brazilwood and sugar",
+            lore="The coast Cabral sighted in 1500, red with the dyewood that gave it a name.",
+        ),
+        Region.GUINEA: RegionSpec(
+            name="The Guinea coast",
+            opens=1500,
+            slots=3,
+            yields=Resources(ducats=4),
+            hardness=5,
+            goods="gold dust and ivory",
+            lore="Forts on the Gold Coast, traded for by the castle of Elmina.",
+        ),
+        Region.EAST_INDIES: RegionSpec(
+            name="The East Indies",
+            opens=1511,
+            slots=3,
+            yields=Resources(ducats=6, goods=1),
+            hardness=15,
+            goods="pepper, cloves and nutmeg",
+            lore="Malacca and the Spice Islands, round the Cape and across the Indian Ocean.",
+        ),
+        Region.NEW_SPAIN: RegionSpec(
+            name="New Spain",
+            opens=1519,
+            slots=2,
+            yields=Resources(ducats=9),
+            hardness=10,
+            goods="the silver of Zacatecas",
+            lore="The empire of the Mexica, and the silver mines beyond it.",
+        ),
+        Region.PERU: RegionSpec(
+            name="Peru",
+            opens=1532,
+            slots=2,
+            yields=Resources(ducats=11),
+            hardness=15,
+            goods="the silver mountain of Potosí",
+            lore="The realm of the Inca, high in the Andes, and the mountain of silver.",
+        ),
+        Region.NORTH_AMERICA: RegionSpec(
+            name="North America",
+            opens=1534,
+            slots=5,
+            yields=Resources(ducats=2, timber=2, grain=2),
+            hardness=5,
+            goods="furs, cod and timber",
+            lore="The St Lawrence, the Chesapeake and the cold banks of cod.",
+        ),
+    }
+
+
 class Focus(StrEnum):
     """What a province's people turn their hands to. A focus strengthens one side of its
     output, the more the larger its town."""
@@ -1185,6 +1280,19 @@ class Rules(BaseModel):
     naval_winner_loss: float = 0.3  # times the ratio of the loser's strength to the winner's
     naval_battle_counts: int = 3  # ships the loser must lose for a sea battle to count in the war
     great_sea_battle: int = 30  # ships on both sides: a battle all Europe talks of
+    # colonies
+    regions: dict[Region, RegionSpec] = Field(default_factory=default_regions)
+    expedition_cost: Resources = Resources(ducats=40, manpower=3)
+    expedition_ships: float = 2.5  # Atlantic fleet strength an expedition needs (a galleon)
+    expedition_base: int = 20  # progress a year, plus 5 per pip of a die
+    expedition_per_strength: float = 1.0  # progress for each point of Atlantic fleet strength
+    expedition_fleet_cap: int = 10
+    expedition_baltic: int = 10  # progress lost each year by an expedition from a Baltic port
+    expeditions_at_once: int = 2
+    region_share: float = 0.5  # of a region's places, the most one crown may hold
+    prestige_colony: int = 3
+    colonial_blockade: float = 0.5  # share of colonial dues lost while the Atlantic is blockaded
+    seize_command: float = 2.0  # Atlantic fleet times the enemy's needed to take a colony
     # from a hamlet to a great city, by development: each step up gives room for one more work
     settlements: tuple[Settlement, ...] = Field(default_factory=default_settlements)
     # what a building does and eats at each level, times its first level's
@@ -1565,6 +1673,8 @@ class NationState(BaseModel):
     grudges: list[Grudge] = Field(default_factory=list)  # wrongs it will not forget
     flags: list[str] = Field(default_factory=list)  # choices that last, e.g. "quarantine"
     fleets: dict[Water, dict[Ship, int]] = Field(default_factory=dict)  # public, as navies are
+    colonies: dict[Region, int] = Field(default_factory=dict)  # public: every crown's empire
+    expeditions: list[Expedition] = Field(default_factory=list)  # under way
 
     def ships(self, water: Water) -> dict[Ship, int]:
         """The ships stationed in a water, every kind listed."""
@@ -1577,6 +1687,14 @@ class NationState(BaseModel):
             self.fleets[water] = kept
         else:
             self.fleets.pop(water, None)
+
+
+class Expedition(BaseModel):
+    """Settlers and soldiers on their way to found a colony."""
+
+    region: Region
+    since: int  # the turn it sailed
+    progress: int = Field(default=0, ge=0)  # out of 100
 
 
 class PendingEvent(BaseModel):

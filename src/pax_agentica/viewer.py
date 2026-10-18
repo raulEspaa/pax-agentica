@@ -12,7 +12,8 @@ from importlib.resources import files
 from typing import Any
 
 from pax_agentica.engine import Event, EventKind, GameState, Resources, Rules
-from pax_agentica.engine.mechanics import buildings_yield, land_yield
+from pax_agentica.engine.colonies import COLONIAL_SPIRITS
+from pax_agentica.engine.mechanics import buildings_yield, land_yield, region_cap
 from pax_agentica.engine.model import (
     RESOURCE_NAMES,
     BuildingKind,
@@ -355,6 +356,30 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                     "role": spec.role,
                 }
                 for k, spec in rules.ships.items()
+            },
+            "regions": {
+                r.value: {
+                    "name": spec.name,
+                    "opens": spec.opens,
+                    "slots": spec.slots,
+                    "yields": amounts(spec.yields),
+                    "goods": spec.goods,
+                    "hardness": spec.hardness,
+                    "lore": spec.lore,
+                    "cap": region_cap(rules, r),
+                }
+                for r, spec in rules.regions.items()
+            },
+            "colonial": {
+                "cost": amounts(rules.expedition_cost),
+                "ships": rules.expedition_ships,
+                "atOnce": rules.expeditions_at_once,
+                "seize": rules.seize_command,
+                "blockade": rules.colonial_blockade,
+                "spirits": {
+                    nid: {"title": c.title, "words": c.words, "seize": c.seize}
+                    for nid, c in COLONIAL_SPIRITS.items()
+                },
             },
             "navy": {
                 "perPort": rules.ships_per_port,

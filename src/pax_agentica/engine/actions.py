@@ -20,6 +20,7 @@ from pax_agentica.engine.model import (
     NationId,
     Posture,
     ProvinceId,
+    Region,
     Resources,
     Ship,
     Stance,
@@ -464,6 +465,26 @@ class SeekBattle(_Action):
     enemy: NationId
 
 
+class SendExpedition(_Action):
+    """Send settlers and soldiers to found a colony in a region beyond the sea (see
+    `new_world` in your view: what each region yields, when it opens, how many places are left
+    and how fast your expeditions go). Needs a port of yours on the Atlantic or the Baltic and
+    an escort of rules.expedition_ships fleet strength there; costs rules.expedition_cost. Each
+    year it makes progress; at 100% the colony is founded, unless the region filled up first."""
+
+    type: Literal["send_expedition"] = "send_expedition"
+    region: Region
+
+
+class SeizeColony(_Action):
+    """At war, take one of an enemy's colonies in a region: your Atlantic fleet must be
+    rules.seize_command times the enemy's (England's Sea Dogs need less)."""
+
+    type: Literal["seize_colony"] = "seize_colony"
+    region: Region
+    enemy: NationId
+
+
 class UpgradeMonument(_Action):
     """Raise the monument of one of your provinces by a level (from a bare site to level 1, up
     to the rules' maximum). Its bonus grows with every level and serves whoever holds it."""
@@ -553,6 +574,8 @@ type Action = Annotated[
     | ScrapShips
     | SailFleet
     | SeekBattle
+    | SendExpedition
+    | SeizeColony
     | Convert
     | BoostStability
     | Research

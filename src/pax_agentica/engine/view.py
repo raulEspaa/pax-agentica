@@ -27,8 +27,11 @@ from pax_agentica.engine.mechanics import (
     building_cost,
     building_output,
     building_slots,
+    colonial_dues,
     convert_cost,
     develop_cost,
+    expedition_error,
+    expedition_progress,
     faith_penalty,
     fleet_pay,
     focus_bonus,
@@ -54,6 +57,7 @@ from pax_agentica.engine.model import (
     Advisor,
     AdvisorRole,
     BuildingKind,
+    Expedition,
     Faith,
     Focus,
     GameState,
@@ -66,6 +70,7 @@ from pax_agentica.engine.model import (
     Posture,
     ProposalKind,
     ProvinceId,
+    Region,
     Resources,
     Ruler,
     Rules,
@@ -246,6 +251,9 @@ class MyNation(_View):
     fleets: dict[Water, dict[Ship, int]]  # your ships in each water
     naval_power: dict[Water, float]  # what they are worth there (galleys rule calm seas)
     blockaded: tuple[Water, ...]  # waters an enemy fleet holds against you: those ports earn less
+    colonies: dict[Region, int]  # your colonies beyond the sea, by region
+    expeditions: tuple[Expedition, ...]  # yours under way, with their progress out of 100
+    colonial_dues: Resources  # what the colonies send home a year (already in your income)
     prestige: int  # 0 to 100: ducats, cheaper stability, and half of it counts towards victory
     standing: int  # development plus half the prestige: what wins when time runs out
     faith: Faith
@@ -292,6 +300,7 @@ class NationSummary(_View):
     faith: Faith
     fleets: dict[Water, dict[Ship, int]]  # its ships in each water: navies are public
     naval_power: dict[Water, float]  # what they are worth there
+    colonies: dict[Region, int]  # its colonies beyond the sea (public)
     stances: dict[NationId, Stance]  # the friends and rivals this court has declared (public)
     infamy: float  # its conquests' weight on Europe; from rules.coalition_infamy, a league may form
     leagued_against: tuple[NationId, ...]  # the conquerors this court has leagued against
@@ -315,6 +324,23 @@ class ProposalView(_View):
     limit_army: int | None  # peace: the recipient's army may not grow beyond this
     note: str  # the sender's words
     reply_to: int | None  # the proposal of yours this one counters
+
+
+class RegionView(_View):
+    """A region beyond the sea, as the menu of the New World shows it."""
+
+    id: Region
+    name: str
+    opens: int  # the year the way there is known
+    open: bool
+    slots: int  # colonies it holds, among all the crowns
+    held: dict[NationId, int]  # whose colonies are there (public)
+    yields: Resources  # each colony's yearly due
+    goods: str
+    hardness: int
+    lore: str
+    your_progress: int  # what your expedition there would make a year before the die (5-30)
+    send_error: str | None  # why you cannot send one now; None: you can
 
 
 class CrisisView(_View):
@@ -341,7 +367,33 @@ class NationView(_View):
     last_turn_events: tuple[Event, ...]
     market: dict[str, PriceView]  # the European market today: trade with `buy` and `sell`
     crisis: CrisisView | None  # the age's great trouble, from the year it is announced
+    new_world: tuple[RegionView, ...]  # the regions beyond the sea: send_expedition, seize_colony
     rules: Rules
+
+
+def _new_world(state: GameState, nation: NationId) -> tuple[RegionView, ...]:
+    out = []
+    for region, spec in state.rules.regions.items():
+        held = {
+            n: c for n, ns in state.nations.items() if ns.alive and (c := ns.colonies.get(region))
+        }
+        out.append(
+            RegionView(
+                id=region,
+                name=spec.name,
+                opens=spec.opens,
+                open=state.year >= spec.opens,
+                slots=spec.slots,
+                held=held,
+                yields=spec.yields,
+                goods=spec.goods,
+                hardness=spec.hardness,
+                lore=spec.lore,
+                your_progress=expedition_progress(state, nation, region),
+                send_error=expedition_error(state, nation, region),
+            )
+        )
+    return tuple(out)
 
 
 def _naval(state: GameState, nation: NationId) -> dict[Water, float]:
@@ -507,6 +559,9 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         fleets={w: dict(ships) for w, ships in me.fleets.items()},
         naval_power=_naval(state, nation),
         blockaded=tuple(sorted(blockaded(state, nation))),
+        colonies=dict(me.colonies),
+        expeditions=tuple(me.expeditions),
+        colonial_dues=colonial_dues(state, nation),
         prestige=me.prestige,
         standing=state.standing(nation),
         faith=me.faith,
@@ -578,6 +633,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             ruler=ns.ruler,
             fleets={w: dict(ships) for w, ships in ns.fleets.items()},
             naval_power=_naval(state, nid),
+            colonies=dict(ns.colonies),
             opinion_of_you=state.opinion(nid, nation),
             stances=dict(ns.stances),
             war_exhaustion=ns.war_exhaustion,
@@ -620,6 +676,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         ),
         last_turn_events=tuple(e for e in state.last_events if e.visible_to(nation)),
         crisis=_crisis(state),
+        new_world=_new_world(state, nation),
         market={
             res: PriceView(
                 price=round(price, 2),
@@ -710,6 +767,7 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
                 discontent[k] -= v - kept.amounts()[k]
     income = nation_income(state, nation).amounts()
     choked = {"ducats": 0}
+    dues = colonial_dues(state, nation).amounts()
     for pid in blockaded_ports(state, nation):
         ducats = province_output(state, pid).ducats
         choked["ducats"] -= ducats - math.floor(ducats * (1 - state.rules.blockade_share))
@@ -720,6 +778,7 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
         - workings.amounts()[k]
         - discontent[k]
         - choked.get(k, 0)
+        - dues[k]
         for k, v in income.items()
     }
     factor = modifiers(state, nation).grain_upkeep_factor
@@ -734,6 +793,7 @@ def _ledger(state: GameState, nation: NationId) -> tuple[LedgerLine, ...]:
         LedgerLine(kind="income", source="provinces of another faith", amount=discontent),
         LedgerLine(kind="income", source="the crown's modifiers", amount=crown),
         LedgerLine(kind="income", source="blockaded ports", amount=choked),
+        LedgerLine(kind="income", source="the colonies", amount=dues),
         LedgerLine(kind="expense", source="the army", amount=army.amounts()),
         LedgerLine(kind="expense", source="the fleets", amount=fleet.amounts()),
         LedgerLine(kind="expense", source="the council", amount=council.amounts()),

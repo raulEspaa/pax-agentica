@@ -46,7 +46,9 @@ from pax_agentica.engine.actions import (
     Research,
     Respond,
     SeekBattle,
+    SeizeColony,
     Sell,
+    SendExpedition,
     SendMessage,
     SetFocus,
     SetPosture,
@@ -75,7 +77,7 @@ from pax_agentica.engine.model import (
     UnitKind,
     Water,
 )
-from pax_agentica.engine.view import ProposalView, ProvinceView
+from pax_agentica.engine.view import ProposalView, ProvinceView, RegionView
 from pax_agentica.tools import best_tactic, naval_power, sea_command
 
 CAPITAL_GUARD = 3
@@ -150,6 +152,7 @@ class _Planner:
         self._recruit()
         self._command()
         self._sea_battles()
+        self._seize_colonies()
         self._attack()
         self._march_to_the_border()
         self._postures()
@@ -776,6 +779,7 @@ class _Planner:
         self._council(reserve)
         self._focus(reserve)  # cheap and for good: before the works
         self._navy(reserve)
+        self._colonize(reserve)
         for _ in range(1 + (self.budget.ducats > 250) + (self.budget.ducats > 500)):
             self._build(reserve)  # a rich treasury raises more than one work a year
         self._improve(reserve)
@@ -842,6 +846,44 @@ class _Planner:
                 self.actions.append(BuildShips(province=port.id, ship=ship, count=n, water=water))
                 self.budget = self.budget - spec.cost.times(n)
                 room -= n * spec.pay
+
+    def _colonize(self, reserve: int) -> None:
+        """With ducats to spare, send an expedition where a colony pays best for the years it
+        takes, while places are left."""
+        rules = self.v.rules
+        cost = rules.expedition_cost
+        if self.budget.ducats < cost.ducats + reserve + 20 or not self.budget.covers(cost):
+            return
+
+        def worth(r: RegionView) -> float:
+            y = r.yields
+            due = y.ducats + 2 * y.goods + y.timber + 0.8 * y.grain + y.iron
+            free = r.slots - sum(r.held.values())
+            years = 100 / max(5, r.your_progress + 17.5)
+            return due * min(1.0, free / 2) / years
+
+        ready = [r for r in self.v.new_world if r.send_error is None]
+        if not ready:
+            return
+        best = max(ready, key=lambda r: (worth(r), r.id.value))
+        self.actions.append(SendExpedition(region=best.id))
+        self.budget = self.budget - cost
+
+    def _seize_colonies(self) -> None:
+        """At war, take an enemy's colony wherever our Atlantic fleet far outmatches theirs."""
+        rules = self.v.rules
+        mine = naval_power(self.v, self.me.id, Water.ATLANTIC)
+        if mine < rules.expedition_ships:
+            return
+        for enemy in sorted(self.enemies - self.mobilising):
+            other = next((n for n in self.v.nations if n.id == enemy), None)
+            if other is None or not other.colonies:
+                continue
+            need = rules.seize_command  # the Sea Dogs need less; the engine knows
+            if mine < need * naval_power(self.v, enemy, Water.ATLANTIC):
+                continue
+            region = max(other.colonies, key=lambda r: (rules.regions[r].yields.ducats, r.value))
+            self.actions.append(SeizeColony(region=region, enemy=enemy))
 
     def _fleet_of(self, nation: str, water: Water) -> dict[Ship, int]:
         other = next((n for n in self.v.nations if n.id == nation), None)

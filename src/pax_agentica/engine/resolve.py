@@ -58,7 +58,9 @@ from pax_agentica.engine.actions import (
     SailFleet,
     ScrapShips,
     SeekBattle,
+    SeizeColony,
     Sell,
+    SendExpedition,
     SendMessage,
     SetFocus,
     SetPosture,
@@ -79,9 +81,12 @@ from pax_agentica.engine.mechanics import (
     building_cost,
     building_inputs,
     building_slots,
+    colonies_in,
     convert_cost,
     defense_multiplier,
     develop_cost,
+    expedition_error,
+    expedition_progress,
     fight,
     fleet_pay,
     fleet_upkeep,
@@ -96,6 +101,7 @@ from pax_agentica.engine.mechanics import (
     recruit_cost,
     research_cost,
     sea_command,
+    seize_factor,
     settlement,
     siege_levels,
     siege_modifiers,
@@ -112,6 +118,7 @@ from pax_agentica.engine.model import (
     TRADED,
     BuildingKind,
     Crisis,
+    Expedition,
     Faith,
     Focus,
     GameState,
@@ -1289,6 +1296,10 @@ class _Resolver:
                         self._set_focus(nation, action)
                     case BuildShips():
                         self._build_ships(nation, action)
+                    case SendExpedition():
+                        self._send_expedition(nation, action)
+                    case SeizeColony():
+                        self._seize_colony(nation, action)
                     case ScrapShips():
                         here = self.s.nations[nation].ships(action.water)
                         if here[action.ship] < action.count:
@@ -1581,6 +1592,107 @@ class _Resolver:
             audience=(nation,),
             level=level,
         )
+
+    def _send_expedition(self, nation: NationId, a: SendExpedition) -> None:
+        if error := expedition_error(self.s, nation, a.region):
+            self._reject(nation, a, error)
+            return
+        if error := self._pay(nation, self.s.rules.expedition_cost):
+            self._reject(nation, a, error)
+            return
+        self.s.nations[nation].expeditions.append(Expedition(region=a.region, since=self.turn))
+        name = self.s.rules.regions[a.region].name
+        self._emit(
+            EventKind.EXPEDITION_SENT,
+            f"{self._name(nation)} sends an expedition to {name}",
+            nations=(nation,),
+            region=a.region.value,
+        )
+
+    def _seize_colony(self, nation: NationId, a: SeizeColony) -> None:
+        rules = self.s.rules
+        name = rules.regions[a.region].name
+        if a.enemy not in self.s.nations:
+            self._reject(nation, a, f"there is no realm '{a.enemy}'")
+            return
+        war = self.s.war(nation, a.enemy)
+        if war is None:
+            self._reject(nation, a, f"you are not at war with {self._name(a.enemy)}")
+            return
+        enemy = self.s.nations[a.enemy]
+        if not enemy.colonies.get(a.region):
+            self._reject(nation, a, f"{self._name(a.enemy)} holds no colony in {name}")
+            return
+        if any(
+            e.kind == EventKind.COLONY_SEIZED
+            and e.data.get("from") == a.enemy
+            and nation in e.nations
+            for e in self.events
+        ):
+            self._reject(nation, a, "one colony a year from each enemy")
+            return
+        mine = naval_power(self.s, nation, Water.ATLANTIC)
+        theirs = naval_power(self.s, a.enemy, Water.ATLANTIC)
+        need = seize_factor(nation, rules)
+        if mine < rules.expedition_ships or mine < need * theirs:
+            self._reject(
+                nation,
+                a,
+                f"your Atlantic fleet ({mine:.1f}) must be {need:g} times {self._name(a.enemy)}'s "
+                f"({theirs:.1f}) to take its colonies",
+            )
+            return
+        enemy.colonies[a.region] -= 1
+        if not enemy.colonies[a.region]:
+            del enemy.colonies[a.region]
+        me = self.s.nations[nation]
+        me.colonies[a.region] = me.colonies.get(a.region, 0) + 1
+        self._prestige(nation, rules.prestige_colony, f"a colony in {name} taken")
+        self._prestige(a.enemy, -rules.prestige_colony, f"a colony in {name} lost")
+        self._emit(
+            EventKind.COLONY_SEIZED,
+            f"{self._name(nation)} takes a colony in {name} from {self._name(a.enemy)}",
+            nations=(nation, a.enemy),
+            region=a.region.value,
+            extra={"from": a.enemy},
+        )
+
+    def _expeditions(self) -> None:
+        """Every expedition rolls its year: a die, the crown's ships and its way, the region's
+        hardness. At 100% a colony is founded, if a place is left."""
+        rules = self.s.rules
+        for nation in self.order:
+            me = self.s.nations[nation]
+            if not me.alive:
+                continue
+            for exp in list(me.expeditions):
+                spec = rules.regions[exp.region]
+                if colonies_in(self.s, exp.region) >= spec.slots:
+                    me.expeditions.remove(exp)
+                    self._emit(
+                        EventKind.EXPEDITION_LOST,
+                        f"{self._name(nation)}'s expedition to {spec.name} finds every place "
+                        "taken and comes home with nothing",
+                        nations=(nation,),
+                        region=exp.region.value,
+                    )
+                    continue
+                die = self.rng.randint(1, 6)
+                gain = max(5, expedition_progress(self.s, nation, exp.region) + 5 * die)
+                exp.progress = min(100, exp.progress + gain)
+                if exp.progress < 100:
+                    continue
+                me.expeditions.remove(exp)
+                me.colonies[exp.region] = me.colonies.get(exp.region, 0) + 1
+                self._prestige(nation, rules.prestige_colony, f"a colony founded in {spec.name}")
+                self._emit(
+                    EventKind.COLONY_FOUNDED,
+                    f"{self._name(nation)} founds a colony in {spec.name}: {spec.goods} will "
+                    "sail home",
+                    nations=(nation,),
+                    region=exp.region.value,
+                    colonies=me.colonies[exp.region],
+                )
 
     def _ships(self, kind: Ship) -> str:
         return self.s.rules.ships[kind].name.lower()
@@ -2939,7 +3051,7 @@ class _Resolver:
         self.s.generals = [g for g in self.s.generals if g.nation != nation]
         state.alive = False
         state.resources = Resources()
-        state.fleets = {}
+        state.fleets, state.colonies, state.expeditions = {}, {}, []
         for p in self.s.provinces.values():
             if p.controller == nation:  # its occupying armies melt away
                 p.controller = None
@@ -2973,6 +3085,7 @@ class _Resolver:
         self._crisis()
         self._move_prices()
         self._sieges()
+        self._expeditions()
         decay = self.s.rules.veterancy_decay  # the veterans grow old and go home
         for province in self.s.provinces.values():
             settles = 2 if BuildingKind.CATHEDRAL in province.buildings else 1

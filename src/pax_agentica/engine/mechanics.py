@@ -5,6 +5,7 @@ import random
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 
+from pax_agentica.engine.colonies import COLONIAL_SPIRITS
 from pax_agentica.engine.model import (
     BuildingKind,
     Focus,
@@ -13,6 +14,7 @@ from pax_agentica.engine.model import (
     NationId,
     Posture,
     ProvinceId,
+    Region,
     Resources,
     Rules,
     Settlement,
@@ -355,7 +357,103 @@ def nation_income(state: GameState, nation: NationId) -> Resources:
             "grain": math.floor(grain),
             "manpower": max(0, math.floor(men)),
         }
+    ) + colonial_dues(state, nation)
+
+
+# ---------------------------------------------------------------- the New World
+
+
+def colonial_dues(state: GameState, nation: NationId) -> Resources:
+    """What a crown's colonies send home a year: each region's due per colony, more for the
+    crowns that know how to work it, and much less while an enemy blockades the Atlantic (the
+    treasure fleets cannot sail)."""
+    me = state.nations[nation]
+    if not me.colonies:
+        return Resources()
+    rules = state.rules
+    spirit = COLONIAL_SPIRITS.get(nation)
+    total = {k: 0.0 for k in Resources.model_fields}
+    for region, n in me.colonies.items():
+        bonus = 1 + (spirit.dues.get(region, 0.0) if spirit else 0.0)
+        for k, v in rules.regions[region].yields.amounts().items():
+            total[k] += v * n * bonus
+    if state.wars and Water.ATLANTIC in blockaded(state, nation):
+        total = {k: v * (1 - rules.colonial_blockade) for k, v in total.items()}
+    return Resources(**{k: math.floor(v) for k, v in total.items()})
+
+
+def colonial_ports(state: GameState, nation: NationId) -> list[ProvinceId]:
+    """The crown's own ports an expedition can sail from: on the Atlantic or the Baltic."""
+    return [
+        pid
+        for pid in state.provinces_of(nation)
+        if not state.provinces[pid].controller
+        and {Water.ATLANTIC, Water.BALTIC} & set(state.map.provinces[pid].coasts)
+    ]
+
+
+def colonies_in(state: GameState, region: Region) -> int:
+    """The colonies every crown together holds in a region."""
+    return sum(n.colonies.get(region, 0) for n in state.nations.values() if n.alive)
+
+
+def ocean_fleet(state: GameState, nation: NationId) -> float:
+    """The fleet that escorts expeditions: the stronger of the crown's Atlantic and Baltic."""
+    return max(naval_power(state, nation, Water.ATLANTIC), naval_power(state, nation, Water.BALTIC))
+
+
+def expedition_progress(state: GameState, nation: NationId, region: Region) -> int:
+    """An expedition's progress a year before the die (which adds 5 to 30): the base, the
+    escorting fleet, the crown's own way, less the region's hardness, and less again sailing
+    the long way round from the Baltic."""
+    rules = state.rules
+    spirit = COLONIAL_SPIRITS.get(nation)
+    fleet = min(
+        rules.expedition_fleet_cap, int(ocean_fleet(state, nation) * rules.expedition_per_strength)
     )
+    atlantic = any(
+        Water.ATLANTIC in state.map.provinces[p].coasts for p in colonial_ports(state, nation)
+    )
+    return (
+        rules.expedition_base
+        + fleet
+        + (spirit.progress.get(region, 0) if spirit else 0)
+        - rules.regions[region].hardness
+        - (0 if atlantic else rules.expedition_baltic)
+    )
+
+
+def expedition_error(state: GameState, nation: NationId, region: Region) -> str | None:
+    """Why a crown cannot send an expedition to a region now (None: it can)."""
+    rules, me = state.rules, state.nations[nation]
+    spec = rules.regions[region]
+    if state.year < spec.opens:
+        return f"the way to {spec.name} is not known before {spec.opens}"
+    if not colonial_ports(state, nation):
+        return "you hold no port on the Atlantic or the Baltic"
+    if ocean_fleet(state, nation) < rules.expedition_ships:
+        need = f"{rules.expedition_ships:g}"
+        return f"an expedition needs an escort: a fleet of {need} on the Atlantic or the Baltic"
+    if any(e.region == region for e in me.expeditions):
+        return f"an expedition of yours is already on its way to {spec.name}"
+    if len(me.expeditions) >= rules.expeditions_at_once:
+        return f"no more than {rules.expeditions_at_once} expeditions at once"
+    if colonies_in(state, region) >= spec.slots:
+        return f"{spec.name} is full: every place there is taken"
+    if me.colonies.get(region, 0) >= region_cap(rules, region):
+        return f"you hold all of {spec.name} one crown may: the other crowns will not suffer more"
+    return None
+
+
+def region_cap(rules: Rules, region: Region) -> int:
+    """The most colonies one crown may hold in a region: its share of the places."""
+    return max(1, math.ceil(rules.regions[region].slots * rules.region_share))
+
+
+def seize_factor(nation: NationId, rules: Rules) -> float:
+    """The Atlantic fleet, times the enemy's, a crown needs to take one of its colonies."""
+    spirit = COLONIAL_SPIRITS.get(nation)
+    return spirit.seize if spirit and spirit.seize is not None else rules.seize_command
 
 
 def discounted(cost: Resources, discount: float) -> Resources:

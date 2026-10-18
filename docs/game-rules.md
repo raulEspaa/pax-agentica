@@ -469,6 +469,36 @@ year (a tournament may set `pay`, ducats a year at war).
   galleys and 2 galleons; a galley each for Brandenburg and Austria. England and Sweden sail a
   quarter better.
 
+### The New World
+
+The lands beyond the sea are not on the map: they are in the office of the New World.
+
+| Region | Opens | Places | Each colony a year | Hardness |
+|---|---|---|---|---|
+| The Caribbean | 1500 | 4 | 4 ducats, 1 goods | 0 |
+| Brazil | 1500 | 3 | 3 ducats, 2 timber | 5 |
+| The Guinea coast | 1500 | 3 | 4 ducats | 5 |
+| The East Indies | 1511 | 3 | 6 ducats, 1 goods | 15 |
+| New Spain | 1519 | 2 | 9 ducats | 10 |
+| Peru | 1532 | 2 | 11 ducats | 15 |
+| North America | 1534 | 5 | 2 ducats, 2 timber, 2 grain | 5 |
+
+- `send_expedition` costs 40 ducats and 3 manpower. It needs a port of yours on the Atlantic or
+  the Baltic and an escort: a fleet of strength 2.5 there. No more than 2 at once, one per region.
+- Each year an expedition makes 20 progress, plus 5 per pip of a die, plus 1 per point of the
+  escorting fleet's strength (10 at most), less the region's hardness, less 10 from a Baltic
+  port. At 100% it founds a colony (+3 prestige), unless every place was taken first: then it
+  comes home with nothing.
+- A region's places are shared by every crown; one crown may hold at most half of them.
+- The colonies' dues are part of the yearly income. While an enemy blockades your Atlantic
+  ports, the treasure fleets cannot sail: the dues are halved.
+- At war, `seize_colony` takes one colony a year from each enemy, if your Atlantic fleet is twice
+  the enemy's (+3 prestige to you, −3 to them).
+- Spain starts with Hispaniola. Three crowns sail in their own way: Spain's Casa de
+  Contratación (every expedition 5 progress more, the silver of New Spain and Peru half again),
+  England's Sea Dogs (take colonies with a fleet only 1.5 times the enemy's, 10 progress more in
+  North America) and New France (10 progress more in North America, its furs half again).
+
 ### War score and exhaustion
 
 Each war has a **war score** from each side, from −100 to 100: the share of the enemy's land
