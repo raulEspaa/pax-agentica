@@ -1684,6 +1684,24 @@ class GameState(BaseModel):
     winner: NationId | None = None
     crisis: Crisis | None = None  # the age's great trouble, drawn on the first turn
 
+    @model_validator(mode="after")
+    def _chart_the_seas(self) -> Self:
+        """A game saved before the fleets: its map gets its coasts and straits, and the crowns
+        the fleets of 1500."""
+        if self.map.straits or not any(p.sea_neighbors for p in self.map.provinces.values()):
+            return self
+        from pax_agentica.engine import scenario  # here: the scenario is built on this module
+
+        charted = scenario.europe_map()
+        if charted.name != self.map.name or set(charted.provinces) != set(self.map.provinces):
+            return self
+        self.map = charted
+        if not any(n.fleets for n in self.nations.values()):
+            for nid, fleets in scenario.STARTING_FLEETS.items():
+                if nid in self.nations and self.nations[nid].alive:
+                    self.nations[nid].fleets = {w: dict(ships) for w, ships in fleets.items()}
+        return self
+
     def crisis_now(self) -> str | None:
         """The crisis raging this turn, if any."""
         c = self.crisis

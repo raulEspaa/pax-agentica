@@ -179,3 +179,15 @@ def test_ships_can_be_laid_up(state: GameState, play: Play) -> None:
     new = play(state, spain=[ScrapShips(water=M, ship=Ship.GALLEY, count=6)])
     assert new.nations["spain"].fleets == {}
     assert view_for(new, "france").nations
+
+
+def test_a_game_saved_before_the_fleets_gets_its_seas(state: GameState) -> None:
+    old = state.model_dump(mode="json")
+    old["map"].pop("straits")
+    for p in old["map"]["provinces"].values():
+        p.pop("coasts")
+    for n in old["nations"].values():
+        n.pop("fleets")
+    loaded = GameState.model_validate(old)
+    assert loaded.map.strait_water("london", "normandy") == A
+    assert loaded.nations["ottomans"].ships(M)[Ship.GALLEY] == 10
