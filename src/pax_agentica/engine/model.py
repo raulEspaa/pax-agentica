@@ -1181,7 +1181,19 @@ class Rules(BaseModel):
         """A game saved before a rule was retired still loads: the rule is dropped (the
         settlements took the fixed building slots' place)."""
         if isinstance(data, dict) and any(k in data for k in RETIRED_RULES):
-            return {k: v for k, v in data.items() if k not in RETIRED_RULES}
+            data = {k: v for k, v in data.items() if k not in RETIRED_RULES}
+        if isinstance(data, dict) and isinstance(data.get("ships"), dict):
+            # ships saved before a field was added take it from the ship of the same kind
+            defaults = default_ships()
+            data = {
+                **data,
+                "ships": {
+                    kind: {**defaults[Ship(kind)].model_dump(), **spec}
+                    if isinstance(spec, dict) and kind in Ship._value2member_map_
+                    else spec
+                    for kind, spec in data["ships"].items()
+                },
+            }
         return data
 
     # economy

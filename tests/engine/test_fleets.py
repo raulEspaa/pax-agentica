@@ -262,3 +262,11 @@ def test_a_game_saved_before_the_fleets_gets_the_fleets_of_1500(state: GameState
         n.pop("fleets")
     loaded = GameState.model_validate(old)
     assert loaded.nations["ottomans"].ships("aegean")[Ship.GALLEY] == 7
+
+
+def test_rules_saved_before_a_ship_field_still_load(state: GameState) -> None:
+    old = state.model_dump(mode="json")
+    for spec in old["rules"]["ships"].values():
+        spec.pop("carries")
+    loaded = GameState.model_validate(old)
+    assert loaded.rules.ships[Ship.GALLEON].carries == 2
