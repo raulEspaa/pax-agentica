@@ -88,7 +88,7 @@ from pax_agentica.engine.model import (
     Water,
 )
 from pax_agentica.engine.view import ProposalView, ProvinceView, RegionView
-from pax_agentica.tools import best_tactic, sea_command
+from pax_agentica.tools import best_tactic, landing, sea_command
 
 CAPITAL_GUARD = 3
 type Army = dict[UnitKind, int]
@@ -126,6 +126,7 @@ class _Planner:
         self.margin = margin
         self.provinces = {p.id: p for p in view.provinces}
         self.seas = {z.id: z for z in view.seas}
+        self.landings: dict[tuple[ProvinceId, ProvinceId], int] = {}  # what ships carry
         me = view.me.id
         # Where our regiments stand (our land and what we occupy), and what we can build on.
         self.mine = {p.id for p in view.provinces if (p.controller or p.owner) == me}
@@ -213,6 +214,8 @@ class _Planner:
             bonus += rules.capital_bonus
         if sea_command(self.v, origin, target.id) == "contested":
             bonus += rules.sea_crossing_bonus
+        elif (origin, target.id) in self.landings:  # off the boats, onto a defended beach
+            bonus += rules.sea_crossing_bonus + rules.landing_bonus - self.me.modifiers.landing
         return rules.defender_advantage * rules.terrain_defense[target.terrain] * (1 + bonus)
 
     def _needed(self, origin: ProvinceId, target: ProvinceView) -> int:
@@ -254,7 +257,37 @@ class _Planner:
                     if t in self.ambitions:  # a province our missions ask for
                         worth *= 2
                     found.append((worth / need, origin, t, need))
+        found += self._landing_targets()
         found.sort(key=lambda c: (-c[0], c[1], c[2]))
+        return found
+
+    def _landing_targets(self) -> list[tuple[float, ProvinceId, ProvinceId, int]]:
+        """At war, the enemy's shores our fleets can carry an army to: worth a little less
+        than a march (the beach is defended harder), and only if the ships carry enough."""
+        found: list[tuple[float, ProvinceId, ProvinceId, int]] = []
+        if not self.enemies:
+            return found
+        for origin in sorted(self.mine):
+            here = self.provinces[origin]
+            near = set(self._neighbors(origin)) | {origin}
+            for sea in here.seas:
+                for t in self.seas[sea].coasts:
+                    target = self.provinces[t]
+                    holder = target.controller or target.owner
+                    if t in near or holder not in self.enemies or target.siege_by is not None:
+                        continue
+                    if holder in self.suing_for_peace | self.mobilising:
+                        continue
+                    room = landing(self.v, origin, t)
+                    if not room:
+                        continue
+                    self.landings[(origin, t)] = room
+                    need = self._needed(origin, target)
+                    if need > room:
+                        del self.landings[(origin, t)]
+                        continue
+                    worth = target.development * (2 if target.owner == self.me.id else 1) * 0.8
+                    found.append((worth / need, origin, t, need))
         return found
 
     # ------------------------------------------------------------ 1. proposals
@@ -700,11 +733,14 @@ class _Planner:
                 continue
             spare = self.troops[origin] - self._reserve(origin)
             if spare < need:
-                self._joint_attack(target, need)  # several armies may manage what one cannot
+                if (origin, target) not in self.landings:
+                    self._joint_attack(target, need)  # several armies may do what one cannot
                 continue
             seen = self.provinces[target]
             fighting = (seen.troops or 0) or seen.siege_by is not None
             send = spare if fighting else min(spare, max(2, need + 2))
+            if (origin, target) in self.landings:  # no more than the ships can carry
+                send = min(send, self.landings[(origin, target)])
             leader = self.leaders.pop(origin, None)
             tactic = best_tactic(self.v, origin, target)
             self.actions.append(
