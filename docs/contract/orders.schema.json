@@ -1,0 +1,2148 @@
+{
+  "$defs": {
+    "Action": {
+      "discriminator": {
+        "mapping": {
+          "assign_general": "#/$defs/AssignGeneral",
+          "attack": "#/$defs/Attack",
+          "boost_stability": "#/$defs/BoostStability",
+          "build": "#/$defs/Build",
+          "build_colonial_fort": "#/$defs/BuildColonialFort",
+          "build_ships": "#/$defs/BuildShips",
+          "buy": "#/$defs/Buy",
+          "call_to_arms": "#/$defs/RequestCallToArms",
+          "cancel_treaty": "#/$defs/CancelTreaty",
+          "choose_agenda": "#/$defs/ChooseAgenda",
+          "choose_option": "#/$defs/ChooseOption",
+          "conquer_natives": "#/$defs/ConquerNatives",
+          "convert": "#/$defs/Convert",
+          "declare_war": "#/$defs/DeclareWar",
+          "develop": "#/$defs/Develop",
+          "disband": "#/$defs/Disband",
+          "dismiss_advisor": "#/$defs/DismissAdvisor",
+          "educate_heir": "#/$defs/EducateHeir",
+          "found_viceroyalty": "#/$defs/FoundViceroyalty",
+          "gift": "#/$defs/Gift",
+          "hire_advisor": "#/$defs/HireAdvisor",
+          "hire_general": "#/$defs/HireGeneral",
+          "hire_mercenaries": "#/$defs/HireMercenaries",
+          "improve": "#/$defs/Improve",
+          "lift_siege": "#/$defs/LiftSiege",
+          "move": "#/$defs/Move",
+          "patronize": "#/$defs/Patronize",
+          "press_claim": "#/$defs/PressClaim",
+          "proclaim": "#/$defs/Proclaim",
+          "propose_alliance": "#/$defs/ProposeAlliance",
+          "propose_coalition": "#/$defs/ProposeCoalition",
+          "propose_marriage": "#/$defs/ProposeMarriage",
+          "propose_non_aggression": "#/$defs/ProposeNonAggression",
+          "propose_peace": "#/$defs/ProposePeace",
+          "propose_trade": "#/$defs/ProposeTrade",
+          "recruit": "#/$defs/Recruit",
+          "research": "#/$defs/Research",
+          "respond": "#/$defs/Respond",
+          "royal_action": "#/$defs/RoyalAction",
+          "sail_fleet": "#/$defs/SailFleet",
+          "scrap_ships": "#/$defs/ScrapShips",
+          "seek_battle": "#/$defs/SeekBattle",
+          "seize_colony": "#/$defs/SeizeColony",
+          "sell": "#/$defs/Sell",
+          "send_expedition": "#/$defs/SendExpedition",
+          "send_message": "#/$defs/SendMessage",
+          "set_focus": "#/$defs/SetFocus",
+          "set_policy": "#/$defs/SetPolicy",
+          "set_posture": "#/$defs/SetPosture",
+          "set_stance": "#/$defs/SetStance",
+          "set_taxes": "#/$defs/SetTaxes",
+          "ship_troops": "#/$defs/ShipTroops",
+          "take_decision": "#/$defs/TakeDecision",
+          "upgrade_building": "#/$defs/UpgradeBuilding",
+          "upgrade_monument": "#/$defs/UpgradeMonument"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Recruit"
+        },
+        {
+          "$ref": "#/$defs/HireMercenaries"
+        },
+        {
+          "$ref": "#/$defs/Patronize"
+        },
+        {
+          "$ref": "#/$defs/SetTaxes"
+        },
+        {
+          "$ref": "#/$defs/Develop"
+        },
+        {
+          "$ref": "#/$defs/Disband"
+        },
+        {
+          "$ref": "#/$defs/Build"
+        },
+        {
+          "$ref": "#/$defs/UpgradeBuilding"
+        },
+        {
+          "$ref": "#/$defs/UpgradeMonument"
+        },
+        {
+          "$ref": "#/$defs/Improve"
+        },
+        {
+          "$ref": "#/$defs/SetFocus"
+        },
+        {
+          "$ref": "#/$defs/SetPosture"
+        },
+        {
+          "$ref": "#/$defs/SetPolicy"
+        },
+        {
+          "$ref": "#/$defs/RoyalAction"
+        },
+        {
+          "$ref": "#/$defs/ChooseAgenda"
+        },
+        {
+          "$ref": "#/$defs/EducateHeir"
+        },
+        {
+          "$ref": "#/$defs/PressClaim"
+        },
+        {
+          "$ref": "#/$defs/BuildShips"
+        },
+        {
+          "$ref": "#/$defs/ScrapShips"
+        },
+        {
+          "$ref": "#/$defs/SailFleet"
+        },
+        {
+          "$ref": "#/$defs/SeekBattle"
+        },
+        {
+          "$ref": "#/$defs/SendExpedition"
+        },
+        {
+          "$ref": "#/$defs/TakeDecision"
+        },
+        {
+          "$ref": "#/$defs/FoundViceroyalty"
+        },
+        {
+          "$ref": "#/$defs/SeizeColony"
+        },
+        {
+          "$ref": "#/$defs/ShipTroops"
+        },
+        {
+          "$ref": "#/$defs/BuildColonialFort"
+        },
+        {
+          "$ref": "#/$defs/ConquerNatives"
+        },
+        {
+          "$ref": "#/$defs/Convert"
+        },
+        {
+          "$ref": "#/$defs/BoostStability"
+        },
+        {
+          "$ref": "#/$defs/Research"
+        },
+        {
+          "$ref": "#/$defs/HireGeneral"
+        },
+        {
+          "$ref": "#/$defs/AssignGeneral"
+        },
+        {
+          "$ref": "#/$defs/HireAdvisor"
+        },
+        {
+          "$ref": "#/$defs/DismissAdvisor"
+        },
+        {
+          "$ref": "#/$defs/Move"
+        },
+        {
+          "$ref": "#/$defs/Attack"
+        },
+        {
+          "$ref": "#/$defs/LiftSiege"
+        },
+        {
+          "$ref": "#/$defs/DeclareWar"
+        },
+        {
+          "$ref": "#/$defs/ProposeAlliance"
+        },
+        {
+          "$ref": "#/$defs/ProposeNonAggression"
+        },
+        {
+          "$ref": "#/$defs/ProposeMarriage"
+        },
+        {
+          "$ref": "#/$defs/ProposeCoalition"
+        },
+        {
+          "$ref": "#/$defs/ProposePeace"
+        },
+        {
+          "$ref": "#/$defs/ProposeTrade"
+        },
+        {
+          "$ref": "#/$defs/RequestCallToArms"
+        },
+        {
+          "$ref": "#/$defs/Respond"
+        },
+        {
+          "$ref": "#/$defs/CancelTreaty"
+        },
+        {
+          "$ref": "#/$defs/Gift"
+        },
+        {
+          "$ref": "#/$defs/SendMessage"
+        },
+        {
+          "$ref": "#/$defs/SetStance"
+        },
+        {
+          "$ref": "#/$defs/Proclaim"
+        },
+        {
+          "$ref": "#/$defs/ChooseOption"
+        },
+        {
+          "$ref": "#/$defs/Buy"
+        },
+        {
+          "$ref": "#/$defs/Sell"
+        }
+      ]
+    },
+    "AdvisorRole": {
+      "enum": [
+        "treasurer",
+        "chancellor",
+        "marshal"
+      ],
+      "title": "AdvisorRole",
+      "type": "string"
+    },
+    "AssignGeneral": {
+      "additionalProperties": false,
+      "description": "Send one of your generals to take command in another of your provinces.",
+      "properties": {
+        "general": {
+          "title": "General",
+          "type": "integer"
+        },
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "assign_general",
+          "default": "assign_general",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "general",
+        "province"
+      ],
+      "title": "AssignGeneral",
+      "type": "object"
+    },
+    "Attack": {
+      "additionalProperties": false,
+      "description": "Attack an adjacent province owned by a nation you are at war with, or an independent one.\n\nIf you win, your surviving regiments take the province. Behind walls they lay a siege\ninstead: they camp before the walls, which fall once the siege reaches 100% (see\n`siege_modifiers` on the province). Attacking a province you besiege sends reinforcements\nto the siege lines; attacking a province of yours (or an ally's) under siege fights the\nbesiegers to relieve it.\n\nA landing: from a coastal province, attack any province on the same sea zone where your\nfleet is stronger than the defender's; the ships there carry the men (rules.ships carries)\nand the defenders fight rules.sea_crossing_bonus + rules.landing_bonus harder on the beach.",
+      "properties": {
+        "general": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Id of one of your generals in `origin` to lead them.",
+          "title": "General"
+        },
+        "origin": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "regiments": {
+          "description": "Number of regiments (1 or more).",
+          "exclusiveMinimum": 0,
+          "maximum": 500,
+          "title": "Regiments",
+          "type": "integer"
+        },
+        "tactic": {
+          "$ref": "#/$defs/Tactic",
+          "default": "assault",
+          "description": "How to fight it, against the garrison's posture (see the province's `posture`). assault (carried by infantry) beats a garrison that skirmishes and breaks on one that holds the line; flank (cavalry; gains half as much in forest, hills, marsh and mountains) turns a held line and is caught by a sally; bombard (artillery) shatters a sally and is picked off by skirmishers. Worth rules.tactic_edge either way, as far as the regiments that carry it can; a tactic your army cannot carry (a flank without horse) costs as much as one outguessed. `targets` tells the best one."
+        },
+        "target": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "attack",
+          "default": "attack",
+          "title": "Type",
+          "type": "string"
+        },
+        "units": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "maximum": 500,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "description": "Regiments of each kind, e.g. {\"infantry\": 6, \"cavalry\": 2}.",
+              "propertyNames": {
+                "$ref": "#/$defs/UnitKind"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exactly which regiments attack, by kind, adding up to `regiments`. Leave out to send a proportional mix. Cavalry charges best on plains; every tenth of the army in artillery knocks a fort level off.",
+          "title": "Units"
+        }
+      },
+      "required": [
+        "origin",
+        "target",
+        "regiments"
+      ],
+      "title": "Attack",
+      "type": "object"
+    },
+    "BoostStability": {
+      "additionalProperties": false,
+      "description": "Spend ducats to raise your stability by 1 (stability boosts ducat income).",
+      "properties": {
+        "type": {
+          "const": "boost_stability",
+          "default": "boost_stability",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "BoostStability",
+      "type": "object"
+    },
+    "Build": {
+      "additionalProperties": false,
+      "description": "Construct a building in one of your provinces. Each costs and does what the rules'\n`buildings` catalogue says. A province has as many slots as its town allows (its\n`building_slots` in the view), holds each building once, and a citadel needs a fort first.",
+      "properties": {
+        "building": {
+          "$ref": "#/$defs/BuildingKind"
+        },
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "build",
+          "default": "build",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province",
+        "building"
+      ],
+      "title": "Build",
+      "type": "object"
+    },
+    "BuildColonialFort": {
+      "additionalProperties": false,
+      "description": "Raise a fort over your colonies in a region (rules.colonial_fort_cost a level, up to\nrules.colonial_fort_max): their defenders hold out rules.colonial_fort_defence better a\nlevel.",
+      "properties": {
+        "region": {
+          "$ref": "#/$defs/Region"
+        },
+        "type": {
+          "const": "build_colonial_fort",
+          "default": "build_colonial_fort",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "region"
+      ],
+      "title": "BuildColonialFort",
+      "type": "object"
+    },
+    "BuildShips": {
+      "additionalProperties": false,
+      "description": "Launch ships from a port of yours into one of the sea zones it looks onto (name it if it\nhas more than one; see the province's `seas`). Galleys are cheap and rule calm seas;\ngalleons cost more, rule the ocean and carry more men (see rules.ships). A port launches\nat most rules.ships_per_port ships a year, and one more for every 3 development.",
+      "properties": {
+        "count": {
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "sea": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SeaId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ship": {
+          "$ref": "#/$defs/Ship"
+        },
+        "type": {
+          "const": "build_ships",
+          "default": "build_ships",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province",
+        "ship",
+        "count"
+      ],
+      "title": "BuildShips",
+      "type": "object"
+    },
+    "BuildingKind": {
+      "enum": [
+        "marketplace",
+        "farm_estates",
+        "ironworks",
+        "lumber_mill",
+        "university",
+        "bank",
+        "cathedral",
+        "barracks",
+        "armory",
+        "training_grounds",
+        "fort",
+        "citadel",
+        "workshop",
+        "stables",
+        "cannon_foundry",
+        "military_academy",
+        "arms_manufactory",
+        "powder_mill",
+        "royal_exchange",
+        "observatory"
+      ],
+      "title": "BuildingKind",
+      "type": "string"
+    },
+    "Buy": {
+      "additionalProperties": false,
+      "description": "Buy from the European market at today's price plus the merchants' cut (see\n`market`). What all Europe buys and sells this year moves next year's prices.",
+      "properties": {
+        "amount": {
+          "exclusiveMinimum": 0,
+          "maximum": 200,
+          "title": "Amount",
+          "type": "integer"
+        },
+        "resource": {
+          "enum": [
+            "grain",
+            "iron",
+            "timber",
+            "goods"
+          ],
+          "title": "Resource",
+          "type": "string"
+        },
+        "type": {
+          "const": "buy",
+          "default": "buy",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource",
+        "amount"
+      ],
+      "title": "Buy",
+      "type": "object"
+    },
+    "CancelTreaty": {
+      "additionalProperties": false,
+      "description": "End an alliance, a non-aggression pact, a marriage or every coalition with `target`\nopenly. No stability cost.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "alliance",
+            "non_aggression",
+            "marriage",
+            "coalition"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "cancel_treaty",
+          "default": "cancel_treaty",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "kind"
+      ],
+      "title": "CancelTreaty",
+      "type": "object"
+    },
+    "ChooseAgenda": {
+      "additionalProperties": false,
+      "description": "Give the reign an ambition, one of the agendas offered in your view (`agenda_offers`).\nFulfilled, it brings rules.agenda_prestige prestige and rules.agenda_authority authority,\nand the ruler may take another.",
+      "properties": {
+        "agenda": {
+          "title": "Agenda",
+          "type": "string"
+        },
+        "type": {
+          "const": "choose_agenda",
+          "default": "choose_agenda",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agenda"
+      ],
+      "title": "ChooseAgenda",
+      "type": "object"
+    },
+    "ChooseOption": {
+      "additionalProperties": false,
+      "description": "Answer one of your pending events (see `me.pending_events`) with one of its options, by\nindex. Unanswered by the end of the next year, an event takes its first option.",
+      "properties": {
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "option": {
+          "minimum": 0,
+          "title": "Option",
+          "type": "integer"
+        },
+        "type": {
+          "const": "choose_option",
+          "default": "choose_option",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "option"
+      ],
+      "title": "ChooseOption",
+      "type": "object"
+    },
+    "ColonyKind": {
+      "description": "How a colony is founded and worked.",
+      "enum": [
+        "plantation",
+        "post",
+        "settlement"
+      ],
+      "title": "ColonyKind",
+      "type": "string"
+    },
+    "ConquerNatives": {
+      "additionalProperties": false,
+      "description": "March on the peoples of a region where you hold a colony: your garrison there and\n`regiments` carried from your `port` against their strength on their own ground. Each\nvictory kills many of their warriors and brings plunder (and a little infamy); break them\nand the plunder of an empire is yours, and they no longer deny anyone the region's dues.",
+      "properties": {
+        "port": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvinceId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "regiments": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Regiments",
+          "type": "integer"
+        },
+        "region": {
+          "$ref": "#/$defs/Region"
+        },
+        "type": {
+          "const": "conquer_natives",
+          "default": "conquer_natives",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "region"
+      ],
+      "title": "ConquerNatives",
+      "type": "object"
+    },
+    "Convert": {
+      "additionalProperties": false,
+      "description": "Send preachers to one of your provinces whose people keep another faith: it takes yours at\nonce, ending its discontent (a province of another faith yields rules.faith_mismatch_output\nless). Costs rules.convert_cost plus convert_cost_per_development ducats a level; one a year.",
+      "properties": {
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "convert",
+          "default": "convert",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province"
+      ],
+      "title": "Convert",
+      "type": "object"
+    },
+    "DeclareWar": {
+      "additionalProperties": false,
+      "description": "Declare war. Breaks any alliance, non-aggression pact or truce with the target, which costs\nstability and is seen by everyone. The target's allies are called to arms against you.",
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "declare_war",
+          "default": "declare_war",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "DeclareWar",
+      "type": "object"
+    },
+    "Develop": {
+      "additionalProperties": false,
+      "description": "Invest ducats to raise a province's development by 1 (more output, more score).",
+      "properties": {
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "develop",
+          "default": "develop",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province"
+      ],
+      "title": "Develop",
+      "type": "object"
+    },
+    "Disband": {
+      "additionalProperties": false,
+      "description": "Send regiments home: they stop costing grain and ducats, and their men return to the\nmanpower pool (up to its cap).",
+      "properties": {
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "regiments": {
+          "description": "Number of regiments (1 or more).",
+          "exclusiveMinimum": 0,
+          "maximum": 500,
+          "title": "Regiments",
+          "type": "integer"
+        },
+        "type": {
+          "const": "disband",
+          "default": "disband",
+          "title": "Type",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UnitKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only this kind; leave out for a proportional mix."
+        }
+      },
+      "required": [
+        "province",
+        "regiments"
+      ],
+      "title": "Disband",
+      "type": "object"
+    },
+    "DismissAdvisor": {
+      "additionalProperties": false,
+      "description": "Send an advisor away: no more salary, no more bonus.",
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/AdvisorRole"
+        },
+        "type": {
+          "const": "dismiss_advisor",
+          "default": "dismiss_advisor",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role"
+      ],
+      "title": "DismissAdvisor",
+      "type": "object"
+    },
+    "EducateHeir": {
+      "additionalProperties": false,
+      "description": "Give the heir tutors in one of the three arts of rule: +1 to that skill (up to 6), for\nrules.education_cost and rules.education_authority authority. Once a year.",
+      "properties": {
+        "skill": {
+          "enum": [
+            "administration",
+            "diplomacy",
+            "military"
+          ],
+          "title": "Skill",
+          "type": "string"
+        },
+        "type": {
+          "const": "educate_heir",
+          "default": "educate_heir",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "skill"
+      ],
+      "title": "EducateHeir",
+      "type": "object"
+    },
+    "Focus": {
+      "description": "What a province's people turn their hands to. A focus strengthens one side of its\noutput, the more the larger its town.",
+      "enum": [
+        "trade",
+        "farming",
+        "mining",
+        "garrison",
+        "learning",
+        "shipyard"
+      ],
+      "title": "Focus",
+      "type": "string"
+    },
+    "FoundViceroyalty": {
+      "additionalProperties": false,
+      "description": "Make a region where you hold rules.viceroyalty_colonies colonies a viceroyalty, under a\nviceroy of skill 1 to 3: more cargo there (rules.viceroy_cargo a point of skill), and the\ncolonies better held. Costs rules.viceroyalty_cost and rules.viceroyalty_authority.",
+      "properties": {
+        "region": {
+          "$ref": "#/$defs/Region"
+        },
+        "type": {
+          "const": "found_viceroyalty",
+          "default": "found_viceroyalty",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "region"
+      ],
+      "title": "FoundViceroyalty",
+      "type": "object"
+    },
+    "Gift": {
+      "additionalProperties": false,
+      "description": "Give resources to another nation, no strings attached.",
+      "properties": {
+        "resources": {
+          "$ref": "#/$defs/Resources"
+        },
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "gift",
+          "default": "gift",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "resources"
+      ],
+      "title": "Gift",
+      "type": "object"
+    },
+    "HireAdvisor": {
+      "additionalProperties": false,
+      "description": "Bring one of the candidates at your court onto your council (see\n`advisor_candidates` in your view). Replaces whoever holds that seat.",
+      "properties": {
+        "candidate": {
+          "title": "Candidate",
+          "type": "integer"
+        },
+        "type": {
+          "const": "hire_advisor",
+          "default": "hire_advisor",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate"
+      ],
+      "title": "HireAdvisor",
+      "type": "object"
+    },
+    "HireGeneral": {
+      "additionalProperties": false,
+      "description": "Appoint a new general in one of your provinces. His skill (1 to 3) is up to fortune.",
+      "properties": {
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "hire_general",
+          "default": "hire_general",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province"
+      ],
+      "title": "HireGeneral",
+      "type": "object"
+    },
+    "HireMercenaries": {
+      "additionalProperties": false,
+      "description": "Hire mercenary pikemen (Landsknechte, Swiss) in one of your provinces for ducats alone:\nno manpower and no iron, at the rules' mercenary_cost a regiment, up to mercenary_limit\nregiments a year. Once hired they serve, eat and are paid like any infantry.",
+      "properties": {
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "regiments": {
+          "description": "Number of regiments (1 or more).",
+          "exclusiveMinimum": 0,
+          "maximum": 500,
+          "title": "Regiments",
+          "type": "integer"
+        },
+        "type": {
+          "const": "hire_mercenaries",
+          "default": "hire_mercenaries",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province",
+        "regiments"
+      ],
+      "title": "HireMercenaries",
+      "type": "object"
+    },
+    "Improve": {
+      "additionalProperties": false,
+      "description": "Improve the workings of one of your provinces by a level (up to 3): its mine,\nvineyard, fishery or looms, by what it is known for. Each level adds half of what its good\nyields; it takes no building slot. The next level costs the rules' improve_cost times it.",
+      "properties": {
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "improve",
+          "default": "improve",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province"
+      ],
+      "title": "Improve",
+      "type": "object"
+    },
+    "LiftSiege": {
+      "additionalProperties": false,
+      "description": "Raise a siege you lay: the besiegers march back to one of your provinces next to it.",
+      "properties": {
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "lift_siege",
+          "default": "lift_siege",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province"
+      ],
+      "title": "LiftSiege",
+      "type": "object"
+    },
+    "Move": {
+      "additionalProperties": false,
+      "description": "Move regiments between two adjacent provinces that you own. Happens before battles. By\nsea too: between two of your coastal provinces on the same sea zone, if your ships there\ncan carry them and no enemy fleet commands it.",
+      "properties": {
+        "general": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Id of one of your generals in `origin` to lead them.",
+          "title": "General"
+        },
+        "origin": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "regiments": {
+          "description": "Number of regiments (1 or more).",
+          "exclusiveMinimum": 0,
+          "maximum": 500,
+          "title": "Regiments",
+          "type": "integer"
+        },
+        "target": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "move",
+          "default": "move",
+          "title": "Type",
+          "type": "string"
+        },
+        "units": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "maximum": 500,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "description": "Regiments of each kind, e.g. {\"infantry\": 6, \"cavalry\": 2}.",
+              "propertyNames": {
+                "$ref": "#/$defs/UnitKind"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exactly which regiments go, by kind, adding up to `regiments`. Leave out to send a proportional mix of what stands in `origin`.",
+          "title": "Units"
+        }
+      },
+      "required": [
+        "origin",
+        "target",
+        "regiments"
+      ],
+      "title": "Move",
+      "type": "object"
+    },
+    "NationId": {
+      "type": "string"
+    },
+    "Patronize": {
+      "additionalProperties": false,
+      "description": "Patronise painters, churches and feasts: once a year, spend patronage_base ducats plus\npatronage_per_prestige for every point of prestige you hold, for patronage_prestige more\nprestige. Prestige raises income and counts in the final score.",
+      "properties": {
+        "type": {
+          "const": "patronize",
+          "default": "patronize",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "Patronize",
+      "type": "object"
+    },
+    "PolicyAxis": {
+      "description": "A great choice of how the realm is run: one side or the other, or neither.",
+      "enum": [
+        "army",
+        "economy",
+        "state"
+      ],
+      "title": "PolicyAxis",
+      "type": "string"
+    },
+    "Posture": {
+      "description": "How a province's garrison waits for an attack.",
+      "enum": [
+        "hold",
+        "skirmish",
+        "sally"
+      ],
+      "title": "Posture",
+      "type": "string"
+    },
+    "PressClaim": {
+      "additionalProperties": false,
+      "description": "A throne's line has failed and your crown, married into it, holds a claim (see `claims`\nin your view): press it by war, or renounce it for the goodwill of its court. The claim is\nspent either way.",
+      "properties": {
+        "nation": {
+          "$ref": "#/$defs/NationId"
+        },
+        "press": {
+          "default": true,
+          "title": "Press",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "press_claim",
+          "default": "press_claim",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nation"
+      ],
+      "title": "PressClaim",
+      "type": "object"
+    },
+    "Proclaim": {
+      "additionalProperties": false,
+      "description": "Speak to all Europe: a public proclamation every court reads next turn. Like letters, it\nbinds nobody.",
+      "properties": {
+        "text": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "const": "proclaim",
+          "default": "proclaim",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "Proclaim",
+      "type": "object"
+    },
+    "ProposeAlliance": {
+      "additionalProperties": false,
+      "description": "Offer an alliance. Allies share vision and are called to arms when one is attacked.",
+      "properties": {
+        "note": {
+          "default": "",
+          "maxLength": 300,
+          "title": "Note",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "propose_alliance",
+          "default": "propose_alliance",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "ProposeAlliance",
+      "type": "object"
+    },
+    "ProposeCoalition": {
+      "additionalProperties": false,
+      "description": "Invite `target` into a defensive league against `against`, a power whose infamy has\nreached rules.coalition_infamy. Once signed, if `against` declares war on either of you, the\nother (and every other court leagued against it) goes to war at once, without being asked.\nThe league dissolves when the conqueror's infamy falls below rules.coalition_dissolves.",
+      "properties": {
+        "against": {
+          "$ref": "#/$defs/NationId"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 300,
+          "title": "Note",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "propose_coalition",
+          "default": "propose_coalition",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "against"
+      ],
+      "title": "ProposeCoalition",
+      "type": "object"
+    },
+    "ProposeMarriage": {
+      "additionalProperties": false,
+      "description": "Offer a royal marriage between the two houses. It lasts until war breaks it: both courts\nwarm to each other by rules.opinion_marriage_yearly every year. At most rules.max_marriages\nfor a realm.",
+      "properties": {
+        "note": {
+          "default": "",
+          "maxLength": 300,
+          "title": "Note",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "propose_marriage",
+          "default": "propose_marriage",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "ProposeMarriage",
+      "type": "object"
+    },
+    "ProposeNonAggression": {
+      "additionalProperties": false,
+      "description": "Offer a non-aggression pact for a fixed number of turns.",
+      "properties": {
+        "note": {
+          "default": "",
+          "maxLength": 300,
+          "title": "Note",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "propose_non_aggression",
+          "default": "propose_non_aggression",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "ProposeNonAggression",
+      "type": "object"
+    },
+    "ProposePeace": {
+      "additionalProperties": false,
+      "description": "Offer peace to a nation you are at war with. Accepted peace starts a five-year truce and\ncarries out the terms. The recipient may accept, reject, or answer with a counter-offer.",
+      "properties": {
+        "ask_tribute": {
+          "default": 0,
+          "description": "Ducats a year they pay you, for 10 years.",
+          "maximum": 500,
+          "minimum": 0,
+          "title": "Ask Tribute",
+          "type": "integer"
+        },
+        "cede": {
+          "description": "Your provinces you hand over.",
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "maxItems": 8,
+          "title": "Cede",
+          "type": "array"
+        },
+        "demand": {
+          "description": "Their provinces you ask for.",
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "maxItems": 8,
+          "title": "Demand",
+          "type": "array"
+        },
+        "give": {
+          "$ref": "#/$defs/Resources",
+          "description": "A lump sum you pay."
+        },
+        "limit_army": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Their army may not grow beyond this many regiments while the truce lasts.",
+          "title": "Limit Army"
+        },
+        "note": {
+          "default": "",
+          "description": "Your words to go with the offer: arguments, threats, promises. They bind nobody.",
+          "maxLength": 300,
+          "title": "Note",
+          "type": "string"
+        },
+        "pay_tribute": {
+          "default": 0,
+          "description": "Ducats a year you pay them, for 10 years.",
+          "maximum": 500,
+          "minimum": 0,
+          "title": "Pay Tribute",
+          "type": "integer"
+        },
+        "receive": {
+          "$ref": "#/$defs/Resources",
+          "description": "A lump sum you demand."
+        },
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "propose_peace",
+          "default": "propose_peace",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "ProposePeace",
+      "type": "object"
+    },
+    "ProposeTrade": {
+      "additionalProperties": false,
+      "description": "Offer an exchange: you give `give` and receive `receive` if the target accepts.\n\nAsking for something while giving nothing is a demand for tribute.",
+      "properties": {
+        "give": {
+          "$ref": "#/$defs/Resources",
+          "description": "What you hand over."
+        },
+        "note": {
+          "default": "",
+          "description": "Your words to go with the offer: arguments, threats, promises. They bind nobody.",
+          "maxLength": 300,
+          "title": "Note",
+          "type": "string"
+        },
+        "receive": {
+          "$ref": "#/$defs/Resources",
+          "description": "What you ask for."
+        },
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "propose_trade",
+          "default": "propose_trade",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "ProposeTrade",
+      "type": "object"
+    },
+    "ProvinceId": {
+      "type": "string"
+    },
+    "Recruit": {
+      "additionalProperties": false,
+      "description": "Raise new regiments of one kind in one of your provinces. Pikemen (infantry) can be\nraised anywhere; cavalry needs stables in the province and artillery a cannon foundry. See\n`rules.units` for what each kind costs and how it fights.",
+      "properties": {
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "regiments": {
+          "description": "Number of regiments (1 or more).",
+          "exclusiveMinimum": 0,
+          "maximum": 500,
+          "title": "Regiments",
+          "type": "integer"
+        },
+        "type": {
+          "const": "recruit",
+          "default": "recruit",
+          "title": "Type",
+          "type": "string"
+        },
+        "unit": {
+          "$ref": "#/$defs/UnitKind",
+          "default": "infantry"
+        }
+      },
+      "required": [
+        "province",
+        "regiments"
+      ],
+      "title": "Recruit",
+      "type": "object"
+    },
+    "Region": {
+      "description": "The lands beyond the sea that crowns may colonise: not on the map, but in the menu of\nthe New World.",
+      "enum": [
+        "caribbean",
+        "brazil",
+        "guinea",
+        "new_spain",
+        "east_indies",
+        "peru",
+        "north_america"
+      ],
+      "title": "Region",
+      "type": "string"
+    },
+    "RequestCallToArms": {
+      "additionalProperties": false,
+      "description": "Ask an ally to join your war against `enemy`. An ally who refuses or ignores the call\ndissolves the alliance, in public.",
+      "properties": {
+        "enemy": {
+          "$ref": "#/$defs/NationId"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 300,
+          "title": "Note",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "call_to_arms",
+          "default": "call_to_arms",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "enemy"
+      ],
+      "title": "RequestCallToArms",
+      "type": "object"
+    },
+    "Research": {
+      "additionalProperties": false,
+      "description": "Advance one technology branch by a level: military (stronger armies), economy (richer\nprovinces), engineering (cheaper building and development), naval (stronger fleets, cheaper\nships, faster expeditions) or administration (a steadier realm, cheaper research, less\ninfamy). One research a year. Some levels need a level of another branch first (see\nrules.tech_tree requires). Every level offers doctrines to choose between: `choice` is the\nindex of the one you take, for good.",
+      "properties": {
+        "branch": {
+          "$ref": "#/$defs/TechBranch"
+        },
+        "choice": {
+          "default": 0,
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Choice",
+          "type": "integer"
+        },
+        "type": {
+          "const": "research",
+          "default": "research",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "branch"
+      ],
+      "title": "Research",
+      "type": "object"
+    },
+    "Resources": {
+      "additionalProperties": false,
+      "description": "A bundle of the six national resources. Never negative.",
+      "properties": {
+        "ducats": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Ducats",
+          "type": "integer"
+        },
+        "goods": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Goods",
+          "type": "integer"
+        },
+        "grain": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Grain",
+          "type": "integer"
+        },
+        "iron": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Iron",
+          "type": "integer"
+        },
+        "manpower": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Manpower",
+          "type": "integer"
+        },
+        "timber": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Timber",
+          "type": "integer"
+        }
+      },
+      "title": "Resources",
+      "type": "object"
+    },
+    "Respond": {
+      "additionalProperties": false,
+      "description": "Accept or reject a proposal addressed to you. Unanswered proposals expire; ignoring a call\nto arms from an ally dissolves the alliance.\n\nTo haggle over a peace or a trade, reject it with a `counter`: your own terms, written from\nyour side (`give` is what you would pay). It reaches them as a new proposal next turn, and\nthey can accept, reject or counter again. A trade's counter may only use `give`, `receive`\nand `note`.",
+      "properties": {
+        "accept": {
+          "title": "Accept",
+          "type": "boolean"
+        },
+        "counter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Terms"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "note": {
+          "default": "",
+          "maxLength": 300,
+          "title": "Note",
+          "type": "string"
+        },
+        "proposal_id": {
+          "title": "Proposal Id",
+          "type": "integer"
+        },
+        "type": {
+          "const": "respond",
+          "default": "respond",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "proposal_id",
+        "accept"
+      ],
+      "title": "Respond",
+      "type": "object"
+    },
+    "RoyalAct": {
+      "description": "What a crown can do by its own authority (see Rules.royal_acts).",
+      "enum": [
+        "levy",
+        "progress",
+        "banners",
+        "pardon",
+        "embassy",
+        "presence",
+        "church"
+      ],
+      "title": "RoyalAct",
+      "type": "string"
+    },
+    "RoyalAction": {
+      "additionalProperties": false,
+      "description": "Spend the crown's authority (it gathers every year by the ruler's skills) on a royal\nact (see rules.royal_acts for each one's cost and effect): an extraordinary levy, a royal\nprogress, calling the banners, a general pardon, a royal embassy to `target`, leading the\narmy in person, or patronage of the Church.",
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/RoyalAct"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NationId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The court an embassy goes to."
+        },
+        "type": {
+          "const": "royal_action",
+          "default": "royal_action",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "act"
+      ],
+      "title": "RoyalAction",
+      "type": "object"
+    },
+    "SailFleet": {
+      "additionalProperties": false,
+      "description": "Sail ships from a sea zone to a neighbouring one, before the battles: fleets move a zone\na year, as armies march a province. Sail into an enemy's zone and seek_battle there the\nsame year.",
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/SeaId"
+        },
+        "ships": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Ship"
+          },
+          "title": "Ships",
+          "type": "object"
+        },
+        "target": {
+          "$ref": "#/$defs/SeaId"
+        },
+        "type": {
+          "const": "sail_fleet",
+          "default": "sail_fleet",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "origin",
+        "target",
+        "ships"
+      ],
+      "title": "SailFleet",
+      "type": "object"
+    },
+    "ScrapShips": {
+      "additionalProperties": false,
+      "description": "Lay up ships of yours in a sea zone.",
+      "properties": {
+        "count": {
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "sea": {
+          "$ref": "#/$defs/SeaId"
+        },
+        "ship": {
+          "$ref": "#/$defs/Ship"
+        },
+        "type": {
+          "const": "scrap_ships",
+          "default": "scrap_ships",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sea",
+        "ship",
+        "count"
+      ],
+      "title": "ScrapShips",
+      "type": "object"
+    },
+    "SeaId": {
+      "type": "string"
+    },
+    "SeekBattle": {
+      "additionalProperties": false,
+      "description": "Send your fleet in a sea zone against the fleet of a realm you are at war with in the\nsame zone, after the fleets have sailed and before the armies march. Strength is each\nship's in that kind of water, times a roll of the dice and each realm's morale; the beaten\nfleet loses half its ships. A fleet rules.fleet_command times the enemy's in a zone closes\nits straits to the enemy's armies and blockades its ports there; any fleet stronger than\nthe defender's lets your armies cross its straits freely and land on its shores.",
+      "properties": {
+        "enemy": {
+          "$ref": "#/$defs/NationId"
+        },
+        "sea": {
+          "$ref": "#/$defs/SeaId"
+        },
+        "type": {
+          "const": "seek_battle",
+          "default": "seek_battle",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sea",
+        "enemy"
+      ],
+      "title": "SeekBattle",
+      "type": "object"
+    },
+    "SeizeColony": {
+      "additionalProperties": false,
+      "description": "At war, take one of an enemy's colonies in a region. Colonies nobody defends fall to a\nfleet: your Atlantic fleet must be rules.seize_command times the enemy's (England's Sea Dogs\nneed less). Colonies held by a garrison or by settlers must be stormed: `regiments` sail\nfrom your `port` (and your own garrison in the region joins them), your ocean fleet at least\nthe enemy's; they fight the defenders behind their forts. Win, and the colony is yours and\nthe survivors garrison it; lose, and they come back to the port.",
+      "properties": {
+        "enemy": {
+          "$ref": "#/$defs/NationId"
+        },
+        "port": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvinceId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "regiments": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Regiments",
+          "type": "integer"
+        },
+        "region": {
+          "$ref": "#/$defs/Region"
+        },
+        "type": {
+          "const": "seize_colony",
+          "default": "seize_colony",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "region",
+        "enemy"
+      ],
+      "title": "SeizeColony",
+      "type": "object"
+    },
+    "Sell": {
+      "additionalProperties": false,
+      "description": "Sell to the European market at today's price minus the merchants' cut.",
+      "properties": {
+        "amount": {
+          "exclusiveMinimum": 0,
+          "maximum": 200,
+          "title": "Amount",
+          "type": "integer"
+        },
+        "resource": {
+          "enum": [
+            "grain",
+            "iron",
+            "timber",
+            "goods"
+          ],
+          "title": "Resource",
+          "type": "string"
+        },
+        "type": {
+          "const": "sell",
+          "default": "sell",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource",
+        "amount"
+      ],
+      "title": "Sell",
+      "type": "object"
+    },
+    "SendExpedition": {
+      "additionalProperties": false,
+      "description": "Send settlers and soldiers to found a colony in a region beyond the sea (see\n`new_world` in your view: what each region yields, when it opens, how many places are left\nand how fast your expeditions go). Needs a port of yours on the Atlantic or the Baltic and\nan escort of rules.expedition_ships fleet strength there; costs rules.expedition_cost, times\nthe kind's cost (rules.colony_kinds). Each year it makes progress; at 100% the colony is\nfounded, unless the region filled up first. A plantation ships the region's full cargo and\nangers its peoples; a trading post is cheap and quick but ships 60%; a settlement starts at\nhalf, grows to half again as much, and defends itself.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ColonyKind",
+          "default": "plantation"
+        },
+        "region": {
+          "$ref": "#/$defs/Region"
+        },
+        "type": {
+          "const": "send_expedition",
+          "default": "send_expedition",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "region"
+      ],
+      "title": "SendExpedition",
+      "type": "object"
+    },
+    "SendMessage": {
+      "additionalProperties": false,
+      "description": "Send a private diplomatic message. The target reads it next turn. It has no effect on\nthe rules: words are only words.",
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "const": "send_message",
+          "default": "send_message",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "text"
+      ],
+      "title": "SendMessage",
+      "type": "object"
+    },
+    "SetFocus": {
+      "additionalProperties": false,
+      "description": "Turn one of your provinces to a focus: trade (more ducats), farming (more grain), mining\n(more iron and timber), garrison (more manpower, defended harder) or learning (cheaper to\ndevelop; each province of learning makes the realm's research cheaper). The bonus is\nrules.focus_base plus focus_per_settlement for each step its town has grown above a hamlet.\nCosts rules.focus_cost; a province keeps its focus at least rules.focus_years years.",
+      "properties": {
+        "focus": {
+          "$ref": "#/$defs/Focus"
+        },
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "set_focus",
+          "default": "set_focus",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province",
+        "focus"
+      ],
+      "title": "SetFocus",
+      "type": "object"
+    },
+    "SetPolicy": {
+      "additionalProperties": false,
+      "description": "Take a side on one of the realm's great choices (see rules.policies): army (a\nprofessional army or militia levies), economy (agrarian or mercantile) or state (centralism\nor fueros). The first side taken on an axis is free; changing it later costs\nrules.policy_stability stability, and a policy stands at least rules.policy_years years.",
+      "properties": {
+        "axis": {
+          "$ref": "#/$defs/PolicyAxis"
+        },
+        "side": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Side",
+          "type": "integer"
+        },
+        "type": {
+          "const": "set_policy",
+          "default": "set_policy",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "axis",
+        "side"
+      ],
+      "title": "SetPolicy",
+      "type": "object"
+    },
+    "SetPosture": {
+      "additionalProperties": false,
+      "description": "Tell the garrison of one of your provinces how to wait for an attack: hold (the line of\npikes, carried by infantry), skirmish (shot and bows thrown forward, carried by archers) or\nsally (horse kept back to charge, carried by cavalry). Each beats one attacking tactic and\nloses to another (see Attack.tactic). Free; whoever can see the garrison sees its posture.",
+      "properties": {
+        "posture": {
+          "$ref": "#/$defs/Posture"
+        },
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "set_posture",
+          "default": "set_posture",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province",
+        "posture"
+      ],
+      "title": "SetPosture",
+      "type": "object"
+    },
+    "SetStance": {
+      "additionalProperties": false,
+      "description": "Declare a court your friend or your rival, or neutral again. Stances are public: every\ncourt sees them. A friend warms to you every year, a rival cools, and your regiments fight 5%\nharder against a declared rival. At most three friends and three rivals.",
+      "properties": {
+        "stance": {
+          "$ref": "#/$defs/Stance"
+        },
+        "target": {
+          "$ref": "#/$defs/NationId"
+        },
+        "type": {
+          "const": "set_stance",
+          "default": "set_stance",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "stance"
+      ],
+      "title": "SetStance",
+      "type": "object"
+    },
+    "SetTaxes": {
+      "additionalProperties": false,
+      "description": "Set the realm's taxes from -2 (very low) to +2 (very high). Each level up brings\nrules.tax_income_step more ducat income and rules.tax_manpower_step less manpower, makes\nraising stability dearer, and above 0 risks a point of stability every year; below 0 the\npeople may grow content and stability rise. The level stays until changed.",
+      "properties": {
+        "level": {
+          "maximum": 2,
+          "minimum": -2,
+          "title": "Level",
+          "type": "integer"
+        },
+        "type": {
+          "const": "set_taxes",
+          "default": "set_taxes",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "title": "SetTaxes",
+      "type": "object"
+    },
+    "Ship": {
+      "enum": [
+        "galley",
+        "galleon"
+      ],
+      "title": "Ship",
+      "type": "string"
+    },
+    "ShipTroops": {
+      "additionalProperties": false,
+      "description": "Carry regiments from one of your ports on the ocean or the Baltic to garrison your\ncolonies in a region (rules.garrison_pay ducats a year each; they calm the peoples and hold\nthe colonies against a storm), or with `home` bring them back to the port. Your ships on the\nocean must carry them, and no enemy fleet command the ocean.",
+      "properties": {
+        "home": {
+          "default": false,
+          "title": "Home",
+          "type": "boolean"
+        },
+        "port": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "regiments": {
+          "minimum": 1,
+          "title": "Regiments",
+          "type": "integer"
+        },
+        "region": {
+          "$ref": "#/$defs/Region"
+        },
+        "type": {
+          "const": "ship_troops",
+          "default": "ship_troops",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "region",
+        "port",
+        "regiments"
+      ],
+      "title": "ShipTroops",
+      "type": "object"
+    },
+    "Stance": {
+      "description": "A court's declared attitude towards another, public to all Europe.",
+      "enum": [
+        "friend",
+        "neutral",
+        "rival"
+      ],
+      "title": "Stance",
+      "type": "string"
+    },
+    "Tactic": {
+      "description": "How an attack is fought. Each wins against one posture and loses against another, and\nis only as good as the regiments that carry it.",
+      "enum": [
+        "assault",
+        "flank",
+        "bombard"
+      ],
+      "title": "Tactic",
+      "type": "string"
+    },
+    "TakeDecision": {
+      "additionalProperties": false,
+      "description": "Take one of your crown's national decisions (`decisions` in your view), once its goals\nhold and you can pay its authority and ducats: it pays at once and leaves a lasting effect,\nand some give the realm a new name. Each is taken once.",
+      "properties": {
+        "decision": {
+          "title": "Decision",
+          "type": "string"
+        },
+        "type": {
+          "const": "take_decision",
+          "default": "take_decision",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision"
+      ],
+      "title": "TakeDecision",
+      "type": "object"
+    },
+    "TechBranch": {
+      "enum": [
+        "military",
+        "economy",
+        "engineering",
+        "naval",
+        "administration"
+      ],
+      "title": "TechBranch",
+      "type": "string"
+    },
+    "Terms": {
+      "additionalProperties": false,
+      "description": "What a peace (or a counter-offer) settles. Everything is optional: no terms at all is a\nwhite peace. Lump sums are capped by what the payer has; provinces must belong to the side\nthat hands them over, cannot be a capital, and must border the realm that receives them (or\nanother province it receives in the same peace).",
+      "properties": {
+        "ask_tribute": {
+          "default": 0,
+          "description": "Ducats a year they pay you, for 10 years.",
+          "maximum": 500,
+          "minimum": 0,
+          "title": "Ask Tribute",
+          "type": "integer"
+        },
+        "cede": {
+          "description": "Your provinces you hand over.",
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "maxItems": 8,
+          "title": "Cede",
+          "type": "array"
+        },
+        "demand": {
+          "description": "Their provinces you ask for.",
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "maxItems": 8,
+          "title": "Demand",
+          "type": "array"
+        },
+        "give": {
+          "$ref": "#/$defs/Resources",
+          "description": "A lump sum you pay."
+        },
+        "limit_army": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Their army may not grow beyond this many regiments while the truce lasts.",
+          "title": "Limit Army"
+        },
+        "note": {
+          "default": "",
+          "description": "Your words to go with the offer: arguments, threats, promises. They bind nobody.",
+          "maxLength": 300,
+          "title": "Note",
+          "type": "string"
+        },
+        "pay_tribute": {
+          "default": 0,
+          "description": "Ducats a year you pay them, for 10 years.",
+          "maximum": 500,
+          "minimum": 0,
+          "title": "Pay Tribute",
+          "type": "integer"
+        },
+        "receive": {
+          "$ref": "#/$defs/Resources",
+          "description": "A lump sum you demand."
+        }
+      },
+      "title": "Terms",
+      "type": "object"
+    },
+    "UnitKind": {
+      "enum": [
+        "infantry",
+        "archers",
+        "cavalry",
+        "artillery"
+      ],
+      "title": "UnitKind",
+      "type": "string"
+    },
+    "UpgradeBuilding": {
+      "additionalProperties": false,
+      "description": "Raise a building standing in one of your provinces to its next level: it does more (and\neats more), by `rules.building_level_factors`, up to its `max_level`. It costs its own\ncost times `rules.building_upgrade_costs` for the new level. Once a year per building.",
+      "properties": {
+        "building": {
+          "$ref": "#/$defs/BuildingKind"
+        },
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "upgrade_building",
+          "default": "upgrade_building",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province",
+        "building"
+      ],
+      "title": "UpgradeBuilding",
+      "type": "object"
+    },
+    "UpgradeMonument": {
+      "additionalProperties": false,
+      "description": "Raise the monument of one of your provinces by a level (from a bare site to level 1, up\nto `rules.max_monument_level`). Its bonus grows with every level and serves whoever holds\nit.",
+      "properties": {
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "type": {
+          "const": "upgrade_monument",
+          "default": "upgrade_monument",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "province"
+      ],
+      "title": "UpgradeMonument",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Everything a nation wants to do this turn, in the order it wants it done.",
+  "properties": {
+    "actions": {
+      "items": {
+        "$ref": "#/$defs/Action"
+      },
+      "maxItems": 50,
+      "title": "Actions",
+      "type": "array"
+    },
+    "counsel": {
+      "additionalProperties": {
+        "maxLength": 600,
+        "type": "string"
+      },
+      "description": "What each advisor counselled this year, by seat. Private, like `thoughts`.",
+      "propertyNames": {
+        "$ref": "#/$defs/AdvisorRole"
+      },
+      "title": "Counsel",
+      "type": "object"
+    },
+    "thoughts": {
+      "default": "",
+      "description": "The ruler's private reasoning this year. No other court sees it; it is kept in the record, for the chronicle of the game.",
+      "maxLength": 2000,
+      "title": "Thoughts",
+      "type": "string"
+    }
+  },
+  "title": "Orders",
+  "type": "object"
+}

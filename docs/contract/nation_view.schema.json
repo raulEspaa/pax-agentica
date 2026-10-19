@@ -1,0 +1,5702 @@
+{
+  "$defs": {
+    "Advisor": {
+      "description": "A councillor: hired once, paid every year, and effective by skill (1 to 3).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "personality": {
+          "$ref": "#/$defs/Personality",
+          "default": "loyal"
+        },
+        "role": {
+          "$ref": "#/$defs/AdvisorRole"
+        },
+        "skill": {
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Skill",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role",
+        "skill"
+      ],
+      "title": "Advisor",
+      "type": "object"
+    },
+    "AdvisorRole": {
+      "enum": [
+        "treasurer",
+        "chancellor",
+        "marshal"
+      ],
+      "title": "AdvisorRole",
+      "type": "string"
+    },
+    "AgendaSpec": {
+      "additionalProperties": false,
+      "description": "A reign's ambition: a deed to do so many times while the ruler reigns.",
+      "properties": {
+        "deed": {
+          "title": "Deed",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "skill": {
+          "title": "Skill",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "deed",
+        "target",
+        "text",
+        "skill"
+      ],
+      "title": "AgendaSpec",
+      "type": "object"
+    },
+    "AgendaView": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "progress": {
+          "title": "Progress",
+          "type": "integer"
+        },
+        "target": {
+          "title": "Target",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "text",
+        "progress",
+        "target"
+      ],
+      "title": "AgendaView",
+      "type": "object"
+    },
+    "BuildingCategory": {
+      "enum": [
+        "civil",
+        "military"
+      ],
+      "title": "BuildingCategory",
+      "type": "string"
+    },
+    "BuildingKind": {
+      "enum": [
+        "marketplace",
+        "farm_estates",
+        "ironworks",
+        "lumber_mill",
+        "university",
+        "bank",
+        "cathedral",
+        "barracks",
+        "armory",
+        "training_grounds",
+        "fort",
+        "citadel",
+        "workshop",
+        "stables",
+        "cannon_foundry",
+        "military_academy",
+        "arms_manufactory",
+        "powder_mill",
+        "royal_exchange",
+        "observatory"
+      ],
+      "title": "BuildingKind",
+      "type": "string"
+    },
+    "BuildingSpec": {
+      "additionalProperties": false,
+      "description": "What a building costs and does. The effect text is for humans and prompts; the numbers\nbehind it live in `Rules` and `mechanics.py`.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/BuildingCategory"
+        },
+        "consumes": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 0,
+            "goods": 0,
+            "grain": 0,
+            "iron": 0,
+            "manpower": 0,
+            "timber": 0
+          }
+        },
+        "cost": {
+          "$ref": "#/$defs/Resources"
+        },
+        "effect": {
+          "title": "Effect",
+          "type": "string"
+        },
+        "max_level": {
+          "default": 1,
+          "title": "Max Level",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "requires": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BuildingKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "requires_tech": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/TechBranch"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requires Tech"
+        },
+        "unique": {
+          "default": false,
+          "title": "Unique",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "category",
+        "cost",
+        "effect"
+      ],
+      "title": "BuildingSpec",
+      "type": "object"
+    },
+    "CandidateView": {
+      "additionalProperties": false,
+      "properties": {
+        "hire_cost": {
+          "title": "Hire Cost",
+          "type": "integer"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "personality": {
+          "$ref": "#/$defs/Personality"
+        },
+        "role": {
+          "$ref": "#/$defs/AdvisorRole"
+        },
+        "salary": {
+          "title": "Salary",
+          "type": "integer"
+        },
+        "skill": {
+          "title": "Skill",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role",
+        "skill",
+        "personality",
+        "hire_cost",
+        "salary"
+      ],
+      "title": "CandidateView",
+      "type": "object"
+    },
+    "ColonialGood": {
+      "description": "What the colonies ship home, sold on Europe's markets at a price of its own.",
+      "enum": [
+        "sugar",
+        "silver",
+        "spices",
+        "furs",
+        "gold"
+      ],
+      "title": "ColonialGood",
+      "type": "string"
+    },
+    "Colony": {
+      "description": "One colony of a crown: how it was founded, and when.",
+      "properties": {
+        "founded": {
+          "default": 1,
+          "title": "Founded",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/ColonyKind",
+          "default": "plantation"
+        }
+      },
+      "title": "Colony",
+      "type": "object"
+    },
+    "ColonyKind": {
+      "description": "How a colony is founded and worked.",
+      "enum": [
+        "plantation",
+        "post",
+        "settlement"
+      ],
+      "title": "ColonyKind",
+      "type": "string"
+    },
+    "ColonyKindSpec": {
+      "additionalProperties": false,
+      "description": "What each kind of colony costs, how fast it is founded and what it ships.",
+      "properties": {
+        "anger": {
+          "default": 1.0,
+          "title": "Anger",
+          "type": "number"
+        },
+        "cargo": {
+          "title": "Cargo",
+          "type": "number"
+        },
+        "cost": {
+          "title": "Cost",
+          "type": "number"
+        },
+        "effect": {
+          "default": "",
+          "title": "Effect",
+          "type": "string"
+        },
+        "growth": {
+          "default": 0.0,
+          "title": "Growth",
+          "type": "number"
+        },
+        "militia": {
+          "default": 0,
+          "title": "Militia",
+          "type": "integer"
+        },
+        "most": {
+          "default": 1.0,
+          "title": "Most",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "progress": {
+          "title": "Progress",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "cost",
+        "progress",
+        "cargo"
+      ],
+      "title": "ColonyKindSpec",
+      "type": "object"
+    },
+    "CrisisView": {
+      "additionalProperties": false,
+      "description": "The age's great trouble, once it is announced (the year before it falls) and while it\nrages. Its effects are in the realm's modifiers and the market.",
+      "properties": {
+        "first_year": {
+          "title": "First Year",
+          "type": "integer"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "last_year": {
+          "title": "Last Year",
+          "type": "integer"
+        },
+        "raging": {
+          "title": "Raging",
+          "type": "boolean"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "title",
+        "text",
+        "first_year",
+        "last_year",
+        "raging"
+      ],
+      "title": "CrisisView",
+      "type": "object"
+    },
+    "DecisionView": {
+      "additionalProperties": false,
+      "description": "One of your crown's national decisions: `take_decision` it once its goals hold.",
+      "properties": {
+        "authority": {
+          "title": "Authority",
+          "type": "integer"
+        },
+        "ducats": {
+          "title": "Ducats",
+          "type": "integer"
+        },
+        "goals": {
+          "items": {
+            "$ref": "#/$defs/GoalView"
+          },
+          "title": "Goals",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "lore": {
+          "title": "Lore",
+          "type": "string"
+        },
+        "missing": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing",
+          "type": "array"
+        },
+        "rename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rename"
+        },
+        "reward": {
+          "title": "Reward",
+          "type": "string"
+        },
+        "taken": {
+          "title": "Taken",
+          "type": "boolean"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "lore",
+        "goals",
+        "authority",
+        "ducats",
+        "rename",
+        "reward",
+        "taken",
+        "missing"
+      ],
+      "title": "DecisionView",
+      "type": "object"
+    },
+    "DesignationSpec": {
+      "additionalProperties": false,
+      "description": "What a focused province becomes as it builds what its focus needs: a designation in\nthree tiers. The focus alone is tier 1; one of its key works makes tier 2 (one more building\nslot); two make tier 3, with a landmark of its own, a bonus to the realm's provinces next to\nit and an effect felt across the realm (from no more than rules.designation_realm_cap of a\nkind).",
+      "properties": {
+        "keys": {
+          "items": {
+            "$ref": "#/$defs/BuildingKind"
+          },
+          "title": "Keys",
+          "type": "array"
+        },
+        "landmark": {
+          "title": "Landmark",
+          "type": "string"
+        },
+        "lore": {
+          "default": "",
+          "title": "Lore",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "neighbours": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Neighbours",
+          "type": "object"
+        },
+        "neighbours_text": {
+          "title": "Neighbours Text",
+          "type": "string"
+        },
+        "port_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Port Name"
+        },
+        "realm": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Realm",
+          "type": "object"
+        },
+        "realm_text": {
+          "title": "Realm Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "keys",
+        "landmark",
+        "neighbours",
+        "neighbours_text",
+        "realm",
+        "realm_text"
+      ],
+      "title": "DesignationSpec",
+      "type": "object"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Audience"
+        },
+        "data": {
+          "additionalProperties": {
+            "$ref": "#/$defs/EventValue"
+          },
+          "default": {},
+          "title": "Data",
+          "type": "object"
+        },
+        "kind": {
+          "$ref": "#/$defs/EventKind"
+        },
+        "nations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Nations",
+          "type": "array"
+        },
+        "province": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Province"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "turn": {
+          "title": "Turn",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "turn",
+        "kind",
+        "summary"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "EventKind": {
+      "enum": [
+        "order_rejected",
+        "message",
+        "proclamation",
+        "stance_changed",
+        "proposal_made",
+        "proposal_rejected",
+        "proposal_expired",
+        "proposal_countered",
+        "treaty_signed",
+        "treaty_cancelled",
+        "treaty_broken",
+        "treaty_expired",
+        "war_declared",
+        "joined_war",
+        "call_to_arms_ignored",
+        "grudge",
+        "crisis",
+        "plague",
+        "peace_signed",
+        "province_ceded",
+        "tribute_paid",
+        "trade_completed",
+        "trade_failed",
+        "gift",
+        "market_trade",
+        "buildings_idle",
+        "recruited",
+        "disbanded",
+        "developed",
+        "built",
+        "improved",
+        "focus_set",
+        "policy_set",
+        "royal_act",
+        "agenda",
+        "heir",
+        "ships_built",
+        "fleet_sailed",
+        "expedition_sent",
+        "colony_founded",
+        "expedition_lost",
+        "colony_seized",
+        "viceroyalty",
+        "decision",
+        "imported",
+        "troops_shipped",
+        "colonial_fort",
+        "colonial_battle",
+        "natives_war",
+        "treasure_taken",
+        "mission_completed",
+        "taxes_set",
+        "infamy",
+        "province_converted",
+        "coalition_joined",
+        "coalition_dissolved",
+        "patronage",
+        "mercenaries_hired",
+        "monument_raised",
+        "researched",
+        "general_appointed",
+        "general_fell",
+        "advisor_hired",
+        "advisor_left",
+        "succession",
+        "event_happened",
+        "event_decided",
+        "prestige_changed",
+        "stability_changed",
+        "desertion",
+        "moved",
+        "battle",
+        "naval_battle",
+        "province_captured",
+        "province_occupied",
+        "province_liberated",
+        "siege",
+        "capital_moved",
+        "nation_eliminated",
+        "game_over"
+      ],
+      "title": "EventKind",
+      "type": "string"
+    },
+    "EventValue": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "EventView": {
+      "additionalProperties": false,
+      "properties": {
+        "deadline_turn": {
+          "title": "Deadline Turn",
+          "type": "integer"
+        },
+        "event": {
+          "title": "Event",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/OptionView"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "province": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvinceId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "event",
+        "title",
+        "text",
+        "province",
+        "options",
+        "deadline_turn"
+      ],
+      "title": "EventView",
+      "type": "object"
+    },
+    "Expedition": {
+      "description": "Settlers and soldiers on their way to found a colony.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ColonyKind",
+          "default": "plantation"
+        },
+        "progress": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Progress",
+          "type": "integer"
+        },
+        "region": {
+          "$ref": "#/$defs/Region"
+        },
+        "since": {
+          "title": "Since",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "region",
+        "since"
+      ],
+      "title": "Expedition",
+      "type": "object"
+    },
+    "Faith": {
+      "enum": [
+        "catholic",
+        "protestant",
+        "orthodox",
+        "sunni"
+      ],
+      "title": "Faith",
+      "type": "string"
+    },
+    "Focus": {
+      "description": "What a province's people turn their hands to. A focus strengthens one side of its\noutput, the more the larger its town.",
+      "enum": [
+        "trade",
+        "farming",
+        "mining",
+        "garrison",
+        "learning",
+        "shipyard"
+      ],
+      "title": "Focus",
+      "type": "string"
+    },
+    "GeneralView": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "nation": {
+          "$ref": "#/$defs/NationId"
+        },
+        "province": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "skill": {
+          "title": "Skill",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "nation",
+        "skill",
+        "province"
+      ],
+      "title": "GeneralView",
+      "type": "object"
+    },
+    "Goal": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "default": 0,
+          "title": "Amount",
+          "type": "integer"
+        },
+        "any_of": {
+          "default": false,
+          "title": "Any Of",
+          "type": "boolean"
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TechBranch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "building": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BuildingKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "enum": [
+            "own",
+            "development",
+            "province_development",
+            "building",
+            "workings",
+            "tech",
+            "alliance",
+            "prestige",
+            "regiments",
+            "year",
+            "stability",
+            "colonies"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "nations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Nations",
+          "type": "array"
+        },
+        "province": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvinceId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "provinces": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Provinces",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Goal",
+      "type": "object"
+    },
+    "GoalView": {
+      "additionalProperties": false,
+      "properties": {
+        "goal": {
+          "$ref": "#/$defs/Goal"
+        },
+        "have": {
+          "title": "Have",
+          "type": "integer"
+        },
+        "need": {
+          "title": "Need",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "have",
+        "need",
+        "goal"
+      ],
+      "title": "GoalView",
+      "type": "object"
+    },
+    "Good": {
+      "description": "What a province is known for, on top of its base output. Each yields its own mix of\nresources by development (see `Rules.good_yields`): gold far more than grain.",
+      "enum": [
+        "grain",
+        "fish",
+        "horses",
+        "wine",
+        "salt",
+        "wool",
+        "cloth",
+        "timber",
+        "iron",
+        "copper",
+        "furs",
+        "silver",
+        "gold",
+        "spices"
+      ],
+      "title": "Good",
+      "type": "string"
+    },
+    "GoodSpec": {
+      "additionalProperties": false,
+      "description": "A colonial good's price: its base, falling as the crowns ship more of it than Europe\nwants (its glut), never below a floor; silver also feeds the inflation of whoever ships it.",
+      "properties": {
+        "glut": {
+          "title": "Glut",
+          "type": "integer"
+        },
+        "inflation": {
+          "default": 0.0,
+          "title": "Inflation",
+          "type": "number"
+        },
+        "lore": {
+          "default": "",
+          "title": "Lore",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "price": {
+          "title": "Price",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "price",
+        "glut"
+      ],
+      "title": "GoodSpec",
+      "type": "object"
+    },
+    "GrudgeView": {
+      "additionalProperties": false,
+      "description": "A wrong one court holds against another, and how long it will weigh.",
+      "properties": {
+        "against": {
+          "$ref": "#/$defs/NationId"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "since_year": {
+          "title": "Since Year",
+          "type": "integer"
+        },
+        "until_year": {
+          "title": "Until Year",
+          "type": "integer"
+        },
+        "weight": {
+          "title": "Weight",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "against",
+        "reason",
+        "since_year",
+        "until_year",
+        "weight"
+      ],
+      "title": "GrudgeView",
+      "type": "object"
+    },
+    "LedgerLine": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Amount",
+          "type": "object"
+        },
+        "kind": {
+          "enum": [
+            "income",
+            "expense"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "source",
+        "amount"
+      ],
+      "title": "LedgerLine",
+      "type": "object"
+    },
+    "Loan": {
+      "properties": {
+        "until": {
+          "title": "Until",
+          "type": "integer"
+        },
+        "yearly": {
+          "title": "Yearly",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "yearly",
+        "until"
+      ],
+      "title": "Loan",
+      "type": "object"
+    },
+    "MissionView": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "After"
+        },
+        "goals": {
+          "items": {
+            "$ref": "#/$defs/GoalView"
+          },
+          "title": "Goals",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "lore": {
+          "title": "Lore",
+          "type": "string"
+        },
+        "reward": {
+          "title": "Reward",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "done",
+            "open",
+            "locked"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "lore",
+        "goals",
+        "reward",
+        "status",
+        "after"
+      ],
+      "title": "MissionView",
+      "type": "object"
+    },
+    "Modifiers": {
+      "description": "Everything that makes this nation different from a blank one.",
+      "properties": {
+        "arms_manufactory": {
+          "default": false,
+          "title": "Arms Manufactory",
+          "type": "boolean"
+        },
+        "battle_power": {
+          "default": 0.0,
+          "title": "Battle Power",
+          "type": "number"
+        },
+        "building_discount": {
+          "default": 0.0,
+          "title": "Building Discount",
+          "type": "number"
+        },
+        "colonial": {
+          "default": 0,
+          "title": "Colonial",
+          "type": "integer"
+        },
+        "colonial_dues": {
+          "default": 0.0,
+          "title": "Colonial Dues",
+          "type": "number"
+        },
+        "convoys": {
+          "default": 0.0,
+          "title": "Convoys",
+          "type": "number"
+        },
+        "ducat_income": {
+          "default": 0.0,
+          "title": "Ducat Income",
+          "type": "number"
+        },
+        "extra_building_slots": {
+          "default": 0,
+          "title": "Extra Building Slots",
+          "type": "integer"
+        },
+        "faith_tolerance": {
+          "default": 0.0,
+          "title": "Faith Tolerance",
+          "type": "number"
+        },
+        "fort_bonus_per_level": {
+          "default": 0.25,
+          "title": "Fort Bonus Per Level",
+          "type": "number"
+        },
+        "grain_income": {
+          "default": 0.0,
+          "title": "Grain Income",
+          "type": "number"
+        },
+        "grain_upkeep_factor": {
+          "default": 1.0,
+          "title": "Grain Upkeep Factor",
+          "type": "number"
+        },
+        "ignores_fort_levels": {
+          "default": 0,
+          "title": "Ignores Fort Levels",
+          "type": "integer"
+        },
+        "infamy_relief": {
+          "default": 0.0,
+          "title": "Infamy Relief",
+          "type": "number"
+        },
+        "landing": {
+          "default": 0.0,
+          "title": "Landing",
+          "type": "number"
+        },
+        "manpower_income": {
+          "default": 0.0,
+          "title": "Manpower Income",
+          "type": "number"
+        },
+        "marketplace_share": {
+          "default": 0.5,
+          "title": "Marketplace Share",
+          "type": "number"
+        },
+        "max_development": {
+          "default": 12,
+          "title": "Max Development",
+          "type": "integer"
+        },
+        "max_generals": {
+          "default": 3,
+          "title": "Max Generals",
+          "type": "integer"
+        },
+        "mill_share": {
+          "default": 0.5,
+          "title": "Mill Share",
+          "type": "number"
+        },
+        "morale": {
+          "default": 0.0,
+          "title": "Morale",
+          "type": "number"
+        },
+        "navy": {
+          "default": 0.0,
+          "title": "Navy",
+          "type": "number"
+        },
+        "privateers": {
+          "default": false,
+          "title": "Privateers",
+          "type": "boolean"
+        },
+        "research_discount": {
+          "default": 0.0,
+          "title": "Research Discount",
+          "type": "number"
+        },
+        "ship_discount": {
+          "default": 0.0,
+          "title": "Ship Discount",
+          "type": "number"
+        },
+        "siege": {
+          "default": 0,
+          "title": "Siege",
+          "type": "integer"
+        },
+        "sources": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "stability_discount": {
+          "default": 0.0,
+          "title": "Stability Discount",
+          "type": "number"
+        },
+        "trade_bonus": {
+          "default": 0.0,
+          "title": "Trade Bonus",
+          "type": "number"
+        },
+        "treaty_break_penalty": {
+          "default": 2,
+          "title": "Treaty Break Penalty",
+          "type": "integer"
+        },
+        "veterancy": {
+          "default": 0.0,
+          "title": "Veterancy",
+          "type": "number"
+        },
+        "yards": {
+          "default": 0,
+          "title": "Yards",
+          "type": "integer"
+        }
+      },
+      "title": "Modifiers",
+      "type": "object"
+    },
+    "MonumentSpec": {
+      "additionalProperties": false,
+      "description": "A great building of its age, standing in one province: whoever holds the province enjoys\nit, and can raise it level by level (0 is a site where it is not yet built).",
+      "properties": {
+        "bonus": {
+          "title": "Bonus",
+          "type": "string"
+        },
+        "effect": {
+          "title": "Effect",
+          "type": "string"
+        },
+        "level_1500": {
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Level 1500",
+          "type": "integer"
+        },
+        "lore": {
+          "title": "Lore",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "per_level": {
+          "title": "Per Level",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "bonus",
+        "per_level",
+        "effect",
+        "lore",
+        "level_1500"
+      ],
+      "title": "MonumentSpec",
+      "type": "object"
+    },
+    "MyNation": {
+      "additionalProperties": false,
+      "properties": {
+        "advisor_candidates": {
+          "items": {
+            "$ref": "#/$defs/CandidateView"
+          },
+          "title": "Advisor Candidates",
+          "type": "array"
+        },
+        "advisors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Advisor"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/AdvisorRole"
+          },
+          "title": "Advisors",
+          "type": "object"
+        },
+        "agenda": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgendaView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agenda_offers": {
+          "items": {
+            "$ref": "#/$defs/AgendaView"
+          },
+          "title": "Agenda Offers",
+          "type": "array"
+        },
+        "army": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/UnitKind"
+          },
+          "title": "Army",
+          "type": "object"
+        },
+        "army_upkeep_per_turn": {
+          "$ref": "#/$defs/Resources"
+        },
+        "at_war_with": {
+          "items": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "At War With",
+          "type": "array"
+        },
+        "authority": {
+          "title": "Authority",
+          "type": "integer"
+        },
+        "authority_per_year": {
+          "title": "Authority Per Year",
+          "type": "integer"
+        },
+        "blockaded": {
+          "items": {
+            "$ref": "#/$defs/SeaId"
+          },
+          "title": "Blockaded",
+          "type": "array"
+        },
+        "building_costs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Resources"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/BuildingKind"
+          },
+          "title": "Building Costs",
+          "type": "object"
+        },
+        "capital": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "colonial_dues": {
+          "$ref": "#/$defs/Resources"
+        },
+        "colonial_forts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Region"
+          },
+          "title": "Colonial Forts",
+          "type": "object"
+        },
+        "colonies": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Region"
+          },
+          "title": "Colonies",
+          "type": "object"
+        },
+        "colony_list": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/Colony"
+            },
+            "type": "array"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Region"
+          },
+          "title": "Colony List",
+          "type": "object"
+        },
+        "decisions": {
+          "items": {
+            "$ref": "#/$defs/DecisionView"
+          },
+          "title": "Decisions",
+          "type": "array"
+        },
+        "doctrines": {
+          "additionalProperties": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/TechBranch"
+          },
+          "title": "Doctrines",
+          "type": "object"
+        },
+        "expeditions": {
+          "items": {
+            "$ref": "#/$defs/Expedition"
+          },
+          "title": "Expeditions",
+          "type": "array"
+        },
+        "faith": {
+          "$ref": "#/$defs/Faith"
+        },
+        "fleets": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/$defs/Ship"
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/SeaId"
+          },
+          "title": "Fleets",
+          "type": "object"
+        },
+        "garrisons": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Region"
+          },
+          "title": "Garrisons",
+          "type": "object"
+        },
+        "generals": {
+          "items": {
+            "$ref": "#/$defs/GeneralView"
+          },
+          "title": "Generals",
+          "type": "array"
+        },
+        "grudges": {
+          "items": {
+            "$ref": "#/$defs/GrudgeView"
+          },
+          "title": "Grudges",
+          "type": "array"
+        },
+        "heir": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ruler"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "held": {
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Held",
+          "type": "array"
+        },
+        "id": {
+          "$ref": "#/$defs/NationId"
+        },
+        "income_per_turn": {
+          "$ref": "#/$defs/Resources"
+        },
+        "infamy": {
+          "title": "Infamy",
+          "type": "number"
+        },
+        "inflation": {
+          "title": "Inflation",
+          "type": "number"
+        },
+        "inflation_loss": {
+          "title": "Inflation Loss",
+          "type": "integer"
+        },
+        "inputs_per_turn": {
+          "$ref": "#/$defs/Resources"
+        },
+        "ledger": {
+          "items": {
+            "$ref": "#/$defs/LedgerLine"
+          },
+          "title": "Ledger",
+          "type": "array"
+        },
+        "loans": {
+          "items": {
+            "$ref": "#/$defs/Loan"
+          },
+          "title": "Loans",
+          "type": "array"
+        },
+        "lost": {
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Lost",
+          "type": "array"
+        },
+        "manpower_cap": {
+          "title": "Manpower Cap",
+          "type": "integer"
+        },
+        "missions": {
+          "items": {
+            "$ref": "#/$defs/MissionView"
+          },
+          "title": "Missions",
+          "type": "array"
+        },
+        "modifiers": {
+          "$ref": "#/$defs/Modifiers"
+        },
+        "morale": {
+          "title": "Morale",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "naval_power": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/SeaId"
+          },
+          "title": "Naval Power",
+          "type": "object"
+        },
+        "opinions": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Opinions",
+          "type": "object"
+        },
+        "patronage_cost": {
+          "title": "Patronage Cost",
+          "type": "integer"
+        },
+        "pending_events": {
+          "items": {
+            "$ref": "#/$defs/EventView"
+          },
+          "title": "Pending Events",
+          "type": "array"
+        },
+        "policies": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/PolicyAxis"
+          },
+          "title": "Policies",
+          "type": "object"
+        },
+        "policy_locked_until": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/PolicyAxis"
+          },
+          "title": "Policy Locked Until",
+          "type": "object"
+        },
+        "prestige": {
+          "title": "Prestige",
+          "type": "integer"
+        },
+        "provinces": {
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Provinces",
+          "type": "array"
+        },
+        "regency": {
+          "title": "Regency",
+          "type": "boolean"
+        },
+        "regiments": {
+          "title": "Regiments",
+          "type": "integer"
+        },
+        "research_costs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Resources"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/TechBranch"
+          },
+          "title": "Research Costs",
+          "type": "object"
+        },
+        "resources": {
+          "$ref": "#/$defs/Resources"
+        },
+        "ruler": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ruler"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "score": {
+          "title": "Score",
+          "type": "integer"
+        },
+        "stability": {
+          "title": "Stability",
+          "type": "integer"
+        },
+        "stances": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Stance"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Stances",
+          "type": "object"
+        },
+        "standing": {
+          "title": "Standing",
+          "type": "integer"
+        },
+        "tax": {
+          "title": "Tax",
+          "type": "integer"
+        },
+        "technology": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/TechBranch"
+          },
+          "title": "Technology",
+          "type": "object"
+        },
+        "trade": {
+          "items": {
+            "$ref": "#/$defs/TradeView"
+          },
+          "title": "Trade",
+          "type": "array"
+        },
+        "treaties": {
+          "items": {
+            "$ref": "#/$defs/TreatyView"
+          },
+          "title": "Treaties",
+          "type": "array"
+        },
+        "viceroys": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Viceroy"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Region"
+          },
+          "title": "Viceroys",
+          "type": "object"
+        },
+        "war_exhaustion": {
+          "title": "War Exhaustion",
+          "type": "number"
+        },
+        "wars": {
+          "items": {
+            "$ref": "#/$defs/WarView"
+          },
+          "title": "Wars",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "capital",
+        "resources",
+        "stability",
+        "income_per_turn",
+        "army_upkeep_per_turn",
+        "inputs_per_turn",
+        "manpower_cap",
+        "regiments",
+        "army",
+        "provinces",
+        "held",
+        "war_exhaustion",
+        "morale",
+        "fleets",
+        "naval_power",
+        "blockaded",
+        "colonies",
+        "colony_list",
+        "expeditions",
+        "colonial_dues",
+        "trade",
+        "viceroys",
+        "inflation",
+        "inflation_loss",
+        "garrisons",
+        "colonial_forts",
+        "prestige",
+        "standing",
+        "faith",
+        "pending_events",
+        "loans",
+        "missions",
+        "decisions",
+        "lost",
+        "patronage_cost",
+        "tax",
+        "infamy",
+        "grudges",
+        "ledger",
+        "score",
+        "at_war_with",
+        "wars",
+        "treaties",
+        "technology",
+        "doctrines",
+        "policies",
+        "policy_locked_until",
+        "authority",
+        "heir",
+        "regency",
+        "claims",
+        "authority_per_year",
+        "agenda",
+        "agenda_offers",
+        "research_costs",
+        "building_costs",
+        "generals",
+        "modifiers",
+        "ruler",
+        "advisors",
+        "advisor_candidates",
+        "opinions",
+        "stances"
+      ],
+      "title": "MyNation",
+      "type": "object"
+    },
+    "NationId": {
+      "type": "string"
+    },
+    "NationSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "alive": {
+          "title": "Alive",
+          "type": "boolean"
+        },
+        "allies": {
+          "items": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Allies",
+          "type": "array"
+        },
+        "at_war_with": {
+          "items": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "At War With",
+          "type": "array"
+        },
+        "capital": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "colonies": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Region"
+          },
+          "title": "Colonies",
+          "type": "object"
+        },
+        "correspondence": {
+          "items": {
+            "$ref": "#/$defs/Event"
+          },
+          "title": "Correspondence",
+          "type": "array"
+        },
+        "decisions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Decisions",
+          "type": "array"
+        },
+        "doctrines": {
+          "additionalProperties": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/TechBranch"
+          },
+          "title": "Doctrines",
+          "type": "object"
+        },
+        "faith": {
+          "$ref": "#/$defs/Faith"
+        },
+        "fleets": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/$defs/Ship"
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/SeaId"
+          },
+          "title": "Fleets",
+          "type": "object"
+        },
+        "garrisons": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Region"
+          },
+          "title": "Garrisons",
+          "type": "object"
+        },
+        "generals": {
+          "title": "Generals",
+          "type": "integer"
+        },
+        "heir": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ruler"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/NationId"
+        },
+        "infamy": {
+          "title": "Infamy",
+          "type": "number"
+        },
+        "leagued_against": {
+          "items": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Leagued Against",
+          "type": "array"
+        },
+        "lost": {
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Lost",
+          "type": "array"
+        },
+        "marriages": {
+          "items": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Marriages",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "naval_power": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/SeaId"
+          },
+          "title": "Naval Power",
+          "type": "object"
+        },
+        "opinion_of_you": {
+          "title": "Opinion Of You",
+          "type": "integer"
+        },
+        "pacts": {
+          "items": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Pacts",
+          "type": "array"
+        },
+        "policies": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/PolicyAxis"
+          },
+          "title": "Policies",
+          "type": "object"
+        },
+        "prestige": {
+          "title": "Prestige",
+          "type": "integer"
+        },
+        "provinces": {
+          "title": "Provinces",
+          "type": "integer"
+        },
+        "remembers": {
+          "items": {
+            "$ref": "#/$defs/GrudgeView"
+          },
+          "title": "Remembers",
+          "type": "array"
+        },
+        "ruler": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ruler"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "score": {
+          "title": "Score",
+          "type": "integer"
+        },
+        "stances": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Stance"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Stances",
+          "type": "object"
+        },
+        "standing": {
+          "title": "Standing",
+          "type": "integer"
+        },
+        "technology": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/TechBranch"
+          },
+          "title": "Technology",
+          "type": "object"
+        },
+        "viceroys": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Region"
+          },
+          "title": "Viceroys",
+          "type": "object"
+        },
+        "war_exhaustion": {
+          "title": "War Exhaustion",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "alive",
+        "capital",
+        "provinces",
+        "score",
+        "at_war_with",
+        "allies",
+        "technology",
+        "doctrines",
+        "policies",
+        "generals",
+        "ruler",
+        "heir",
+        "opinion_of_you",
+        "war_exhaustion",
+        "prestige",
+        "standing",
+        "faith",
+        "fleets",
+        "naval_power",
+        "colonies",
+        "viceroys",
+        "decisions",
+        "lost",
+        "marriages",
+        "pacts",
+        "garrisons",
+        "stances",
+        "infamy",
+        "leagued_against",
+        "remembers",
+        "correspondence"
+      ],
+      "title": "NationSummary",
+      "type": "object"
+    },
+    "NationalUnit": {
+      "additionalProperties": false,
+      "description": "The regiments a crown was famed for: one kind of its army fights under its own name, and\nbetter (and sometimes for less) than anyone else's of that kind.",
+      "properties": {
+        "attack": {
+          "default": 1.0,
+          "title": "Attack",
+          "type": "number"
+        },
+        "cost": {
+          "default": 1.0,
+          "title": "Cost",
+          "type": "number"
+        },
+        "defence": {
+          "default": 1.0,
+          "title": "Defence",
+          "type": "number"
+        },
+        "kind": {
+          "$ref": "#/$defs/UnitKind"
+        },
+        "lore": {
+          "title": "Lore",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "terrain": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Terrain"
+          },
+          "title": "Terrain",
+          "type": "object"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "lore"
+      ],
+      "title": "NationalUnit",
+      "type": "object"
+    },
+    "OptionView": {
+      "additionalProperties": false,
+      "properties": {
+        "effects": {
+          "title": "Effects",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "effects"
+      ],
+      "title": "OptionView",
+      "type": "object"
+    },
+    "Personality": {
+      "description": "How an advisor leans when counselling the crown.",
+      "enum": [
+        "hawk",
+        "dove",
+        "schemer",
+        "loyal",
+        "frugal",
+        "visionary"
+      ],
+      "title": "Personality",
+      "type": "string"
+    },
+    "PolicyAxis": {
+      "description": "A great choice of how the realm is run: one side or the other, or neither.",
+      "enum": [
+        "army",
+        "economy",
+        "state"
+      ],
+      "title": "PolicyAxis",
+      "type": "string"
+    },
+    "PolicySide": {
+      "additionalProperties": false,
+      "properties": {
+        "effect": {
+          "title": "Effect",
+          "type": "string"
+        },
+        "effects": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Effects",
+          "type": "object"
+        },
+        "lore": {
+          "default": "",
+          "title": "Lore",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "effect",
+        "effects"
+      ],
+      "title": "PolicySide",
+      "type": "object"
+    },
+    "Posture": {
+      "description": "How a province's garrison waits for an attack.",
+      "enum": [
+        "hold",
+        "skirmish",
+        "sally"
+      ],
+      "title": "Posture",
+      "type": "string"
+    },
+    "PriceView": {
+      "additionalProperties": false,
+      "properties": {
+        "buy": {
+          "title": "Buy",
+          "type": "number"
+        },
+        "price": {
+          "title": "Price",
+          "type": "number"
+        },
+        "sell": {
+          "title": "Sell",
+          "type": "number"
+        }
+      },
+      "required": [
+        "price",
+        "buy",
+        "sell"
+      ],
+      "title": "PriceView",
+      "type": "object"
+    },
+    "ProposalKind": {
+      "enum": [
+        "alliance",
+        "non_aggression",
+        "peace",
+        "trade",
+        "call_to_arms",
+        "marriage",
+        "coalition"
+      ],
+      "title": "ProposalKind",
+      "type": "string"
+    },
+    "ProposalView": {
+      "additionalProperties": false,
+      "properties": {
+        "ask_tribute": {
+          "title": "Ask Tribute",
+          "type": "integer"
+        },
+        "cede": {
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Cede",
+          "type": "array"
+        },
+        "demand": {
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Demand",
+          "type": "array"
+        },
+        "enemy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NationId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "give": {
+          "$ref": "#/$defs/Resources"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/ProposalKind"
+        },
+        "limit_army": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Limit Army"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        },
+        "pay_tribute": {
+          "title": "Pay Tribute",
+          "type": "integer"
+        },
+        "receive": {
+          "$ref": "#/$defs/Resources"
+        },
+        "recipient": {
+          "$ref": "#/$defs/NationId"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reply To"
+        },
+        "sender": {
+          "$ref": "#/$defs/NationId"
+        },
+        "turn": {
+          "title": "Turn",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "sender",
+        "recipient",
+        "turn",
+        "give",
+        "receive",
+        "enemy",
+        "cede",
+        "demand",
+        "pay_tribute",
+        "ask_tribute",
+        "limit_army",
+        "note",
+        "reply_to"
+      ],
+      "title": "ProposalView",
+      "type": "object"
+    },
+    "ProvinceId": {
+      "type": "string"
+    },
+    "ProvinceView": {
+      "additionalProperties": false,
+      "properties": {
+        "army": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "propertyNames": {
+                "$ref": "#/$defs/UnitKind"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Army"
+        },
+        "besiegers": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Besiegers"
+        },
+        "building_levels": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/BuildingKind"
+          },
+          "title": "Building Levels",
+          "type": "object"
+        },
+        "building_output_per_turn": {
+          "$ref": "#/$defs/Resources"
+        },
+        "building_slots": {
+          "title": "Building Slots",
+          "type": "integer"
+        },
+        "buildings": {
+          "items": {
+            "$ref": "#/$defs/BuildingKind"
+          },
+          "title": "Buildings",
+          "type": "array"
+        },
+        "coasts": {
+          "items": {
+            "$ref": "#/$defs/Water"
+          },
+          "title": "Coasts",
+          "type": "array"
+        },
+        "controller": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NationId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "convert_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Resources"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "designation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Designation"
+        },
+        "designation_tier": {
+          "title": "Designation Tier",
+          "type": "integer"
+        },
+        "develop_cost": {
+          "$ref": "#/$defs/Resources"
+        },
+        "development": {
+          "title": "Development",
+          "type": "integer"
+        },
+        "faith": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Faith"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "focus": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Focus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "focus_bonus": {
+          "title": "Focus Bonus",
+          "type": "number"
+        },
+        "focus_locked_until": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Focus Locked Until"
+        },
+        "fort": {
+          "title": "Fort",
+          "type": "integer"
+        },
+        "general": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GeneralView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "good": {
+          "$ref": "#/$defs/Good"
+        },
+        "id": {
+          "$ref": "#/$defs/ProvinceId"
+        },
+        "idle": {
+          "items": {
+            "$ref": "#/$defs/BuildingKind"
+          },
+          "title": "Idle",
+          "type": "array"
+        },
+        "improve_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Resources"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "is_capital": {
+          "title": "Is Capital",
+          "type": "boolean"
+        },
+        "monument": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Monument"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "neighbors": {
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Neighbors",
+          "type": "array"
+        },
+        "output_per_turn": {
+          "$ref": "#/$defs/Resources"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NationId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "posture": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Posture"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recruit_cost": {
+          "$ref": "#/$defs/Resources"
+        },
+        "recruit_costs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Resources"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/UnitKind"
+          },
+          "title": "Recruit Costs",
+          "type": "object"
+        },
+        "sea_neighbors": {
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Sea Neighbors",
+          "type": "array"
+        },
+        "seas": {
+          "items": {
+            "$ref": "#/$defs/SeaId"
+          },
+          "title": "Seas",
+          "type": "array"
+        },
+        "settlement": {
+          "title": "Settlement",
+          "type": "string"
+        },
+        "siege_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NationId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "siege_modifiers": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Siege Modifiers",
+          "type": "array"
+        },
+        "siege_progress": {
+          "title": "Siege Progress",
+          "type": "integer"
+        },
+        "siege_veterancy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Siege Veterancy"
+        },
+        "siege_years": {
+          "title": "Siege Years",
+          "type": "integer"
+        },
+        "straits": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SeaId"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Straits",
+          "type": "object"
+        },
+        "terrain": {
+          "$ref": "#/$defs/Terrain"
+        },
+        "troops": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Troops"
+        },
+        "unrest": {
+          "title": "Unrest",
+          "type": "integer"
+        },
+        "veterancy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Veterancy"
+        },
+        "workings": {
+          "title": "Workings",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "owner",
+        "controller",
+        "siege_by",
+        "siege_years",
+        "siege_progress",
+        "besiegers",
+        "siege_modifiers",
+        "terrain",
+        "good",
+        "development",
+        "fort",
+        "buildings",
+        "building_levels",
+        "idle",
+        "settlement",
+        "focus",
+        "focus_bonus",
+        "focus_locked_until",
+        "designation",
+        "designation_tier",
+        "building_slots",
+        "output_per_turn",
+        "building_output_per_turn",
+        "unrest",
+        "is_capital",
+        "troops",
+        "army",
+        "general",
+        "posture",
+        "veterancy",
+        "siege_veterancy",
+        "develop_cost",
+        "recruit_cost",
+        "recruit_costs",
+        "workings",
+        "faith",
+        "convert_cost",
+        "improve_cost",
+        "monument",
+        "neighbors",
+        "sea_neighbors",
+        "coasts",
+        "seas",
+        "straits"
+      ],
+      "title": "ProvinceView",
+      "type": "object"
+    },
+    "Region": {
+      "description": "The lands beyond the sea that crowns may colonise: not on the map, but in the menu of\nthe New World.",
+      "enum": [
+        "caribbean",
+        "brazil",
+        "guinea",
+        "new_spain",
+        "east_indies",
+        "peru",
+        "north_america"
+      ],
+      "title": "Region",
+      "type": "string"
+    },
+    "RegionSpec": {
+      "additionalProperties": false,
+      "description": "What a region beyond the sea offers, and how hard it is to hold.",
+      "properties": {
+        "cargo": {
+          "default": 2,
+          "title": "Cargo",
+          "type": "integer"
+        },
+        "good": {
+          "$ref": "#/$defs/ColonialGood",
+          "default": "sugar"
+        },
+        "goods": {
+          "title": "Goods",
+          "type": "string"
+        },
+        "hardness": {
+          "title": "Hardness",
+          "type": "integer"
+        },
+        "lore": {
+          "title": "Lore",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "natives": {
+          "default": 0,
+          "title": "Natives",
+          "type": "integer"
+        },
+        "opens": {
+          "title": "Opens",
+          "type": "integer"
+        },
+        "people": {
+          "default": "",
+          "title": "People",
+          "type": "string"
+        },
+        "plunder": {
+          "default": 0,
+          "title": "Plunder",
+          "type": "integer"
+        },
+        "slots": {
+          "title": "Slots",
+          "type": "integer"
+        },
+        "yields": {
+          "$ref": "#/$defs/Resources"
+        }
+      },
+      "required": [
+        "name",
+        "opens",
+        "slots",
+        "yields",
+        "hardness",
+        "goods",
+        "lore"
+      ],
+      "title": "RegionSpec",
+      "type": "object"
+    },
+    "RegionView": {
+      "additionalProperties": false,
+      "description": "A region beyond the sea, as the chart of the New World shows it.",
+      "properties": {
+        "cargo": {
+          "title": "Cargo",
+          "type": "integer"
+        },
+        "cost_by_kind": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Resources"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/ColonyKind"
+          },
+          "title": "Cost By Kind",
+          "type": "object"
+        },
+        "defence": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Defence",
+          "type": "object"
+        },
+        "forts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Forts",
+          "type": "object"
+        },
+        "garrisons": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Garrisons",
+          "type": "object"
+        },
+        "good": {
+          "$ref": "#/$defs/ColonialGood"
+        },
+        "goods": {
+          "title": "Goods",
+          "type": "string"
+        },
+        "hardness": {
+          "title": "Hardness",
+          "type": "integer"
+        },
+        "held": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Held",
+          "type": "object"
+        },
+        "id": {
+          "$ref": "#/$defs/Region"
+        },
+        "lore": {
+          "title": "Lore",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "natives": {
+          "title": "Natives",
+          "type": "integer"
+        },
+        "natives_defence": {
+          "title": "Natives Defence",
+          "type": "number"
+        },
+        "open": {
+          "title": "Open",
+          "type": "boolean"
+        },
+        "opens": {
+          "title": "Opens",
+          "type": "integer"
+        },
+        "people": {
+          "title": "People",
+          "type": "string"
+        },
+        "price": {
+          "title": "Price",
+          "type": "number"
+        },
+        "progress_by_kind": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/ColonyKind"
+          },
+          "title": "Progress By Kind",
+          "type": "object"
+        },
+        "resistance": {
+          "title": "Resistance",
+          "type": "number"
+        },
+        "send_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Send Error"
+        },
+        "slots": {
+          "title": "Slots",
+          "type": "integer"
+        },
+        "viceroyalty_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Viceroyalty Error"
+        },
+        "viceroys": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Viceroys",
+          "type": "object"
+        },
+        "yields": {
+          "$ref": "#/$defs/Resources"
+        },
+        "your_progress": {
+          "title": "Your Progress",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "opens",
+        "open",
+        "slots",
+        "held",
+        "yields",
+        "goods",
+        "hardness",
+        "lore",
+        "your_progress",
+        "send_error",
+        "good",
+        "cargo",
+        "price",
+        "people",
+        "natives",
+        "natives_defence",
+        "resistance",
+        "defence",
+        "garrisons",
+        "forts",
+        "viceroys",
+        "progress_by_kind",
+        "cost_by_kind",
+        "viceroyalty_error"
+      ],
+      "title": "RegionView",
+      "type": "object"
+    },
+    "Resources": {
+      "additionalProperties": false,
+      "description": "A bundle of the six national resources. Never negative.",
+      "properties": {
+        "ducats": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Ducats",
+          "type": "integer"
+        },
+        "goods": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Goods",
+          "type": "integer"
+        },
+        "grain": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Grain",
+          "type": "integer"
+        },
+        "iron": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Iron",
+          "type": "integer"
+        },
+        "manpower": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Manpower",
+          "type": "integer"
+        },
+        "timber": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Timber",
+          "type": "integer"
+        }
+      },
+      "title": "Resources",
+      "type": "object"
+    },
+    "RoyalAct": {
+      "description": "What a crown can do by its own authority (see Rules.royal_acts).",
+      "enum": [
+        "levy",
+        "progress",
+        "banners",
+        "pardon",
+        "embassy",
+        "presence",
+        "church"
+      ],
+      "title": "RoyalAct",
+      "type": "string"
+    },
+    "RoyalActSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "cost": {
+          "title": "Cost",
+          "type": "integer"
+        },
+        "effect": {
+          "title": "Effect",
+          "type": "string"
+        },
+        "lore": {
+          "default": "",
+          "title": "Lore",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "cost",
+        "effect"
+      ],
+      "title": "RoyalActSpec",
+      "type": "object"
+    },
+    "Ruler": {
+      "description": "The crowned head of a nation. Ages one year a turn, and one day dies.",
+      "properties": {
+        "administration": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Administration",
+          "type": "integer"
+        },
+        "age": {
+          "title": "Age",
+          "type": "integer"
+        },
+        "agenda": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agenda"
+        },
+        "agenda_start": {
+          "default": 0,
+          "title": "Agenda Start",
+          "type": "integer"
+        },
+        "agendas_done": {
+          "default": 0,
+          "title": "Agendas Done",
+          "type": "integer"
+        },
+        "bio": {
+          "default": "",
+          "title": "Bio",
+          "type": "string"
+        },
+        "diplomacy": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Diplomacy",
+          "type": "integer"
+        },
+        "military": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Military",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "reign": {
+          "default": 0,
+          "title": "Reign",
+          "type": "integer"
+        },
+        "since": {
+          "title": "Since",
+          "type": "integer"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "traits": {
+          "items": {
+            "$ref": "#/$defs/Trait"
+          },
+          "title": "Traits",
+          "type": "array"
+        }
+      },
+      "required": [
+        "title",
+        "name",
+        "age",
+        "administration",
+        "diplomacy",
+        "military",
+        "since"
+      ],
+      "title": "Ruler",
+      "type": "object"
+    },
+    "Rules": {
+      "additionalProperties": false,
+      "description": "Every number the engine uses. Part of the state so a tournament can vary them.",
+      "properties": {
+        "advisor_hire_ducats": {
+          "default": 40,
+          "title": "Advisor Hire Ducats",
+          "type": "integer"
+        },
+        "advisor_pool_years": {
+          "default": 5,
+          "title": "Advisor Pool Years",
+          "type": "integer"
+        },
+        "advisor_salary_ducats": {
+          "default": 2,
+          "title": "Advisor Salary Ducats",
+          "type": "integer"
+        },
+        "agenda_authority": {
+          "default": 30,
+          "title": "Agenda Authority",
+          "type": "integer"
+        },
+        "agenda_offers": {
+          "default": 3,
+          "title": "Agenda Offers",
+          "type": "integer"
+        },
+        "agenda_prestige": {
+          "default": 10,
+          "title": "Agenda Prestige",
+          "type": "integer"
+        },
+        "agendas": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AgendaSpec"
+          },
+          "title": "Agendas",
+          "type": "object"
+        },
+        "ambition_victory": {
+          "default": true,
+          "title": "Ambition Victory",
+          "type": "boolean"
+        },
+        "armory_iron_discount": {
+          "default": 0.5,
+          "title": "Armory Iron Discount",
+          "type": "number"
+        },
+        "artillery_share_per_fort_level": {
+          "default": 0.1,
+          "title": "Artillery Share Per Fort Level",
+          "type": "number"
+        },
+        "authority_max": {
+          "default": 100,
+          "title": "Authority Max",
+          "type": "integer"
+        },
+        "authority_start": {
+          "default": 20,
+          "title": "Authority Start",
+          "type": "integer"
+        },
+        "base_grain_per_province": {
+          "default": 3,
+          "title": "Base Grain Per Province",
+          "type": "integer"
+        },
+        "base_iron_per_province": {
+          "default": 1,
+          "title": "Base Iron Per Province",
+          "type": "integer"
+        },
+        "base_timber_per_province": {
+          "default": 1,
+          "title": "Base Timber Per Province",
+          "type": "integer"
+        },
+        "blockade_min": {
+          "default": 8.0,
+          "title": "Blockade Min",
+          "type": "number"
+        },
+        "blockade_share": {
+          "default": 0.25,
+          "title": "Blockade Share",
+          "type": "number"
+        },
+        "building_level_factors": {
+          "default": [
+            1.0,
+            1.6,
+            2.2
+          ],
+          "items": {
+            "type": "number"
+          },
+          "title": "Building Level Factors",
+          "type": "array"
+        },
+        "building_output_bonus": {
+          "default": 1.0,
+          "title": "Building Output Bonus",
+          "type": "number"
+        },
+        "building_upgrade_costs": {
+          "default": [
+            1.0,
+            1.0,
+            1.5
+          ],
+          "items": {
+            "type": "number"
+          },
+          "title": "Building Upgrade Costs",
+          "type": "array"
+        },
+        "buildings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BuildingSpec"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/BuildingKind"
+          },
+          "title": "Buildings",
+          "type": "object"
+        },
+        "burden_from": {
+          "default": 80,
+          "title": "Burden From",
+          "type": "integer"
+        },
+        "burden_max": {
+          "default": 0.5,
+          "title": "Burden Max",
+          "type": "number"
+        },
+        "burden_per_development": {
+          "default": 0.004,
+          "title": "Burden Per Development",
+          "type": "number"
+        },
+        "capital_bonus": {
+          "default": 0.25,
+          "title": "Capital Bonus",
+          "type": "number"
+        },
+        "ceded_unrest_turns": {
+          "default": 2,
+          "title": "Ceded Unrest Turns",
+          "type": "integer"
+        },
+        "chancellor_research_discount": {
+          "default": 0.08,
+          "title": "Chancellor Research Discount",
+          "type": "number"
+        },
+        "coalition_dissolves": {
+          "default": 5.0,
+          "title": "Coalition Dissolves",
+          "type": "number"
+        },
+        "coalition_infamy": {
+          "default": 12.0,
+          "title": "Coalition Infamy",
+          "type": "number"
+        },
+        "colonial_blockade": {
+          "default": 0.5,
+          "title": "Colonial Blockade",
+          "type": "number"
+        },
+        "colonial_defender": {
+          "default": 1.25,
+          "title": "Colonial Defender",
+          "type": "number"
+        },
+        "colonial_fort_cost": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 60,
+            "goods": 0,
+            "grain": 0,
+            "iron": 5,
+            "manpower": 0,
+            "timber": 0
+          }
+        },
+        "colonial_fort_defence": {
+          "default": 0.5,
+          "title": "Colonial Fort Defence",
+          "type": "number"
+        },
+        "colonial_fort_max": {
+          "default": 2,
+          "title": "Colonial Fort Max",
+          "type": "integer"
+        },
+        "colony_kinds": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ColonyKindSpec"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/ColonyKind"
+          },
+          "title": "Colony Kinds",
+          "type": "object"
+        },
+        "combined_arms_bonus": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Combined Arms Bonus",
+          "type": "object"
+        },
+        "combined_arms_share": {
+          "default": 0.1,
+          "title": "Combined Arms Share",
+          "type": "number"
+        },
+        "convert_cost": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 40,
+            "goods": 0,
+            "grain": 0,
+            "iron": 0,
+            "manpower": 0,
+            "timber": 0
+          }
+        },
+        "convert_cost_per_development": {
+          "default": 10,
+          "title": "Convert Cost Per Development",
+          "type": "integer"
+        },
+        "crisis_stability": {
+          "default": 2,
+          "title": "Crisis Stability",
+          "type": "integer"
+        },
+        "crisis_window": {
+          "default": [
+            18,
+            28
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Crisis Window",
+          "type": "array"
+        },
+        "defender_advantage": {
+          "default": 1.2,
+          "title": "Defender Advantage",
+          "type": "number"
+        },
+        "designation_realm_cap": {
+          "default": 2,
+          "title": "Designation Realm Cap",
+          "type": "integer"
+        },
+        "designations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DesignationSpec"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Focus"
+          },
+          "title": "Designations",
+          "type": "object"
+        },
+        "develop_base_ducats": {
+          "default": 10,
+          "title": "Develop Base Ducats",
+          "type": "integer"
+        },
+        "develop_ducats_per_level": {
+          "default": 7,
+          "title": "Develop Ducats Per Level",
+          "type": "integer"
+        },
+        "develop_goods_from": {
+          "default": 5,
+          "title": "Develop Goods From",
+          "type": "integer"
+        },
+        "develop_grain_base": {
+          "default": 4,
+          "title": "Develop Grain Base",
+          "type": "integer"
+        },
+        "develop_grain_per_level": {
+          "default": 1,
+          "title": "Develop Grain Per Level",
+          "type": "integer"
+        },
+        "develop_iron_from": {
+          "default": 4,
+          "title": "Develop Iron From",
+          "type": "integer"
+        },
+        "develop_timber_base": {
+          "default": 3,
+          "title": "Develop Timber Base",
+          "type": "integer"
+        },
+        "develop_timber_per_two_levels": {
+          "default": 2,
+          "title": "Develop Timber Per Two Levels",
+          "type": "integer"
+        },
+        "diplomacy_log": {
+          "default": 1000,
+          "title": "Diplomacy Log",
+          "type": "integer"
+        },
+        "disband_refund": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 0,
+            "goods": 0,
+            "grain": 0,
+            "iron": 0,
+            "manpower": 2,
+            "timber": 0
+          }
+        },
+        "domination_share": {
+          "default": 0.5,
+          "title": "Domination Share",
+          "type": "number"
+        },
+        "ducat_upkeep_per_regiment": {
+          "default": 0.5,
+          "title": "Ducat Upkeep Per Regiment",
+          "type": "number"
+        },
+        "economy_tech_bonus": {
+          "default": 0.05,
+          "title": "Economy Tech Bonus",
+          "type": "number"
+        },
+        "education_authority": {
+          "default": 15,
+          "title": "Education Authority",
+          "type": "integer"
+        },
+        "education_cost": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 30,
+            "goods": 0,
+            "grain": 0,
+            "iron": 0,
+            "manpower": 0,
+            "timber": 0
+          }
+        },
+        "engineering_tech_discount": {
+          "default": 0.08,
+          "title": "Engineering Tech Discount",
+          "type": "number"
+        },
+        "event_chance": {
+          "default": 0.3,
+          "title": "Event Chance",
+          "type": "number"
+        },
+        "exhaustion_income_penalty": {
+          "default": 0.01,
+          "title": "Exhaustion Income Penalty",
+          "type": "number"
+        },
+        "exhaustion_max": {
+          "default": 20.0,
+          "title": "Exhaustion Max",
+          "type": "number"
+        },
+        "exhaustion_more_wars": {
+          "default": 0.5,
+          "title": "Exhaustion More Wars",
+          "type": "number"
+        },
+        "exhaustion_per_battle_lost": {
+          "default": 0.5,
+          "title": "Exhaustion Per Battle Lost",
+          "type": "number"
+        },
+        "exhaustion_per_province_occupied": {
+          "default": 0.5,
+          "title": "Exhaustion Per Province Occupied",
+          "type": "number"
+        },
+        "exhaustion_per_war_year": {
+          "default": 1.0,
+          "title": "Exhaustion Per War Year",
+          "type": "number"
+        },
+        "exhaustion_quiet_war": {
+          "default": 0.5,
+          "title": "Exhaustion Quiet War",
+          "type": "number"
+        },
+        "exhaustion_recovery": {
+          "default": 2.0,
+          "title": "Exhaustion Recovery",
+          "type": "number"
+        },
+        "exhaustion_unrest_threshold": {
+          "default": 10.0,
+          "title": "Exhaustion Unrest Threshold",
+          "type": "number"
+        },
+        "expedition_baltic": {
+          "default": 10,
+          "title": "Expedition Baltic",
+          "type": "integer"
+        },
+        "expedition_base": {
+          "default": 20,
+          "title": "Expedition Base",
+          "type": "integer"
+        },
+        "expedition_cost": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 40,
+            "goods": 0,
+            "grain": 0,
+            "iron": 0,
+            "manpower": 3,
+            "timber": 0
+          }
+        },
+        "expedition_fleet_cap": {
+          "default": 10,
+          "title": "Expedition Fleet Cap",
+          "type": "integer"
+        },
+        "expedition_per_strength": {
+          "default": 1.0,
+          "title": "Expedition Per Strength",
+          "type": "number"
+        },
+        "expedition_ships": {
+          "default": 2.5,
+          "title": "Expedition Ships",
+          "type": "number"
+        },
+        "expeditions_at_once": {
+          "default": 2,
+          "title": "Expeditions At Once",
+          "type": "integer"
+        },
+        "faith_conquest_unrest": {
+          "default": 2,
+          "title": "Faith Conquest Unrest",
+          "type": "integer"
+        },
+        "faith_conversion_chance": {
+          "default": 0.05,
+          "title": "Faith Conversion Chance",
+          "type": "number"
+        },
+        "faith_follow_crown": {
+          "default": 0.5,
+          "title": "Faith Follow Crown",
+          "type": "number"
+        },
+        "faith_mismatch_output": {
+          "default": 0.25,
+          "title": "Faith Mismatch Output",
+          "type": "number"
+        },
+        "fleet_command": {
+          "default": 2.0,
+          "title": "Fleet Command",
+          "type": "number"
+        },
+        "fleet_reach": {
+          "default": 0.5,
+          "title": "Fleet Reach",
+          "type": "number"
+        },
+        "focus_base": {
+          "default": 0.15,
+          "title": "Focus Base",
+          "type": "number"
+        },
+        "focus_cost": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 30,
+            "goods": 0,
+            "grain": 0,
+            "iron": 0,
+            "manpower": 0,
+            "timber": 0
+          }
+        },
+        "focus_per_settlement": {
+          "default": 0.05,
+          "title": "Focus Per Settlement",
+          "type": "number"
+        },
+        "focus_years": {
+          "default": 5,
+          "title": "Focus Years",
+          "type": "integer"
+        },
+        "fort_bonus_per_level": {
+          "default": 0.25,
+          "title": "Fort Bonus Per Level",
+          "type": "number"
+        },
+        "garrison_pay": {
+          "default": 1,
+          "title": "Garrison Pay",
+          "type": "integer"
+        },
+        "general_bonus_per_skill": {
+          "default": 0.1,
+          "title": "General Bonus Per Skill",
+          "type": "number"
+        },
+        "general_cost": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 50,
+            "goods": 0,
+            "grain": 0,
+            "iron": 0,
+            "manpower": 0,
+            "timber": 0
+          }
+        },
+        "good_price_drop": {
+          "default": 0.04,
+          "title": "Good Price Drop",
+          "type": "number"
+        },
+        "good_price_floor": {
+          "default": 0.5,
+          "title": "Good Price Floor",
+          "type": "number"
+        },
+        "good_yield_per_development": {
+          "default": 1,
+          "title": "Good Yield Per Development",
+          "type": "integer"
+        },
+        "good_yields": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Good"
+          },
+          "title": "Good Yields",
+          "type": "object"
+        },
+        "goods": {
+          "additionalProperties": {
+            "$ref": "#/$defs/GoodSpec"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/ColonialGood"
+          },
+          "title": "Goods",
+          "type": "object"
+        },
+        "grain_upkeep_per_regiment": {
+          "default": 1,
+          "title": "Grain Upkeep Per Regiment",
+          "type": "integer"
+        },
+        "great_sea_battle": {
+          "default": 30,
+          "title": "Great Sea Battle",
+          "type": "integer"
+        },
+        "grudge_abandoned": {
+          "default": [
+            15,
+            2
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Grudge Abandoned",
+          "type": "array"
+        },
+        "grudge_betrayal": {
+          "default": [
+            30,
+            3
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Grudge Betrayal",
+          "type": "array"
+        },
+        "grudge_land": {
+          "default": [
+            20,
+            2
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Grudge Land",
+          "type": "array"
+        },
+        "grudge_refuses": {
+          "default": 2,
+          "title": "Grudge Refuses",
+          "type": "integer"
+        },
+        "grudge_war": {
+          "default": [
+            10,
+            1
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Grudge War",
+          "type": "array"
+        },
+        "hegemon_opinion": {
+          "default": 3,
+          "title": "Hegemon Opinion",
+          "type": "integer"
+        },
+        "hegemon_ratio": {
+          "default": 1.4,
+          "title": "Hegemon Ratio",
+          "type": "number"
+        },
+        "hegemon_standing": {
+          "default": 60,
+          "title": "Hegemon Standing",
+          "type": "integer"
+        },
+        "heir_birth_chance": {
+          "default": 0.2,
+          "title": "Heir Birth Chance",
+          "type": "number"
+        },
+        "import_premium": {
+          "default": 0.25,
+          "title": "Import Premium",
+          "type": "number"
+        },
+        "improve_cost": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 35,
+            "goods": 0,
+            "grain": 0,
+            "iron": 0,
+            "manpower": 0,
+            "timber": 6
+          }
+        },
+        "infamy_decay": {
+          "default": 1.0,
+          "title": "Infamy Decay",
+          "type": "number"
+        },
+        "infamy_natives": {
+          "default": 1.0,
+          "title": "Infamy Natives",
+          "type": "number"
+        },
+        "infamy_opinion": {
+          "default": -2,
+          "title": "Infamy Opinion",
+          "type": "integer"
+        },
+        "infamy_per_development": {
+          "default": 1.0,
+          "title": "Infamy Per Development",
+          "type": "number"
+        },
+        "inflation_decay": {
+          "default": 0.01,
+          "title": "Inflation Decay",
+          "type": "number"
+        },
+        "inflation_max": {
+          "default": 0.3,
+          "title": "Inflation Max",
+          "type": "number"
+        },
+        "iron_upkeep_per_regiments": {
+          "default": 10,
+          "title": "Iron Upkeep Per Regiments",
+          "type": "integer"
+        },
+        "joint_attack_penalty": {
+          "default": 0.1,
+          "title": "Joint Attack Penalty",
+          "type": "number"
+        },
+        "joint_attack_penalty_max": {
+          "default": 0.2,
+          "title": "Joint Attack Penalty Max",
+          "type": "number"
+        },
+        "landing_bonus": {
+          "default": 0.25,
+          "title": "Landing Bonus",
+          "type": "number"
+        },
+        "league_galleys": {
+          "default": 6,
+          "title": "League Galleys",
+          "type": "integer"
+        },
+        "learning_research_cap": {
+          "default": 0.15,
+          "title": "Learning Research Cap",
+          "type": "number"
+        },
+        "learning_research_discount": {
+          "default": 0.03,
+          "title": "Learning Research Discount",
+          "type": "number"
+        },
+        "majority": {
+          "default": 16,
+          "title": "Majority",
+          "type": "integer"
+        },
+        "manpower_cap_base": {
+          "default": 10,
+          "title": "Manpower Cap Base",
+          "type": "integer"
+        },
+        "manpower_cap_years": {
+          "default": 6,
+          "title": "Manpower Cap Years",
+          "type": "integer"
+        },
+        "market_ceiling": {
+          "default": 3.0,
+          "title": "Market Ceiling",
+          "type": "number"
+        },
+        "market_depth": {
+          "default": 100,
+          "title": "Market Depth",
+          "type": "integer"
+        },
+        "market_elasticity": {
+          "default": 0.25,
+          "title": "Market Elasticity",
+          "type": "number"
+        },
+        "market_floor": {
+          "default": 0.6,
+          "title": "Market Floor",
+          "type": "number"
+        },
+        "market_prices": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Market Prices",
+          "type": "object"
+        },
+        "market_reversion": {
+          "default": 0.2,
+          "title": "Market Reversion",
+          "type": "number"
+        },
+        "market_spread": {
+          "default": 0.15,
+          "title": "Market Spread",
+          "type": "number"
+        },
+        "marshal_battle_bonus": {
+          "default": 0.03,
+          "title": "Marshal Battle Bonus",
+          "type": "number"
+        },
+        "max_development": {
+          "default": 12,
+          "title": "Max Development",
+          "type": "integer"
+        },
+        "max_friends": {
+          "default": 3,
+          "title": "Max Friends",
+          "type": "integer"
+        },
+        "max_generals": {
+          "default": 4,
+          "title": "Max Generals",
+          "type": "integer"
+        },
+        "max_marriages": {
+          "default": 3,
+          "title": "Max Marriages",
+          "type": "integer"
+        },
+        "max_monument_level": {
+          "default": 3,
+          "title": "Max Monument Level",
+          "type": "integer"
+        },
+        "max_rivals": {
+          "default": 3,
+          "title": "Max Rivals",
+          "type": "integer"
+        },
+        "max_stability": {
+          "default": 3,
+          "title": "Max Stability",
+          "type": "integer"
+        },
+        "max_tech_level": {
+          "default": 5,
+          "title": "Max Tech Level",
+          "type": "integer"
+        },
+        "max_trade_per_order": {
+          "default": 200,
+          "title": "Max Trade Per Order",
+          "type": "integer"
+        },
+        "max_workings": {
+          "default": 3,
+          "title": "Max Workings",
+          "type": "integer"
+        },
+        "mercenary_cost": {
+          "default": 15,
+          "title": "Mercenary Cost",
+          "type": "integer"
+        },
+        "mercenary_limit": {
+          "default": 10,
+          "title": "Mercenary Limit",
+          "type": "integer"
+        },
+        "mercenary_veterancy": {
+          "default": 0.5,
+          "title": "Mercenary Veterancy",
+          "type": "number"
+        },
+        "military_tech_bonus": {
+          "default": 0.06,
+          "title": "Military Tech Bonus",
+          "type": "number"
+        },
+        "min_stability": {
+          "default": -3,
+          "title": "Min Stability",
+          "type": "integer"
+        },
+        "minors_arm": {
+          "default": 1,
+          "title": "Minors Arm",
+          "type": "integer"
+        },
+        "mobilization_turns": {
+          "default": 1,
+          "title": "Mobilization Turns",
+          "type": "integer"
+        },
+        "monopoly_bonus": {
+          "default": 0.25,
+          "title": "Monopoly Bonus",
+          "type": "number"
+        },
+        "monopoly_share": {
+          "default": 0.6,
+          "title": "Monopoly Share",
+          "type": "number"
+        },
+        "monument_cost": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 90,
+            "goods": 0,
+            "grain": 0,
+            "iron": 0,
+            "manpower": 0,
+            "timber": 10
+          }
+        },
+        "monuments": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MonumentSpec"
+          },
+          "title": "Monuments",
+          "type": "object"
+        },
+        "morale_per_exhaustion": {
+          "default": 0.0075,
+          "title": "Morale Per Exhaustion",
+          "type": "number"
+        },
+        "morale_per_stability": {
+          "default": 0.02,
+          "title": "Morale Per Stability",
+          "type": "number"
+        },
+        "national_units": {
+          "additionalProperties": {
+            "$ref": "#/$defs/NationalUnit"
+          },
+          "title": "National Units",
+          "type": "object"
+        },
+        "native_anger": {
+          "default": 0.01,
+          "title": "Native Anger",
+          "type": "number"
+        },
+        "native_calm": {
+          "default": 4.0,
+          "title": "Native Calm",
+          "type": "number"
+        },
+        "native_resistance_max": {
+          "default": 0.5,
+          "title": "Native Resistance Max",
+          "type": "number"
+        },
+        "native_terrain": {
+          "default": 0.05,
+          "title": "Native Terrain",
+          "type": "number"
+        },
+        "naval_battle_counts": {
+          "default": 3,
+          "title": "Naval Battle Counts",
+          "type": "integer"
+        },
+        "naval_loser_loss": {
+          "default": 0.5,
+          "title": "Naval Loser Loss",
+          "type": "number"
+        },
+        "naval_winner_loss": {
+          "default": 0.3,
+          "title": "Naval Winner Loss",
+          "type": "number"
+        },
+        "non_aggression_turns": {
+          "default": 10,
+          "title": "Non Aggression Turns",
+          "type": "integer"
+        },
+        "observatory_research_discount": {
+          "default": 0.15,
+          "title": "Observatory Research Discount",
+          "type": "number"
+        },
+        "opinion_betrayal": {
+          "default": -10,
+          "title": "Opinion Betrayal",
+          "type": "integer"
+        },
+        "opinion_call_answered": {
+          "default": 20,
+          "title": "Opinion Call Answered",
+          "type": "integer"
+        },
+        "opinion_call_ignored": {
+          "default": -30,
+          "title": "Opinion Call Ignored",
+          "type": "integer"
+        },
+        "opinion_charming": {
+          "default": 2,
+          "title": "Opinion Charming",
+          "type": "integer"
+        },
+        "opinion_coalition": {
+          "default": 10,
+          "title": "Opinion Coalition",
+          "type": "integer"
+        },
+        "opinion_cruel": {
+          "default": -1,
+          "title": "Opinion Cruel",
+          "type": "integer"
+        },
+        "opinion_decay": {
+          "default": 0.1,
+          "title": "Opinion Decay",
+          "type": "number"
+        },
+        "opinion_gift_max": {
+          "default": 25,
+          "title": "Opinion Gift Max",
+          "type": "integer"
+        },
+        "opinion_gift_per_ducats": {
+          "default": 4,
+          "title": "Opinion Gift Per Ducats",
+          "type": "integer"
+        },
+        "opinion_infidel": {
+          "default": -3,
+          "title": "Opinion Infidel",
+          "type": "integer"
+        },
+        "opinion_marriage_yearly": {
+          "default": 2,
+          "title": "Opinion Marriage Yearly",
+          "type": "integer"
+        },
+        "opinion_other_faith": {
+          "default": -1,
+          "title": "Opinion Other Faith",
+          "type": "integer"
+        },
+        "opinion_province_taken": {
+          "default": -10,
+          "title": "Opinion Province Taken",
+          "type": "integer"
+        },
+        "opinion_same_faith": {
+          "default": 2,
+          "title": "Opinion Same Faith",
+          "type": "integer"
+        },
+        "opinion_shared_enemy": {
+          "default": 3,
+          "title": "Opinion Shared Enemy",
+          "type": "integer"
+        },
+        "opinion_stance": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Opinion Stance",
+          "type": "object"
+        },
+        "opinion_trade": {
+          "default": 5,
+          "title": "Opinion Trade",
+          "type": "integer"
+        },
+        "opinion_treaty": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Opinion Treaty",
+          "type": "object"
+        },
+        "opinion_war_declared": {
+          "default": -40,
+          "title": "Opinion War Declared",
+          "type": "integer"
+        },
+        "patronage_base": {
+          "default": 40,
+          "title": "Patronage Base",
+          "type": "integer"
+        },
+        "patronage_per_prestige": {
+          "default": 2,
+          "title": "Patronage Per Prestige",
+          "type": "integer"
+        },
+        "patronage_prestige": {
+          "default": 4,
+          "title": "Patronage Prestige",
+          "type": "integer"
+        },
+        "peace_cost_army_limit": {
+          "default": 15,
+          "title": "Peace Cost Army Limit",
+          "type": "integer"
+        },
+        "peace_cost_per_year_of_income": {
+          "default": 10,
+          "title": "Peace Cost Per Year Of Income",
+          "type": "integer"
+        },
+        "policies": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "#/$defs/PolicySide"
+              },
+              {
+                "$ref": "#/$defs/PolicySide"
+              }
+            ],
+            "type": "array"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/PolicyAxis"
+          },
+          "title": "Policies",
+          "type": "object"
+        },
+        "policy_stability": {
+          "default": 1,
+          "title": "Policy Stability",
+          "type": "integer"
+        },
+        "policy_years": {
+          "default": 10,
+          "title": "Policy Years",
+          "type": "integer"
+        },
+        "presence_morale": {
+          "default": 0.08,
+          "title": "Presence Morale",
+          "type": "number"
+        },
+        "prestige_battle": {
+          "default": 1,
+          "title": "Prestige Battle",
+          "type": "integer"
+        },
+        "prestige_call_ignored": {
+          "default": -5,
+          "title": "Prestige Call Ignored",
+          "type": "integer"
+        },
+        "prestige_colony": {
+          "default": 3,
+          "title": "Prestige Colony",
+          "type": "integer"
+        },
+        "prestige_decay": {
+          "default": 1,
+          "title": "Prestige Decay",
+          "type": "integer"
+        },
+        "prestige_great_work": {
+          "default": 5,
+          "title": "Prestige Great Work",
+          "type": "integer"
+        },
+        "prestige_in_score": {
+          "default": 0.5,
+          "title": "Prestige In Score",
+          "type": "number"
+        },
+        "prestige_income_bonus": {
+          "default": 0.001,
+          "title": "Prestige Income Bonus",
+          "type": "number"
+        },
+        "prestige_max": {
+          "default": 100,
+          "title": "Prestige Max",
+          "type": "integer"
+        },
+        "prestige_monument_level": {
+          "default": 2,
+          "title": "Prestige Monument Level",
+          "type": "integer"
+        },
+        "prestige_natives": {
+          "default": 5,
+          "title": "Prestige Natives",
+          "type": "integer"
+        },
+        "prestige_province": {
+          "default": 3,
+          "title": "Prestige Province",
+          "type": "integer"
+        },
+        "prestige_stability_discount": {
+          "default": 0.002,
+          "title": "Prestige Stability Discount",
+          "type": "number"
+        },
+        "prestige_treaty_broken": {
+          "default": -10,
+          "title": "Prestige Treaty Broken",
+          "type": "integer"
+        },
+        "raid_chance": {
+          "default": 0.35,
+          "title": "Raid Chance",
+          "type": "number"
+        },
+        "raid_min": {
+          "default": 8.0,
+          "title": "Raid Min",
+          "type": "number"
+        },
+        "raid_privateers": {
+          "default": 0.1,
+          "title": "Raid Privateers",
+          "type": "number"
+        },
+        "raid_share": {
+          "default": 0.5,
+          "title": "Raid Share",
+          "type": "number"
+        },
+        "recruit_cost": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 6,
+            "goods": 0,
+            "grain": 0,
+            "iron": 2,
+            "manpower": 2,
+            "timber": 0
+          }
+        },
+        "regency_stability": {
+          "default": 1,
+          "title": "Regency Stability",
+          "type": "integer"
+        },
+        "region_share": {
+          "default": 0.5,
+          "title": "Region Share",
+          "type": "number"
+        },
+        "regions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RegionSpec"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Region"
+          },
+          "title": "Regions",
+          "type": "object"
+        },
+        "research_cost_growth": {
+          "default": 0.5,
+          "title": "Research Cost Growth",
+          "type": "number"
+        },
+        "revanche_fervour": {
+          "default": 0.05,
+          "title": "Revanche Fervour",
+          "type": "number"
+        },
+        "revanche_fervour_max": {
+          "default": 0.25,
+          "title": "Revanche Fervour Max",
+          "type": "number"
+        },
+        "revanche_power": {
+          "default": 0.15,
+          "title": "Revanche Power",
+          "type": "number"
+        },
+        "revanche_price": {
+          "default": 0.5,
+          "title": "Revanche Price",
+          "type": "number"
+        },
+        "revanche_years": {
+          "default": 30,
+          "title": "Revanche Years",
+          "type": "integer"
+        },
+        "rival_battle_bonus": {
+          "default": 0.05,
+          "title": "Rival Battle Bonus",
+          "type": "number"
+        },
+        "roll_max": {
+          "default": 1.2,
+          "title": "Roll Max",
+          "type": "number"
+        },
+        "roll_min": {
+          "default": 0.8,
+          "title": "Roll Min",
+          "type": "number"
+        },
+        "royal_acts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RoyalActSpec"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/RoyalAct"
+          },
+          "title": "Royal Acts",
+          "type": "object"
+        },
+        "royal_exchange_income_bonus": {
+          "default": 0.1,
+          "title": "Royal Exchange Income Bonus",
+          "type": "number"
+        },
+        "royal_exchange_trade_bonus": {
+          "default": 0.25,
+          "title": "Royal Exchange Trade Bonus",
+          "type": "number"
+        },
+        "ruler_battle_bonus": {
+          "default": 0.02,
+          "title": "Ruler Battle Bonus",
+          "type": "number"
+        },
+        "ruler_income_bonus": {
+          "default": 0.02,
+          "title": "Ruler Income Bonus",
+          "type": "number"
+        },
+        "ruler_stability_discount": {
+          "default": 0.08,
+          "title": "Ruler Stability Discount",
+          "type": "number"
+        },
+        "sea_crossing_bonus": {
+          "default": 0.25,
+          "title": "Sea Crossing Bonus",
+          "type": "number"
+        },
+        "seize_command": {
+          "default": 2.0,
+          "title": "Seize Command",
+          "type": "number"
+        },
+        "settlements": {
+          "items": {
+            "$ref": "#/$defs/Settlement"
+          },
+          "title": "Settlements",
+          "type": "array"
+        },
+        "ships": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ShipSpec"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Ship"
+          },
+          "title": "Ships",
+          "type": "object"
+        },
+        "ships_per_port": {
+          "default": 3,
+          "title": "Ships Per Port",
+          "type": "integer"
+        },
+        "shipyard_yards": {
+          "default": 2,
+          "title": "Shipyard Yards",
+          "type": "integer"
+        },
+        "siege_disease": {
+          "default": 0.1,
+          "title": "Siege Disease",
+          "type": "number"
+        },
+        "siege_results": {
+          "default": [
+            [
+              -99,
+              10,
+              "disease in the camp"
+            ],
+            [
+              1,
+              30,
+              "the walls hold"
+            ],
+            [
+              2,
+              45,
+              "the trenches creep closer"
+            ],
+            [
+              4,
+              65,
+              "hunger in the town"
+            ],
+            [
+              6,
+              100,
+              "a breach in the walls"
+            ]
+          ],
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Siege Results",
+          "type": "array"
+        },
+        "siege_ring_per_wall": {
+          "default": 5,
+          "title": "Siege Ring Per Wall",
+          "type": "integer"
+        },
+        "stability_boost_ducats": {
+          "default": 50,
+          "title": "Stability Boost Ducats",
+          "type": "integer"
+        },
+        "stability_income_bonus": {
+          "default": 0.1,
+          "title": "Stability Income Bonus",
+          "type": "number"
+        },
+        "start_year": {
+          "default": 1500,
+          "title": "Start Year",
+          "type": "integer"
+        },
+        "tactic_edge": {
+          "default": 0.15,
+          "title": "Tactic Edge",
+          "type": "number"
+        },
+        "tactic_share": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/UnitKind"
+          },
+          "title": "Tactic Share",
+          "type": "object"
+        },
+        "tax_income_step": {
+          "default": 0.15,
+          "title": "Tax Income Step",
+          "type": "number"
+        },
+        "tax_manpower_step": {
+          "default": 0.1,
+          "title": "Tax Manpower Step",
+          "type": "number"
+        },
+        "tax_stability_chance": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Tax Stability Chance",
+          "type": "object"
+        },
+        "tax_stability_cost_step": {
+          "default": 0.2,
+          "title": "Tax Stability Cost Step",
+          "type": "number"
+        },
+        "tech_costs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Resources"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/TechBranch"
+          },
+          "title": "Tech Costs",
+          "type": "object"
+        },
+        "tech_tree": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/TechLevel"
+            },
+            "type": "array"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/TechBranch"
+          },
+          "title": "Tech Tree",
+          "type": "object"
+        },
+        "terrain_defense": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Terrain"
+          },
+          "title": "Terrain Defense",
+          "type": "object"
+        },
+        "terrain_develop_cost": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Terrain"
+          },
+          "title": "Terrain Develop Cost",
+          "type": "object"
+        },
+        "terrain_yield": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Terrain"
+          },
+          "title": "Terrain Yield",
+          "type": "object"
+        },
+        "trade_bonus_marketplaces_max": {
+          "default": 0.2,
+          "title": "Trade Bonus Marketplaces Max",
+          "type": "number"
+        },
+        "trade_bonus_max": {
+          "default": 0.8,
+          "title": "Trade Bonus Max",
+          "type": "number"
+        },
+        "trade_bonus_per_economy_level": {
+          "default": 0.04,
+          "title": "Trade Bonus Per Economy Level",
+          "type": "number"
+        },
+        "trade_bonus_per_marketplace": {
+          "default": 0.02,
+          "title": "Trade Bonus Per Marketplace",
+          "type": "number"
+        },
+        "trade_bonus_per_treasurer_skill": {
+          "default": 0.03,
+          "title": "Trade Bonus Per Treasurer Skill",
+          "type": "number"
+        },
+        "treasurer_income_bonus": {
+          "default": 0.04,
+          "title": "Treasurer Income Bonus",
+          "type": "number"
+        },
+        "treaty_break_stability_penalty": {
+          "default": 2,
+          "title": "Treaty Break Stability Penalty",
+          "type": "integer"
+        },
+        "tribute_years": {
+          "default": 10,
+          "title": "Tribute Years",
+          "type": "integer"
+        },
+        "truce_turns": {
+          "default": 5,
+          "title": "Truce Turns",
+          "type": "integer"
+        },
+        "units": {
+          "additionalProperties": {
+            "$ref": "#/$defs/UnitSpec"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/UnitKind"
+          },
+          "title": "Units",
+          "type": "object"
+        },
+        "university_develop_discount": {
+          "default": 0.3,
+          "title": "University Develop Discount",
+          "type": "number"
+        },
+        "unrest_turns": {
+          "default": 5,
+          "title": "Unrest Turns",
+          "type": "integer"
+        },
+        "veterancy_bonus": {
+          "default": 0.25,
+          "title": "Veterancy Bonus",
+          "type": "number"
+        },
+        "veterancy_decay": {
+          "default": 0.02,
+          "title": "Veterancy Decay",
+          "type": "number"
+        },
+        "veterancy_per_victory": {
+          "default": 0.2,
+          "title": "Veterancy Per Victory",
+          "type": "number"
+        },
+        "viceroy_cargo": {
+          "default": 0.1,
+          "title": "Viceroy Cargo",
+          "type": "number"
+        },
+        "viceroy_defence": {
+          "default": 0.25,
+          "title": "Viceroy Defence",
+          "type": "number"
+        },
+        "viceroyalty_authority": {
+          "default": 20,
+          "title": "Viceroyalty Authority",
+          "type": "integer"
+        },
+        "viceroyalty_colonies": {
+          "default": 3,
+          "title": "Viceroyalty Colonies",
+          "type": "integer"
+        },
+        "viceroyalty_cost": {
+          "$ref": "#/$defs/Resources",
+          "default": {
+            "ducats": 80,
+            "goods": 0,
+            "grain": 0,
+            "iron": 0,
+            "manpower": 0,
+            "timber": 0
+          }
+        },
+        "war_score_battles_max": {
+          "default": 20,
+          "title": "War Score Battles Max",
+          "type": "integer"
+        },
+        "war_score_capital": {
+          "default": 15,
+          "title": "War Score Capital",
+          "type": "integer"
+        },
+        "war_score_per_battle": {
+          "default": 2,
+          "title": "War Score Per Battle",
+          "type": "integer"
+        },
+        "winner_loss_factor": {
+          "default": 0.5,
+          "title": "Winner Loss Factor",
+          "type": "number"
+        },
+        "workings": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Good"
+          },
+          "title": "Workings",
+          "type": "object"
+        },
+        "workings_bonus": {
+          "default": 0.5,
+          "title": "Workings Bonus",
+          "type": "number"
+        },
+        "workshop_base_goods": {
+          "default": 2,
+          "title": "Workshop Base Goods",
+          "type": "integer"
+        },
+        "workshop_goods_per_development": {
+          "default": 3,
+          "title": "Workshop Goods Per Development",
+          "type": "integer"
+        }
+      },
+      "title": "Rules",
+      "type": "object"
+    },
+    "SeaId": {
+      "type": "string"
+    },
+    "SeaView": {
+      "additionalProperties": false,
+      "description": "A zone of the sea, with every fleet in it (navies are public).",
+      "properties": {
+        "coasts": {
+          "items": {
+            "$ref": "#/$defs/ProvinceId"
+          },
+          "title": "Coasts",
+          "type": "array"
+        },
+        "fleets": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/$defs/Ship"
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Fleets",
+          "type": "object"
+        },
+        "id": {
+          "$ref": "#/$defs/SeaId"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "neighbors": {
+          "items": {
+            "$ref": "#/$defs/SeaId"
+          },
+          "title": "Neighbors",
+          "type": "array"
+        },
+        "power": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/NationId"
+          },
+          "title": "Power",
+          "type": "object"
+        },
+        "water": {
+          "$ref": "#/$defs/Water"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "water",
+        "neighbors",
+        "coasts",
+        "fleets",
+        "power"
+      ],
+      "title": "SeaView",
+      "type": "object"
+    },
+    "Settlement": {
+      "description": "What a province's chief town has grown into: from a hamlet to a great city. Development\ndecides it, and it decides how many works the province has room for.",
+      "properties": {
+        "building_slots": {
+          "title": "Building Slots",
+          "type": "integer"
+        },
+        "min_development": {
+          "title": "Min Development",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "min_development",
+        "building_slots"
+      ],
+      "title": "Settlement",
+      "type": "object"
+    },
+    "Ship": {
+      "enum": [
+        "galley",
+        "galleon"
+      ],
+      "title": "Ship",
+      "type": "string"
+    },
+    "ShipSpec": {
+      "additionalProperties": false,
+      "description": "What a kind of ship costs and is worth in each water.",
+      "properties": {
+        "carries": {
+          "title": "Carries",
+          "type": "integer"
+        },
+        "cost": {
+          "$ref": "#/$defs/Resources"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "pay": {
+          "title": "Pay",
+          "type": "number"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "strength": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Water"
+          },
+          "title": "Strength",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "cost",
+        "pay",
+        "carries",
+        "strength",
+        "role"
+      ],
+      "title": "ShipSpec",
+      "type": "object"
+    },
+    "Stance": {
+      "description": "A court's declared attitude towards another, public to all Europe.",
+      "enum": [
+        "friend",
+        "neutral",
+        "rival"
+      ],
+      "title": "Stance",
+      "type": "string"
+    },
+    "TechBranch": {
+      "enum": [
+        "military",
+        "economy",
+        "engineering",
+        "naval",
+        "administration"
+      ],
+      "title": "TechBranch",
+      "type": "string"
+    },
+    "TechLevel": {
+      "additionalProperties": false,
+      "description": "One step of a technology branch: what it is called, what it brings, what it needs from\nanother branch, and the doctrines to choose between when it is reached.",
+      "properties": {
+        "effects": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Effects",
+          "type": "object"
+        },
+        "lore": {
+          "default": "",
+          "title": "Lore",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "options": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/TechOption"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "requires": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/TechBranch"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requires"
+        },
+        "unlocks": {
+          "title": "Unlocks",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "unlocks"
+      ],
+      "title": "TechLevel",
+      "type": "object"
+    },
+    "TechOption": {
+      "additionalProperties": false,
+      "description": "One of the doctrines a level offers: choosing it shuts the others out for good.",
+      "properties": {
+        "effect": {
+          "title": "Effect",
+          "type": "string"
+        },
+        "effects": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Effects",
+          "type": "object"
+        },
+        "lore": {
+          "default": "",
+          "title": "Lore",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "effect",
+        "effects"
+      ],
+      "title": "TechOption",
+      "type": "object"
+    },
+    "Terrain": {
+      "enum": [
+        "plains",
+        "forest",
+        "hills",
+        "marsh",
+        "mountains"
+      ],
+      "title": "Terrain",
+      "type": "string"
+    },
+    "TradeView": {
+      "additionalProperties": false,
+      "description": "A crown's trade in one colonial good.",
+      "properties": {
+        "cargo": {
+          "title": "Cargo",
+          "type": "number"
+        },
+        "ducats": {
+          "title": "Ducats",
+          "type": "number"
+        },
+        "good": {
+          "$ref": "#/$defs/ColonialGood"
+        },
+        "monopoly": {
+          "title": "Monopoly",
+          "type": "boolean"
+        },
+        "price": {
+          "title": "Price",
+          "type": "number"
+        },
+        "shipped": {
+          "title": "Shipped",
+          "type": "number"
+        }
+      },
+      "required": [
+        "good",
+        "cargo",
+        "price",
+        "ducats",
+        "shipped",
+        "monopoly"
+      ],
+      "title": "TradeView",
+      "type": "object"
+    },
+    "Trait": {
+      "description": "A ruler's character. Some move the numbers a little; all of them tell an AI ruler (and a\nreader) who this person is.",
+      "enum": [
+        "warlike",
+        "cautious",
+        "thrifty",
+        "pious",
+        "scholar",
+        "builder",
+        "cunning",
+        "charming",
+        "cruel",
+        "ambitious",
+        "melancholic"
+      ],
+      "title": "Trait",
+      "type": "string"
+    },
+    "TreatyKind": {
+      "enum": [
+        "alliance",
+        "non_aggression",
+        "truce",
+        "tribute",
+        "army_limit",
+        "marriage",
+        "coalition"
+      ],
+      "title": "TreatyKind",
+      "type": "string"
+    },
+    "TreatyView": {
+      "additionalProperties": false,
+      "properties": {
+        "against": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NationId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "amount": {
+          "default": 0,
+          "title": "Amount",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/TreatyKind"
+        },
+        "partner": {
+          "$ref": "#/$defs/NationId"
+        },
+        "payer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NationId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "until_turn": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Until Turn"
+        }
+      },
+      "required": [
+        "kind",
+        "partner",
+        "until_turn"
+      ],
+      "title": "TreatyView",
+      "type": "object"
+    },
+    "UnitKind": {
+      "enum": [
+        "infantry",
+        "archers",
+        "cavalry",
+        "artillery"
+      ],
+      "title": "UnitKind",
+      "type": "string"
+    },
+    "UnitSpec": {
+      "additionalProperties": false,
+      "description": "One kind of regiment: what it costs, what it eats and how it fights. A regiment's strength\nis its attack (or defence) times the terrain it fights on.",
+      "properties": {
+        "attack": {
+          "title": "Attack",
+          "type": "number"
+        },
+        "cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Resources"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "defence": {
+          "title": "Defence",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "pay": {
+          "default": 1.0,
+          "title": "Pay",
+          "type": "number"
+        },
+        "rations": {
+          "default": 1.0,
+          "title": "Rations",
+          "type": "number"
+        },
+        "requires": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BuildingKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "terrain": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Terrain"
+          },
+          "title": "Terrain",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "attack",
+        "defence",
+        "role"
+      ],
+      "title": "UnitSpec",
+      "type": "object"
+    },
+    "Viceroy": {
+      "description": "The crown's viceroy over a region where it holds a viceroyalty.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "since": {
+          "title": "Since",
+          "type": "integer"
+        },
+        "skill": {
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Skill",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "skill",
+        "since"
+      ],
+      "title": "Viceroy",
+      "type": "object"
+    },
+    "WarView": {
+      "additionalProperties": false,
+      "properties": {
+        "attacks_allowed_from_turn": {
+          "title": "Attacks Allowed From Turn",
+          "type": "integer"
+        },
+        "battles_lost": {
+          "title": "Battles Lost",
+          "type": "integer"
+        },
+        "battles_won": {
+          "title": "Battles Won",
+          "type": "integer"
+        },
+        "enemy": {
+          "$ref": "#/$defs/NationId"
+        },
+        "since_turn": {
+          "title": "Since Turn",
+          "type": "integer"
+        },
+        "war_score": {
+          "title": "War Score",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "enemy",
+        "since_turn",
+        "attacks_allowed_from_turn",
+        "war_score",
+        "battles_won",
+        "battles_lost"
+      ],
+      "title": "WarView",
+      "type": "object"
+    },
+    "Water": {
+      "description": "The three waters a fleet can hold. Every coastal province looks onto one or two.",
+      "enum": [
+        "atlantic",
+        "baltic",
+        "mediterranean"
+      ],
+      "title": "Water",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "title": "Contract",
+      "type": "string"
+    },
+    "crisis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CrisisView"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hegemon": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NationId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "last_turn_events": {
+      "items": {
+        "$ref": "#/$defs/Event"
+      },
+      "title": "Last Turn Events",
+      "type": "array"
+    },
+    "market": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PriceView"
+      },
+      "title": "Market",
+      "type": "object"
+    },
+    "max_turns": {
+      "title": "Max Turns",
+      "type": "integer"
+    },
+    "me": {
+      "$ref": "#/$defs/MyNation"
+    },
+    "nations": {
+      "items": {
+        "$ref": "#/$defs/NationSummary"
+      },
+      "title": "Nations",
+      "type": "array"
+    },
+    "new_world": {
+      "items": {
+        "$ref": "#/$defs/RegionView"
+      },
+      "title": "New World",
+      "type": "array"
+    },
+    "proposals_sent": {
+      "items": {
+        "$ref": "#/$defs/ProposalView"
+      },
+      "title": "Proposals Sent",
+      "type": "array"
+    },
+    "proposals_to_answer": {
+      "items": {
+        "$ref": "#/$defs/ProposalView"
+      },
+      "title": "Proposals To Answer",
+      "type": "array"
+    },
+    "provinces": {
+      "items": {
+        "$ref": "#/$defs/ProvinceView"
+      },
+      "title": "Provinces",
+      "type": "array"
+    },
+    "rules": {
+      "$ref": "#/$defs/Rules"
+    },
+    "seas": {
+      "items": {
+        "$ref": "#/$defs/SeaView"
+      },
+      "title": "Seas",
+      "type": "array"
+    },
+    "turn": {
+      "title": "Turn",
+      "type": "integer"
+    },
+    "year": {
+      "title": "Year",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "contract",
+    "turn",
+    "year",
+    "max_turns",
+    "me",
+    "provinces",
+    "nations",
+    "proposals_to_answer",
+    "proposals_sent",
+    "last_turn_events",
+    "market",
+    "crisis",
+    "new_world",
+    "seas",
+    "hegemon",
+    "rules"
+  ],
+  "title": "NationView",
+  "type": "object"
+}

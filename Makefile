@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help sync fmt lint types test check precommit-install map host image deploy-tables
+.PHONY: help sync fmt lint types test check precommit-install map host image deploy-tables contract chart
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -36,6 +36,9 @@ map: ## Rebuild the map asset from Natural Earth (downloads ~48 MB the first tim
 		test -f $(NE)/$$f.geojson || curl -sSfL -o $(NE)/$$f.geojson $(NE_URL)/$$f.geojson; done
 	uv run --group mapgen python scripts/build_map.py \
 		$(NE)/ne_10m_admin_1_states_provinces_lakes.geojson $(NE)/ne_10m_rivers_lake_centerlines.geojson
+
+contract: ## Write the frozen agent contract: schemas, lock and the references in docs/agent-contract.md
+	uv run python scripts/contract.py
 
 chart: ## Rebuild the chart of the New World from the Natural Earth input of `make map`
 	uv run --group mapgen python scripts/build_chart.py \

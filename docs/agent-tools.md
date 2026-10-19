@@ -1,6 +1,7 @@
 # Tools for a ruler
 
-What the game gives an AI ruler besides its `NationView`. Everything lives in
+What the game gives an AI ruler besides its `NationView` (the view and the orders themselves are
+the frozen [contract](agent-contract.md)). Everything lives in
 [`tools.py`](../src/pax_agentica/tools.py) and is a pure function of the view, so no tool can
 see through the fog of war; the numbers follow the engine's own rules.
 

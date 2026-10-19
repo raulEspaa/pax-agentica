@@ -73,7 +73,7 @@ the AI rulers' job. Size: medium.
 
 Size: small to medium.
 
-### C. Freeze the contract
+### C. Freeze the contract (done 2026-10-19: [agent-contract.md](agent-contract.md), version 1.0.0)
 
 - Version `NationView` and `Orders`, export their JSON schema, and a test that fails when they
   change by accident.

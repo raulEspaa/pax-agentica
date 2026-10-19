@@ -17,6 +17,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from pax_agentica.engine import decisions, fortune, missions
+from pax_agentica.engine.contract import CONTRACT_VERSION
 from pax_agentica.engine.events import Event
 from pax_agentica.engine.mechanics import (
     army_of,
@@ -120,9 +121,9 @@ class _View(BaseModel):
 class GeneralView(_View):
     id: int
     name: str
-    nation: NationId
+    nation: NationId  # whose general
     skill: int  # 1 to 3: +10% battle power per point
-    province: ProvinceId
+    province: ProvinceId  # where the general stands
 
 
 class ProvinceView(_View):
@@ -135,14 +136,16 @@ class ProvinceView(_View):
     siege_progress: int  # 0 to 100: at 100 the walls fall
     besiegers: int | None  # regiments in the siege lines (None: hidden by the fog of war)
     # what is added to the besiegers' die next year (1 to 6), line by line; see rules.siege_results
-    siege_modifiers: tuple[tuple[str, int], ...]
-    terrain: Terrain
-    good: Good
-    development: int
+    siege_modifiers: tuple[
+        tuple[str, int], ...
+    ]  # what speeds or slows the siege here: (reason, points)
+    terrain: Terrain  # plains, forest, hills, marsh or mountains: defence and output
+    good: Good  # its trade good: what its land and workings yield
+    development: int  # 1 and up: output, score, and the size of its town
     fort: int  # fortification level: 1 with a fort, 2 with a citadel too
-    buildings: tuple[BuildingKind, ...]
+    buildings: tuple[BuildingKind, ...]  # the works standing in it
     building_levels: dict[BuildingKind, int]  # the level of every building standing (1 to 3)
-    idle: tuple[
+    idle: tuple[  # works that stood idle last year for want of their inputs
         BuildingKind, ...
     ]  # buildings whose inputs went unpaid last year: they yield nothing
     settlement: str  # what its development makes of it: "Hamlet" up to "Great city"
@@ -155,7 +158,7 @@ class ProvinceView(_View):
     output_per_turn: Resources  # what it yields its owner each turn (nothing during unrest)
     building_output_per_turn: Resources  # the part of that output its buildings add
     unrest: int  # turns before a recently conquered province produces again
-    is_capital: bool
+    is_capital: bool  # its owner's capital
     troops: int | None  # None: hidden by the fog of war
     army: dict[UnitKind, int] | None  # the same regiments by kind; None when hidden
     general: GeneralView | None  # the general here, if you can see this province
@@ -167,42 +170,44 @@ class ProvinceView(_View):
     recruit_costs: dict[UnitKind, Resources]  # yours only: per regiment of each kind raisable here
     workings: int  # level of its mine, vineyard, fishery... (0 to rules.max_workings)
     faith: Faith | None  # what its people believe; another faith than its ruler's yields less
-    convert_cost: (
+    convert_cost: (  # what converting it to your faith would cost (None: it cannot be)
         Resources | None
     )  # yours only, if its people keep another faith: what `convert` costs
     improve_cost: Resources | None  # yours only: what the next level of workings costs
     monument: int | None  # level of its monument (see rules.monuments); None if it has none
-    neighbors: tuple[ProvinceId, ...]
-    sea_neighbors: tuple[ProvinceId, ...]
+    neighbors: tuple[ProvinceId, ...]  # provinces it borders by land
+    sea_neighbors: tuple[
+        ProvinceId, ...
+    ]  # provinces across a strait: armies cross, the defenders favoured
     coasts: tuple[Water, ...]  # the kinds of water it looks onto
     seas: tuple[SeaId, ...]  # the sea zones it looks onto: where its ships launch and land
     straits: dict[ProvinceId, SeaId]  # the sea zone each strait crossing goes over
 
 
 class TreatyView(_View):
-    kind: TreatyKind
-    partner: NationId
-    until_turn: int | None
+    kind: TreatyKind  # alliance, non_aggression, truce, marriage, coalition, tribute, army_limit...
+    partner: NationId  # the other court
+    until_turn: int | None  # when it expires (None: until broken)
     payer: NationId | None = None  # tribute and army limit: the side bound by it
     against: NationId | None = None  # coalition: the conqueror the league stands against
     amount: int = 0  # tribute: ducats a year; army limit: regiments
 
 
 class WarView(_View):
-    enemy: NationId
-    since_turn: int
+    enemy: NationId  # the court you fight
+    since_turn: int  # when the war began
     attacks_allowed_from_turn: int  # armies mobilise for a while after a war starts
     war_score: int  # -100 to 100, your side: what a peace may demand of them
-    battles_won: int
-    battles_lost: int
+    battles_won: int  # your victories in it
+    battles_lost: int  # your defeats in it
 
 
 class CandidateView(_View):
     id: int
     name: str
-    role: AdvisorRole
-    skill: int
-    personality: Personality
+    role: AdvisorRole  # the council seat they seek
+    skill: int  # 1 to 3 stars
+    personality: Personality  # their temper as an advisor
     hire_cost: int  # ducats, once
     salary: int  # ducats, every year
 
@@ -214,24 +219,24 @@ class PriceView(_View):
 
 
 class OptionView(_View):
-    label: str
+    label: str  # the answer, in words
     effects: str  # what it does, in words
 
 
 class EventView(_View):
     id: int  # answer with choose_option(event_id=id, option=index)
-    event: str
+    event: str  # the kind of event
     title: str
     text: str
-    province: ProvinceId | None
-    options: tuple[OptionView, ...]
+    province: ProvinceId | None  # where it happens, if anywhere
+    options: tuple[OptionView, ...]  # the answers to choose from (choose_option)
     deadline_turn: int  # unanswered by the end of this turn, the first option is taken
 
 
 class GoalView(_View):
     text: str  # what is asked, in words
-    have: int
-    need: int
+    have: int  # how far it has come
+    need: int  # what it needs
     goal: Goal  # the same goal as data
 
 
@@ -239,10 +244,10 @@ class MissionView(_View):
     id: str
     title: str
     lore: str
-    goals: tuple[GoalView, ...]
+    goals: tuple[GoalView, ...]  # what it asks, each with its progress
     reward: str  # what it pays, in words
     status: Literal["done", "open", "locked"]  # locked: its earlier mission is not done
-    after: str | None
+    after: str | None  # the mission that must be done first
 
 
 class DecisionView(_View):
@@ -251,17 +256,17 @@ class DecisionView(_View):
     id: str
     title: str
     lore: str
-    goals: tuple[GoalView, ...]
+    goals: tuple[GoalView, ...]  # what it needs, each with its progress
     authority: int  # spent when taken
     ducats: int  # spent when taken
     rename: str | None  # the realm's new name, if it gives one
     reward: str  # what it gives, in words
-    taken: bool
+    taken: bool  # taken already (each is taken once)
     missing: tuple[str, ...]  # what it still lacks (empty: it can be taken now)
 
 
 class LedgerLine(_View):
-    kind: Literal["income", "expense"]
+    kind: Literal["income", "expense"]  # income or expense
     source: str  # land, buildings, workings, the crown's modifiers, the army, the council...
     amount: dict[str, int]  # by resource; a modifier line can be negative
 
@@ -269,10 +274,10 @@ class LedgerLine(_View):
 class GrudgeView(_View):
     """A wrong one court holds against another, and how long it will weigh."""
 
-    against: NationId
+    against: NationId  # the court it is held against
     reason: str  # "took Navarre"
-    since_year: int
-    until_year: int
+    since_year: int  # when the wrong was done
+    until_year: int  # when it is forgotten
     weight: int  # opinion lost each year while it lasts; from rules.grudge_refuses, no treaties
 
 
@@ -281,13 +286,13 @@ class AgendaView(_View):
     name: str
     text: str  # what it asks
     progress: int  # done so far this reign (taken: since it was taken)
-    target: int
+    target: int  # how many deeds fulfil it
 
 
 class TradeView(_View):
     """A crown's trade in one colonial good."""
 
-    good: ColonialGood
+    good: ColonialGood  # the colonial good
     cargo: float  # its cargoes a year
     price: float  # ducats a cargo today (a monopoly's bonus in it)
     ducats: float  # what they bring, before the crown's own bonuses
@@ -298,20 +303,20 @@ class TradeView(_View):
 class MyNation(_View):
     id: NationId
     name: str
-    capital: ProvinceId
-    resources: Resources
-    stability: int
+    capital: ProvinceId  # your capital
+    resources: Resources  # your treasury: ducats, manpower, iron, grain, timber, goods
+    stability: int  # -3 to +3: income, unrest and the cost of most things
     income_per_turn: Resources  # production, already including the stability modifier
     army_upkeep_per_turn: Resources  # what the army eats and is paid, plus advisors' salaries
     inputs_per_turn: Resources  # what your buildings consume a year, if all of them work
     manpower_cap: int  # the pool never grows beyond this; barracks raise it
-    regiments: int
+    regiments: int  # every regiment you have
     army: dict[UnitKind, int]  # every regiment you have, by kind
     provinces: tuple[ProvinceId, ...]  # the provinces you own
     held: tuple[
         ProvinceId, ...
     ]  # where your armies stand: your own unoccupied land and what you occupy
-    war_exhaustion: float  # 0 to 20: costs ducats, and stability from 10
+    war_exhaustion: float  # 0 to 20: costs ducats, and from 10 stability while at war
     morale: float  # your armies' battle power from stability and war exhaustion (1 = even)
     fleets: dict[SeaId, dict[Ship, int]]  # your ships in each sea zone
     naval_power: dict[SeaId, float]  # what they are worth there (galleys rule calm seas)
@@ -328,9 +333,9 @@ class MyNation(_View):
     colonial_forts: dict[Region, int]  # your forts over the colonies, by level
     prestige: int  # 0 to 100: ducats, cheaper stability, and half of it counts towards victory
     standing: int  # development plus half the prestige: what wins when time runs out
-    faith: Faith
+    faith: Faith  # your realm's faith
     pending_events: tuple[EventView, ...]  # decisions awaiting the crown
-    loans: tuple[Loan, ...]
+    loans: tuple[Loan, ...]  # what you owe, and when
     missions: tuple[MissionView, ...]  # your ambitions: done at the end of a year all goals hold
     decisions: tuple[DecisionView, ...]  # your crown's great choices: take_decision
     lost: tuple[ProvinceId, ...]  # land taken from you, to win back: revanche (see rules)
@@ -339,11 +344,11 @@ class MyNation(_View):
     infamy: float  # your conquests' weight on Europe; past rules.coalition_infamy, leagues form
     grudges: tuple[GrudgeView, ...]  # the wrongs your court will not forget
     ledger: tuple[LedgerLine, ...]  # where this year's resources come from and go, line by line
-    score: int
-    at_war_with: tuple[NationId, ...]
-    wars: tuple[WarView, ...]
-    treaties: tuple[TreatyView, ...]
-    technology: dict[TechBranch, int]
+    score: int  # your total development
+    at_war_with: tuple[NationId, ...]  # the courts you fight
+    wars: tuple[WarView, ...]  # each war: its enemy, its age, its battles and its war score
+    treaties: tuple[TreatyView, ...]  # your treaties, with whom and until when
+    technology: dict[TechBranch, int]  # your level in each branch (0 to rules.max_tech_level)
     doctrines: dict[TechBranch, list[int]]  # the doctrine chosen at each level reached
     policies: dict[PolicyAxis, int]  # the side taken on each axis (rules.policies)
     policy_locked_until: dict[PolicyAxis, int]  # the turn from which each may change again
@@ -356,10 +361,10 @@ class MyNation(_View):
     agenda_offers: tuple[AgendaView, ...]  # the ambitions it may take (choose_agenda)
     research_costs: dict[TechBranch, Resources | None]  # None: already at the top
     building_costs: dict[BuildingKind, Resources]  # after engineering
-    generals: tuple[GeneralView, ...]
+    generals: tuple[GeneralView, ...]  # your generals and where they stand
     modifiers: Modifiers  # every bonus you enjoy, with its source spelled out
-    ruler: Ruler | None
-    advisors: dict[AdvisorRole, Advisor]
+    ruler: Ruler | None  # who sits on your throne
+    advisors: dict[AdvisorRole, Advisor]  # your council, by seat
     advisor_candidates: tuple[CandidateView, ...]  # who you can hire right now
     opinions: dict[NationId, int]  # what you think of each court, from -100 to 100
     stances: dict[NationId, Stance]  # the friends and rivals you have declared (public)
@@ -368,23 +373,23 @@ class MyNation(_View):
 class NationSummary(_View):
     id: NationId
     name: str
-    alive: bool
-    capital: ProvinceId
-    provinces: int
-    score: int
-    at_war_with: tuple[NationId, ...]
-    allies: tuple[NationId, ...]
+    alive: bool  # still a power on the map
+    capital: ProvinceId  # its capital
+    provinces: int  # how many provinces it owns
+    score: int  # its total development
+    at_war_with: tuple[NationId, ...]  # the courts it fights (public)
+    allies: tuple[NationId, ...]  # its allies (public)
     technology: dict[TechBranch, int]  # public, as in any court of Europe
     doctrines: dict[TechBranch, list[int]]  # its doctrines, public too
     policies: dict[PolicyAxis, int]  # its policies, public
-    generals: int
+    generals: int  # how many generals it has
     ruler: Ruler | None  # public too: every court knows who reigns where
     heir: Ruler | None  # and who comes next
     opinion_of_you: int  # what this court thinks of you, from -100 to 100
-    war_exhaustion: float
-    prestige: int
-    standing: int
-    faith: Faith
+    war_exhaustion: float  # 0 to 20: how weary of war it is
+    prestige: int  # 0 to 100: half of it counts towards victory
+    standing: int  # development plus half the prestige: what wins when time runs out
+    faith: Faith  # its faith
     fleets: dict[SeaId, dict[Ship, int]]  # its ships in each sea zone: navies are public
     naval_power: dict[SeaId, float]  # what they are worth there
     colonies: dict[Region, int]  # its colonies beyond the sea (public)
@@ -403,10 +408,10 @@ class NationSummary(_View):
 
 class ProposalView(_View):
     id: int
-    kind: ProposalKind
-    sender: NationId
-    recipient: NationId
-    turn: int
+    kind: ProposalKind  # what is proposed: alliance, peace, trade, marriage, coalition...
+    sender: NationId  # who proposes
+    recipient: NationId  # to whom
+    turn: int  # when it was sent
     give: Resources  # trade and peace: what the sender gives
     receive: Resources  # trade and peace: what the sender asks for
     enemy: NationId | None  # call to arms: who the sender is fighting
@@ -427,7 +432,9 @@ class SeaView(_View):
     water: Water  # what kind of sea: what galleys and galleons are worth here
     neighbors: tuple[SeaId, ...]  # where a fleet can sail from here in a year
     coasts: tuple[ProvinceId, ...]  # the provinces it washes: ports, and shores to land on
-    fleets: dict[NationId, dict[Ship, int]]
+    fleets: dict[
+        NationId, dict[Ship, int]
+    ]  # every crown's ships in it, by kind (navies are public)
     power: dict[NationId, float]  # what each fleet is worth here
 
 
@@ -437,12 +444,12 @@ class RegionView(_View):
     id: Region
     name: str
     opens: int  # the year the way there is known
-    open: bool
+    open: bool  # the way there is known this year
     slots: int  # colonies it holds, among all the crowns
     held: dict[NationId, int]  # whose colonies are there (public)
     yields: Resources  # each colony's yearly due
-    goods: str
-    hardness: int
+    goods: str  # what it sends home, in words
+    hardness: int  # taken off each year's expedition progress
     lore: str
     your_progress: int  # what your expedition there would make a year before the die (5-30)
     send_error: str | None  # why you cannot send one now; None: you can
@@ -469,27 +476,30 @@ class CrisisView(_View):
     kind: str  # "plague", "ice_age", "price_revolution"
     title: str
     text: str
-    first_year: int
-    last_year: int
+    first_year: int  # when it begins
+    last_year: int  # when it ends
     raging: bool  # false the year it is announced
 
 
 class NationView(_View):
-    turn: int
-    year: int
-    max_turns: int
-    me: MyNation
-    provinces: tuple[ProvinceView, ...]
-    nations: tuple[NationSummary, ...]
+    contract: str  # the version of the contract this view is written in (engine/contract.py)
+    turn: int  # the turn, from 1
+    year: int  # the year, from 1500
+    max_turns: int  # the last turn: then the highest standing wins
+    me: MyNation  # everything about your own realm
+    provinces: tuple[ProvinceView, ...]  # every province of the map, as far as you can see it
+    nations: tuple[NationSummary, ...]  # every other court, as all Europe knows it
     proposals_to_answer: tuple[ProposalView, ...]  # answer them this turn or they expire
-    proposals_sent: tuple[ProposalView, ...]
-    last_turn_events: tuple[Event, ...]
+    proposals_sent: tuple[ProposalView, ...]  # your proposals still waiting for an answer
+    last_turn_events: tuple[
+        Event, ...
+    ]  # last year's events you witnessed, your rejected orders among them
     market: dict[str, PriceView]  # the European market today: trade with `buy` and `sell`
     crisis: CrisisView | None  # the age's great trouble, from the year it is announced
     new_world: tuple[RegionView, ...]  # the regions beyond the sea: send_expedition, seize_colony
     seas: tuple[SeaView, ...]  # the sea zones and their fleets: sail_fleet, seek_battle, landings
     hegemon: NationId | None  # the crown Europe fears: any court may league against it
-    rules: Rules
+    rules: Rules  # every number the engine uses
 
 
 def _new_world(state: GameState, nation: NationId) -> tuple[RegionView, ...]:
@@ -876,6 +886,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
     )
 
     return NationView(
+        contract=CONTRACT_VERSION,
         turn=state.turn,
         year=state.year,
         max_turns=state.max_turns,

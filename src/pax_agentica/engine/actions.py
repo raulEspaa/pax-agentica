@@ -86,8 +86,8 @@ class Develop(_Action):
 
 class Build(_Action):
     """Construct a building in one of your provinces. Each costs and does what the rules'
-    `buildings` catalogue says. Every province has `rules.building_slots` slots, holds each
-    building once, and a citadel needs a fort first."""
+    `buildings` catalogue says. A province has as many slots as its town allows (its
+    `building_slots` in the view), holds each building once, and a citadel needs a fort first."""
 
     type: Literal["build"] = "build"
     province: ProvinceId
@@ -615,7 +615,8 @@ class ConquerNatives(_Action):
 
 class UpgradeMonument(_Action):
     """Raise the monument of one of your provinces by a level (from a bare site to level 1, up
-    to the rules' maximum). Its bonus grows with every level and serves whoever holds it."""
+    to `rules.max_monument_level`). Its bonus grows with every level and serves whoever holds
+    it."""
 
     type: Literal["upgrade_monument"] = "upgrade_monument"
     province: ProvinceId

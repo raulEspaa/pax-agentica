@@ -36,6 +36,12 @@ Orders.model_json_schema()                  # structured-output schema for an LL
 `runner.run_game` plays a whole game with any mix of rulers. A ruler that raises or times out
 forfeits that turn. `pax view <nation>` prints a real view, and `pax schema` prints the schema.
 
+The contract is **frozen and versioned** ([docs/agent-contract.md](docs/agent-contract.md),
+`CONTRACT_VERSION` in `engine/contract.py`, schemas in `docs/contract/`). `tests/test_contract.py`
+fails on any change to `NationView` or `Orders`: never change them by accident; when a change is
+meant, bump the version (major if an old ruler could break), run `make contract` and add a line
+to the changelog.
+
 ## How work happens: spec → test → code
 
 Every feature follows the cycle in [`specs/README.md`](specs/README.md): spec, plan, tasks, TDD
