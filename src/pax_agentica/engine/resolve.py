@@ -4378,25 +4378,11 @@ class _Resolver:
             return
         self.s.finished = True
         self.s.winner = winner
-        allies = (
-            sorted(
-                n for n in self.s.partners(winner, TreatyKind.ALLIANCE) if self.s.nations[n].alive
-            )
-            if self.s.rules.shared_victory
-            else []
-        )
-        self.s.shared_with = allies
-        shared = (
-            f", and shares the victory with its allies {', '.join(self._name(n) for n in allies)}"
-            if allies
-            else ""
-        )
         self._emit(
             EventKind.GAME_OVER,
-            f"{self._name(winner)} wins: {reason}{shared}",
-            nations=(winner, *allies),
+            f"{self._name(winner)} wins: {reason}",
+            nations=(winner,),
             reason=reason,
-            allies=", ".join(allies),
         )
 
     def _ranking(self, nation: NationId) -> tuple[int, int, int, str]:

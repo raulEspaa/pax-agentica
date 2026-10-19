@@ -163,8 +163,7 @@
       pill.querySelector(".tablepill").onclick = () => pill.classList.toggle("open");
     }
     const table = closed ? `<div class="banner">This table is closed (${esc(closed)}). <a href="${REPLAY}" target="_blank">Watch the replay</a> · <a href="/">Back to the tables</a></div>` : "";
-    const sharers = (G.shared_with || []).map(nameOf);
-    $("banner").innerHTML = G.finished ? `<div class="over">👑 ${esc(G.winner ? (sharers.length ? `${nameOf(G.winner)} wins, with its allies ${sharers.join(", ")}.` : nameOf(G.winner) + " wins.") : "The game is over.")} <a href="#" id="theend">How the age ended</a> · <a href="${REPLAY}" target="_blank">Watch the replay</a></div>`
+    $("banner").innerHTML = G.finished ? `<div class="over">👑 ${esc(G.winner ? nameOf(G.winner) + " wins." : "The game is over.")} <a href="#" id="theend">How the age ended</a> · <a href="${REPLAY}" target="_blank">Watch the replay</a></div>`
       : fallen ? `<div class="banner">Your realm has fallen. You can watch the rest of the game year by year.</div>` : table;
     const te = $("theend"); if (te) te.onclick = (e) => { e.preventDefault(); report(null); };
     const fb = $("forceyear");
@@ -2958,9 +2957,8 @@
       .sort((a, b) => b.score - a.score || b.provinces - a.provinces);
     const place = ranking.findIndex((n) => n.id === G.human) + 1;
     const fallen = !V.me.provinces.length;
-    const sharing = (G.shared_with || []).includes(G.human);
-    const ending = G.finished || fallen ? `<div class="ending ${G.winner === G.human || sharing ? "won" : ""}">
-        <h3>${G.winner === G.human ? "Your realm is the greatest in Europe" : sharing ? `You share the victory of ${esc(nameOf(G.winner))}, your ally` : fallen ? "Your realm is no more" : `${esc(nameOf(G.winner))} prevails`}</h3>
+    const ending = G.finished || fallen ? `<div class="ending ${G.winner === G.human ? "won" : ""}">
+        <h3>${G.winner === G.human ? "Your realm is the greatest in Europe" : fallen ? "Your realm is no more" : `${esc(nameOf(G.winner))} prevails`}</h3>
         <p>${esc(V.last_turn_events.find((e) => e.kind === "game_over")?.summary || (fallen ? "Your last province has fallen" : "The game is over")).replace(/\.?$/, ".")}${place && !fallen ? ` You finish ${["first", "second", "third", "fourth", "fifth", "sixth", "seventh"][place - 1]}.` : ""}</p>
         <table class="grid num"><thead><tr><th></th><th>Nation</th><th>Score</th><th>Provinces</th></tr></thead><tbody>${ranking.map((n, k) =>
           `<tr class="${n.id === G.human ? "me" : ""}"><td>${k + 1}</td><td>${esc(n.name)}${n.alive ? "" : " †"}</td><td>${n.score}</td><td>${n.provinces}</td></tr>`).join("")}</tbody></table>

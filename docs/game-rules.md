@@ -903,7 +903,7 @@ leagues against those who wronged it, and is readier to make war on them.
 - **Domination**: rule half the provinces of Europe (52 of 104), or be the last nation standing.
 - **Destiny**: fulfil every ambition of your crown (its five missions). Small crowns can win this
   way as surely as great ones.
-- **Allies share the victory**: the winner's allies when the game ends win with it.
+- **One crown wins, alone**: allies do not share a victory.
 - **Otherwise**, when the turn limit (50 by default) runs out, the highest **standing** wins:
   the total development you own plus half your prestige. Ties go to more provinces, then more
   ducats.

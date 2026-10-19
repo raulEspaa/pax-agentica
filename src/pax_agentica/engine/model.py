@@ -2436,7 +2436,6 @@ class Rules(BaseModel):
     domination_share: float = 0.5  # own this share of all provinces to win outright
     crisis_window: tuple[int, int] = (18, 28)  # turns between which the age's crisis begins
     ambition_victory: bool = True  # fulfilling every mission of one's crown wins the game
-    shared_victory: bool = True  # the winner's allies at the end share its victory
     start_year: int = 1500
 
 
@@ -2782,7 +2781,6 @@ class GameState(BaseModel):
     diplomacy: list[Event] = Field(default_factory=list)
     finished: bool = False
     winner: NationId | None = None
-    shared_with: list[NationId] = Field(default_factory=list)  # the winner's allies, who share it
     crisis: Crisis | None = None  # the age's great trouble, drawn on the first turn
     history: list[str] = Field(default_factory=list)  # the great events already met
     natives: dict[Region, int] = Field(default_factory=dict)  # peoples' strength, once fought

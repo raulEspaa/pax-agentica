@@ -51,15 +51,14 @@ def test_a_decision_of_its_time_pays_at_once(state: GameState, play: Play) -> No
     assert any("no decision of your crown" in r for r in reasons(nonsense))
 
 
-def test_allies_share_the_victory(state: GameState, play: Play) -> None:
+def test_one_crown_wins_alone_whatever_its_allies(state: GameState, play: Play) -> None:
     state.turn = state.max_turns
     alone = play(state.model_copy(deep=True))
     winner = alone.winner
     assert winner is not None
-    assert alone.shared_with == []
     friend = next(n for n in state.nations if n != winner)
     state.treaties.append(Treaty(kind=TreatyKind.ALLIANCE, parties=pair(winner, friend), since=1))
     over = play(state)
     assert over.winner == winner
-    assert over.shared_with == [friend]
-    assert any("shares the victory" in e.summary for e in over.last_events)
+    over_event = next(e for e in over.last_events if e.kind == EventKind.GAME_OVER)
+    assert over_event.nations == (winner,)

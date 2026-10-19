@@ -131,7 +131,6 @@ class Table:
             "max_turns": state.max_turns,
             "finished": state.finished,
             "winner": state.winner,
-            "shared_with": list(state.shared_with),
             "turn_minutes": self.meta.turn_minutes,
             "created": self.meta.created,
             "closed": self.meta.closed,

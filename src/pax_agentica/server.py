@@ -401,7 +401,6 @@ class Session:
             "view": view_for(state, nation).model_dump(mode="json"),
             "finished": state.finished,
             "winner": state.winner,
-            "shared_with": list(state.shared_with),
             "chronicle": self.chronicle(nation)[:CHRONICLE_YEARS],
             "rulers": self.record.players,
             "previews": self.previews(nation),
