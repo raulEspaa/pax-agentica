@@ -12,10 +12,11 @@ from pax_agentica.engine.actions import (
     ProposePeace,
     Research,
     Respond,
+    SendMessage,
 )
 from pax_agentica.engine.model import Resources, TechBranch
 from pax_agentica.players.greedy_bot import GreedyBot
-from pax_agentica.players.plan import Plan
+from pax_agentica.players.plan import Plan, combine
 
 
 def orders(state: GameState, nation: str, plan: Plan | None, seed: int = 0) -> Orders:
@@ -117,3 +118,30 @@ def test_the_bot_can_change_its_plan(state: GameState) -> None:
     assert bot.following == Plan(note="first")
     bot.follow(None)
     assert bot.following is None
+
+
+def test_the_rulers_own_orders_win_over_the_bots() -> None:
+    bot = Orders(
+        actions=[
+            Respond(proposal_id=4, accept=False),
+            Respond(proposal_id=5, accept=True),
+            Research(branch=TechBranch.ECONOMY, choice=0),
+            ProposeAlliance(target="austria"),
+        ],
+        thoughts="the bot",
+    )
+    ruler = Orders(
+        actions=[
+            Respond(proposal_id=4, accept=True, note="Gladly."),
+            Research(branch=TechBranch.NAVAL, choice=1),
+            SendMessage(target="england", text="Peace between us."),
+        ],
+        thoughts="the ruler",
+    )
+    both = combine(bot, ruler)
+    answers = {a.proposal_id: a.accept for a in both.actions if isinstance(a, Respond)}
+    assert answers == {4: True, 5: True}
+    assert [a.branch for a in both.actions if isinstance(a, Research)] == [TechBranch.NAVAL]
+    assert any(isinstance(a, ProposeAlliance) for a in both.actions)
+    assert both.actions[0] == ruler.actions[0]
+    assert both.thoughts == "the ruler\nthe bot"

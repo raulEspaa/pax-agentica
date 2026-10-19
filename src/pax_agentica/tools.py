@@ -32,7 +32,7 @@ from pax_agentica.engine.model import (
     TechBranch,
     UnitKind,
 )
-from pax_agentica.engine.view import ProvinceView
+from pax_agentica.engine.view import ProposalView, ProvinceView
 
 # ---------------------------------------------------------------- odds
 
@@ -323,6 +323,28 @@ def _res(r: Resources | Mapping[str, int]) -> str:
     return ", ".join(f"{v} {k}" for k, v in amounts.items() if v) or "nothing"
 
 
+def _terms(offer: ProposalView, pname: Mapping[str, str]) -> str:
+    """A proposal's terms in words: what it gives, asks, cedes and demands."""
+    terms = []
+    if not offer.give.is_empty():
+        terms.append(f"gives {_res(offer.give)}")
+    if not offer.receive.is_empty():
+        terms.append(f"asks {_res(offer.receive)}")
+    if offer.cede:
+        terms.append("cedes " + ", ".join(pname.get(x, x) for x in offer.cede))
+    if offer.demand:
+        terms.append("demands " + ", ".join(pname.get(x, x) for x in offer.demand))
+    if offer.pay_tribute:
+        terms.append(f"pays a tribute of {offer.pay_tribute} a year")
+    if offer.ask_tribute:
+        terms.append(f"asks a tribute of {offer.ask_tribute} a year")
+    if offer.limit_army is not None:
+        terms.append(f"limits your army to {offer.limit_army}")
+    if offer.enemy:
+        terms.append(f"against {offer.enemy}")
+    return "; ".join(terms) or "no terms"
+
+
 def briefing(view: NationView) -> str:
     """A page of plain text: what a ruler needs to decide this year, and nothing it cannot see."""
     me = view.me
@@ -383,21 +405,10 @@ def briefing(view: NationView) -> str:
     if view.proposals_to_answer:
         lines.append("\n## Proposals to answer this year (respond)")
         for offer in view.proposals_to_answer:
-            terms = []
-            if not offer.give.is_empty():
-                terms.append(f"gives {_res(offer.give)}")
-            if not offer.receive.is_empty():
-                terms.append(f"asks {_res(offer.receive)}")
-            if offer.cede:
-                terms.append("cedes " + ", ".join(pname.get(x, x) for x in offer.cede))
-            if offer.demand:
-                terms.append("demands " + ", ".join(pname.get(x, x) for x in offer.demand))
-            if offer.ask_tribute:
-                terms.append(f"asks a tribute of {offer.ask_tribute} a year")
             note = f' "{offer.note}"' if offer.note else ""
-            what = "; ".join(terms) or "no terms"
             lines.append(
-                f"- #{offer.id} {offer.kind.value} from {name[offer.sender]}: {what}{note}"
+                f"- #{offer.id} {offer.kind.value} from {name[offer.sender]}: "
+                f"{_terms(offer, pname)}{note}"
             )
     rules = view.rules
     lines.append(
@@ -448,6 +459,52 @@ def briefing(view: NationView) -> str:
     prices = ", ".join(f"{k} {p.buy:.2f}/{p.sell:.2f}" for k, p in view.market.items())
     lines.append(f"\nMarket (buy/sell a unit): {prices}.")
     return "\n".join(line for line in lines if line != "")
+
+
+def inbox(view: NationView, years: int = 3) -> str:
+    """A diplomat's desk: every court that wrote, proposed or was written to in the last
+    `years`, with where things stand between it and you, the letters both ways (oldest first)
+    and the proposals waiting for your answer, with their ids and terms. Courts and provinces
+    by id, as orders name them. Empty when nobody wrote: no diplomat need be called."""
+    me = view.me
+    pname = {p.id: p.id for p in view.provinces}
+    bonds: dict[str, list[str]] = {}
+    for t in me.treaties:
+        bonds.setdefault(t.partner, []).append(t.kind.value)
+    waiting: dict[str, list[ProposalView]] = {}
+    for offer in view.proposals_to_answer:
+        waiting.setdefault(offer.sender, []).append(offer)
+    out = []
+    for court in sorted(view.nations, key=lambda c: -c.standing):
+        letters = [e for e in court.correspondence if e.turn > view.turn - years]
+        if not court.alive or not (letters or court.id in waiting):
+            continue
+        war = next((w for w in me.wars if w.enemy == court.id), None)
+        state = [
+            f"standing {court.standing} (yours {me.standing})",
+            f"thinks {court.opinion_of_you:+d} of you, you {me.opinions.get(court.id, 0):+d} of it",
+        ]
+        if war:
+            state.append(f"AT WAR, war score {war.war_score:+d}")
+        if bonds.get(court.id):
+            state.append("treaties " + ",".join(bonds[court.id]))
+        if court.remembers:
+            state.append("remembers " + "; ".join(g.reason for g in court.remembers))
+        wanted = [p for p in court.lost if p in me.provinces]
+        if wanted:
+            state.append("wants back " + ",".join(wanted))
+        out.append(f"## {court.id} ({court.name}): " + ", ".join(state))
+        for e in letters[-8:]:
+            year = view.rules.start_year + e.turn - 1
+            if e.kind.value == "message":
+                who = "you" if e.data.get("sender") == me.id else court.id
+                out.append(f'{year} {who}: "{e.data.get("text")}"')
+            else:
+                out.append(f"{year} {e.summary}")
+        for offer in waiting.get(court.id, []):
+            note = f' "{offer.note}"' if offer.note else ""
+            out.append(f"PROPOSAL #{offer.id} {offer.kind.value}: {_terms(offer, pname)}{note}")
+    return "\n".join(out)
 
 
 # What a planner hears of last year: Europe's great news, and what touched it, but not its own

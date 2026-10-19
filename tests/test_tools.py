@@ -4,7 +4,7 @@ import random
 from collections.abc import Callable
 
 from pax_agentica.engine import EventKind, GameState, Resources, new_game, view_for
-from pax_agentica.engine.actions import Attack
+from pax_agentica.engine.actions import Attack, ProposeAlliance, SendMessage
 from pax_agentica.engine.mechanics import output_with
 from pax_agentica.engine.model import BuildingKind
 from pax_agentica.tools import (
@@ -14,6 +14,7 @@ from pax_agentica.tools import (
     briefing,
     call_tool,
     compact_view,
+    inbox,
     win_chance,
     work_gain,
 )
@@ -124,3 +125,19 @@ def test_the_compact_view_is_small_and_written_in_ids() -> None:
     assert set(view.me.provinces) <= ids  # all our land, and what borders it
     assert {p.id for p in view.provinces} - ids  # not the whole map
     assert all(n.id in near for n in view.nations if n.alive and n.id != "france")
+
+
+def test_the_inbox_holds_letters_and_proposals_by_court(state: GameState, play: Play) -> None:
+    assert inbox(view_for(state, "england")) == ""  # nobody wrote: no diplomat to call
+    after = play(
+        state,
+        france=[
+            SendMessage(target="england", text="Let us share the Channel."),
+            ProposeAlliance(target="england", note="Together, against Spain."),
+        ],
+    )
+    desk = inbox(view_for(after, "england"))
+    assert desk.startswith("## france (France): standing")
+    assert '1500 france: "Let us share the Channel."' in desk
+    proposal = view_for(after, "england").proposals_to_answer[0]
+    assert f'PROPOSAL #{proposal.id} alliance: no terms "Together, against Spain."' in desk
