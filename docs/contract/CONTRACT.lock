@@ -1,5 +1,5 @@
 {
-  "fingerprint": "0773ca8428e15064",
+  "fingerprint": "a4d1912d61bfe5e2",
   "orders": [
     "recruit",
     "hire_mercenaries",
@@ -57,5 +57,5 @@
     "buy",
     "sell"
   ],
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

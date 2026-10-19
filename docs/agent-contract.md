@@ -1,6 +1,6 @@
 # The contract between the game and its rulers
 
-**Version 1.0.0**, frozen on 2026-10-19. This is everything a ruler (a bot, a language model or
+**Version 1.1.0**, frozen on 2026-10-19. This is everything a ruler (a bot, a language model or
 a person at the page) may read and do. It is the only interface between the game and the AI
 rulers in `src/pax_agentica/agents/`: if it is not here, a ruler cannot see it or do it.
 
@@ -8,10 +8,11 @@ The contract is code, kept honest by tests:
 
 - [`engine/contract.py`](../src/pax_agentica/engine/contract.py) holds `CONTRACT_VERSION`.
 - [`docs/contract/`](contract/) holds the JSON schemas of what a ruler reads
-  (`nation_view.schema.json`) and what it answers (`orders.schema.json`), and `CONTRACT.lock`
-  with the version, a fingerprint of both schemas and the list of orders.
-- The two references at the end of this page (every order, every field of the view) are written
-  from the code by `make contract`.
+  (`nation_view.schema.json`) and what it answers (`orders.schema.json`, or
+  `plan.schema.json` for a ruler that [writes a plan](#a-cheaper-ruler-a-plan)), and
+  `CONTRACT.lock` with the version, a fingerprint of the schemas and the list of orders.
+- The references on this page (every field of a plan, every order, every field of the view) are
+  written from the code by `make contract`.
 - `tests/test_contract.py` fails as soon as the code and any of these disagree.
 
 ## Versions
@@ -31,6 +32,8 @@ ruler needs are in `view.rules`, and the rules are explained in [game-rules.md](
 
 ### Changelog
 
+- **1.1.0** (2026-10-19): a ruler may answer with a `Plan` for the greedy bot to carry out
+  (`plan.schema.json`, `GreedyBot(plan=...)`), and read the view as `tools.compact_view`.
 - **1.0.0** (2026-10-19): the first frozen contract. 55 orders; the view with fog of war, the
   New World, the sea zones, national decisions, the hegemon and lost land.
 
@@ -159,6 +162,54 @@ proposes a marriage to Spain and writes to England:
   "thoughts": "Grow at home first; keep Spain close and England quiet."
 }
 ```
+
+## A cheaper ruler: a plan
+
+Writing every order every year means reading the whole view (some 76,000 tokens late in a game)
+and answering against a schema of 55 orders. A ruler can do less, and pay far less:
+
+- It reads `tools.compact_view(view)`: the realm, its wars and missions, the courts and the
+  provinces around it, as a few tables written with ids (about 1,600 tokens; `scope="all"` gives
+  the whole map in about 3,800).
+- It answers with a **`Plan`** ([`players/plan.py`](../src/pax_agentica/players/plan.py)): how
+  to spend, what the army is for, what to take, whom to fight, befriend or leave in peace, what
+  to study. Its schema is about 500 tokens (`pax schema --plan`); a plan is under 100.
+- The greedy bot carries it out, year after year, until the next plan: `GreedyBot(plan=p)`, or
+  `bot.follow(p)` on a bot already playing. The bot still decides the how (which regiments march
+  where, what to build, how to answer a letter) and still keeps the rules: it breaks no treaty
+  and attacks only with the odds on its side.
+
+So a ruler can think every second year, or when something happens (a war declared on it, a
+peace offered), and let the bot rule in between. A plan is a ruler's whole answer only if it
+wants it to be: a ruler may also take the bot's orders for the year and add or remove some.
+
+```python
+from pax_agentica.players.greedy_bot import GreedyBot
+from pax_agentica.players.plan import Plan
+from pax_agentica.tools import compact_view
+
+bot = GreedyBot(seed=1)
+page = compact_view(view)  # what the model reads
+bot.follow(Plan(economy="grow", army="build_up", conquer=["flanders"], befriend=["austria"]))
+orders = await bot.decide(view)  # the plan, carried out this year
+```
+
+<!-- plan:begin -->
+
+| Field | Type | Default | What the bot does |
+|---|---|---|---|
+| `economy` | `"grow" \| "balanced" \| "save"` | `"balanced"` | grow: spend on development and works; balanced: as the bot judges; save: keep a war chest of about 150 ducats and spend little |
+| `army` | `"defend" \| "build_up" \| "conquer"` | `"defend"` | defend: no new wars on other courts; take only independent land and win back what was taken; build_up: raise more regiments, and take the provinces in `conquer` too; conquer: take what can be taken, and make war on `war_on`, seeking peace on every other front |
+| `conquer` | `list[ProvinceId]` | `[]` | provinces to take first, best first (at most 5) |
+| `war_on` | `NationId \| null` | `null` | a court to make war on as soon as the army is ready (with army=conquer); never one the realm has a treaty with |
+| `peace_with` | `list[NationId]` | `[]` | courts to make peace with if at war, and never to attack (at most 8) |
+| `befriend` | `list[NationId]` | `[]` | courts to seek an alliance (then a marriage) with (at most 3) |
+| `research` | `list[TechBranch]` | `[]` | technology branches in the order to study them (at most 5) |
+| `note` | `str` | `""` | why, in a line: kept in the ruler's private thoughts (at most 300) |
+
+- TechBranch: `military`, `economy`, `engineering`, `naval`, `administration`
+
+<!-- plan:end -->
 
 ## Reference: every order
 

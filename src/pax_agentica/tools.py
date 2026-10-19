@@ -12,7 +12,7 @@ answers such a call with a small JSON-able dict.
 """
 
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, Literal
 
 from pax_agentica.engine import NationView, Resources
 from pax_agentica.engine.mechanics import (
@@ -448,6 +448,97 @@ def briefing(view: NationView) -> str:
     prices = ", ".join(f"{k} {p.buy:.2f}/{p.sell:.2f}" for k, p in view.market.items())
     lines.append(f"\nMarket (buy/sell a unit): {prices}.")
     return "\n".join(line for line in lines if line != "")
+
+
+# What a planner hears of last year: Europe's great news, and what touched it, but not its own
+# clerks' work.
+_NEWS = {"war_declared", "peace_signed", "coalition_joined", "province_ceded", "succession"}
+_ROUTINE = {"market_trade", "taxes_set", "recruited", "developed", "built", "researched",
+            "focus_set", "proposal_made", "stability_changed", "prestige_changed"}  # fmt: skip
+
+
+def compact_view(view: NationView, scope: Literal["near", "all"] = "near") -> str:
+    """The view in a few thousand tokens, for a ruler that writes a `Plan` rather than orders.
+
+    Everything a plan names is written by its id: provinces, courts, technology branches. The
+    map is one table, its columns named once; `scope="near"` keeps your land and what borders
+    it (by land or sea), `"all"` every province. What only the orders of a single year need
+    (prices, costs, buildings, advisors) is left out: the bot that carries out the plan reads
+    the full view."""
+    me, rules = view.me, view.rules
+    net = {
+        k: v - me.army_upkeep_per_turn.amounts()[k] - me.inputs_per_turn.amounts()[k]
+        for k, v in me.income_per_turn.amounts().items()
+    }
+    tech = " ".join(f"{b.value} {n}" for b, n in me.technology.items())
+    lines = [
+        f"# {me.id} ({me.name}), {view.year}: year {view.turn} of {view.max_turns}",
+        f"treasury {_res(me.resources)}",
+        "net a year " + ", ".join(f"{v:+d} {k}" for k, v in net.items() if v),
+        f"stability {me.stability:+d}, prestige {me.prestige}, standing {me.standing}, "
+        f"infamy {me.infamy:.0f} (leagues from {rules.coalition_infamy:.0f}), "
+        f"war exhaustion {me.war_exhaustion:.1f}",
+        f"army {me.regiments} regiments, manpower {me.resources.manpower}/{me.manpower_cap}",
+        f"technology {tech}",
+    ]
+    if me.lost:
+        lines.append("lost land to win back " + ",".join(me.lost))
+    if me.wars:
+        lines.append("\n## wars (enemy, war score, years, battles won/lost)")
+        lines += [
+            f"{w.enemy} {w.war_score:+d} {view.turn - w.since_turn}y "
+            f"{w.battles_won}/{w.battles_lost}"
+            for w in me.wars
+        ]
+    open_missions = [m for m in me.missions if m.status == "open"]
+    if open_missions:
+        lines.append("\n## missions")
+        lines += [
+            f"{m.title}: " + "; ".join(f"{g.text} {g.have}/{g.need}" for g in m.goals)
+            for m in open_missions
+        ]
+    if view.proposals_to_answer:
+        lines.append("\n## proposals to you")
+        lines += [f"{o.kind.value} from {o.sender}" for o in view.proposals_to_answer]
+
+    bonds: dict[str, list[str]] = {}
+    for t in me.treaties:
+        bonds.setdefault(t.partner, []).append(t.kind.value)
+    lines.append(
+        "\n## courts\nid|standing|provinces|opinion of you|your treaties|at war with|allies|infamy"
+    )
+    for c in sorted(view.nations, key=lambda c: -c.standing):
+        if c.alive and c.id != me.id:
+            lines.append(
+                f"{c.id}|{c.standing}|{c.provinces}|{c.opinion_of_you:+d}|"
+                f"{','.join(bonds.get(c.id, []))}|{','.join(c.at_war_with)}|"
+                f"{','.join(c.allies)}|{c.infamy:.0f}"
+            )
+
+    mine = set(me.provinces)
+    shown = [p for p in view.provinces if scope == "all" or p.id in mine]
+    if scope == "near":
+        near = {n for p in shown for n in (*p.neighbors, *p.sea_neighbors)} - mine
+        shown += [p for p in view.provinces if p.id in near]
+    lines.append(
+        "\n## provinces (owner -: independent; troops ?: hidden)\n"
+        "id|owner|occupied by|development|troops|fort|terrain|good|borders"
+    )
+    for p in shown:
+        troops = "?" if p.troops is None else str(p.troops)
+        lines.append(
+            f"{p.id}|{p.owner or '-'}|{p.controller or ''}|{p.development}|{troops}|{p.fort}|"
+            f"{p.terrain.value}|{p.good.value}|{','.join(p.neighbors)}"
+        )
+    happened = [
+        e.summary
+        for e in view.last_turn_events
+        if e.kind.value in _NEWS or (me.id in e.nations and e.kind.value not in _ROUTINE)
+    ]
+    if happened:
+        lines.append("\n## last year")
+        lines += happened[:15]
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- tool calling

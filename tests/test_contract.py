@@ -13,6 +13,7 @@ from pax_agentica.engine.contract import (
     contract_fingerprint,
     contract_schemas,
     orders_reference,
+    plan_reference,
     view_reference,
 )
 
@@ -46,6 +47,7 @@ def test_the_lock_holds_the_version_and_the_fingerprint() -> None:
 def test_the_references_in_the_doc_are_the_code_s() -> None:
     assert between("orders") == orders_reference().strip(), HOW
     assert between("view") == view_reference().strip(), HOW
+    assert between("plan") == plan_reference().strip(), HOW
 
 
 def test_the_doc_and_every_view_carry_the_version() -> None:

@@ -95,6 +95,7 @@ from pax_agentica.engine.model import (
     Water,
 )
 from pax_agentica.engine.view import ProposalView, ProvinceView, RegionView
+from pax_agentica.players.plan import Plan
 from pax_agentica.tools import best_tactic, landing, sea_command
 
 CAPITAL_GUARD = 3
@@ -143,10 +144,22 @@ def value(bundle: Resources) -> int:
     return sum(amount * getattr(PRICES, name) for name, amount in bundle.amounts().items())
 
 
+# The share of income the army may cost, by what the plan wants of it.
+ARMY_SHARE = {"defend": 0.45, "build_up": 0.7, "conquer": 0.55}
+
+
 class GreedyBot:
-    def __init__(self, seed: int = 0, margin: float = 1.3) -> None:
+    """The rule-based ruler. Given a `Plan` (players/plan.py), it carries the plan out every
+    year until another replaces it; without one it plays by its own lights."""
+
+    def __init__(self, seed: int = 0, margin: float = 1.3, plan: Plan | None = None) -> None:
         self.seed = seed
         self.margin = margin  # attack only with this much more power than the defenders
+        self.following = plan  # the plan it carries out, if any
+
+    def follow(self, plan: Plan | None) -> None:
+        """Carry out this plan from now on (None: play by the bot's own lights again)."""
+        self.following = plan
 
     @property
     def name(self) -> str:
@@ -157,11 +170,14 @@ class GreedyBot:
 
     def plan(self, view: NationView) -> Orders:
         rng = random.Random(f"{self.seed}:{view.me.id}:{view.turn}")  # noqa: S311
-        return _Planner(view, rng, self.margin).run()
+        return _Planner(view, rng, self.margin, self.following).run()
 
 
 class _Planner:
-    def __init__(self, view: NationView, rng: random.Random, margin: float) -> None:
+    def __init__(
+        self, view: NationView, rng: random.Random, margin: float, guide: Plan | None = None
+    ) -> None:
+        self.guide = guide  # the ruler's plan, when there is one
         self.v = view
         self.me = view.me
         self.rng = rng
@@ -224,6 +240,44 @@ class _Planner:
             thoughts=self._thoughts(),
             counsel=self._counsel(),
         )
+
+    # ------------------------------------------------------------ the plan
+
+    def _spared(self, nation: str | None) -> bool:
+        """A court the plan wants peace with: never attacked."""
+        return self.guide is not None and nation is not None and nation in self.guide.peace_with
+
+    def _may_take(self, province: ProvinceId, holder: str | None) -> bool:
+        """Whether the plan lets us attack this province (our own land is always won back)."""
+        if self._spared(holder):
+            return False
+        if self.guide is None or self.provinces[province].owner == self.me.id:
+            return True
+        if province in self.me.lost or holder is None:
+            return True  # our own land taken from us, or free land that starts no war
+        if self.guide.army == "defend":
+            return False
+        return self.guide.army == "conquer" or province in self.guide.conquer
+
+    def _planned_war(self, nation: str) -> bool:
+        """Make war on the court the plan names, once our border armies outweigh its own."""
+        them = next((n for n in self.v.nations if n.id == nation and n.alive), None)
+        if them is None or nation in self.friends or self._spared(nation):
+            return False
+        ours = theirs = 0
+        for pid in self.mine:
+            facing = [n for n in self._neighbors(pid) if self.provinces[n].owner == nation]
+            if facing:
+                ours += self.troops[pid]
+                theirs += sum(self.provinces[n].troops or 0 for n in facing)
+        if not ours or ours < theirs:
+            return False
+        self.actions.append(DeclareWar(target=nation))
+        self.enemies.add(nation)
+        self.mobilising.add(nation)
+        self.declared = nation
+        self.actions.append(Proclaim(text=f"{self.me.name} takes up arms against {them.name}."))
+        return True
 
     # ------------------------------------------------------------ geography
 
@@ -297,6 +351,8 @@ class _Planner:
                 ours = target.owner == self.me.id  # occupied by the enemy: win it back first
                 if sea_command(self.v, origin, t) == "closed":
                     continue  # their fleet bars the strait
+                if not self._may_take(t, holder):
+                    continue  # the plan leaves it be
                 if holder is None or (
                     holder in self.enemies and holder not in self.suing_for_peace | self.mobilising
                 ):
@@ -306,6 +362,8 @@ class _Planner:
                         worth *= 2
                     if t in self.me.lost:  # our own land, taken from us
                         worth *= 2
+                    if self.guide is not None and t in self.guide.conquer:
+                        worth *= 3  # the plan names it
                     found.append((worth / need, origin, t, need))
         found += self._landing_targets()
         found.sort(key=lambda c: (-c[0], c[1], c[2]))
@@ -327,6 +385,8 @@ class _Planner:
                     if t in near or holder not in self.enemies or target.siege_by is not None:
                         continue
                     if holder in self.suing_for_peace | self.mobilising:
+                        continue
+                    if not self._may_take(t, holder):
                         continue
                     room = landing(self.v, origin, t)
                     if not room:
@@ -587,6 +647,13 @@ class _Planner:
             return False  # not with a court that wronged us, not yet
         if p.kind == ProposalKind.COALITION and p.enemy and self._grudge(p.enemy):
             return True  # a league against the court that wronged us: gladly
+        if self.guide is not None:
+            if p.kind == ProposalKind.PEACE and p.sender in self.guide.peace_with:
+                earned = -self.score_of.get(p.sender, 0)  # the plan wants peace: within reason
+                return self._war_score_cost(p) <= max(0, earned) + 20
+            befriending = p.kind in (ProposalKind.ALLIANCE, ProposalKind.MARRIAGE)
+            if befriending and p.sender in self.guide.befriend:
+                return True
         match p.kind:
             case ProposalKind.PEACE:
                 overstretched = len(self.old_enemies) >= 2
@@ -641,6 +708,12 @@ class _Planner:
     def _maybe_declare_war(self) -> None:
         if self.enemies or self.v.turn < 3:
             return
+        if self.guide is not None:
+            if self.guide.army != "conquer":
+                return  # the plan wants no new war
+            if self.guide.war_on:
+                self._planned_war(self.guide.war_on)
+                return  # the plan names its war: no other
         if self._strike_with_the_league():
             return
         easy = [c for c in self._targets() if c[3] <= self.troops[c[1]]]
@@ -649,6 +722,8 @@ class _Planner:
         # Early on, only a clear edge starts a war; later, peace grows restless.
         best, best_ratio = None, 1.5 if self.v.turn < 15 else 1.2
         for nation in sorted(self._border_nations() - self.friends):
+            if self._spared(nation):
+                continue
             ours = theirs = 0
             for pid in self.mine:
                 facing = [n for n in self._neighbors(pid) if self.provinces[n].owner == nation]
@@ -726,8 +801,10 @@ class _Planner:
         # In peace, only what the harvest can feed; at war, eat into the granaries too.
         feedable = self.me.income_per_turn.grain + self.budget.grain // (3 if self.enemies else 8)
         room = feedable - self.me.regiments
-        # Keep army pay under half the income.
-        payable = int(self.me.income_per_turn.ducats / 2 / self.v.rules.ducat_upkeep_per_regiment)
+        # Keep army pay under half the income (more when the plan arms, less when it rests).
+        share = ARMY_SHARE[self.guide.army] if self.guide else 0.5
+        upkeep = self.v.rules.ducat_upkeep_per_regiment
+        payable = int(self.me.income_per_turn.ducats * share / upkeep)
         room = min(room, payable - self.me.regiments)
         limits = [room]
         for have, need in (
@@ -888,6 +965,11 @@ class _Planner:
     def _invest(self) -> None:
         rules = self.v.rules
         reserve = 30 if self.enemies else 10
+        economy = self.guide.economy if self.guide else "balanced"
+        if economy == "save":
+            reserve += 150  # a war chest first
+        elif economy == "grow":
+            reserve //= 2
         stab = Resources(ducats=rules.stability_boost_ducats)
         if self.me.stability < 1 and self.budget.covers(stab + Resources(ducats=reserve)):
             self.actions.append(BoostStability())
@@ -904,7 +986,8 @@ class _Planner:
         self._navy(reserve)
         self._colonize(reserve)
         self._colonial_forts(reserve)
-        for _ in range(1 + (self.budget.ducats > 250) + (self.budget.ducats > 500)):
+        works = 1 + (self.budget.ducats > 250) + (self.budget.ducats > 500) + (economy == "grow")
+        for _ in range(works):
             self._build(reserve)  # a rich treasury raises more than one work a year
         self._improve(reserve)
         self._convert(reserve)
@@ -923,7 +1006,7 @@ class _Planner:
                 p,
             ),
         )
-        for pid in candidates[:8]:
+        for pid in candidates[: 12 if economy == "grow" else 8]:
             cost = self.provinces[pid].develop_cost
             if not self._afford(cost, reserve):
                 break
@@ -1492,6 +1575,8 @@ class _Planner:
         branches = [TechBranch.ECONOMY, TechBranch.ENGINEERING, TechBranch.MILITARY]
         branches += [TechBranch.ADMINISTRATION] + ([TechBranch.NAVAL] if ports else [])
         order += sorted(branches, key=lambda b: (tech[b], b != TechBranch.ECONOMY, b.value))
+        if self.guide is not None and self.guide.research:  # the plan's order first
+            order = [*self.guide.research, *(b for b in order if b not in self.guide.research)]
         for branch in order:
             cost = costs.get(branch)
             if cost is None or not self.budget.covers(cost + Resources(ducats=reserve)):
@@ -1609,6 +1694,8 @@ class _Planner:
     def _thoughts(self) -> str:
         """What this ruler would say to themself about the year: the reasons behind the orders."""
         me, parts = self.me, []
+        if self.guide is not None and self.guide.note:
+            parts.append(f"The plan: {self.guide.note}")
         if self.declared:
             parts.append(f"We outnumber {self._nation_name(self.declared)} on the border: war.")
         if self.enemies:
@@ -1738,14 +1825,42 @@ class _Planner:
                     )
                 )
 
+    def _befriend(self, pending: set[tuple[ProposalKind, str]]) -> None:
+        """Court the friends the plan names: an alliance first, then a marriage."""
+        if self.guide is None:
+            return
+        marriages = sum(t.kind == TreatyKind.MARRIAGE for t in self.me.treaties)
+        alive = {n.id for n in self.v.nations if n.alive}
+        for nation in self.guide.befriend:
+            if nation not in alive or nation in self.enemies or nation == self.me.id:
+                continue
+            kinds = {t.kind for t in self.me.treaties if t.partner == nation}
+            if TreatyKind.ALLIANCE not in kinds and (ProposalKind.ALLIANCE, nation) not in pending:
+                self.actions.append(ProposeAlliance(target=nation))
+                pending.add((ProposalKind.ALLIANCE, nation))
+            elif (
+                TreatyKind.MARRIAGE not in kinds
+                and marriages < self.v.rules.max_marriages
+                and (ProposalKind.MARRIAGE, nation) not in pending
+            ):
+                self.actions.append(ProposeMarriage(target=nation))
+                pending.add((ProposalKind.MARRIAGE, nation))
+                marriages += 1
+
     def _diplomacy(self) -> None:
         pending = {(p.kind, p.recipient) for p in self.v.proposals_sent}
         targets = {self.provinces[t].owner for _v, _o, t, _n in self._targets()}
         # Fighting on several fronts: keep only the most profitable war.
         keep = max(sorted(self.old_enemies), key=self._war_value) if self.old_enemies else None
+        if self.guide is not None and self.guide.war_on:
+            keep = self.guide.war_on  # every other war only keeps us from the one we want
         for enemy in sorted(self.old_enemies):
+            if self._spared(enemy) and (ProposalKind.PEACE, enemy) not in pending:
+                self.actions.append(self._peace_terms(enemy))  # the plan wants this war over
+                continue
             stalled = enemy not in targets
-            overstretched = len(self.old_enemies) >= 2 and enemy != keep
+            planned = self.guide is not None and self.guide.war_on is not None
+            overstretched = (len(self.old_enemies) >= 2 or planned) and enemy != keep
             pressing = self.score_of.get(enemy, 0) >= 25 or self.me.war_exhaustion >= 8
             if (ProposalKind.PEACE, enemy) not in pending and (
                 overstretched
@@ -1774,6 +1889,7 @@ class _Planner:
             self.actions.append(ProposeTrade(target=partner, give=give, receive=receive))
 
         self._reply_to_letters()
+        self._befriend(pending)
         self._league(pending, others)
         liked = [n for n in others if self.me.opinions.get(n, 0) >= 10]
         marriages = sum(t.kind == TreatyKind.MARRIAGE for t in self.me.treaties)

@@ -1,8 +1,10 @@
 """The contract between the game and its rulers, frozen and versioned.
 
-A ruler reads a `NationView` and answers with `Orders`; that is all it may know or do. Both are
-Pydantic models, and their JSON schemas are the contract an AI ruler is written against. They are
-kept in `docs/contract/`, with a fingerprint, so that a change to either is always deliberate:
+A ruler reads a `NationView` and answers with `Orders`; that is all it may know or do. A
+cheaper ruler may answer with a `Plan` instead, for the greedy bot to carry out
+(players/plan.py). All three are Pydantic models, and their JSON schemas are the contract an AI
+ruler is written against. They are kept in `docs/contract/`, with a fingerprint, so that a change
+to any of them is always deliberate:
 
 - `CONTRACT_VERSION` follows semantic versioning. The **major** number changes when a ruler
   written for the old contract could break: a field or an order removed or renamed, a type
@@ -27,7 +29,7 @@ from pydantic import BaseModel
 
 from pax_agentica.engine.actions import Action, Orders
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"
 
 
 def action_types() -> list[type[BaseModel]]:
@@ -37,12 +39,14 @@ def action_types() -> list[type[BaseModel]]:
 
 
 def contract_schemas() -> dict[str, dict[str, Any]]:
-    """The JSON schemas of what a ruler reads and what it answers."""
+    """The JSON schemas of what a ruler reads and what it answers (orders, or a plan)."""
     from pax_agentica.engine.view import NationView  # the view builds on this module's version
+    from pax_agentica.players.plan import Plan  # the bot's side of the contract
 
     return {
         "nation_view": NationView.model_json_schema(),
         "orders": Orders.model_json_schema(),
+        "plan": Plan.model_json_schema(),
     }
 
 
@@ -116,6 +120,23 @@ def orders_reference() -> str:
         if enums:
             out.append("\n".join(f"- {e}" for e in enums) + "\n")
     return "\n".join(out)
+
+
+def plan_reference() -> str:
+    """Every field of a plan: its type, its default and what the bot does with it."""
+    from pax_agentica.players.plan import Plan
+
+    rows, enums = [], []
+    for name, info in Plan.model_fields.items():
+        default = [] if info.default_factory is not None else info.default
+        shown = _type_name(info.annotation).replace("|", "\\|")
+        most = [m.max_length for m in info.metadata if hasattr(m, "max_length")]
+        meaning = (info.description or "").replace("|", "\\|")
+        meaning += f" (at most {most[0]})" if most else ""
+        rows.append(f"| `{name}` | `{shown}` | `{json.dumps(default)}` | {meaning} |")
+        enums += [e for e in _values(info.annotation) if e not in enums]
+    head = "| Field | Type | Default | What the bot does |\n|---|---|---|---|\n"
+    return head + "\n".join(rows) + "\n\n" + "\n".join(f"- {e}" for e in enums) + "\n"
 
 
 def _comments(cls: type) -> dict[str, str]:
