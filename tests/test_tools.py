@@ -97,3 +97,17 @@ def test_tools_answer_calls_and_explain_mistakes(state: GameState) -> None:
     found = call_tool(view, "targets", {"origin": "languedoc"})["targets"]
     assert any(t["action"] == "move" for t in found)
     assert BuildingKind.MARKETPLACE.value == "marketplace"
+
+
+def test_the_briefing_reads_a_year_of_proclamations_without_letters(state: GameState) -> None:
+    from pax_agentica.engine import Orders, resolve_turn
+    from pax_agentica.engine.actions import Proclaim
+
+    said = resolve_turn(
+        state, {"spain": Orders(actions=[Proclaim(text="Spain wants peace with all.")])}
+    )
+    text = briefing(view_for(said, "france"))
+    assert "## Proclamations last year" in text
+    assert "Spain wants peace with all." in text
+    quiet = resolve_turn(state, {})  # events, but no proclamation and no letter
+    assert "## Proclamations last year" not in briefing(view_for(quiet, "france"))

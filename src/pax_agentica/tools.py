@@ -441,10 +441,10 @@ def briefing(view: NationView) -> str:
                 lines.append(f'- {year}, {who} wrote: "{said.data.get("text")}"')
             else:
                 lines.append(f"- {view.rules.start_year + said.turn - 1}: {said.summary}")
-    heard = [e for e in view.last_turn_events if said.kind.value == "proclamation"]
+    heard = [e for e in view.last_turn_events if e.kind.value == "proclamation"]
     if heard:
         lines.append("\n## Proclamations last year")
-        lines += [f"- {said.summary}" for e in heard[:10]]
+        lines += [f'- {e.summary}: "{e.data.get("text", "")}"' for e in heard[:10]]
     prices = ", ".join(f"{k} {p.buy:.2f}/{p.sell:.2f}" for k, p in view.market.items())
     lines.append(f"\nMarket (buy/sell a unit): {prices}.")
     return "\n".join(line for line in lines if line != "")
