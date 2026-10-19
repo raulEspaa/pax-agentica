@@ -181,7 +181,9 @@ and answering against a schema of 55 orders. A ruler can do less, and pay far le
 
 So a ruler can think every second year, or when something happens (a war declared on it, a
 peace offered), and let the bot rule in between. A plan is a ruler's whole answer only if it
-wants it to be: a ruler may also take the bot's orders for the year and add or remove some.
+wants it to be: `plan.combine(bot_orders, own_orders)` lays a ruler's own orders over the bot's
+(its letters, its answers to proposals with its own terms, a peace it offers), and the ruler's
+word wins wherever both speak of the same thing.
 
 ```python
 from pax_agentica.players.greedy_bot import GreedyBot
