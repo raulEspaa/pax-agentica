@@ -17,6 +17,15 @@ opinion, last year's letters and proclamations, and the market.
 uv run pax brief france --seed 1
 ```
 
+## The compact view
+
+`compact_view(view, scope="near")` is the view for a ruler that writes a
+[plan](agent-contract.md#a-cheaper-ruler-a-plan) instead of orders: the realm in a few lines,
+its wars and missions, then two tables written with ids (the courts; the provinces it holds and
+those bordering them, or every province with `scope="all"`), and last year's news that touched
+it. About 1,600 tokens late in a game (3,800 with the whole map), against some 76,000 for the
+full view. Everything a plan names (a province, a court, a branch) is written there by its id.
+
 ## Calculators
 
 | Tool | Answers |

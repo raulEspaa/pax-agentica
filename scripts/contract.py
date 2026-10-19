@@ -2,10 +2,11 @@
 
     make contract
 
-Writes the JSON schemas of `NationView` and `Orders` to `docs/contract/`, the version and the
-fingerprint to `docs/contract/CONTRACT.lock`, and the generated references (every order, every
-field of the view) into `docs/agent-contract.md`, between its markers. `tests/test_contract.py`
-fails while any of them disagrees with the code: change the contract on purpose, bump
+Writes the JSON schemas of `NationView`, `Orders` and `Plan` to `docs/contract/`, the version
+and the fingerprint to `docs/contract/CONTRACT.lock`, and the generated references (every order,
+every field of the view and of a plan) into `docs/agent-contract.md`, between its markers.
+`tests/test_contract.py` fails while any of them disagrees with the code: change the contract on
+purpose, bump
 `CONTRACT_VERSION` in `engine/contract.py`, run this, and note the change in the changelog.
 """
 
@@ -19,6 +20,7 @@ from pax_agentica.engine.contract import (
     contract_fingerprint,
     contract_schemas,
     orders_reference,
+    plan_reference,
     view_reference,
 )
 
@@ -51,6 +53,7 @@ def main() -> None:
     text = DOC.read_text(encoding="utf-8")
     text = splice(text, "orders", orders_reference())
     text = splice(text, "view", view_reference())
+    text = splice(text, "plan", plan_reference())
     DOC.write_text(text, encoding="utf-8")
     print(f"contract {CONTRACT_VERSION}, fingerprint {json.dumps(contract_fingerprint())}")
 

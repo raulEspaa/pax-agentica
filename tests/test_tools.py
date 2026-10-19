@@ -3,7 +3,7 @@
 import random
 from collections.abc import Callable
 
-from pax_agentica.engine import EventKind, GameState, Resources, view_for
+from pax_agentica.engine import EventKind, GameState, Resources, new_game, view_for
 from pax_agentica.engine.actions import Attack
 from pax_agentica.engine.mechanics import output_with
 from pax_agentica.engine.model import BuildingKind
@@ -13,6 +13,7 @@ from pax_agentica.tools import (
     best_tactic,
     briefing,
     call_tool,
+    compact_view,
     win_chance,
     work_gain,
 )
@@ -111,3 +112,15 @@ def test_the_briefing_reads_a_year_of_proclamations_without_letters(state: GameS
     assert "Spain wants peace with all." in text
     quiet = resolve_turn(state, {})  # events, but no proclamation and no letter
     assert "## Proclamations last year" not in briefing(view_for(quiet, "france"))
+
+
+def test_the_compact_view_is_small_and_written_in_ids() -> None:
+    view = view_for(new_game(1), "france")
+    near, everything = compact_view(view), compact_view(view, "all")
+    assert near.startswith("# france (France), 1500")
+    assert len(near) < len(everything) < 12_000  # a few thousand tokens at most
+    rows = [line.split("|") for line in near.splitlines() if line.count("|") == 8]
+    ids = {r[0] for r in rows[1:]}
+    assert set(view.me.provinces) <= ids  # all our land, and what borders it
+    assert {p.id for p in view.provinces} - ids  # not the whole map
+    assert all(n.id in near for n in view.nations if n.alive and n.id != "france")

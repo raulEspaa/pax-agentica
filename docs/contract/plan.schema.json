@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "NationId": {
+      "type": "string"
+    },
+    "ProvinceId": {
+      "type": "string"
+    },
+    "TechBranch": {
+      "enum": [
+        "military",
+        "economy",
+        "engineering",
+        "naval",
+        "administration"
+      ],
+      "title": "TechBranch",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What the ruler wants for the coming years. Every field has a safe default: an empty plan\nis a realm that grows and defends itself.",
+  "properties": {
+    "army": {
+      "default": "defend",
+      "description": "defend: no new wars on other courts; take only independent land and win back what was taken; build_up: raise more regiments, and take the provinces in `conquer` too; conquer: take what can be taken, and make war on `war_on`, seeking peace on every other front",
+      "enum": [
+        "defend",
+        "build_up",
+        "conquer"
+      ],
+      "title": "Army",
+      "type": "string"
+    },
+    "befriend": {
+      "description": "courts to seek an alliance (then a marriage) with",
+      "items": {
+        "$ref": "#/$defs/NationId"
+      },
+      "maxItems": 3,
+      "title": "Befriend",
+      "type": "array"
+    },
+    "conquer": {
+      "description": "provinces to take first, best first",
+      "items": {
+        "$ref": "#/$defs/ProvinceId"
+      },
+      "maxItems": 5,
+      "title": "Conquer",
+      "type": "array"
+    },
+    "economy": {
+      "default": "balanced",
+      "description": "grow: spend on development and works; balanced: as the bot judges; save: keep a war chest of about 150 ducats and spend little",
+      "enum": [
+        "grow",
+        "balanced",
+        "save"
+      ],
+      "title": "Economy",
+      "type": "string"
+    },
+    "note": {
+      "default": "",
+      "description": "why, in a line: kept in the ruler's private thoughts",
+      "maxLength": 300,
+      "title": "Note",
+      "type": "string"
+    },
+    "peace_with": {
+      "description": "courts to make peace with if at war, and never to attack",
+      "items": {
+        "$ref": "#/$defs/NationId"
+      },
+      "maxItems": 8,
+      "title": "Peace With",
+      "type": "array"
+    },
+    "research": {
+      "description": "technology branches in the order to study them",
+      "items": {
+        "$ref": "#/$defs/TechBranch"
+      },
+      "maxItems": 5,
+      "title": "Research",
+      "type": "array"
+    },
+    "war_on": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NationId"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "a court to make war on as soon as the army is ready (with army=conquer); never one the realm has a treaty with"
+    }
+  },
+  "title": "Plan",
+  "type": "object"
+}

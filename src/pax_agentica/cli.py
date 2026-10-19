@@ -12,6 +12,7 @@ from pathlib import Path
 from pax_agentica.engine import EventKind, GameState, NationView, Orders, new_game, view_for
 from pax_agentica.players import Player
 from pax_agentica.players.greedy_bot import GreedyBot
+from pax_agentica.players.plan import Plan
 from pax_agentica.players.random_bot import RandomBot
 from pax_agentica.runner import GameRecord, TurnRecord, run_game
 
@@ -80,7 +81,9 @@ def _parser() -> argparse.ArgumentParser:
     schema = sub.add_parser(
         "schema", help="print the JSON schema of Orders (for structured output)"
     )
-    schema.add_argument("--view", action="store_true", help="the schema of NationView instead")
+    which = schema.add_mutually_exclusive_group()
+    which.add_argument("--view", action="store_true", help="the schema of NationView instead")
+    which.add_argument("--plan", action="store_true", help="the schema of a bot's Plan instead")
     sub.add_parser("map", help="list the provinces of the Europe 1500 map")
 
     serve = sub.add_parser("serve", help="play a nation yourself in the browser")
@@ -308,7 +311,7 @@ def _tournament(args: argparse.Namespace) -> int:
 
 
 def _schema(args: argparse.Namespace) -> int:
-    model = NationView if args.view else Orders
+    model = NationView if args.view else Plan if args.plan else Orders
     print(json.dumps(model.model_json_schema(), indent=2))
     return 0
 
