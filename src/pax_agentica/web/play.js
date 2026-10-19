@@ -269,14 +269,36 @@
     const t = unbundle(V.me.resources), out = new Map();
     orders.map((o, k) => [o, k]).sort((a, b) => PHASE(a[0]) - PHASE(b[0]) || a[1] - b[1]).forEach(([o, k]) => {
       const d = delta(o);
-      const short = d.map((v, j) => (v < 0 && t[j] + v < 0 ? RES[j][1].toLowerCase() : null)).filter(Boolean);
-      if (short.length) { out.set(k, short); out.need = out.need || new Map();  // the engine skips it and keeps the money
-        out.need.set(k, d.map((v, j) => (v < 0 && t[j] + v < 0 ? -(t[j] + v) : 0))); return; }
+      const need = d.map((v, j) => (v < 0 && t[j] + v < 0 ? -(t[j] + v) : 0));
+      const short = need.map((n, j) => (n ? RES[j][1].toLowerCase() : null)).filter(Boolean);
+      if (short.length) {
+        // the engine imports missing materials at the market's price and a premium, if the ducats reach
+        const lots = need.map((n, j) => [RES[j][0], n]).filter(([, n]) => n > 0);
+        const tradable = lots.every(([key]) => V.market[key]);
+        const bill = tradable ? Math.ceil(lots.reduce((a, [key, n]) => a + Math.ceil(n * V.market[key].buy), 0) * (1 + (R.importPremium ?? 0.25))) : Infinity;
+        if (tradable && t[0] + d[0] - bill >= 0) {
+          (out.imports = out.imports || new Map()).set(k, [lots, bill]);
+          d.forEach((v, j) => (t[j] += v + need[j])); t[0] -= bill; return;
+        }
+        out.set(k, short); return;  // the engine skips it and keeps the money
+      }
       d.forEach((v, j) => (t[j] += v));
     });
     return out;
   }
-  const affordable = (cost, t = projected()) => cost.every((v, k) => t[k] >= v);
+  // what the crown can pay, importing the materials it lacks (dearer by the import premium)
+  function importBill(cost, t) {
+    let bill = 0;
+    for (let k = 1; k < cost.length; k++) {
+      const lack = cost[k] - t[k];
+      if (lack <= 0) continue;
+      const m = V.market[RES[k][0]];
+      if (!m) return Infinity;  // men cannot be bought
+      bill += Math.ceil(lack * m.buy);
+    }
+    return Math.ceil(bill * (1 + (R.importPremium ?? 0.25)));
+  }
+  const affordable = (cost, t = projected()) => t[0] >= cost[0] + importBill(cost, t);
   const stabilityCost = () => Math.ceil(R.stabilityCost * (1 - V.me.modifiers.stability_discount));
   function troopsAfter(i) {
     let t = prov(i).troops || 0;
@@ -708,6 +730,11 @@
       maxDev: mine ? V.me.modifiers.max_development : R.maxDevelopment, general: p.general,
       built: p.buildings.map((b) => bIndex[b]), levels: p.buildings.map((b) => (p.building_levels || {})[b] || 1), queued: mine ? queued : []});
     let body = "";
+    // land taken from a crown within the years of revanche: its own to win back
+    const pid0 = P[i].id, mineLost = (V.me.lost || []).includes(pid0);
+    const claimants = V.nations.filter((n) => n.alive && (n.lost || []).includes(pid0) && n.id !== p.owner).map((n) => n.name);
+    if (mineLost) body += `<p class="note war revanche">⚑ Taken from you: your armies strike here ${Math.round(R.revanchePower * 100)}% harder, a peace asks half the war score for it, and winning it back costs no infamy.</p>`;
+    else if (claimants.length) body += `<p class="note revanche">${claimants.length > 1 ? `⚑ ${esc(claimants.join(", "))} want it back: land taken from them.` : `⚑ ${esc(claimants[0])} wants it back: land taken from it.`}</p>`;
     if (mine) {
       const here = troopsAfter(i), t = projected(), g = generalAt(i), targets = here > 0 ? targetsFrom(i) : [];
       const preview = (G.previews || {})[p.id] || {develop: {}, buildings: {}};
@@ -1741,6 +1768,7 @@
     const europe = `<div class="pad europe"><h4>Europe watches</h4>
       <div class="infamy"><span>Your infamy <b class="${V.me.infamy >= R.coalitionInfamy ? "neg" : ""}">${V.me.infamy}</b></span>
         <i class="bar"><b style="width:${pct}%"></b><em style="left:50%" title="From ${R.coalitionInfamy}, courts may league against you"></em></i></div>
+      ${V.hegemon ? `<p class="note war">⚖ ${V.hegemon === G.human ? "You are the hegemon of Europe: any court may league against you, and every court thinks a little less of you each year." : `${esc(nameOf(V.hegemon))} is the hegemon of Europe: any court may league against it, whatever its infamy.`}</p>` : ""}
       <p class="sub">${against.length ? `<span class="warn">Leagued against you: ${against.join(", ")}.</span> ` : ""}${feared.length ? `Feared conquerors: ${feared.join(", ")}.` : "No conqueror frightens Europe yet."}
         Every province taken adds infamy; it fades by ${R.infamyDecay} a year.</p></div>`;
     const alive = focus >= 0 && focus !== me && V.nations.find((n) => n.id === N[focus].id)?.alive;
@@ -2359,18 +2387,11 @@
     $("ordersbtn").setAttribute("data-tip", failing ? `<h5>This year's orders</h5><div class="neg">${failing} of them cannot be paid and will fail.</div>` : `<h5>This year's orders</h5><div class="dim">${orders.length} given. Hover to see them.</div>`);
     $("orders").innerHTML = `<h4>This year's orders <small>${orders.length} of ${MAX_ORDERS}</small></h4>` + (orders.length
       ? (() => { const short = shortfalls();
-        // what the market can make good: the missing materials, bought before the works
-        const buyable = (k) => { const need = (short.need && short.need.get(k)) || [];
-          const lots = need.map((n, j) => [RES[j][0], n]).filter(([key, n]) => n > 0 && V.market[key]);
-          return lots.length && lots.length === need.filter((n) => n > 0).length ? lots : null; };
-        return orders.map((o, k) => { const lots = short.has(k) ? buyable(k) : null;
-          const price = lots ? lots.reduce((t, [key, n]) => t + Math.ceil(n * V.market[key].buy), 0) : 0;
+        return orders.map((o, k) => { const imp = short.imports && short.imports.get(k);
           return `<div class="order ${short.has(k) ? "short" : ""}"><span>${describe(o)}${short.has(k) ? `<small>✗ not enough ${short.get(k).join(", ")}: it will fail</small>` : ""}
-            ${lots ? `<button class="btn mini buyshort" data-buyshort="${k}" title="Bought at the market before the works">Buy ${lots.map(([key, n]) => `${n} ${key}`).join(" and ")} for ${price} ducats</button>` : ""}</span><button data-drop="${k}" aria-label="Withdraw this order" title="Withdraw">✕</button></div>`; }).join(""); })()
+            ${imp ? `<small class="imports" title="What it lacks is bought on the market, a quarter dearer">⚖ Imports ${imp[0].map(([key, n]) => `${n} ${key}`).join(" and ")} for ${imp[1]} ducats</small>` : ""}</span><button data-drop="${k}" aria-label="Withdraw this order" title="Withdraw">✕</button></div>`; }).join(""); })()
       : `<p class="muted pad">No orders yet. Select a province on the map, or open an office above.</p>`);
     $("orders").querySelectorAll("[data-drop]").forEach((b) => b.onclick = () => { orders.splice(+b.dataset.drop, 1); J.play("unorder"); render(); });
-    $("orders").querySelectorAll("[data-buyshort]").forEach((b) => b.onclick = () => { const k = +b.dataset.buyshort, need = shortfalls().need.get(k);
-      need.forEach((n, j) => { if (n > 0) orders.push({type: "buy", resource: RES[j][0], amount: n}); }); J.play("coins"); render(); });
   }
 
   // ------------------------------------------------------------------ the year's report

@@ -183,8 +183,16 @@ free; changing it costs 1 stability, and a policy stands at least 10 years.
 Some buildings **consume** every year: marketplaces a bale of goods (they sell it), universities a
 bale (books), the royal exchange two, ironworks 2 timber (charcoal), cannon foundries 2 iron,
 barracks 2 grain. **Workshops** turn 1 iron and 1 timber into 2 + development ÷ 3 goods. Inputs
-are paid at the end of the year from the treasury and the year's yield; a building whose inputs
-cannot be paid **stands idle** that year and yields nothing.
+are paid at the end of the year from the treasury and the year's yield; what they lack is
+imported (below), and a building whose inputs still cannot be paid **stands idle** that year.
+
+**Imports.** Any cost (a work, development, research, ships, recruits, inputs) whose grain, iron,
+timber or goods the treasury lacks is paid by buying what is missing on the market at once, a
+quarter dearer than the market's price, if the ducats reach; the purchases move the market like
+any other. The year's report says what was imported.
+
+**The burden of empire.** From 80 development, works and development cost 0.4% more for each level
+past it, up to half again as much.
 
 ### The European market
 
@@ -651,9 +659,10 @@ answers by the state of the war, never by chance: it grants demands its war scor
 plus a little; even or behind, it takes a white peace; a little ahead, only once the war is
 three years old; well ahead, it names its own price. A refusal says why, in numbers.
 
-**War exhaustion** (0 to 20) grows by 1 for each war each year, 0.5 for
-each battle lost and 0.5 a year for each of your provinces occupied; it falls by 2 a year at
-peace. Each point costs 1% of ducat income, and from 10 it costs 1 stability every year.
+**War exhaustion** (0 to 20) grows by 1 a year at war (0.5 for each other war at once), 0.5 for
+each battle lost and 0.5 a year for each of your provinces occupied; a year of war without a
+defeat or a province lost weighs 0.5 less. It falls by 2 a year at peace. Each point costs 1% of
+ducat income, and from 10 it costs 1 stability a year of war (not at peace).
 
 ### Generals
 
@@ -841,7 +850,17 @@ development, and every court bordering that land thinks 2 less of the taker per 
 fades by 1 a year. From 6, every court cools a little toward the conqueror each year; from
 **12**, Europe may **league** against it.
 
-**Coalitions** (`propose_coalition`, against a court of infamy 12 or more) are public defensive
+**The hegemon.** The crown whose standing is 1.4 times the next one's, and at least 60, is the
+hegemon of Europe (`hegemon` in the view): any court may league against it whatever its infamy,
+and every court thinks 3 less of it a year. **The free provinces arm** beside the hegemon or a
+crown of infamy 12 or more: a regiment a year, up to twice their development and three more.
+
+**Revanche.** A province ceded by a crown stays its lost land for 30 years (`me.lost`, and every
+court's `lost`): its armies strike there 15% harder, a peace asks half the war score for it,
+winning it back costs no infamy, and while others hold it the realm has +5% manpower and morale
+for each such province (25% at most).
+
+**Coalitions** (`propose_coalition`, against a court of infamy 12 or more, or the hegemon) are public defensive
 leagues. If the conqueror declares war on any member, every other member is at war with it at
 once, without being asked. If a member strikes first, the others are called to arms (refusing
 costs nothing). A league dissolves when the conqueror's infamy falls below 5. Every court sees

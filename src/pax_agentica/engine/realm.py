@@ -282,6 +282,9 @@ def modifiers(state: GameState, nation: NationId | None) -> Modifiers:
             me.prestige,
             tuple(me.missions_done),
             tuple(me.decisions),
+            tuple(sorted(me.lost.items())),
+            state.score(nation) if nation else 0,
+            state.turn // 5,  # lost land is forgotten in time
             me.tax,
         )
     cached = _CACHE.get(key)
@@ -519,6 +522,23 @@ def _modifiers(state: GameState, nation: NationId | None) -> Modifiers:
         for k, v in spec.realm.items():
             learnt[k] = learnt.get(k, 0.0) + v
         lines.append(f"{spec.landmark} of {state.map.provinces[pid].name}: {spec.realm_text}")
+    # the burden of empire: a great realm's works and development cost more
+    dev = state.score(nation)
+    burden = min(rules.burden_max, rules.burden_per_development * max(0, dev - rules.burden_from))
+    if burden:
+        learnt["building"] = learnt.get("building", 0.0) - burden
+        lines.append(f"the burden of empire: works and development {burden:.0%} dearer")
+    # revanche: land taken from the crown, still held by another, fires its people
+    lost = [
+        p
+        for p, since in me.lost.items()
+        if state.provinces[p].owner != nation and state.turn - since < rules.revanche_years
+    ]
+    if lost:
+        fervour = min(rules.revanche_fervour_max, rules.revanche_fervour * len(lost))
+        learnt["manpower"] = learnt.get("manpower", 0.0) + fervour
+        learnt["morale"] = learnt.get("morale", 0.0) + fervour
+        lines.append(f"revanche for {len(lost)} lost provinces: +{fervour:.0%} manpower and morale")
     for d in taken_effects(nation, tuple(me.decisions)):
         for k, v in d.effects.items():
             learnt[k] = learnt.get(k, 0.0) + v

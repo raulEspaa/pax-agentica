@@ -2341,13 +2341,17 @@ class Rules(BaseModel):
     peace_cost_army_limit: int = 15
     peace_cost_per_year_of_income: int = 10  # a lump sum worth a year of the payer's ducats
     # war exhaustion
-    exhaustion_per_war_year: float = 1.0
+    exhaustion_per_war_year: float = 1.0  # the first war; each other at once half as much
+    exhaustion_more_wars: float = 0.5
+    exhaustion_quiet_war: float = 0.5  # recovered in a year of war without a defeat or a loss
     exhaustion_per_battle_lost: float = 0.5
     exhaustion_per_province_occupied: float = 0.5  # a year, for each of your provinces held
     exhaustion_recovery: float = 2.0  # a year at peace
     exhaustion_max: float = 20.0
+    # what a cost lacks in materials is bought on the market at once, dearer by this share
+    import_premium: float = 0.25
     exhaustion_income_penalty: float = 0.01  # ducat income per point
-    exhaustion_unrest_threshold: float = 10.0  # from here, -1 stability a year
+    exhaustion_unrest_threshold: float = 10.0  # from here, -1 stability a year of war
     ceded_unrest_turns: int = 2  # a province handed over by treaty settles faster than a conquest
 
     # opinion: what each court thinks of each other, from -100 to 100
@@ -2365,6 +2369,23 @@ class Rules(BaseModel):
     infamy_decay: float = 1.0  # a year
     infamy_opinion: int = -2  # per point of infamy added, for every court bordering the land
     coalition_infamy: float = 12.0  # from here, courts may league against the conqueror
+    # the balance of Europe: a crown whose standing is this many times the next one's, and at
+    # least hegemon_standing, is the hegemon: any court may league against it, and every court
+    # thinks a little worse of it every year
+    hegemon_ratio: float = 1.4
+    hegemon_standing: int = 60
+    hegemon_opinion: int = 3
+    # the burden of empire: from this much development, works and development cost more
+    burden_from: int = 80
+    burden_per_development: float = 0.004  # dearer by this for each level of development past it
+    burden_max: float = 0.5
+    # revanche: what a crown has lost it may win back, for this many years
+    minors_arm: int = 1  # regiments a year a minor raises beside a feared conqueror
+    revanche_years: int = 30
+    revanche_power: float = 0.15  # more battle power striking at its lost provinces
+    revanche_fervour: float = 0.05  # manpower and morale for each province held from it
+    revanche_fervour_max: float = 0.25
+    revanche_price: float = 0.5  # of the war score a lost province costs in a peace
     coalition_dissolves: float = 5.0  # below this, the league has nothing left to fear
     opinion_coalition: int = 10
     diplomacy_log: int = 1000  # diplomatic events kept for the courts' memories
@@ -2612,6 +2633,7 @@ class NationState(BaseModel):
     heir: Ruler | None = None  # who takes the throne next (public, as heirs are)
     regency: bool = False  # the ruler is a minor: a council rules for them
     claims: list[NationId] = Field(default_factory=list)  # thrones this crown may press a claim to
+    lost: dict[ProvinceId, int] = Field(default_factory=dict)  # provinces taken from it: the turn
     deeds: dict[str, int] = Field(default_factory=dict)  # counts of what the realm has done
     fleets: dict[SeaId, dict[Ship, int]] = Field(default_factory=dict)  # by sea zone; public
     colonies: dict[Region, list[Colony]] = Field(default_factory=dict)  # public: every empire

@@ -463,6 +463,8 @@ def static_payload(state: GameState, geo: dict[str, Any]) -> dict[str, Any]:
                 }
                 for k, spec in rules.colony_kinds.items()
             },
+            "revanchePower": rules.revanche_power,
+            "importPremium": rules.import_premium,
             "colonial": {
                 "cost": amounts(rules.expedition_cost),
                 "ships": rules.expedition_ships,

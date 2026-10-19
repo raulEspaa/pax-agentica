@@ -109,6 +109,7 @@ from pax_agentica.engine.mechanics import (
     fleet_pay,
     fleet_upkeep,
     focus_bonus,
+    hegemon,
     landing_sea,
     manpower_cap,
     market_price,
@@ -126,6 +127,7 @@ from pax_agentica.engine.mechanics import (
     province_slots,
     recruit_cost,
     research_cost,
+    revanche,
     sea_command,
     seize_factor,
     settlement,
@@ -254,6 +256,7 @@ class _Resolver:
         # regiments that marched in this year, by province: (realm, from where, how many)
         self.arrived: dict[ProvinceId, list[tuple[NationId, ProvinceId, int]]] = {}
         self.flow: dict[str, int] = dict.fromkeys(TRADED, 0)  # net market purchases this year
+        self.imported: dict[NationId, int] = {}  # ducats spent importing materials this year
         self.fallen: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)
         self.mercenaries: dict[NationId, int] = dict.fromkeys(self.s.nations, 0)  # hired this year
         self.launched: dict[ProvinceId, int] = {}  # ships launched from each port this year
@@ -364,11 +367,36 @@ class _Resolver:
         return None
 
     def _pay(self, nation: NationId, cost: Resources) -> str | None:
+        """Pay a cost. The materials it lacks (grain, iron, timber, goods) are imported at once:
+        bought on the market, dearer by rules.import_premium, if the ducats reach."""
         state = self.s.nations[nation]
-        if not state.resources.covers(cost):
+        if state.resources.covers(cost):
+            state.resources = state.resources - cost
+            return None
+        have = state.resources.amounts()
+        short = {k: v - have[k] for k, v in cost.amounts().items() if v > have[k]}
+        bill = self._import_bill(nation, short)
+        if bill is None:
             return f"it costs {cost} and you have {state.resources}"
-        state.resources = state.resources - cost
+        if have["ducats"] < cost.ducats + bill:
+            lacking = ", ".join(f"{n} {k}" for k, n in short.items())
+            return (
+                f"it costs {cost}; importing the {lacking} you lack would cost {bill} ducats "
+                f"more, and you have {state.resources.ducats}"
+            )
+        for k, n in short.items():
+            self.flow[k] += n  # imports raise the market's prices like any purchase
+        state.resources = state.resources + Resources(**short) - cost - Resources(ducats=bill)
+        self.imported[nation] = self.imported.get(nation, 0) + bill
         return None
+
+    def _import_bill(self, nation: NationId, lack: Mapping[str, int]) -> int | None:
+        """What importing these materials costs: the market's price, dearer by the import
+        premium. None when something lacking cannot be bought (ducats, men)."""
+        if any(k not in TRADED for k in lack):
+            return None
+        total = sum(market_total(self.s, k, n, buying=True, nation=nation) for k, n in lack.items())
+        return math.ceil(total * (1 + self.s.rules.import_premium))
 
     def _change_stability(self, nation: NationId, delta: int, reason: str) -> None:
         state = self.s.nations[nation]
@@ -450,6 +478,7 @@ class _Resolver:
         cost = peace_cost(
             self.s,
             recipient,
+            claimant=sender,
             provinces=t.demand,
             lump=t.receive,
             tribute=t.ask_tribute,
@@ -882,7 +911,7 @@ class _Resolver:
         if self.s.at_war(nation, other):
             return f"you are at war with {self._name(other)}"
         infamy = self.s.nations[against].infamy
-        if infamy < self.s.rules.coalition_infamy:
+        if infamy < self.s.rules.coalition_infamy and hegemon(self.s) != against:
             return (
                 f"{self._name(against)}'s infamy ({infamy:.0f}) does not frighten Europe yet: "
                 f"a league needs {self.s.rules.coalition_infamy:.0f}"
@@ -924,6 +953,9 @@ class _Resolver:
         """Land taken from a minor or by treaty: infamy for the taker, alarm next door."""
         rules = self.s.rules
         me = self.s.nations[taker]
+        since = me.lost.pop(province, None)  # it is the taker's again, either way
+        if since is not None and self.turn - since < rules.revanche_years:
+            return  # won back: no one fears a crown for taking back its own
         added = rules.infamy_per_development * self.s.provinces[province].development
         added *= 1 - modifiers(self.s, taker).infamy_relief
         before = me.infamy
@@ -1150,6 +1182,8 @@ class _Resolver:
         state.owner = to
         state.controller = None
         self._expand(to, province)
+        if frm in self.s.nations:  # land it will want back
+            self.s.nations[frm].lost[province] = self.turn
         state.unrest = self.s.rules.ceded_unrest_turns
         if state.faith is not None and state.faith != self.s.nations[to].faith:
             state.unrest += self.s.rules.faith_conquest_unrest
@@ -2252,6 +2286,28 @@ class _Resolver:
                     colonies=me.colony_count(exp.region),
                     colony=exp.kind.value,
                 )
+
+    def _minors_arm(self) -> None:
+        """The free provinces beside a conqueror Europe fears (the hegemon, or a crown of high
+        infamy) raise men against it, up to twice their development and three more."""
+        rules = self.s.rules
+        top = hegemon(self.s)
+        feared = {
+            n
+            for n in self.s.alive_nations()
+            if n == top or self.s.nations[n].infamy >= rules.coalition_infamy
+        }
+        if not feared or not rules.minors_arm:
+            return
+        for pid, p in sorted(self.s.provinces.items()):
+            if p.owner is not None or p.controller is not None or p.siege_by is not None:
+                continue
+            near = {self.s.provinces[n].holder for n in self.s.map.all_neighbors(pid)}
+            if not near & feared:
+                continue
+            cap = 2 * p.development + 3
+            if p.troops < cap:
+                p.add({UnitKind.INFANTRY: min(rules.minors_arm, cap - p.troops)})
 
     def _inflation(self) -> None:
         """The silver shipped home makes every price rise; the years slowly calm it."""
@@ -3408,6 +3464,7 @@ class _Resolver:
             attack_factor=battle_factor(self.s, nation, general.skill if general else 0)
             * self._rivalry(nation, defender)
             * self._coordination(nation, a.target)
+            * self._revanche(nation, a.target)
             * edge
             * veteran(rules, seasoned)
             * morale(self.s, nation),
@@ -3444,6 +3501,7 @@ class _Resolver:
             shown("veterans", veteran(rules, seasoned)),
             shown("morale", morale(self.s, nation)),
             shown("armies joined", self._coordination(nation, a.target)),
+            shown("revanche", self._revanche(nation, a.target)),
             shown("rivalry", self._rivalry(nation, defender)),
         ]
         defending = [
@@ -3499,6 +3557,10 @@ class _Resolver:
         else:
             target.veterancy = self._seasoned(target.veterancy, target.troops, committed, defender)
             target.take(result.defender_losses)
+
+    def _revanche(self, nation: NationId, province: ProvinceId) -> float:
+        """An army striking at land taken from its crown fights to win it back."""
+        return 1 + self.s.rules.revanche_power if revanche(self.s, nation, province) else 1.0
 
     def _seasoned(
         self, veterancy: float, regiments: int, beaten: int, nation: NationId | None = None
@@ -4010,6 +4072,14 @@ class _Resolver:
         for nation in self.s.alive_nations():
             self._produce_and_feed(nation)
         self._treasure_fleets()
+        for nation, bill in sorted(self.imported.items()):
+            self._emit(
+                EventKind.IMPORTED,
+                f"{self._name(nation)} imports the materials its works lacked, for {bill} ducats",
+                nations=(nation,),
+                audience=(nation,),
+                ducats=bill,
+            )
         self._pay_tributes()
         self._taxes()
         self._faiths()
@@ -4024,6 +4094,7 @@ class _Resolver:
         self._sieges()
         self._expeditions()
         self._inflation()
+        self._minors_arm()
         decay = self.s.rules.veterancy_decay  # the veterans grow old and go home
         for province in self.s.provinces.values():
             settles = 2 if BuildingKind.CATHEDRAL in province.buildings else 1
@@ -4172,23 +4243,32 @@ class _Resolver:
         """War exhaustion: every year of war, every province under occupation, weighs on a
         realm; peace lets it recover. Past the threshold, it costs stability."""
         rules = self.s.rules
+        beaten = {
+            n
+            for e in self.events
+            if e.kind in (EventKind.BATTLE, EventKind.NAVAL_BATTLE)
+            for n in [
+                e.data.get("defender") if e.data.get("attacker_won") else e.data.get("attacker")
+            ]
+            if isinstance(n, str)
+        }
         for nation in self.s.alive_nations():
             wars = len(self.s.enemies_of(nation))
             if wars:
                 lost = len(self.s.occupied_from(nation))
-                self._exhaust(
-                    nation,
-                    rules.exhaustion_per_war_year * wars
-                    + rules.exhaustion_per_province_occupied * lost,
-                )
+                weight = rules.exhaustion_per_war_year + rules.exhaustion_more_wars * (wars - 1)
+                if not lost and nation not in beaten:  # a quiet year of war: the realm breathes
+                    weight -= rules.exhaustion_quiet_war
+                self._exhaust(nation, weight + rules.exhaustion_per_province_occupied * lost)
+                if self.s.nations[nation].war_exhaustion >= rules.exhaustion_unrest_threshold:
+                    self._change_stability(nation, -1, "war exhaustion")
             else:
                 self._exhaust(nation, -rules.exhaustion_recovery)
-            if self.s.nations[nation].war_exhaustion >= rules.exhaustion_unrest_threshold:
-                self._change_stability(nation, -1, "war exhaustion")
 
     def _work(self, nation: NationId) -> tuple[Resources, Resources]:
-        """This year's income and the buildings' inputs it pays for. A building whose inputs the
-        treasury and the year's yield cannot cover stands idle and yields nothing."""
+        """This year's income and the buildings' inputs it pays for. Inputs the treasury and the
+        year's yield lack are imported, as for any cost, while the ducats reach; a building
+        whose inputs still cannot be met stands idle and yields nothing."""
         for pid in self.s.provinces_of(nation):
             self.s.provinces[pid].idle = []
         idle: list[tuple[ProvinceId, BuildingKind]] = []
@@ -4196,6 +4276,7 @@ class _Resolver:
             income = nation_income(self.s, nation)
             available = self.s.nations[nation].resources + income
             paid, short = Resources(), []
+            bought, bill = Resources(), 0
             for pid, kind in building_inputs(self.s, nation):
                 if (pid, kind) in idle:
                     continue
@@ -4203,6 +4284,15 @@ class _Resolver:
                 if available.covers(need):
                     available = available - need
                     paid = paid + need
+                    continue
+                have = available.amounts()
+                lack = {k: v - have[k] for k, v in need.amounts().items() if v > have[k]}
+                price = self._import_bill(nation, lack)
+                if price is not None and have["ducats"] >= need.ducats + price:
+                    imported = Resources(**lack)
+                    available = available + imported - need - Resources(ducats=price)
+                    paid = paid + need - imported + Resources(ducats=price)
+                    bought, bill = bought + imported, bill + price
                 else:
                     short.append((pid, kind))
             if not short:
@@ -4210,6 +4300,11 @@ class _Resolver:
             for pid, kind in short:
                 idle.append((pid, kind))
                 self.s.provinces[pid].idle.append(kind)
+        for k, n in bought.amounts().items():
+            if n:
+                self.flow[k] += n
+        if bill:
+            self.imported[nation] = self.imported.get(nation, 0) + bill
         if idle:
             names = ", ".join(
                 f"{self.s.rules.buildings[k].name.lower()} in {self._pname(pid)}" for pid, k in idle
@@ -4246,6 +4341,7 @@ class _Resolver:
     def _drift_opinions(self) -> None:
         """Grudges and friendships fade; a common enemy brings courts together."""
         rules = self.s.rules
+        top = hegemon(self.s)
         unforgiven = set()
         for nation in self.s.nations.values():  # what a court will not forget keeps weighing
             nation.grudges = [g for g in nation.grudges if g.until > self.turn]
@@ -4283,6 +4379,10 @@ class _Resolver:
                 for other in alive:
                     if other != a:
                         self._opine(other, a, -int(feared // 10) - 1)
+            if a == top:  # the hegemon: every court watches it, and likes it less
+                for other in alive:
+                    if other != a:
+                        self._opine(other, a, -rules.hegemon_opinion)
             for spouse in self.s.partners(a, TreatyKind.MARRIAGE):
                 self._opine(a, spouse, rules.opinion_marriage_yearly)
             for target, stance in self.s.nations[a].stances.items():

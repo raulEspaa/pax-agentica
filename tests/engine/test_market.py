@@ -47,15 +47,17 @@ def test_new_townsfolk_must_be_fed(state: GameState) -> None:
 def test_high_development_and_fine_troops_need_goods(state: GameState, play: Play) -> None:
     assert develop_cost(state.rules, 4).goods == 0
     assert develop_cost(state.rules, 9).goods == 3
+    orders = [
+        Develop(province="paris"),  # development 5: wants a bale of goods
+        Recruit(province="paris", regiments=1, unit=UnitKind.ARCHERS),
+    ]
+    state.nations["france"].resources = Resources(ducats=60, manpower=50, iron=50, timber=50)
+    poor = play(state, france=orders)
+    assert len(reasons(poor)) >= 1  # no goods, and too few ducats to import them
     state.nations["france"].resources = Resources(ducats=500, manpower=50, iron=50, timber=50)
-    new = play(
-        state,
-        france=[
-            Develop(province="paris"),  # development 5: wants a bale of goods
-            Recruit(province="paris", regiments=1, unit=UnitKind.ARCHERS),
-        ],
-    )
-    assert len(reasons(new)) == 2
+    rich = play(state, france=orders)
+    assert reasons(rich) == []  # the goods are imported
+    assert any(e.kind == EventKind.IMPORTED for e in rich.last_events)
 
 
 # ---------------------------------------------------------------- inputs
@@ -64,6 +66,7 @@ def test_high_development_and_fine_troops_need_goods(state: GameState, play: Pla
 def test_a_building_without_its_inputs_stands_idle(state: GameState, play: Play) -> None:
     state.provinces["stockholm"].buildings.append(BuildingKind.MARKETPLACE)
     state.nations["sweden"].resources = Resources(ducats=100)  # Sweden makes no goods
+    state.rules = state.rules.model_copy(update={"import_premium": 1000.0})  # none to be had
     new = play(state)
     assert BuildingKind.MARKETPLACE in new.provinces["stockholm"].idle
     assert EventKind.BUILDINGS_IDLE in [e.kind for e in new.last_events]
@@ -116,3 +119,12 @@ def test_prices_follow_demand(state: GameState, play: Play) -> None:
     assert market_price(new, "iron") > before
     view = view_for(new, "france")
     assert view.market["iron"].buy > view.market["iron"].sell
+
+
+def test_a_rich_realm_imports_what_its_works_lack(state: GameState, play: Play) -> None:
+    state.provinces["stockholm"].buildings.append(BuildingKind.MARKETPLACE)
+    state.nations["sweden"].resources = Resources(ducats=300)  # no goods, but ducats to buy them
+    new = play(state)
+    assert BuildingKind.MARKETPLACE not in new.provinces["stockholm"].idle
+    imported = next(e for e in new.last_events if e.kind == EventKind.IMPORTED)
+    assert imported.nations == ("sweden",)

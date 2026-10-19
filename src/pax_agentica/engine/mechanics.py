@@ -1107,26 +1107,57 @@ def _won(state: GameState, side: NationId, against: NationId, battles: Mapping[s
     return score
 
 
+def hegemon(state: GameState) -> NationId | None:
+    """The crown all Europe fears: the first in standing, by rules.hegemon_ratio over the
+    second, with at least rules.hegemon_standing."""
+    rules = state.rules
+    ranked = sorted((state.standing(n), n) for n in state.alive_nations())
+    if len(ranked) < 2:
+        return None
+    (second, _), (first, top) = ranked[-2], ranked[-1]
+    if first >= rules.hegemon_standing and first >= rules.hegemon_ratio * max(1, second):
+        return top
+    return None
+
+
+def revanche(state: GameState, nation: NationId | None, province: ProvinceId) -> bool:
+    """Whether `province` was taken from `nation` within rules.revanche_years, and is held by
+    another: its lost land, to win back."""
+    if nation is None:
+        return False
+    since = state.nations[nation].lost.get(province)
+    held = state.provinces[province].owner
+    return since is not None and held != nation and state.turn - since < state.rules.revanche_years
+
+
+def lost_land(state: GameState, nation: NationId) -> list[ProvinceId]:
+    """The provinces a crown may still win back."""
+    return sorted(p for p in state.nations[nation].lost if revanche(state, nation, p))
+
+
 def peace_cost(
     state: GameState,
     payer: NationId,
     *,
+    claimant: NationId | None = None,
     provinces: Collection[ProvinceId] = (),
     lump: Resources | None = None,
     tribute: int = 0,
     army_limit: bool = False,
 ) -> int:
-    """What demands on `payer` cost in war score: a province its share of the payer's land, a
-    lump sum by years of the payer's income, a tribute by half that, an army limit a flat price."""
+    """What demands on `payer` cost in war score: a province its share of the payer's land (less
+    when it is the claimant's lost land), a lump sum by years of the payer's income, a tribute by
+    half that, an army limit a flat price."""
     rules = state.rules
     owned = [p for p, s in state.provinces.items() if s.owner == payer]
     total = sum(state.provinces[p].development for p in owned) or 1
     # a province costs its share of the payer's land, at least 5, unless it is already
     # occupied: then exactly its share, which is what holding it adds to the war score
     cost = sum(
-        share if state.provinces[p].controller else max(5, share)
+        round(price * (rules.revanche_price if revanche(state, claimant, p) else 1))
         for p in provinces
         for share in [round(100 * state.provinces[p].development / total)]
+        for price in [share if state.provinces[p].controller else max(5, share)]
     )
     income = max(10, nation_income(state, payer).ducats)
     if lump is not None:

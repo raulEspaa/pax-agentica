@@ -61,7 +61,7 @@ const PaxMap = (() => {
                  military_academy: "🎓", royal_exchange: "⚜", observatory: "🔭", workshop: "🔨",
                  arms_manufactory: "🗡", powder_mill: "🧨"};
   const UICON = {infantry: "⚔", archers: "🏹", cavalry: "🐎", artillery: "💣"};
-  const ICON = {grudge: "💢", colony_founded: "🏝", expedition_sent: "⛵", expedition_lost: "🌊", colony_seized: "🏴", viceroyalty: "♛", troops_shipped: "⛵", colonial_fort: "🏰", colonial_battle: "⚔", natives_war: "🏹", treasure_taken: "🏴‍☠️", naval_battle: "⚓", ships_built: "⛵", fleet_sailed: "⛵", siege: "🏰", proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
+  const ICON = {grudge: "💢", colony_founded: "🏝", expedition_sent: "⛵", expedition_lost: "🌊", colony_seized: "🏴", viceroyalty: "♛", imported: "⚖", decision: "📜", troops_shipped: "⛵", colonial_fort: "🏰", colonial_battle: "⚔", natives_war: "🏹", treasure_taken: "🏴‍☠️", naval_battle: "⚓", ships_built: "⛵", fleet_sailed: "⛵", siege: "🏰", proclamation: "📣", stance_changed: "⚑", province_ceded: "📜", tribute_paid: "💰", monument_raised: "🏛", proposal_countered: "↔",
     war_declared: "⚔", joined_war: "⚔", call_to_arms_ignored: "💔", treaty_signed: "🤝",
     treaty_broken: "💔", treaty_cancelled: "✂", treaty_expired: "⌛", peace_signed: "🕊", trade_completed: "⚖",
     trade_failed: "✗", gift: "🎁", battle: "⚔", province_captured: "⚑", capital_moved: "♛", nation_eliminated: "☠",

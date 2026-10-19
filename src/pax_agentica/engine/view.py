@@ -40,8 +40,10 @@ from pax_agentica.engine.mechanics import (
     focus_bonus,
     good_price,
     good_supply,
+    hegemon,
     inflation_loss,
     inputs_upkeep,
+    lost_land,
     manpower_cap,
     market_cut,
     market_price,
@@ -331,6 +333,7 @@ class MyNation(_View):
     loans: tuple[Loan, ...]
     missions: tuple[MissionView, ...]  # your ambitions: done at the end of a year all goals hold
     decisions: tuple[DecisionView, ...]  # your crown's great choices: take_decision
+    lost: tuple[ProvinceId, ...]  # land taken from you, to win back: revanche (see rules)
     patronage_cost: int  # ducats for patronize (+rules.patronage_prestige prestige), once a year
     tax: int  # -2 very low ... +2 very high; change it with set_taxes
     infamy: float  # your conquests' weight on Europe; past rules.coalition_infamy, leagues form
@@ -387,6 +390,7 @@ class NationSummary(_View):
     colonies: dict[Region, int]  # its colonies beyond the sea (public)
     viceroys: dict[Region, str]  # its viceroys, by region (public)
     decisions: tuple[str, ...]  # the national decisions it has taken (public)
+    lost: tuple[ProvinceId, ...]  # land taken from it, that it wants back (public)
     marriages: tuple[NationId, ...]  # the courts it is married into (public)
     pacts: tuple[NationId, ...]  # the courts it has a pact of non-aggression with (public)
     garrisons: dict[Region, int]  # its regiments overseas, by region (public)
@@ -484,6 +488,7 @@ class NationView(_View):
     crisis: CrisisView | None  # the age's great trouble, from the year it is announced
     new_world: tuple[RegionView, ...]  # the regions beyond the sea: send_expedition, seize_colony
     seas: tuple[SeaView, ...]  # the sea zones and their fleets: sail_fleet, seek_battle, landings
+    hegemon: NationId | None  # the crown Europe fears: any court may league against it
     rules: Rules
 
 
@@ -761,6 +766,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         loans=tuple(me.loans),
         missions=_missions(state, nation),
         decisions=_decisions(state, nation),
+        lost=tuple(lost_land(state, nation)),
         tax=me.tax,
         infamy=round(me.infamy, 1),
         grudges=tuple(_grudge(state, g) for g in me.grudges),
@@ -842,6 +848,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
             colonies={r: len(c) for r, c in ns.colonies.items()},
             viceroys={r: v.name for r, v in ns.viceroys.items()},
             decisions=tuple(ns.decisions),
+            lost=tuple(lost_land(state, nid)),
             marriages=tuple(state.partners(nid, TreatyKind.MARRIAGE)),
             pacts=tuple(state.partners(nid, TreatyKind.NON_AGGRESSION)),
             garrisons=dict(ns.garrisons),
@@ -889,6 +896,7 @@ def view_for(state: GameState, nation: NationId) -> NationView:
         crisis=_crisis(state),
         new_world=_new_world(state, nation),
         seas=_seas(state),
+        hegemon=hegemon(state),
         market={
             res: PriceView(
                 price=round(price, 2),

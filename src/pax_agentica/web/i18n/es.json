@@ -2060,7 +2060,7 @@
  "village": "aldea",
  "visionary": "visionario",
  "wait for everyone": "esperar a todos",
- "war exhaustion": "agotamiento bélico",
+ "war exhaustion": "agotamiento de guerra",
  "war exhaustion {0}: -{1} ducats": "agotamiento bélico {0}: -{1} ducados",
  "warlike": "belicoso",
  "white peace": "paz blanca",
@@ -3505,5 +3505,17 @@
  "hold {0} or {1}": "dominar {0} o {1}",
  "hold {0} and {1}": "dominar {0} y {1}",
  "hold {0}, {1} and {2}": "dominar {0}, {1} y {2}",
- "{0} or {1}": "{0} o {1}"
+ "{0} or {1}": "{0} o {1}",
+ "⚑ Taken from you: your armies strike here {0}% harder, a peace asks half the war score for it, and winning it back costs no infamy.": "⚑ Te la arrebataron: tus ejércitos golpean aquí un {0}% más fuerte, una paz pide la mitad de puntuación de guerra por ella y recuperarla no da infamia.",
+ "⚑ {0} wants it back: land taken from it.": "⚑ {0} la quiere de vuelta: es tierra que le arrebataron.",
+ "⚑ {0} want it back: land taken from them.": "⚑ {0} la quieren de vuelta: es tierra que les arrebataron.",
+ "⚖ You are the hegemon of Europe: any court may league against you, and every court thinks a little less of you each year.": "⚖ Eres la potencia hegemónica de Europa: cualquier corte puede coaligarse contra ti, y todas te aprecian un poco menos cada año.",
+ "⚖ {0} is the hegemon of Europe: any court may league against it, whatever its infamy.": "⚖ {0} es la potencia hegemónica de Europa: cualquier corte puede coaligarse contra ella, sea cual sea su infamia.",
+ "⚖ Imports {0} for {1} ducats": "⚖ Importa {0} por {1} ducados",
+ "What it lacks is bought on the market, a quarter dearer": "Lo que falta se compra en el mercado, una cuarta parte más caro",
+ "{0} imports the materials its works lacked, for {1} ducats": "{0} importa los materiales que faltaban a sus obras, por {1} ducados",
+ "the burden of empire: works and development {0}% dearer": "la carga del imperio: obras y desarrollo un {0}% más caros",
+ "revanche for {0} lost provinces: +{1}% manpower and morale": "revancha por {0} provincias perdidas: +{1}% de levas y moral",
+ "revanche ×{0}": "revancha ×{0}",
+ "it costs {0}; importing the {1} you lack would cost {2} ducats more, and you have {3}": "cuesta {0}; importar los {1} que te faltan costaría {2} ducados más, y tienes {3}"
 }

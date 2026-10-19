@@ -58,6 +58,7 @@ class EventKind(StrEnum):
     COLONY_SEIZED = "colony_seized"
     VICEROYALTY = "viceroyalty"
     DECISION = "decision"
+    IMPORTED = "imported"
     TROOPS_SHIPPED = "troops_shipped"
     COLONIAL_FORT = "colonial_fort"
     COLONIAL_BATTLE = "colonial_battle"

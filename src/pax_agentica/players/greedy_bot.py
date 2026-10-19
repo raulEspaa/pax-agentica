@@ -14,7 +14,7 @@ It only reads its `NationView`, exactly like an LLM ruler would.
 import math
 import random
 from collections import deque
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pax_agentica.engine import NationView, Orders, Resources
 from pax_agentica.engine.actions import (
@@ -98,6 +98,41 @@ from pax_agentica.engine.view import ProposalView, ProvinceView, RegionView
 from pax_agentica.tools import best_tactic, landing, sea_command
 
 CAPITAL_GUARD = 3
+
+
+class Purse:
+    """The bot's treasury as the engine pays from it: what a cost lacks in grain, iron, timber
+    or goods is imported at the market's price and the import premium, if the ducats reach."""
+
+    def __init__(self, have: Resources, prices: dict[str, float], premium: float) -> None:
+        self.have, self.prices, self.premium = have, prices, premium
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.have, name)
+
+    def bill(self, cost: Resources) -> float:
+        """The ducats importing what `cost` lacks would take (infinite for men)."""
+        have = self.have.amounts()
+        lack = {k: v - have[k] for k, v in cost.amounts().items() if k != "ducats" and v > have[k]}
+        if any(k not in self.prices for k in lack):
+            return math.inf
+        return math.ceil(sum(n * self.prices[k] for k, n in lack.items()) * (1 + self.premium))
+
+    def covers(self, cost: Resources) -> bool:
+        return self.have.ducats >= cost.ducats + self.bill(cost)
+
+    def __sub__(self, cost: Resources) -> "Purse":
+        have = self.have.amounts()
+        lack = {k: max(0, v - have[k]) for k, v in cost.amounts().items() if k != "ducats"}
+        bill = self.bill(cost) if any(lack.values()) else 0
+        bought = Resources(**{k: n for k, n in lack.items() if n and k in self.prices})
+        paid = Resources(ducats=int(bill)) if bill != math.inf else Resources()
+        return Purse(self.have + bought - cost - paid, self.prices, self.premium)
+
+    def __add__(self, more: Resources) -> "Purse":
+        return Purse(self.have + more, self.prices, self.premium)
+
+
 type Army = dict[UnitKind, int]
 
 # How much the bot thinks each resource is worth, in ducats.
@@ -142,7 +177,11 @@ class _Planner:
         self.owned = {p.id for p in view.provinces if p.owner == me and not p.controller}
         self.troops = {pid: self.provinces[pid].troops or 0 for pid in self.mine}
         self.score_of = {w.enemy: w.war_score for w in view.me.wars}
-        self.budget = view.me.resources
+        self.budget = Purse(
+            view.me.resources,
+            {k: m.buy for k, m in view.market.items()},
+            view.rules.import_premium,
+        )
         self.enemies = set(view.me.at_war_with)
         self.old_enemies = set(self.enemies)
         self.friends = {t.partner for t in view.me.treaties}  # never attacked: we keep our word
@@ -264,6 +303,8 @@ class _Planner:
                     need = self._needed(origin, target)
                     worth = target.development * (2 if ours else 1)
                     if t in self.ambitions:  # a province our missions ask for
+                        worth *= 2
+                    if t in self.me.lost:  # our own land, taken from us
                         worth *= 2
                     found.append((worth / need, origin, t, need))
         found += self._landing_targets()
@@ -589,6 +630,7 @@ class _Planner:
                     return False
                 return (
                     self._fears(target)
+                    or target == self.v.hegemon  # the balance of Europe before any friendship
                     or target in self._border_nations()
                     or self.me.opinions.get(target, 0) <= -20
                 )
@@ -1518,14 +1560,17 @@ class _Planner:
         if their is None or score < 10:
             return ProposePeace(target=enemy)
         # Ask for what we hold of theirs, as far as the war score covers it.
+        lost = set(self.me.lost)  # our own land first: it costs half
         held = sorted(
             (p for p in self.v.provinces if p.owner == enemy and p.controller == self.me.id),
-            key=lambda p: (-p.development, p.id),
+            key=lambda p: (p.id not in lost, -p.development, p.id),
         )
         demand, spent = [], 0
         for p in held:
             share = round(100 * p.development / max(1, their.score))
             cost = share if p.controller else max(5, share)
+            if p.id in lost:
+                cost = round(cost * self.v.rules.revanche_price)
             if p.is_capital or spent + cost > score:
                 continue
             demand.append(p)
@@ -1642,7 +1687,9 @@ class _Planner:
             members = [n for n in self.v.nations if nid in n.leagued_against and n.alive]
             weight = self.me.score + sum(n.score for n in members if n.id != self.me.id)
             busy = bool(them.at_war_with)
-            if (busy or weight >= 1.3 * them.score) and self.rng.random() < 0.35:
+            feared = nid == self.v.hegemon  # the balance of Europe: strike sooner, and more often
+            enough = weight >= (1.0 if feared else 1.3) * them.score
+            if (busy or enough) and self.rng.random() < (0.6 if feared else 0.35):
                 self.actions.append(DeclareWar(target=nid))
                 self.enemies.add(nid)
                 self.mobilising.add(nid)
@@ -1661,13 +1708,13 @@ class _Planner:
             for n in self.v.nations
             if n.alive
             and n.id != self.me.id
-            and n.infamy >= rules.coalition_infamy
+            and (n.infamy >= rules.coalition_infamy or n.id == self.v.hegemon)
             and n.id not in self.friends
             and (n.id in self._border_nations() or self._fears(n.id))
         ]
         if not feared or self.rng.random() > 0.5:
             return
-        target = max(feared, key=lambda n: (n.infamy, n.id))
+        target = max(feared, key=lambda n: (n.id == self.v.hegemon, n.infamy, n.id))
         leagued = {
             t.partner
             for t in self.me.treaties
