@@ -113,6 +113,12 @@ def _parser() -> argparse.ArgumentParser:
     brief = sub.add_parser("brief", help="print a nation's briefing, as a prompt would see it")
     brief.add_argument("nation")
     brief.add_argument("--seed", type=int, default=1)
+    brief.add_argument("--turn", type=int, default=1, help="play greedy bots up to this year first")
+    page = brief.add_mutually_exclusive_group()
+    page.add_argument(
+        "--compact", action="store_true", help="the compact view a planning ruler reads"
+    )
+    page.add_argument("--inbox", action="store_true", help="the letters and proposals received")
 
     tour = sub.add_parser("tournament", help="many seeds, mixed rulers, a table of results")
     tour.add_argument("--games", type=int, default=20)
@@ -263,15 +269,24 @@ def _view(args: argparse.Namespace) -> int:
 
 
 def _brief(args: argparse.Namespace) -> int:
-    from pax_agentica.tools import briefing
+    from pax_agentica.tools import briefing, compact_view, inbox
 
-    state = new_game(args.seed)
+    state = new_game(args.seed, max_turns=max(50, args.turn))
     if args.nation not in state.nations:
         print(
             f"unknown nation {args.nation!r}; try one of {sorted(state.nations)}", file=sys.stderr
         )
         return 2
-    print(briefing(view_for(state, args.nation)))
+    if args.turn > 1:  # play the bots up to that year, so the page has a story to tell
+        bots: dict[str, Player] = {n: GreedyBot(args.seed) for n in state.nations}
+        played: list[GameState] = []
+        state.max_turns = args.turn
+        asyncio.run(run_game(state, bots, on_turn=lambda _t, s: played.append(s)))
+        state = played[-1] if played else state
+        state.max_turns = 50  # the page reads as a year in a full game, not the last one
+    view = view_for(state, args.nation)
+    page = compact_view if args.compact else inbox if args.inbox else briefing
+    print(page(view) or "(nothing)")
     return 0
 
 
