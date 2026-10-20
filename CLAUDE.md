@@ -16,7 +16,7 @@ failure, not a shortcut.
 |------|------------------|
 | `src/pax_agentica/agents/`: AI rulers, prompts, LLM clients, memory, evals | **Do not write or edit code here** unless Raúl explicitly asks for code in that message. Explain concepts, ask "what if…?" questions, point at the failing case, suggest the *next test* in words, review his code |
 | Tests for the AI part | Same: suggest test ideas and edge cases in words; Raúl writes them |
-| Specs for the AI part (`specs/`) | Ask questions that sharpen the spec; never write it for him |
+| Specs for the AI part (`specs/`) | Since 2026-10-20 the assistant **writes** them from Raúl's decisions (he reviews), so his time goes to the AI code itself |
 | The game: `engine/`, `players/` (bots), `runner.py`, `cli.py`, `viewer.py`, `server.py`, `web/` and their tests | **The assistant owns it.** Keep it tested, keep [`docs/game-rules.md`](docs/game-rules.md) in sync, explain changes to Raúl |
 | Tooling: CI, Makefile, pyproject, pre-commit, Dockerfiles, docs assets | May write directly, explaining what each part does |
 | Docs: README, ADRs, learning notes | May draft when asked; Raúl reviews and edits |
