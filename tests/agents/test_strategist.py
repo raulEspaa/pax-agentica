@@ -11,7 +11,7 @@ from pax_agentica.engine import NationView, Orders, new_game, view_for
 from pax_agentica.players import Player
 from pax_agentica.players.greedy_bot import GreedyBot
 from pax_agentica.players.plan import Plan
-from pax_agentica.runner import run_game
+from pax_agentica.runner import GameRecord, run_game
 
 
 class FakeModel:
@@ -175,6 +175,18 @@ def test_shows_the_monarch_the_plan_that_stood(france: NationView) -> None:
 
     assert "flanders" in model.requests[1].user.split("THE REPORT")[0]
     assert "atlantis" not in model.requests[1].user
+
+
+def test_the_same_seed_plays_the_same_game() -> None:
+    def game() -> GameRecord:
+        state = new_game(seed=3, max_turns=15)
+        players: dict[str, Player] = {n: GreedyBot(3) for n in state.nations}
+        for nation in ("france", "ottomans"):
+            model = FakeModel(Plan(economy="grow", army="conquer", note="Onward."))
+            players[nation] = Strategist(model, seed=3)
+        return asyncio.run(run_game(state, players))
+
+    assert game() == game()
 
 
 def test_keeps_following_the_last_plan_in_a_year_without_a_new_one() -> None:
