@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help sync fmt lint types test check precommit-install map host image deploy-tables contract chart
+.PHONY: help sync fmt lint types test check precommit-install map host image deploy-tables contract chart env db langfuse infra-down
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -26,6 +26,18 @@ check: lint types test ## Everything CI runs: lint, types, tests
 
 precommit-install: ## Install the git hooks (ruff, gitleaks) once per clone
 	uv run pre-commit install
+
+env: ## Write .env with random secrets, if there is none yet
+	scripts/make_env.sh
+
+db: env ## Start the rulers' database (Postgres + pgvector, on port 5433)
+	docker compose up -d --wait db
+
+langfuse: env ## Start Langfuse on http://localhost:3000 (sign in with the account in .env)
+	docker compose --profile langfuse up -d --wait langfuse-web langfuse-worker
+
+infra-down: ## Stop the local services and keep their data
+	docker compose --profile langfuse down
 
 NE := .cache/naturalearth
 NE_URL := https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson
