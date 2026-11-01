@@ -58,6 +58,13 @@ Plays many seeds with mixed rulers and prints, per nation, its ruler, wins, aver
 survival and missions fulfilled. A new kind of ruler only needs to be a `Player` (see
 [ADR 0002](adr/0002-who-writes-what.md)) and an entry in the CLI's `BOTS`.
 
+An AI ruler spends real money, so it takes a limit, and the run stops spending when it is reached
+(the rulers carry on with their last plan):
+
+```bash
+uv run --env-file .env pax tournament --games 1 --player france=strategist --budget 0.10
+```
+
 ## Playing against people
 
 [Multiplayer tables](multiplayer.md) let friends play the same game in their browsers, each on a

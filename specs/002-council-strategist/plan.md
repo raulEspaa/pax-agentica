@@ -14,7 +14,8 @@ NationView ──> Strategist.decide ──> is a plan due? ──no────
 - `agents/strategist.py`: `Strategist`, a `Player`, and `PlanModel`, the protocol every model obeys.
 - `agents/prompts.py`: `build_request(view, last_plan)` writes the `PlanRequest` a model reads.
 - `agents/checks.py`: `clean_plan(plan, view)` drops what names nothing real and says what.
-- Later steps add the budget and the Gemini client.
+- `agents/budget.py`: `Budget`, which sets money aside before each call and refuses past its limit.
+- `agents/gemini.py`: `GeminiModel`, the `PlanModel` for Google's models, on the Interactions API.
 
 ## Decisions
 
@@ -32,11 +33,17 @@ NationView ──> Strategist.decide ──> is a plan due? ──no────
 | No pause before the retry | Exponential backoff here | Waiting for rate limits belongs in the Gemini client, the only part that knows the provider's errors |
 | A failed year asks again next year | Wait for the usual two years | The realm is already without a fresh plan, and the budget bounds the cost |
 | Budget guard before the first real call | Add it with tracing | Cost is a hard constraint for this project |
+| Reserve the worst cost, then settle the real one | Add up costs after each call | Nine crowns ask at once, and the cost is known only afterwards: only a reservation really holds the limit |
+| A failed or cancelled call is charged its worst cost | Charge nothing | It may have been billed: better to stop early than to overspend |
+| One SDK retry, counted in the reservation | The default of three; forcing none with `attempts=-1` | The SDK has no public way to none, and the one left waits out a 429. Reserving both sends keeps the limit |
+| Tests with the real SDK against a local server | Mock the SDK | Checks the real requests and answers at no cost, and it caught the hidden retries |
+| Interactions API | `generate_content` | The vendored Gemini skill and current docs use it for new work; `store=False` keeps our prompts off Google's history |
 
 ## Risks / unknowns
 
 - **Timeouts.** A plan may take about 60 s (30 s and one retry), so the runner's `timeout` must be
   larger, or the runner forfeits the year that criterion 5 promises to keep.
-- **Rate limits.** The runner asks all crowns at once: the Gemini client needs a concurrency limit.
+- **Rate limits.** The runner asks all crowns at once: the client allows 4 calls at a time, and the SDK
+  retries a 429 once. Real runs will show if that is enough.
 - **Model.** Spec 002 starts with Gemini 3.1 Flash-Lite; its current price is checked on the official
   page before the first real call.
