@@ -7,6 +7,7 @@ year the bot turns the current plan into orders. See specs/002-council-strategis
 from dataclasses import dataclass
 from typing import Protocol
 
+from pax_agentica.agents.checks import clean_plan
 from pax_agentica.agents.prompts import PlanRequest, build_request
 from pax_agentica.engine import NationView, Orders
 from pax_agentica.players.greedy_bot import GreedyBot
@@ -63,13 +64,17 @@ class Strategist:
 
     async def decide(self, view: NationView) -> Orders:
         realm = _Realm.of(view)
+        dropped: list[str] = []
         if self._plan_is_due(view, realm):
-            self._plan = await self._model.write_plan(build_request(view, self._plan))
+            answer = await self._model.write_plan(build_request(view, self._plan))
+            self._plan, dropped = clean_plan(answer, view)
             self._bot.follow(self._plan)
             self._last_plan_turn = view.turn
         self._last_year = realm
         note = self._plan.note if self._plan else ""
-        return combine(await self._bot.decide(view), Orders(thoughts=note))
+        remark = f"Dropped from the plan: {', '.join(dropped)}." if dropped else ""
+        thoughts = "\n".join(line for line in (note, remark) if line)
+        return combine(await self._bot.decide(view), Orders(thoughts=thoughts))
 
     def _plan_is_due(self, view: NationView, realm: _Realm) -> bool:
         if self._last_plan_turn is None or self._last_year is None:

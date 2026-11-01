@@ -148,6 +148,35 @@ def test_shows_the_monarch_their_own_last_plan(france: NationView) -> None:
     assert "The cloth towns first." in model.requests[1].user
 
 
+def test_carries_out_the_plan_without_what_names_nothing_real(france: NationView) -> None:
+    model = FakeModel(Plan(conquer=["atlantis", "flanders"], note="West."))
+    ruler = Strategist(model, seed=1)
+
+    mine = asyncio.run(ruler.decide(france))
+    cleaned = Plan(conquer=["flanders"], note="West.")
+    bots = asyncio.run(GreedyBot(1, plan=cleaned).decide(france))
+
+    assert mine.actions == bots.actions
+    assert mine.thoughts.startswith("West.")
+    assert "conquer atlantis" in mine.thoughts
+
+
+def test_says_what_was_dropped_only_in_the_year_of_the_plan(france: NationView) -> None:
+    ruler = Strategist(FakeModel(Plan(conquer=["atlantis"])), seed=1)
+    asyncio.run(ruler.decide(year(france, 1)))
+
+    assert "atlantis" not in asyncio.run(ruler.decide(year(france, 2))).thoughts
+
+
+def test_shows_the_monarch_the_plan_that_stood(france: NationView) -> None:
+    model = FakeModel(Plan(conquer=["atlantis", "flanders"]))
+
+    play_years(model, [year(france, 1), year(france, 3)])
+
+    assert "flanders" in model.requests[1].user.split("THE REPORT")[0]
+    assert "atlantis" not in model.requests[1].user
+
+
 def test_keeps_following_the_last_plan_in_a_year_without_a_new_one() -> None:
     state = new_game(seed=1)
     plan = Plan(economy="save", army="defend", note="Save.")
