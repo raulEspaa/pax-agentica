@@ -5,6 +5,7 @@ from itertools import pairwise
 
 import pytest
 
+from pax_agentica.agents.prompts import PlanRequest
 from pax_agentica.agents.strategist import Strategist
 from pax_agentica.engine import NationView, Orders, new_game, view_for
 from pax_agentica.players import Player
@@ -18,9 +19,9 @@ class FakeModel:
 
     def __init__(self, plan: Plan | None = None) -> None:
         self.plan = plan or Plan()
-        self.requests: list[str] = []
+        self.requests: list[PlanRequest] = []
 
-    async def write_plan(self, request: str) -> Plan:
+    async def write_plan(self, request: PlanRequest) -> Plan:
         self.requests.append(request)
         return self.plan
 
@@ -136,6 +137,15 @@ def test_gives_exactly_the_orders_of_the_bot_with_that_plan() -> None:
 
     assert mine.actions == bots.actions
     assert mine.thoughts.startswith("France must grow before it fights.")
+
+
+def test_shows_the_monarch_their_own_last_plan(france: NationView) -> None:
+    model = FakeModel(Plan(note="The cloth towns first."))
+
+    play_years(model, [year(france, 1), year(france, 3)])
+
+    assert "The cloth towns first." not in model.requests[0].user
+    assert "The cloth towns first." in model.requests[1].user
 
 
 def test_keeps_following_the_last_plan_in_a_year_without_a_new_one() -> None:

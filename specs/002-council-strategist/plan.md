@@ -12,7 +12,8 @@ NationView ──> Strategist.decide ──> is a plan due? ──no────
 ```
 
 - `agents/strategist.py`: `Strategist`, a `Player`, and `PlanModel`, the protocol every model obeys.
-- Later steps add the monarch's prompt, plan checks, the budget and the Gemini client.
+- `agents/prompts.py`: `build_request(view, last_plan)` writes the `PlanRequest` a model reads.
+- Later steps add plan checks, the budget and the Gemini client.
 
 ## Decisions
 
@@ -21,6 +22,9 @@ NationView ──> Strategist.decide ──> is a plan due? ──no────
 | `PlanModel` protocol between ruler and SDK | Call `google-genai` in the ruler | Tests run free, offline and deterministic; evaluations swap models without touching the ruler |
 | Plain Python, no framework | LangGraph from the start | One call with a retry has no graph to draw; porting in phase 4 shows what LangGraph adds |
 | `GreedyBot` is held, not inherited | `class Strategist(GreedyBot)` | The ruler only needs the bot's public `follow` and `decide`, so bot internals can change freely |
+| Prompts as Python text with a `PROMPT_VERSION` | Files in a folder; Langfuse prompt management | Git already versions them, a run stays reproducible offline, and nothing new has to be packaged |
+| System text for who and how, user text for this year | One string | The rules open every request identically, which providers can cache, and the two kinds of text stay apart |
+| Schema sent as structured output | Described in the prompt | The provider enforces it, and the words are not spent twice |
 | Budget guard before the first real call | Add it with tracing | Cost is a hard constraint for this project |
 
 ## Risks / unknowns
