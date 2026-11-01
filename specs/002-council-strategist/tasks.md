@@ -6,7 +6,7 @@ Each task is small and ends with a passing test. Tick them as you go.
 - [x] 2. The orders are exactly the bot's with that plan, after the plan's note (criterion 4).
 - [x] 3. A new plan at once on grave news: war, peace, a lost province, a new monarch (criterion 2).
 - [x] 4. The monarch's prompt, in the first person, under 20,000 characters (criteria 3 and 7).
-- [ ] 5. Plans that name what does not exist lose those names and keep the rest (criterion 6).
+- [x] 5. Plans that name what does not exist lose those names and keep the rest (criterion 6).
 - [ ] 6. A failing model retries once, then the last plan stands (criterion 5).
 - [ ] 7. The same seed plays the same game (criterion 8).
 - [ ] 8. A hard budget that stops spending. **Required before any real call.**

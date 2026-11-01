@@ -13,7 +13,8 @@ NationView ──> Strategist.decide ──> is a plan due? ──no────
 
 - `agents/strategist.py`: `Strategist`, a `Player`, and `PlanModel`, the protocol every model obeys.
 - `agents/prompts.py`: `build_request(view, last_plan)` writes the `PlanRequest` a model reads.
-- Later steps add plan checks, the budget and the Gemini client.
+- `agents/checks.py`: `clean_plan(plan, view)` drops what names nothing real and says what.
+- Later steps add the budget and the Gemini client.
 
 ## Decisions
 
@@ -25,6 +26,8 @@ NationView ──> Strategist.decide ──> is a plan due? ──no────
 | Prompts as Python text with a `PROMPT_VERSION` | Files in a folder; Langfuse prompt management | Git already versions them, a run stays reproducible offline, and nothing new has to be packaged |
 | System text for who and how, user text for this year | One string | The rules open every request identically, which providers can cache, and the two kinds of text stay apart |
 | Schema sent as structured output | Described in the prompt | The provider enforces it, and the words are not spent twice |
+| Drop bad names and keep the rest | Reject the plan and ask again | A retry costs money for one wrong name, and most of a plan is still good |
+| Check names against the view | Enums of ids in the schema | The schema would grow with 104 provinces, and only the view knows who is alive |
 | Budget guard before the first real call | Add it with tracing | Cost is a hard constraint for this project |
 
 ## Risks / unknowns
