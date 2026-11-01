@@ -1,6 +1,9 @@
 """The strategist: a monarch who writes a plan every second year and lets the bot carry it out."""
 
 import asyncio
+from itertools import pairwise
+
+import pytest
 
 from pax_agentica.agents.strategist import Strategist
 from pax_agentica.engine import NationView, Orders, new_game, view_for
@@ -41,7 +44,31 @@ class Recording:
         return orders
 
 
-def test_asks_for_a_plan_in_the_first_year_and_then_every_second_year() -> None:
+def play_years(model: FakeModel, views: list[NationView]) -> list[int]:
+    """Have a strategist decide these years, and return the turns in which it asked its model."""
+    ruler = Recording(Strategist(model, seed=1), model)
+    for view in views:
+        asyncio.run(ruler.decide(view))
+    return ruler.turns_asked
+
+
+def year(view: NationView, turn: int, **me: object) -> NationView:
+    """The same view on another turn, with these fields of the realm changed."""
+    return view.model_copy(update={"turn": turn, "me": view.me.model_copy(update=me)})
+
+
+@pytest.fixture
+def france() -> NationView:
+    return view_for(new_game(seed=1), "france")
+
+
+def test_asks_in_the_first_year_and_then_every_second_year(france: NationView) -> None:
+    views = [year(france, turn) for turn in range(1, 31)]
+
+    assert play_years(FakeModel(), views) == list(range(1, 31, 2))
+
+
+def test_in_a_real_game_never_asks_twice_a_year_nor_waits_more_than_two() -> None:
     state = new_game(seed=1, max_turns=30)
     model = FakeModel()
     france = Recording(Strategist(model, seed=1), model)
@@ -50,9 +77,54 @@ def test_asks_for_a_plan_in_the_first_year_and_then_every_second_year() -> None:
 
     asyncio.run(run_game(state, players))
 
-    assert france.turns_asked[0] == 1
-    assert france.turns_asked == list(range(1, france.turns_asked[-1] + 1, 2))
-    assert len(france.turns_asked) > 1
+    asked = france.turns_asked
+    assert asked[0] == 1
+    assert len(asked) > 1
+    assert all(1 <= later - earlier <= 2 for earlier, later in pairwise(asked))
+
+
+def test_a_war_that_starts_asks_for_a_plan_at_once(france: NationView) -> None:
+    views = [year(france, 1), year(france, 2, at_war_with=("spain",))]
+
+    assert play_years(FakeModel(), views) == [1, 2]
+
+
+def test_a_war_that_ends_asks_for_a_plan_at_once(france: NationView) -> None:
+    views = [year(france, 1, at_war_with=("spain",)), year(france, 2, at_war_with=())]
+
+    assert play_years(FakeModel(), views) == [1, 2]
+
+
+def test_a_province_lost_asks_for_a_plan_at_once(france: NationView) -> None:
+    views = [year(france, 1), year(france, 2, provinces=france.me.provinces[1:])]
+
+    assert play_years(FakeModel(), views) == [1, 2]
+
+
+def test_a_province_won_can_wait_for_the_next_plan(france: NationView) -> None:
+    views = [year(france, 1), year(france, 2, provinces=(*france.me.provinces, "flanders"))]
+
+    assert play_years(FakeModel(), views) == [1]
+
+
+def test_a_new_monarch_asks_for_a_plan_at_once(france: NationView) -> None:
+    assert france.me.ruler is not None
+    heir = france.me.ruler.model_copy(update={"name": "Francis", "since": 2})
+    views = [year(france, 1), year(france, 2, ruler=heir)]
+
+    assert play_years(FakeModel(), views) == [1, 2]
+
+
+def test_the_two_years_count_again_from_a_plan_asked_at_once(france: NationView) -> None:
+    at_war = ("spain",)
+    views = [
+        year(france, 1),
+        year(france, 2, at_war_with=at_war),
+        year(france, 3, at_war_with=at_war),
+        year(france, 4, at_war_with=at_war),
+    ]
+
+    assert play_years(FakeModel(), views) == [1, 2, 4]
 
 
 def test_gives_exactly_the_orders_of_the_bot_with_that_plan() -> None:
