@@ -1,0 +1,82 @@
+"""The strategist: a monarch who writes a plan every second year and lets the bot carry it out."""
+
+import asyncio
+
+from pax_agentica.agents.strategist import Strategist
+from pax_agentica.engine import NationView, Orders, new_game, view_for
+from pax_agentica.players import Player
+from pax_agentica.players.greedy_bot import GreedyBot
+from pax_agentica.players.plan import Plan
+from pax_agentica.runner import run_game
+
+
+class FakeModel:
+    """A model that always answers the same plan, and remembers how often it was asked."""
+
+    def __init__(self, plan: Plan | None = None) -> None:
+        self.plan = plan or Plan()
+        self.requests: list[str] = []
+
+    async def write_plan(self, request: str) -> Plan:
+        self.requests.append(request)
+        return self.plan
+
+
+class Recording:
+    """Remembers the turns in which a ruler asked its model, by watching the model's count."""
+
+    def __init__(self, ruler: Strategist, model: FakeModel) -> None:
+        self.ruler = ruler
+        self.model = model
+        self.turns_asked: list[int] = []
+
+    @property
+    def name(self) -> str:
+        return self.ruler.name
+
+    async def decide(self, view: NationView) -> Orders:
+        before = len(self.model.requests)
+        orders = await self.ruler.decide(view)
+        self.turns_asked += [view.turn] * (len(self.model.requests) - before)
+        return orders
+
+
+def test_asks_for_a_plan_in_the_first_year_and_then_every_second_year() -> None:
+    state = new_game(seed=1, max_turns=30)
+    model = FakeModel()
+    france = Recording(Strategist(model, seed=1), model)
+    players: dict[str, Player] = {n: GreedyBot(1) for n in state.nations}
+    players["france"] = france
+
+    asyncio.run(run_game(state, players))
+
+    assert france.turns_asked[0] == 1
+    assert france.turns_asked == list(range(1, france.turns_asked[-1] + 1, 2))
+    assert len(france.turns_asked) > 1
+
+
+def test_gives_exactly_the_orders_of_the_bot_with_that_plan() -> None:
+    view = view_for(new_game(seed=1), "france")
+    plan = Plan(economy="grow", army="build_up", note="France must grow before it fights.")
+
+    mine = asyncio.run(Strategist(FakeModel(plan), seed=1).decide(view))
+    bots = asyncio.run(GreedyBot(1, plan=plan).decide(view))
+
+    assert mine.actions == bots.actions
+    assert mine.thoughts.startswith("France must grow before it fights.")
+
+
+def test_keeps_following_the_last_plan_in_a_year_without_a_new_one() -> None:
+    state = new_game(seed=1)
+    plan = Plan(economy="save", army="defend", note="Save.")
+    ruler = Strategist(FakeModel(plan), seed=1)
+    asyncio.run(ruler.decide(view_for(state, "france")))
+    next_year = view_for(state, "france").model_copy(update={"turn": 2})
+
+    mine = asyncio.run(ruler.decide(next_year))
+
+    # The first bot carried out a plan a year ago: compare with one in the same position.
+    twin = GreedyBot(1, plan=plan)
+    asyncio.run(twin.decide(view_for(state, "france")))
+    assert mine.actions == asyncio.run(twin.decide(next_year)).actions
+    assert mine.thoughts.startswith("Save.")
