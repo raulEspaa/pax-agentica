@@ -1,0 +1,164 @@
+# Local services for the AI rulers. The game itself needs none of this.
+#
+#   make db         Postgres with pgvector: memory and retrieval for the rulers
+#   make langfuse   Langfuse, to watch every model call: http://localhost:3000
+#   make infra-down stops everything and keeps the data
+#
+# Secrets come from .env (`make env` writes it). Every port is bound to 127.0.0.1: Docker opens
+# published ports past the machine's firewall, so without it these would reach the local network.
+#
+# Langfuse follows its official docker-compose.yml, with only the settings we use.
+
+x-langfuse-env: &langfuse-env
+  NEXTAUTH_URL: http://localhost:3000
+  DATABASE_URL: postgresql://postgres:${LANGFUSE_POSTGRES_PASSWORD:?run make env}@langfuse-postgres:5432/postgres
+  SALT: ${LANGFUSE_SALT:?run make env}
+  ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:?run make env}
+  TELEMETRY_ENABLED: "false"
+  CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+  CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?run make env}
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  REDIS_HOST: langfuse-redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD:?run make env}
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:?run make env}
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:?run make env}
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+
+x-langfuse-depends: &langfuse-depends
+  langfuse-postgres: { condition: service_healthy }
+  langfuse-clickhouse: { condition: service_healthy }
+  langfuse-redis: { condition: service_healthy }
+  langfuse-minio: { condition: service_healthy }
+
+services:
+  # The rulers' own database. Separate from Langfuse's, so wiping one never touches the other.
+  db:
+    image: pgvector/pgvector:0.8.7-pg18-trixie
+    environment:
+      POSTGRES_USER: pax
+      POSTGRES_PASSWORD: ${PAX_DB_PASSWORD:?run make env}
+      POSTGRES_DB: pax
+    ports:
+      - 127.0.0.1:5433:5432 # 5433, so as not to clash with a Postgres already on this machine
+    volumes:
+      - pax_db:/var/lib/postgresql # from Postgres 18 the data lives in a folder below this one
+      - ./infra/db-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U pax -d pax]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # The interface and the API: where traces are received and read.
+  langfuse-web:
+    profiles: [langfuse]
+    image: docker.langfuse.com/langfuse/langfuse:4.72.0
+    depends_on: *langfuse-depends
+    ports:
+      - 127.0.0.1:3000:3000
+    environment:
+      <<: *langfuse-env
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?run make env}
+      # The first start creates the account and the project, so the API keys are known in advance.
+      LANGFUSE_INIT_ORG_ID: pax
+      LANGFUSE_INIT_ORG_NAME: Pax Agentica
+      LANGFUSE_INIT_PROJECT_ID: pax-agentica
+      LANGFUSE_INIT_PROJECT_NAME: pax-agentica
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:?run make env}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:?run make env}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_USER_EMAIL:?run make env}
+      LANGFUSE_INIT_USER_NAME: Raúl
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_USER_PASSWORD:?run make env}
+
+  # Moves traces from the queue to ClickHouse in the background, so that sending one is quick.
+  langfuse-worker:
+    profiles: [langfuse]
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.72.0
+    depends_on: *langfuse-depends
+    environment: *langfuse-env
+
+  # Accounts, projects and settings.
+  langfuse-postgres:
+    profiles: [langfuse]
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD:?run make env}
+      POSTGRES_DB: postgres
+    volumes:
+      - langfuse_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # The traces themselves: a column store, made for adding up tokens over millions of rows.
+  langfuse-clickhouse:
+    profiles: [langfuse]
+    image: clickhouse/clickhouse-server:26.3.62.3
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?run make env}
+    volumes:
+      - langfuse_clickhouse:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # The queue between web and worker.
+  langfuse-redis:
+    profiles: [langfuse]
+    image: redis:7
+    command: --requirepass ${LANGFUSE_REDIS_PASSWORD:?run make env} --maxmemory-policy noeviction
+    volumes:
+      - langfuse_redis:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+
+  # Object storage: the raw events, kept before they are processed.
+  langfuse-minio:
+    profiles: [langfuse]
+    image: cgr.dev/chainguard/minio
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_PASSWORD:?run make env}
+    volumes:
+      - langfuse_minio:/data
+    healthcheck:
+      test: [CMD, mc, ready, local]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pax_db:
+  langfuse_postgres:
+  langfuse_clickhouse:
+  langfuse_clickhouse_logs:
+  langfuse_redis:
+  langfuse_minio:
