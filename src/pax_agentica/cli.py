@@ -9,6 +9,8 @@ from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 
+from pax_agentica.agents.budget import Budget
+from pax_agentica.agents.strategist import PlanModel, Strategist
 from pax_agentica.engine import EventKind, GameState, NationView, Orders, new_game, view_for
 from pax_agentica.players import Player
 from pax_agentica.players.greedy_bot import GreedyBot
@@ -17,6 +19,7 @@ from pax_agentica.players.random_bot import RandomBot
 from pax_agentica.runner import GameRecord, TurnRecord, run_game
 
 BOTS = {"greedy": GreedyBot, "random": RandomBot}
+STRATEGIST = "strategist"  # needs a model and a budget, so it is not one of the BOTS
 
 HEADLINES = {
     EventKind.WAR_DECLARED,
@@ -69,6 +72,7 @@ def _parser() -> argparse.ArgumentParser:
         metavar="NATION=BOT",
         help="override one nation's ruler, e.g. --player france=random",
     )
+    _add_model_options(play)
     play.add_argument("--verbose", action="store_true", help="also show battles and diplomacy")
     play.add_argument("--quiet", action="store_true", help="only the final standings")
     play.add_argument("--save", type=Path, help="write the full game record (JSON)")
@@ -128,6 +132,7 @@ def _parser() -> argparse.ArgumentParser:
     tour.add_argument(
         "--player", action="append", default=[], metavar="NATION=BOT", help="override one ruler"
     )
+    _add_model_options(tour)
 
     host = sub.add_parser("host", help="host tables where several people play, each a nation")
     host.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to let your network in")
@@ -146,21 +151,63 @@ def _parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------- play
 
 
-def _players(state: GameState, default: str, overrides: list[str], seed: int) -> dict[str, Player]:
+def _add_model_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--budget", type=float, metavar="USD", help="the most a strategist may spend, in all"
+    )
+    parser.add_argument("--model", help="the strategist's model (default: the cheapest fit)")
+
+
+def _players(
+    state: GameState,
+    default: str,
+    overrides: list[str],
+    seed: int,
+    budget: Budget | None = None,
+    model: str | None = None,
+) -> dict[str, Player]:
     players: dict[str, Player] = {n: BOTS[default](seed) for n in state.nations}
+    plans: PlanModel | None = None
     for item in overrides:
         nation, _, bot = item.partition("=")
-        if nation not in state.nations or bot not in BOTS:
+        if nation not in state.nations or bot not in {*BOTS, STRATEGIST}:
             raise SystemExit(
-                f"bad --player {item!r}: nations {sorted(state.nations)}, bots {sorted(BOTS)}"
+                f"bad --player {item!r}: nations {sorted(state.nations)}, "
+                f"bots {sorted({*BOTS, STRATEGIST})}"
             )
-        players[nation] = BOTS[bot](seed)
+        if bot == STRATEGIST:
+            plans = plans or _plan_model(budget, model)
+            players[nation] = Strategist(plans, seed)
+        else:
+            players[nation] = BOTS[bot](seed)
     return players
+
+
+def _plan_model(budget: Budget | None, model: str | None) -> PlanModel:
+    """A language model for this game. The SDK is imported only now: the tables go without it."""
+    if budget is None:
+        raise SystemExit("the strategist spends real money: say how much with --budget USD")
+    from pax_agentica.agents import gemini
+
+    try:
+        return gemini.GeminiModel(gemini.new_client(), budget, model or gemini.DEFAULT_MODEL)
+    except ValueError as exc:  # no key, or a model without a known price
+        raise SystemExit(str(exc)) from exc
+
+
+def _budget(args: argparse.Namespace) -> Budget | None:
+    return Budget(args.budget) if args.budget else None
+
+
+def _report_spending(budget: Budget | None) -> None:
+    if budget is not None:
+        print(f"spent ${budget.spent_usd:.4f} of ${budget.limit_usd:.2f}")
 
 
 def _play(args: argparse.Namespace) -> int:
     state = new_game(args.seed, max_turns=args.turns)
-    players = _players(state, args.bot, args.player, args.seed)
+    budget = _budget(args)
+    players = _players(state, args.bot, args.player, args.seed, budget, args.model)
     paint = _Painter(state)
 
     def narrate(turn: TurnRecord, _state: GameState) -> None:
@@ -193,6 +240,7 @@ def _play(args: argparse.Namespace) -> int:
                 print("  " + paint.names(line))
 
     record = asyncio.run(run_game(state, players, on_turn=narrate))
+    _report_spending(budget)
     _standings(record, paint)
     if args.save:
         args.save.parent.mkdir(parents=True, exist_ok=True)
@@ -296,9 +344,10 @@ def _tournament(args: argparse.Namespace) -> int:
 
     rows: dict[str, dict[str, list[float]]] = {}
     rulers: dict[str, str] = {}
+    budget = _budget(args)
     for seed in range(args.first_seed, args.first_seed + args.games):
         state = new_game(seed, max_turns=args.turns)
-        players = _players(state, args.bot, args.player, seed)
+        players = _players(state, args.bot, args.player, seed, budget, args.model)
         finals: list[GameState] = []
 
         def keep(_turn: TurnRecord, now: GameState, finals: list[GameState] = finals) -> None:
@@ -322,6 +371,7 @@ def _tournament(args: argparse.Namespace) -> int:
             f"{nation:<12}{rulers[nation]:<10}{int(sum(row['wins'])):>6}"
             f"{mean(row['standing']):>10.1f}{mean(row['alive']):>7.0%}{mean(row['missions']):>10.1f}"
         )
+    _report_spending(budget)
     return 0
 
 

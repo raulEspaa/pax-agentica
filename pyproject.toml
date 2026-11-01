@@ -55,3 +55,10 @@ dev = [
 mapgen = [
     "shapely>=2.2.0",
 ]
+# The AI rulers. A group of its own, so that the image of the multiplayer tables goes without.
+ai = [
+    "google-genai>=2.34.0",
+]
+
+[tool.uv]
+default-groups = ["dev", "ai"]
