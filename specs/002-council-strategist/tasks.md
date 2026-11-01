@@ -10,6 +10,6 @@ Each task is small and ends with a passing test. Tick them as you go.
 - [x] 6. A failing model retries once, then the last plan stands (criterion 5).
 - [x] 7. The same seed plays the same game (criterion 8).
 - [x] 8. A hard budget that stops spending. **Required before any real call.**
-- [ ] 9. The Gemini client (written, tested offline), and one real call approved by Raúl with an estimate.
+- [x] 9. The Gemini client, and one real call approved by Raúl with an estimate: $0.0021 on 2026-11-01.
 - [x] 10. `pax tournament --player france=strategist --budget USD`. The runner sets no timeout of its own, so it cannot cut a retry short.
 - [ ] 11. Tracing in Langfuse (criterion 9, phase 2).
