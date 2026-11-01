@@ -28,6 +28,9 @@ NationView ──> Strategist.decide ──> is a plan due? ──no────
 | Schema sent as structured output | Described in the prompt | The provider enforces it, and the words are not spent twice |
 | Drop bad names and keep the rest | Reject the plan and ask again | A retry costs money for one wrong name, and most of a plan is still good |
 | Check names against the view | Enums of ids in the schema | The schema would grow with 104 provinces, and only the view knows who is alive |
+| Catch `Exception`, never `BaseException` | Catch everything | A cancellation from the runner must still stop the ruler |
+| No pause before the retry | Exponential backoff here | Waiting for rate limits belongs in the Gemini client, the only part that knows the provider's errors |
+| A failed year asks again next year | Wait for the usual two years | The realm is already without a fresh plan, and the budget bounds the cost |
 | Budget guard before the first real call | Add it with tracing | Cost is a hard constraint for this project |
 
 ## Risks / unknowns

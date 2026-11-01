@@ -4,6 +4,7 @@ Every second year, and at once on grave news, a model writes a `Plan` (see promp
 year the bot turns the current plan into orders. See specs/002-council-strategist.
 """
 
+import asyncio
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -14,6 +15,8 @@ from pax_agentica.players.greedy_bot import GreedyBot
 from pax_agentica.players.plan import Plan, combine
 
 YEARS_BETWEEN_PLANS = 2
+MODEL_TIMEOUT_SECONDS = 30.0
+MAX_FAILURE_CHARS = 300  # an error can be long, and the thoughts have a limit
 
 
 class PlanModel(Protocol):
@@ -51,8 +54,11 @@ class _Realm:
 class Strategist:
     """A `Player` that asks its model for a plan when one is due, and has the bot carry it out."""
 
-    def __init__(self, model: PlanModel, seed: int = 0) -> None:
+    def __init__(
+        self, model: PlanModel, seed: int = 0, timeout: float = MODEL_TIMEOUT_SECONDS
+    ) -> None:
         self._model = model
+        self._timeout = timeout
         self._bot = GreedyBot(seed)
         self._plan: Plan | None = None
         self._last_plan_turn: int | None = None
@@ -64,17 +70,39 @@ class Strategist:
 
     async def decide(self, view: NationView) -> Orders:
         realm = _Realm.of(view)
-        dropped: list[str] = []
-        if self._plan_is_due(view, realm):
-            answer = await self._model.write_plan(build_request(view, self._plan))
-            self._plan, dropped = clean_plan(answer, view)
-            self._bot.follow(self._plan)
-            self._last_plan_turn = view.turn
+        remark = await self._new_plan(view) if self._plan_is_due(view, realm) else ""
         self._last_year = realm
         note = self._plan.note if self._plan else ""
-        remark = f"Dropped from the plan: {', '.join(dropped)}." if dropped else ""
         thoughts = "\n".join(line for line in (note, remark) if line)
         return combine(await self._bot.decide(view), Orders(thoughts=thoughts))
+
+    async def _new_plan(self, view: NationView) -> str:
+        """Ask for a plan and follow it. Returns what the thoughts should say about it, if anything.
+
+        After a failure `_last_plan_turn` stays as it was, so the plan is due again next year."""
+        request = build_request(view, self._plan)
+        try:
+            answer = await self._ask(request)
+        except Exception as exc:  # whatever went wrong, a model never costs the nation its year
+            outcome = "the last plan stands" if self._plan else "the ministers rule without one"
+            why = " ".join(str(exc).split())
+            line = f"No new plan this year, {outcome}: {type(exc).__name__} {why}"
+            return line[:MAX_FAILURE_CHARS]
+        self._plan, dropped = clean_plan(answer, view)
+        self._bot.follow(self._plan)
+        self._last_plan_turn = view.turn
+        return f"Dropped from the plan: {', '.join(dropped)}." if dropped else ""
+
+    async def _ask(self, request: PlanRequest) -> Plan:
+        """One attempt and one retry: the error of the second is the one that is raised."""
+        try:
+            return await self._attempt(request)
+        except Exception:
+            return await self._attempt(request)
+
+    async def _attempt(self, request: PlanRequest) -> Plan:
+        async with asyncio.timeout(self._timeout):
+            return await self._model.write_plan(request)
 
     def _plan_is_due(self, view: NationView, realm: _Realm) -> bool:
         if self._last_plan_turn is None or self._last_year is None:
