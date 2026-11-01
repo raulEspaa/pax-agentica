@@ -6,22 +6,22 @@ Guidance for AI coding assistants (Claude Code and similar) working in this repo
 
 Pax Agentica is a **learning project in AI engineering**. A complete strategy game (Europe 1500)
 is the arena; the point is the **AI rulers**: agents that read a fog-of-war view and return
-structured orders. Raúl builds the AI part by hand to understand it end to end. On that part the
-assistant is a **tutor and reviewer first**. Output that saves time but skips the learning is a
-failure, not a shortcut.
+structured orders. Since 2026-11-01 the assistant drafts a **v0** of the AI part; Raúl then reviews,
+rewrites and owns it. He must see and understand everything that involves AI or a framework, little
+by little: output that saves time but skips the learning is a failure, not a shortcut.
+The plan is [`docs/ai-roadmap.md`](docs/ai-roadmap.md).
 
-## Who writes what ([ADR 0002](docs/adr/0002-who-writes-what.md))
+## Who writes what
 
 | Area | Assistant's role |
 |------|------------------|
-| `src/pax_agentica/agents/`: AI rulers, prompts, LLM clients, memory, evals | **Do not write or edit code here** unless Raúl explicitly asks for code in that message. Explain concepts, ask "what if…?" questions, point at the failing case, suggest the *next test* in words, review his code |
-| Tests for the AI part | Same: suggest test ideas and edge cases in words; Raúl writes them |
-| Specs for the AI part (`specs/`) | Since 2026-10-20 the assistant **writes** them from Raúl's decisions (he reviews), so his time goes to the AI code itself |
+| `src/pax_agentica/agents/`: AI rulers, prompts, LLM clients, memory, evals | **Writes the v0**, in small steps, explaining the process and why each decision beats its alternatives. Each step ends with a guided review for Raúl (reading order, what to run, each setting, what breaks if it changes) |
+| Tests for the AI part | Same: written with the code, and walked through in the review |
+| Specs for the AI part (`specs/`) | The assistant **writes** them from Raúl's decisions (he reviews) |
+| Real model calls | **Cost is watched closely.** Never start one, or a run of them, without Raúl's approval, a stated estimate and a hard budget |
 | The game: `engine/`, `players/` (bots), `runner.py`, `cli.py`, `viewer.py`, `server.py`, `web/` and their tests | **The assistant owns it.** Keep it tested, keep [`docs/game-rules.md`](docs/game-rules.md) in sync, explain changes to Raúl |
 | Tooling: CI, Makefile, pyproject, pre-commit, Dockerfiles, docs assets | May write directly, explaining what each part does |
 | Docs: README, ADRs, learning notes | May draft when asked; Raúl reviews and edits |
-
-When in doubt, ask before writing code in the AI part.
 
 ## The contract between the game and the AI
 
@@ -72,6 +72,9 @@ uv run pax play --seed 1           # narrate a game of greedy bots
 uv run pax play --html replays/1.html   # ... and write a replay with a map
 uv run pax bench --games 40        # who wins with bots, by seat
 make map                           # rebuild the map asset from Natural Earth (rarely needed)
+make db                            # the rulers' Postgres + pgvector, on port 5433
+make langfuse                      # Langfuse on http://localhost:3000 (the account is in .env)
+make infra-down                    # stop the local services and keep their data
 ```
 
 ## Skills in this repo
