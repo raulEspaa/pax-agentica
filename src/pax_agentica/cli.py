@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from pax_agentica.agents.budget import Budget
+from pax_agentica.agents.prompts import PROMPT_VERSION
 from pax_agentica.agents.strategist import PlanModel, Strategist
 from pax_agentica.agents.tracing import Tracer
 from pax_agentica.engine import EventKind, GameState, NationView, Orders, new_game, view_for
@@ -54,6 +55,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "host": _host,
         "brief": _brief,
         "tournament": _tournament,
+        "eval": _eval,
     }[args.command]
     return handler(args)
 
@@ -137,6 +139,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     _add_model_options(tour)
 
+    evaluate = sub.add_parser(
+        "eval", help="score a model's plans on the dataset of situations, in Langfuse"
+    )
+    _add_model_options(evaluate)
+    evaluate.add_argument("--thinking", help="minimal, low, medium or high (default: low)")
+    evaluate.add_argument("--limit", type=int, help="only the first N situations")
+
     host = sub.add_parser("host", help="host tables where several people play, each a nation")
     host.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to let your network in")
     host.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
@@ -187,7 +196,9 @@ def _players(
     return players
 
 
-def _plan_model(budget: Budget | None, model: str | None, tracer: Tracer) -> PlanModel:
+def _plan_model(
+    budget: Budget | None, model: str | None, tracer: Tracer, thinking: str | None = None
+) -> PlanModel:
     """A language model for this game. The SDK is imported only now: the tables go without it."""
     if budget is None:
         raise SystemExit("the strategist spends real money: say how much with --budget USD")
@@ -195,7 +206,11 @@ def _plan_model(budget: Budget | None, model: str | None, tracer: Tracer) -> Pla
 
     try:
         return gemini.GeminiModel(
-            gemini.new_client(), budget, model or gemini.DEFAULT_MODEL, tracer=tracer
+            gemini.new_client(),
+            budget,
+            model or gemini.DEFAULT_MODEL,
+            thinking or gemini.DEFAULT_THINKING,
+            tracer=tracer,
         )
     except ValueError as exc:  # no key, or a model without a known price
         raise SystemExit(str(exc)) from exc
@@ -378,6 +393,37 @@ def _tournament(args: argparse.Namespace) -> int:
             f"{mean(row['standing']):>10.1f}{mean(row['alive']):>7.0%}{mean(row['missions']):>10.1f}"
         )
     _report_spending(budget)
+    return 0
+
+
+def _eval(args: argparse.Namespace) -> int:
+    """Run a model over the situations, score each plan by the rules, and print the averages."""
+    from statistics import mean
+
+    from pax_agentica.agents import evals
+
+    tracer = Tracer.from_env(session=f"{RUN}-eval")
+    if tracer.langfuse is None:
+        raise SystemExit(
+            "an evaluation lives in Langfuse: set LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY "
+            "(make env, make langfuse, and run with --env-file .env)"
+        )
+    budget = _budget(args)
+    model = _plan_model(budget, args.model, tracer, args.thinking)
+    situations = evals.SITUATIONS[: args.limit]
+    run_name = f"{args.model or 'default'}-{args.thinking or 'default'}-{PROMPT_VERSION}-{RUN}"
+    result = evals.run(tracer.langfuse, model, situations, run_name)
+
+    scores: dict[str, list[float]] = {}
+    for item in result.item_results:
+        for evaluation in item.evaluations:
+            scores.setdefault(evaluation.name, []).append(float(evaluation.value or 0))
+    print(f"{run_name}: {len(result.item_results)} situations")
+    for name, values in scores.items():
+        print(f"  {name:<16}{mean(values):>6.0%}")
+    _report_spending(budget)
+    if result.experiment_url:
+        print(f"\n{result.experiment_url}")
     return 0
 
 
