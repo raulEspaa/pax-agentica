@@ -73,7 +73,21 @@ def test_a_failure_is_tried_once_more(france: NationView, failure: Answer) -> No
 
     assert model.asked == 2
     assert orders.actions == bots.actions
-    assert orders.thoughts.startswith("Save.")
+    assert orders.thoughts.startswith("The plan: Save.")
+
+
+@pytest.mark.parametrize(
+    ("failure", "reason"),
+    [(raises, "ConnectionError"), (hangs, "TimeoutError"), (invalid, "ValidationError")],
+)
+def test_a_retry_that_works_still_says_why_the_first_try_failed(
+    france: NationView, failure: Answer, reason: str
+) -> None:
+    ruler = Strategist(Scripted(failure, good), seed=1, timeout=0.01)
+
+    orders = asyncio.run(ruler.decide(france))
+
+    assert f"The first try failed: {reason}" in orders.thoughts
 
 
 @pytest.mark.parametrize(
@@ -102,7 +116,7 @@ def test_after_a_plan_two_failures_leave_the_last_plan_standing(france: NationVi
     orders = asyncio.run(ruler.decide(on_turn(france, 3)))
 
     assert orders.actions == asyncio.run(twin.decide(on_turn(france, 3))).actions
-    assert orders.thoughts.startswith("Save.")
+    assert orders.thoughts.startswith("The plan: Save.")
     assert "ConnectionError" in orders.thoughts
     assert "last plan stands" in orders.thoughts
 
@@ -115,7 +129,7 @@ def test_a_failed_year_asks_again_the_next_year(france: NationView) -> None:
     orders = asyncio.run(ruler.decide(on_turn(france, 2)))
 
     assert model.asked == 3
-    assert orders.thoughts.startswith("Save.")
+    assert orders.thoughts.startswith("The plan: Save.")
 
 
 def test_a_broken_model_forfeits_no_year_of_a_game() -> None:

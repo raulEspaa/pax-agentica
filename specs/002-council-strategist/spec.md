@@ -46,7 +46,7 @@ story, and it decides as that person would, in the first person.
    the nation and the monarch by title and name, and gives their age, skills, traits, ambition
    and story; **and given** a succession, the next request names the new monarch.
 4. **Given** a plan from the model, **when** the ruler decides a year, **then** it returns exactly
-   the orders the greedy bot gives with that plan, and its thoughts begin with the plan's note.
+   the orders the greedy bot gives with that plan, and its thoughts begin with "The plan:" and the note.
 5. **Given** a model that raises, times out (after 30 seconds) or returns something that is not
    a valid plan, **when** the ruler decides, **then** it retries once, and if that fails it plays
    the year with the last valid plan (or with no plan, before the first), records why in its
