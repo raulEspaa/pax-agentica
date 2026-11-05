@@ -68,6 +68,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "recall": _recall,
         "ask": _ask,
         "api": _api,
+        "eval-archivist": _eval_archivist,
     }[args.command]
     return handler(args)
 
@@ -175,6 +176,12 @@ def _parser() -> argparse.ArgumentParser:
     ask.add_argument("--game", help="only this game (and the rules)")
     ask.add_argument("--model", help="the Archivist's model (default: the cheapest fit)")
     _add_archive_options(ask)
+    eval_archivist = sub.add_parser(
+        "eval-archivist", help="score the Archivist on eight questions about a game, in Langfuse"
+    )
+    eval_archivist.add_argument("game", type=Path, help="an ingested game record")
+    eval_archivist.add_argument("--model", help="the Archivist's model (default: the cheapest)")
+    _add_archive_options(eval_archivist)
     api = sub.add_parser("api", help="serve the Archivist over HTTP: POST /ask")
     api.add_argument("--host", default="127.0.0.1")
     api.add_argument("--port", type=int, default=8001)
@@ -546,7 +553,9 @@ def _recall(args: argparse.Namespace) -> int:
     return 0
 
 
-def _archivist(args: argparse.Namespace) -> tuple["Archivist", Budget]:
+def _archivist(
+    args: argparse.Namespace, tracer: Tracer | None = None
+) -> tuple["Archivist", Budget]:
     """The Archivist on the archive, with one budget for its model and the embeddings."""
     from pax_agentica.agents.archivist import Archivist, Metered
     from pax_agentica.agents.gemini import DEFAULT_MODEL
@@ -554,7 +563,7 @@ def _archivist(args: argparse.Namespace) -> tuple["Archivist", Budget]:
     archive, embedder, budget = _archive_tools(args)
     if budget is None:
         raise SystemExit("the Archivist spends real money: say how much with --budget USD")
-    tracer = Tracer.from_env()
+    tracer = tracer or Tracer.from_env()
     try:
         model = Metered.gemini(args.model or DEFAULT_MODEL, budget, tracer)
     except ValueError as exc:
@@ -572,6 +581,38 @@ def _ask(args: argparse.Namespace) -> int:
     print(reply.answer)
     print(f"\ngrounded: {reply.grounded}; cited: {', '.join(reply.citations) or 'nothing'}")
     _report_spending(budget)
+    return 0
+
+
+def _eval_archivist(args: argparse.Namespace) -> int:
+    """Ask the Archivist the eight questions about a game; score by rules and by the judge."""
+    from statistics import mean
+
+    from pax_agentica.agents import archivist_evals, gemini, judge
+    from pax_agentica.agents.archivist import ARCHIVIST_PROMPT_VERSION
+
+    tracer = Tracer.from_env(session=f"{RUN}-archivist-eval")
+    if tracer.langfuse is None:
+        raise SystemExit("an evaluation lives in Langfuse: set the LANGFUSE keys (see pax eval)")
+    archivist, budget = _archivist(args, tracer)
+    judge_model = gemini.GeminiModel(
+        gemini.new_client(), budget, judge.JUDGE_MODEL, judge.JUDGE_THINKING, tracer=tracer
+    )
+    record = GameRecord.model_validate_json(args.game.read_text())
+    items = archivist_evals.questions(record, args.game.stem)
+    run_name = f"{args.model or 'default'}-{ARCHIVIST_PROMPT_VERSION}-{RUN}"
+    result = archivist_evals.run(tracer.langfuse, archivist, judge_model, items, run_name)
+
+    scores: dict[str, list[float]] = {}
+    for item in result.item_results:
+        for evaluation in item.evaluations:
+            scores.setdefault(evaluation.name, []).append(float(evaluation.value or 0))
+    print(f"{run_name}: {len(result.item_results)} questions")
+    for name, values in scores.items():
+        print(f"  {name:<16}{mean(values):>6.0%}  ({len(values)})")
+    _report_spending(budget)
+    if result.experiment_url:
+        print(f"\n{result.experiment_url}")
     return 0
 
 

@@ -32,10 +32,17 @@ one tool, `search_archive`, over the archive's hybrid search. A session keeps th
 7. **Given** Langfuse keys, **then** each question is one trace, with each model call in it and the
    conversation as its session.
 8. **Given** a question over 500 characters, **then** the API refuses it.
+9. **Given** an answer and the text of the chunks it cites, **then** an LLM judge (another model
+   than the Archivist's) lists the claims no source supports before its verdict: full, partial or
+   none.
+10. **Given** the same answer with a planted false claim, **then** the judge is scored on catching
+    it, so its verdicts are trusted only as far as it catches lies.
+11. **Given** a game, **then** `pax eval-archivist` asks eight questions (facts, reasons, rules and
+    one the archive cannot answer) as a Langfuse experiment, scored `grounded`, `cites_expected`,
+    `faithfulness` and `catches_lie`.
 
 ## Out of scope
 
-- A judge model for faithfulness: `grounded` is a rule; a judge only if it proves too weak.
 - Persistent sessions (ADK's database session service): a restart forgets conversations, never
   the archive.
 - Deploying the API publicly: it would need an invitation code like the tables.
