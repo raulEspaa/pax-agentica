@@ -2,6 +2,23 @@
 
 Drafted 2026-11-01. The engine roadmap in [roadmap.md](roadmap.md) stays as the record of the game.
 
+## Reduced plan (2026-11-05)
+
+Time is short, so the ten phases below shrink to five. The phases stay as the record of the full
+plan; this is the order of work.
+
+| Step | Phases | Status |
+|---|---|---|
+| Strategist, Gemini, budget, Langfuse traces | 1, 2 | Done |
+| Evaluation: 20 situations scored by rules, as Langfuse experiments ([spec 003](../specs/003-strategist-evaluation/spec.md)) | 3, reduced | Done |
+| Council in LangGraph with a diplomat; letter defence and checkpoints folded in ([spec 004](../specs/004-council-graph/spec.md)) | 4, with 5 and 8 | In progress |
+| Ingestion, embeddings, pgvector, hybrid search, one recall measure | 6, reduced | Next |
+| FastAPI, a human in the loop, the Archivist in ADK | 9, reduced | |
+| README, diagram, results | 10 | |
+
+Cut: the prompt-injection red team (phase 5) beyond the defence in spec 004, MCP (phase 7), paired
+tournaments with bootstrap intervals, and the written LangSmith comparison.
+
 ## Goals
 
 1. **A portfolio project that survives a technical interview.** Every technology solves a problem

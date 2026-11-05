@@ -71,6 +71,11 @@ A trace holds why the plan was asked for, the plan, what was dropped from it, an
 model with its prompt, answer, tokens and cost. The traces of one game share a session,
 `<run>-seed<seed>`. Without the keys nothing is sent.
 
+`--player france=council` plays the nation with the council instead: the same strategist and a
+diplomat that answers letters and proposals, as a LangGraph graph
+([spec 004](../specs/004-council-graph/spec.md)). In Langfuse each year is one trace, `council`,
+holding the graph's nodes and the model's calls.
+
 ## Evaluating plans
 
 ```bash

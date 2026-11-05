@@ -9,6 +9,7 @@ from collections import Counter
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from pax_agentica.agents.budget import Budget
 from pax_agentica.agents.prompts import PROMPT_VERSION
@@ -23,6 +24,7 @@ from pax_agentica.runner import GameRecord, TurnRecord, run_game
 
 BOTS = {"greedy": GreedyBot, "random": RandomBot}
 STRATEGIST = "strategist"  # needs a model and a budget, so it is not one of the BOTS
+COUNCIL = "council"  # the strategist and a diplomat, as a LangGraph graph
 RUN = datetime.now().strftime("%Y%m%d-%H%M%S")  # names this run's games in the traces
 
 HEADLINES = {
@@ -182,18 +184,29 @@ def _players(
     plans: PlanModel | None = None
     for item in overrides:
         nation, _, bot = item.partition("=")
-        if nation not in state.nations or bot not in {*BOTS, STRATEGIST}:
+        if nation not in state.nations or bot not in {*BOTS, STRATEGIST, COUNCIL}:
             raise SystemExit(
                 f"bad --player {item!r}: nations {sorted(state.nations)}, "
-                f"bots {sorted({*BOTS, STRATEGIST})}"
+                f"bots {sorted({*BOTS, STRATEGIST, COUNCIL})}"
             )
-        if bot == STRATEGIST:
+        if bot in {STRATEGIST, COUNCIL}:
             tracer = Tracer.from_env(session=f"{RUN}-seed{seed}")
             plans = plans or _plan_model(budget, model, tracer)
-            players[nation] = Strategist(plans, seed, tracer=tracer)
+            players[nation] = (
+                Strategist(plans, seed, tracer=tracer)
+                if bot == STRATEGIST
+                else _council(plans, seed, tracer)
+            )
         else:
             players[nation] = BOTS[bot](seed)
     return players
+
+
+def _council(model: PlanModel, seed: int, tracer: Tracer) -> Player:
+    """The council needs LangGraph, which the multiplayer tables go without: imported only now."""
+    from pax_agentica.agents.council import Council, CouncilModel
+
+    return Council(cast(CouncilModel, model), seed, tracer=tracer)
 
 
 def _plan_model(

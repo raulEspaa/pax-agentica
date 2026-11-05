@@ -56,7 +56,7 @@ class PlanRequest:
     user: str
 
 
-def _who_you_are(view: NationView) -> str:
+def who_you_are(view: NationView) -> str:
     realm = view.me.name
     ruler = view.me.ruler
     if ruler is None:
@@ -79,6 +79,6 @@ def build_request(view: NationView, last_plan: Plan | None = None) -> PlanReques
     """The request for this year's plan: only what the view shows, and the monarch's last plan."""
     last = last_plan.model_dump_json() if last_plan else _FIRST_PLAN
     return PlanRequest(
-        system=f"{_RULES}\n{_who_you_are(view)}",
+        system=f"{_RULES}\n{who_you_are(view)}",
         user=f"YOUR LAST PLAN\n{last}\n\nTHE REPORT ON YOUR REALM\n{compact_view(view)}",
     )

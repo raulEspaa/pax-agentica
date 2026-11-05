@@ -40,28 +40,31 @@ def play() -> Play:
 
 
 @pytest.fixture
-def _langfuse() -> Iterator[tuple[Langfuse, InMemorySpanExporter]]:
+def _langfuse() -> Iterator[tuple[Langfuse, InMemorySpanExporter, str]]:
     exporter = InMemorySpanExporter()
+    key = f"pk-test-{uuid.uuid4()}"
     langfuse = Langfuse(
-        public_key=f"pk-test-{uuid.uuid4()}",  # the SDK keeps one client per key
+        public_key=key,  # the SDK keeps one client per key
         secret_key="sk-test",  # noqa: S106 - a test key, never sent
         base_url="http://127.0.0.1:9",  # nothing listens there, and nothing is sent to it
         span_exporter=exporter,
         tracer_provider=TracerProvider(),
     )
-    yield langfuse, exporter
+    yield langfuse, exporter, key
     langfuse.shutdown()
 
 
 @pytest.fixture
-def tracer(_langfuse: tuple[Langfuse, InMemorySpanExporter]) -> Tracer:
-    return Tracer(_langfuse[0], session="test-seed1")
+def tracer(_langfuse: tuple[Langfuse, InMemorySpanExporter, str]) -> Tracer:
+    return Tracer(_langfuse[0], session="test-seed1", public_key=_langfuse[2])
 
 
 @pytest.fixture
-def spans(_langfuse: tuple[Langfuse, InMemorySpanExporter]) -> Callable[[], list[ReadableSpan]]:
+def spans(
+    _langfuse: tuple[Langfuse, InMemorySpanExporter, str],
+) -> Callable[[], list[ReadableSpan]]:
     """Every span finished so far, oldest first."""
-    langfuse, exporter = _langfuse
+    langfuse, exporter, _ = _langfuse
 
     def finished() -> list[ReadableSpan]:
         langfuse.flush()
