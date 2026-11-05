@@ -10,11 +10,12 @@ from dataclasses import dataclass
 from typing import cast
 
 from google import genai
-from google.genai.interactions import Interaction
+from google.genai.interactions import Interaction, Usage
 from google.genai.types import HttpOptions, HttpRetryOptions
 
 from pax_agentica.agents.budget import Budget
 from pax_agentica.agents.prompts import PlanRequest
+from pax_agentica.agents.tracing import Step, Tracer
 from pax_agentica.players.plan import Plan
 
 
@@ -76,10 +77,12 @@ class GeminiModel:
         budget: Budget,
         model: str = DEFAULT_MODEL,
         thinking: str = DEFAULT_THINKING,
+        tracer: Tracer | None = None,
     ) -> None:
         if model not in PRICES:
             raise ValueError(f"no price for {model!r}: add it to PRICES first")
         self._client = client
+        self._tracer = tracer or Tracer()
         self._budget = budget
         self._model = model
         self._price = PRICES[model]
@@ -87,33 +90,59 @@ class GeminiModel:
         self._slots = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
 
     async def write_plan(self, request: PlanRequest) -> Plan:
+        settings: dict[str, str | int] = {
+            "thinking_level": self._thinking,
+            "max_output_tokens": MAX_OUTPUT_TOKENS,
+        }
         async with self._slots:
             worst = worst_cost(request, self._price)
             self._budget.reserve(worst)
-            spent = worst  # a call that fails or is cancelled may still have been billed
-            try:
-                answer = await self._client.aio.interactions.create(
-                    model=self._model,
-                    input=request.user,
-                    system_instruction=request.system,
-                    store=False,
-                    response_format={
-                        "type": "text",
-                        "mime_type": "application/json",
-                        "schema": Plan.model_json_schema(),
-                    },
-                    generation_config={
-                        "thinking_level": self._thinking,
-                        "max_output_tokens": MAX_OUTPUT_TOKENS,
-                    },
-                )
-                interaction = cast(Interaction, answer)  # a stream only if we ask for one
-                usage = interaction.usage
-                if usage is not None:
-                    output = (usage.total_output_tokens or 0) + (usage.total_thought_tokens or 0)
-                    spent = self._price.cost(usage.total_input_tokens or 0, output)
-            finally:
-                self._budget.settle(worst, spent)
+            with self._tracer.call(self._model, request, settings) as step:
+                spent = worst  # a call that fails or is cancelled may still have been billed
+                try:
+                    answer = await self._client.aio.interactions.create(
+                        model=self._model,
+                        input=request.user,
+                        system_instruction=request.system,
+                        store=False,
+                        response_format={
+                            "type": "text",
+                            "mime_type": "application/json",
+                            "schema": Plan.model_json_schema(),
+                        },
+                        generation_config=settings,
+                    )
+                    interaction = cast(Interaction, answer)  # a stream only if we ask for one
+                    step.update(
+                        output=interaction.output_text, metadata={"status": interaction.status}
+                    )
+                    usage = interaction.usage
+                    if usage is not None:
+                        spent = self._charge(step, usage)
+                except BaseException as exc:  # a timeout cancels the call: it fails here too
+                    step.update(level="ERROR", status_message=f"{type(exc).__name__} {exc}"[:300])
+                    raise
+                finally:
+                    self._budget.settle(worst, spent)
+                    if spent == worst:
+                        step.update(
+                            cost_details={"total": worst}, metadata={"cost": "worst assumed"}
+                        )
         if interaction.status != "completed":
             raise IncompleteAnswer(f"the model's answer ended as {interaction.status}")
         return Plan.model_validate_json(interaction.output_text or "")
+
+    def _charge(self, step: Step, usage: Usage) -> float:
+        """The cost of a call from its tokens, also written into its trace. Returns the cost."""
+        tokens = {
+            "input": usage.total_input_tokens or 0,
+            "output": usage.total_output_tokens or 0,
+            "output_reasoning": usage.total_thought_tokens or 0,  # billed as output
+        }
+        costs = {
+            "input": self._price.cost(tokens["input"], 0),
+            "output": self._price.cost(0, tokens["output"]),
+            "output_reasoning": self._price.cost(0, tokens["output_reasoning"]),
+        }
+        step.update(usage_details=tokens, cost_details=costs)
+        return sum(costs.values())

@@ -2,13 +2,14 @@
 
 import asyncio
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
 from typing import Any
 
 import pytest
 from google.genai import Client
+from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import ValidationError
 
 from pax_agentica.agents import gemini
@@ -16,6 +17,7 @@ from pax_agentica.agents.budget import Budget, BudgetExceeded
 from pax_agentica.agents.gemini import DEFAULT_MODEL, GeminiModel, IncompleteAnswer, Price
 from pax_agentica.agents.prompts import PlanRequest
 from pax_agentica.agents.strategist import Strategist
+from pax_agentica.agents.tracing import Tracer
 from pax_agentica.cli import main
 from pax_agentica.engine import new_game, view_for
 from pax_agentica.players.plan import Plan
@@ -155,6 +157,36 @@ def test_the_sdk_sends_twice_at_most_as_the_worst_cost_assumes(stub: Stub) -> No
 
     assert len(stub.bodies) == 2
     assert budget.spent_usd == pytest.approx(gemini.worst_cost(REQUEST, PRICE))
+
+
+def test_the_trace_counts_the_thinking_and_prices_it_as_output(
+    stub: Stub, tracer: Tracer, spans: Callable[[], list[ReadableSpan]]
+) -> None:
+    asyncio.run(GeminiModel(stub.client(), Budget(1.0), tracer=tracer).write_plan(REQUEST))
+
+    [call] = spans()
+    attributes = call.attributes or {}
+    tokens = json.loads(str(attributes["langfuse.observation.usage_details"]))
+    costs = json.loads(str(attributes["langfuse.observation.cost_details"]))
+    assert tokens == {"input": 1000, "output": 100, "output_reasoning": 500}
+    assert costs["output_reasoning"] == pytest.approx(500 * PRICE.output_per_million / 1_000_000)
+    assert attributes["langfuse.observation.model.name"] == DEFAULT_MODEL
+
+
+def test_a_failed_call_is_an_error_in_its_trace_and_costs_the_worst(
+    stub: Stub, tracer: Tracer, spans: Callable[[], list[ReadableSpan]]
+) -> None:
+    stub.status = 400
+    stub.reply = {"error": {"code": 400, "message": "bad request", "status": "INVALID_ARGUMENT"}}
+
+    with pytest.raises(Exception, match="bad request"):
+        asyncio.run(GeminiModel(stub.client(), Budget(1.0), tracer=tracer).write_plan(REQUEST))
+
+    [call] = spans()
+    attributes = call.attributes or {}
+    assert attributes["langfuse.observation.level"] == "ERROR"
+    costs = json.loads(str(attributes["langfuse.observation.cost_details"]))
+    assert costs == {"total": pytest.approx(gemini.worst_cost(REQUEST, PRICE))}
 
 
 def test_a_model_without_a_known_price_is_refused(stub: Stub) -> None:
