@@ -2,22 +2,25 @@
 
 Drafted 2026-11-01. The engine roadmap in [roadmap.md](roadmap.md) stays as the record of the game.
 
-## Reduced plan (2026-11-05)
+## Minimum viable plan (2026-11-05)
 
-Time is short, so the ten phases below shrink to five. The phases stay as the record of the full
-plan; this is the order of work.
+Time is short, so the ten phases below shrink to a minimum viable product: AI rulers that play,
+are traced and are measured, plus one vertical slice that answers questions about the games they
+played. The phases below stay as the record of the full plan; this is the order of work.
 
-| Step | Phases | Status |
+| Step | Covers | Status |
 |---|---|---|
-| Strategist, Gemini, budget, Langfuse traces | 1, 2 | Done |
-| Evaluation: 20 situations scored by rules, as Langfuse experiments ([spec 003](../specs/003-strategist-evaluation/spec.md)) | 3, reduced | Done |
-| Council in LangGraph with a diplomat; letter defence and checkpoints folded in ([spec 004](../specs/004-council-graph/spec.md)) | 4, with 5 and 8 | In progress |
-| Ingestion, embeddings, pgvector, hybrid search, one recall measure | 6, reduced | Next |
-| FastAPI, a human in the loop, the Archivist in ADK | 9, reduced | |
-| README, diagram, results | 10 | |
+| Strategist, Gemini, budget, Langfuse traces | phases 1, 2 | Done |
+| Evaluation: 20 situations scored by rules, as Langfuse experiments ([spec 003](../specs/003-strategist-evaluation/spec.md)) | phase 3, reduced | Done |
+| Council in LangGraph with a diplomat; letter defence and checkpoints ([spec 004](../specs/004-council-graph/spec.md)) | phases 4, 5, 8, reduced | Done, one real game pending |
+| **A. The archive:** `pax ingest` loads finished games and the rules into Postgres, with embeddings, pgvector and hybrid search (vector + full text, RRF), and a recall measure on a dozen questions | phase 6, reduced | Next |
+| **B. The Archivist:** an ADK agent that answers "why did France attack Spain in 1512?" from the archive with citations, served by FastAPI | phase 9, reduced | |
+| **C. Closing:** README, architecture diagram, results page, merge to `main` | phase 10 | |
 
-Cut: the prompt-injection red team (phase 5) beyond the defence in spec 004, MCP (phase 7), paired
-tournaments with bootstrap intervals, and the written LangSmith comparison.
+Cut from the MVP: rulers that read their own chronicle (memory with the fog-of-war filter), the
+prompt-injection red team, MCP, a human in the loop, decisions streamed by SSE, the Postgres
+checkpointer, paired tournaments with bootstrap intervals, an LLM judge, and the written LangSmith
+comparison. Each is a later addition, not a missing piece.
 
 ## Goals
 
