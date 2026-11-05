@@ -13,8 +13,10 @@ from typing import cast
 from google import genai
 from google.genai.interactions import Interaction, Usage
 from google.genai.types import HttpOptions, HttpRetryOptions
+from pydantic import BaseModel
 
 from pax_agentica.agents.budget import Budget
+from pax_agentica.agents.diplomat import Diplomacy
 from pax_agentica.agents.prompts import PlanRequest
 from pax_agentica.agents.tracing import Step, Tracer
 from pax_agentica.players.plan import Plan
@@ -66,15 +68,16 @@ def new_client(base_url: str | None = None) -> genai.Client:
     return genai.Client(http_options=HttpOptions(base_url=base_url, retry_options=one_retry))
 
 
-def worst_cost(request: PlanRequest, price: Price) -> float:
+def worst_cost(request: PlanRequest, price: Price, schema: type[BaseModel] = Plan) -> float:
     """The most a call can cost, before it is made: both sends, each with its longest answer."""
-    characters = len(request.system) + len(request.user) + len(str(Plan.model_json_schema()))
+    characters = len(request.system) + len(request.user) + len(str(schema.model_json_schema()))
     input_tokens = characters // _CHARACTERS_PER_TOKEN_AT_LEAST
     return _SENDS_PER_CALL * price.cost(input_tokens, MAX_OUTPUT_TOKENS)
 
 
 class GeminiModel:
-    """Writes plans with a Gemini model. Make one per game: its limits belong to an event loop."""
+    """Writes plans and letters with a Gemini model. Make one per game: its limits belong to an
+    event loop, and they are shared by every crown and every kind of answer."""
 
     def __init__(
         self,
@@ -112,13 +115,20 @@ class GeminiModel:
             self._recent.append(loop.time())
 
     async def write_plan(self, request: PlanRequest) -> Plan:
+        return await self.write(request, Plan)
+
+    async def write_diplomacy(self, request: PlanRequest) -> Diplomacy:
+        return await self.write(request, Diplomacy)
+
+    async def write[T: BaseModel](self, request: PlanRequest, schema: type[T]) -> T:
+        """An answer in the shape of `schema`, which the provider is asked to keep to."""
         settings: dict[str, str | int] = {
             "thinking_level": self._thinking,
             "max_output_tokens": MAX_OUTPUT_TOKENS,
         }
         async with self._slots:
             await self._wait_for_a_turn()
-            worst = worst_cost(request, self._price)
+            worst = worst_cost(request, self._price, schema)
             self._budget.reserve(worst)
             with self._tracer.call(self._model, request, settings) as step:
                 spent = worst  # a call that fails or is cancelled may still have been billed
@@ -131,7 +141,7 @@ class GeminiModel:
                         response_format={
                             "type": "text",
                             "mime_type": "application/json",
-                            "schema": Plan.model_json_schema(),
+                            "schema": schema.model_json_schema(),
                         },
                         generation_config=settings,
                     )
@@ -153,7 +163,7 @@ class GeminiModel:
                         )
         if interaction.status != "completed":
             raise IncompleteAnswer(f"the model's answer ended as {interaction.status}")
-        return Plan.model_validate_json(interaction.output_text or "")
+        return schema.model_validate_json(interaction.output_text or "")
 
     def _charge(self, step: Step, usage: Usage) -> float:
         """The cost of a call from its tokens, also written into its trace. Returns the cost."""

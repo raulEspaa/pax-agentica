@@ -39,9 +39,12 @@ class Tracer:
 
     `session` groups the traces of one game, so a game can be read in Langfuse as a whole."""
 
-    def __init__(self, langfuse: "Langfuse | None" = None, session: str = "") -> None:
+    def __init__(
+        self, langfuse: "Langfuse | None" = None, session: str = "", public_key: str | None = None
+    ) -> None:
         self._langfuse = langfuse
         self._session = session
+        self._public_key = public_key  # names the client to callbacks that look it up
 
     @classmethod
     def from_env(cls, session: str = "") -> "Tracer":
@@ -52,7 +55,7 @@ class Tracer:
 
         # It reads the keys and the address itself, sends in batches in the background, and sends
         # what is left when the program exits.
-        return cls(Langfuse(), session)
+        return cls(Langfuse(), session, os.environ["LANGFUSE_PUBLIC_KEY"])
 
     @property
     def on(self) -> bool:
@@ -85,6 +88,32 @@ class Tracer:
             ),
         ):
             yield step
+
+    @contextmanager
+    def council(self, view: NationView) -> Iterator[dict[str, Any]]:
+        """The root of a trace for one year of a LangGraph council, and the run's config.
+
+        Langfuse's LangChain callback turns each node into a span, but does not make it the
+        current OpenTelemetry span, so the model calls inside a node would start traces of their
+        own. Opening the root here, around the run, keeps the nodes and the calls in one trace."""
+        if self._langfuse is None:
+            yield {}
+            return
+        from langfuse import propagate_attributes
+        from langfuse.langchain import CallbackHandler
+
+        nation = view.me.id
+        with (
+            self._langfuse.start_as_current_observation(name="council", as_type="agent"),
+            propagate_attributes(
+                trace_name=f"council {nation} {view.year}",
+                session_id=self._session or None,
+                version=PROMPT_VERSION,
+                tags=[nation, "council"],
+                metadata={"nation": nation, "year": view.year, "turn": view.turn},
+            ),
+        ):
+            yield {"callbacks": [CallbackHandler(public_key=self._public_key)]}
 
     @contextmanager
     def call(

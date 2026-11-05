@@ -60,6 +60,7 @@ mapgen = [
 ai = [
     "google-genai>=2.34.0",
     "langfuse>=5.0.1",
+    "langgraph>=1.2.0",
 ]
 
 [tool.uv]
