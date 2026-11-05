@@ -76,6 +76,20 @@ diplomat that answers letters and proposals, as a LangGraph graph
 ([spec 004](../specs/004-council-graph/spec.md)). In Langfuse each year is one trace, `council`,
 holding the graph's nodes and the model's calls.
 
+## The archive
+
+```bash
+make db                                                    # Postgres with pgvector, port 5433
+uv run pax play --seed 1 --quiet --save replays/seed1.json # a finished game to ingest
+uv run --env-file .env pax ingest replays/seed1.json --budget 0.10
+uv run --env-file .env pax search "who took the throne of France?" --budget 0.01
+uv run --env-file .env pax recall replays/seed1.json --budget 0.05
+```
+
+Cuts games and the rules into chunks, embeds them with `gemini-embedding-001` and stores them in
+Postgres; `search` finds them by meaning, by word or both, and `recall` measures each
+([spec 005](../specs/005-archive/spec.md)). `--embedder word-hash` is a free offline stand-in.
+
 ## Evaluating plans
 
 ```bash

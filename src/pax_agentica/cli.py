@@ -9,7 +9,7 @@ from collections import Counter
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from pax_agentica.agents.budget import Budget
 from pax_agentica.agents.prompts import PROMPT_VERSION
@@ -21,6 +21,10 @@ from pax_agentica.players.greedy_bot import GreedyBot
 from pax_agentica.players.plan import Plan
 from pax_agentica.players.random_bot import RandomBot
 from pax_agentica.runner import GameRecord, TurnRecord, run_game
+
+if TYPE_CHECKING:
+    from pax_agentica.agents.archive import Archive
+    from pax_agentica.agents.embeddings import Embedder
 
 BOTS = {"greedy": GreedyBot, "random": RandomBot}
 STRATEGIST = "strategist"  # needs a model and a budget, so it is not one of the BOTS
@@ -58,6 +62,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "brief": _brief,
         "tournament": _tournament,
         "eval": _eval,
+        "ingest": _ingest,
+        "search": _search,
+        "recall": _recall,
     }[args.command]
     return handler(args)
 
@@ -147,6 +154,19 @@ def _parser() -> argparse.ArgumentParser:
     _add_model_options(evaluate)
     evaluate.add_argument("--thinking", help="minimal, low, medium or high (default: low)")
     evaluate.add_argument("--limit", type=int, help="only the first N situations")
+
+    ingest = sub.add_parser("ingest", help="load finished games and the rules into the archive")
+    ingest.add_argument("games", nargs="*", type=Path, help="game records from play --save")
+    _add_archive_options(ingest)
+    search = sub.add_parser("search", help="search the archive")
+    search.add_argument("question")
+    search.add_argument("--mode", choices=["hybrid", "vector", "keyword"], default="hybrid")
+    search.add_argument("--game", help="only this game (and the rules)")
+    search.add_argument("-k", type=int, default=5)
+    _add_archive_options(search)
+    recall = sub.add_parser("recall", help="measure each kind of search on known questions")
+    recall.add_argument("game", type=Path, help="an ingested game record, to ask about")
+    _add_archive_options(recall)
 
     host = sub.add_parser("host", help="host tables where several people play, each a nation")
     host.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to let your network in")
@@ -437,6 +457,79 @@ def _eval(args: argparse.Namespace) -> int:
     _report_spending(budget)
     if result.experiment_url:
         print(f"\n{result.experiment_url}")
+    return 0
+
+
+# ---------------------------------------------------------------- the archive
+
+
+def _add_archive_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--embedder",
+        choices=["gemini", "word-hash"],
+        default="gemini",
+        help="word-hash: a free, offline stand-in that only matches shared words",
+    )
+    parser.add_argument("--budget", type=float, metavar="USD", help="the most Gemini may cost")
+
+
+def _archive_tools(args: argparse.Namespace) -> tuple["Archive", "Embedder", Budget | None]:
+    """The archive on the rulers' database, and an embedder. Imported only now: see BOTS."""
+    from pax_agentica.agents.archive import Archive, database_url
+    from pax_agentica.agents.embeddings import GeminiEmbedder, WordHashEmbedder
+
+    budget = _budget(args)
+    if args.embedder == "word-hash":
+        embedder: Embedder = WordHashEmbedder()
+    elif budget is None:
+        raise SystemExit("Gemini embeddings cost money: say how much with --budget USD")
+    else:
+        from pax_agentica.agents.gemini import new_client
+
+        embedder = GeminiEmbedder(new_client(), budget)
+    try:
+        archive = Archive(database_url())
+    except Exception as exc:
+        raise SystemExit(
+            f"no archive: {exc}. Start it with make db, run with --env-file .env"
+        ) from exc
+    return archive, embedder, budget
+
+
+def _ingest(args: argparse.Namespace) -> int:
+    from pax_agentica.agents.ingest import chunks_from_game, chunks_from_rules
+
+    archive, embedder, budget = _archive_tools(args)
+    archive.set_up()
+    chunks = chunks_from_rules(Path("docs/game-rules.md").read_text())
+    for path in args.games:
+        chunks += chunks_from_game(GameRecord.model_validate_json(path.read_text()), path.stem)
+    new = archive.missing(chunks, embedder.model)
+    vectors = embedder.embed([c.text for c in new], "document") if new else []
+    archive.add(new, vectors, embedder.model)
+    print(f"{len(new)} new chunks of {len(chunks)}; the archive holds {archive.count()}")
+    _report_spending(budget)
+    return 0
+
+
+def _search(args: argparse.Namespace) -> int:
+    archive, embedder, budget = _archive_tools(args)
+    for hit in archive.search(args.question, embedder, k=args.k, mode=args.mode, game=args.game):
+        print(f"[{hit.score:.4f}] {hit.title}\n  {hit.text[:300].replace(chr(10), ' ')}\n")
+    _report_spending(budget)
+    return 0
+
+
+def _recall(args: argparse.Namespace) -> int:
+    from pax_agentica.agents.recall import RULES_QUESTIONS, K, game_questions, recall
+
+    archive, embedder, budget = _archive_tools(args)
+    record = GameRecord.model_validate_json(args.game.read_text())
+    questions = [*game_questions(record, args.game.stem), *RULES_QUESTIONS]
+    print(f"recall@{K} on {len(questions)} questions, with {embedder.model}")
+    for mode, share in recall(archive, embedder, questions).items():
+        print(f"  {mode:<8}{share:>6.0%}")
+    _report_spending(budget)
     return 0
 
 
