@@ -65,6 +65,12 @@ An AI ruler spends real money, so it takes a limit, and the run stops spending w
 uv run --env-file .env pax tournament --games 1 --player france=strategist --budget 0.10
 ```
 
+With `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` set (they are in `.env` after `make env`),
+each plan is a trace in Langfuse: start it with `make langfuse` and open http://localhost:3000.
+A trace holds why the plan was asked for, the plan, what was dropped from it, and each call to the
+model with its prompt, answer, tokens and cost. The traces of one game share a session,
+`<run>-seed<seed>`. Without the keys nothing is sent.
+
 ## Playing against people
 
 [Multiplayer tables](multiplayer.md) let friends play the same game in their browsers, each on a

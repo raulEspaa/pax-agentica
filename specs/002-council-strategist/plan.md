@@ -16,6 +16,7 @@ NationView ──> Strategist.decide ──> is a plan due? ──no────
 - `agents/checks.py`: `clean_plan(plan, view)` drops what names nothing real and says what.
 - `agents/budget.py`: `Budget`, which sets money aside before each call and refuses past its limit.
 - `agents/gemini.py`: `GeminiModel`, the `PlanModel` for Google's models, on the Interactions API.
+- `agents/tracing.py`: `Tracer`, a trace in Langfuse per plan and a generation per call, or nothing.
 
 ## Decisions
 
@@ -38,6 +39,10 @@ NationView ──> Strategist.decide ──> is a plan due? ──no────
 | One SDK retry, counted in the reservation | The default of three; forcing none with `attempts=-1` | The SDK has no public way to none, and the one left waits out a 429. Reserving both sends keeps the limit |
 | Tests with the real SDK against a local server | Mock the SDK | Checks the real requests and answers at no cost, and it caught the hidden retries |
 | Interactions API | `generate_content` | The vendored Gemini skill and current docs use it for new work; `store=False` keeps our prompts off Google's history |
+| Langfuse SDK spans written by hand | Auto-instrumenting `google-genai` with OpenTelemetry | Our spans carry what the game knows (nation, year, why a plan, what was dropped) and our own cost, the one the budget charged |
+| One trace per plan, a session per game | One trace per game | A plan is the unit we compare and score; a session still reads a game as a whole |
+| No tracing without keys, SDK not even imported | Always on, sent nowhere | Criterion 9, and the tables image goes without the SDK |
+| Tests with the real SDK and an in-memory exporter | Mock the SDK | Checks the real attributes Langfuse receives, at no cost and offline |
 
 ## Risks / unknowns
 

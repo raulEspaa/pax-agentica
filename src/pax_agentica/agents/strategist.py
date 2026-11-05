@@ -10,6 +10,7 @@ from typing import Protocol
 
 from pax_agentica.agents.checks import clean_plan
 from pax_agentica.agents.prompts import PlanRequest, build_request
+from pax_agentica.agents.tracing import Tracer
 from pax_agentica.engine import NationView, Orders
 from pax_agentica.engine.actions import MAX_THOUGHTS_CHARS
 from pax_agentica.players.greedy_bot import GreedyBot
@@ -61,10 +62,15 @@ class Strategist:
     """A `Player` that asks its model for a plan when one is due, and has the bot carry it out."""
 
     def __init__(
-        self, model: PlanModel, seed: int = 0, timeout: float = MODEL_TIMEOUT_SECONDS
+        self,
+        model: PlanModel,
+        seed: int = 0,
+        timeout: float = MODEL_TIMEOUT_SECONDS,
+        tracer: Tracer | None = None,
     ) -> None:
         self._model = model
         self._timeout = timeout
+        self._tracer = tracer or Tracer()
         self._bot = GreedyBot(seed)
         self._plan: Plan | None = None
         self._last_plan_turn: int | None = None
@@ -76,31 +82,39 @@ class Strategist:
 
     async def decide(self, view: NationView) -> Orders:
         realm = _Realm.of(view)
-        remark = await self._new_plan(view) if self._plan_is_due(view, realm) else ""
+        why = self._why_a_plan_is_due(view, realm)
+        remark = await self._new_plan(view, why) if why else ""
         self._last_year = realm
         orders = await self._bot.decide(view)  # its thoughts open with "The plan:" and the note
         thoughts = "\n".join(line for line in (orders.thoughts, remark) if line)
         return orders.model_copy(update={"thoughts": thoughts[:MAX_THOUGHTS_CHARS]})
 
-    async def _new_plan(self, view: NationView) -> str:
+    async def _new_plan(self, view: NationView, why: str) -> str:
         """Ask for a plan and follow it. Returns what the thoughts should say about it, if anything.
 
         After a failure `_last_plan_turn` stays as it was, so the plan is due again next year."""
         request = build_request(view, self._plan)
-        try:
-            answer, first_failure = await self._ask(request)
-        except Exception as exc:  # whatever went wrong, a model never costs the nation its year
-            outcome = "the last plan stands" if self._plan else "the ministers rule without one"
-            return f"No new plan this year, {outcome}: {_why(exc)}"[:MAX_FAILURE_CHARS]
-        self._plan, dropped = clean_plan(answer, view)
-        self._bot.follow(self._plan)
-        self._last_plan_turn = view.turn
-        lines = (
-            [f"The first try failed: {first_failure}"[:MAX_FAILURE_CHARS]] if first_failure else []
-        )
-        if dropped:
-            lines.append(f"Dropped from the plan: {', '.join(dropped)}.")
-        return "\n".join(lines)
+        with self._tracer.plan(view, why) as step:
+            try:
+                answer, first_failure = await self._ask(request)
+            except Exception as exc:  # whatever went wrong, a model never costs the nation its year
+                outcome = "the last plan stands" if self._plan else "the ministers rule without one"
+                failure = f"No new plan this year, {outcome}: {_why(exc)}"[:MAX_FAILURE_CHARS]
+                step.update(level="ERROR", status_message=failure)
+                return failure
+            self._plan, dropped = clean_plan(answer, view)
+            self._bot.follow(self._plan)
+            self._last_plan_turn = view.turn
+            lines = [f"The first try failed: {first_failure}"] if first_failure else []
+            if dropped:
+                lines.append(f"Dropped from the plan: {', '.join(dropped)}.")
+            remark = "\n".join(line[:MAX_FAILURE_CHARS] for line in lines)
+            step.update(
+                output={"plan": self._plan.model_dump(mode="json"), "dropped": dropped},
+                level="WARNING" if remark else "DEFAULT",
+                status_message=remark or None,
+            )
+            return remark
 
     async def _ask(self, request: PlanRequest) -> tuple[Plan, str]:
         """One attempt and one retry: the plan, and why the first attempt failed if it did.
@@ -116,9 +130,12 @@ class Strategist:
         async with asyncio.timeout(self._timeout):
             return await self._model.write_plan(request)
 
-    def _plan_is_due(self, view: NationView, realm: _Realm) -> bool:
+    def _why_a_plan_is_due(self, view: NationView, realm: _Realm) -> str:
+        """Why a new plan is due this year, or nothing if it is not."""
         if self._last_plan_turn is None or self._last_year is None:
-            return True
+            return "no plan yet"
         if realm.grave_news_since(self._last_year):
-            return True
-        return view.turn - self._last_plan_turn >= YEARS_BETWEEN_PLANS
+            return "grave news"
+        if view.turn - self._last_plan_turn >= YEARS_BETWEEN_PLANS:
+            return f"{YEARS_BETWEEN_PLANS} years since the last plan"
+        return ""

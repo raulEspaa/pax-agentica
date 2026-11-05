@@ -58,6 +58,7 @@ mapgen = [
 # The AI rulers. A group of its own, so that the image of the multiplayer tables goes without.
 ai = [
     "google-genai>=2.34.0",
+    "langfuse>=5.0.1",
 ]
 
 [tool.uv]

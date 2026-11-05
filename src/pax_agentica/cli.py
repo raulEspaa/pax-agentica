@@ -7,10 +7,12 @@ import os
 import sys
 from collections import Counter
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 
 from pax_agentica.agents.budget import Budget
 from pax_agentica.agents.strategist import PlanModel, Strategist
+from pax_agentica.agents.tracing import Tracer
 from pax_agentica.engine import EventKind, GameState, NationView, Orders, new_game, view_for
 from pax_agentica.players import Player
 from pax_agentica.players.greedy_bot import GreedyBot
@@ -20,6 +22,7 @@ from pax_agentica.runner import GameRecord, TurnRecord, run_game
 
 BOTS = {"greedy": GreedyBot, "random": RandomBot}
 STRATEGIST = "strategist"  # needs a model and a budget, so it is not one of the BOTS
+RUN = datetime.now().strftime("%Y%m%d-%H%M%S")  # names this run's games in the traces
 
 HEADLINES = {
     EventKind.WAR_DECLARED,
@@ -176,21 +179,24 @@ def _players(
                 f"bots {sorted({*BOTS, STRATEGIST})}"
             )
         if bot == STRATEGIST:
-            plans = plans or _plan_model(budget, model)
-            players[nation] = Strategist(plans, seed)
+            tracer = Tracer.from_env(session=f"{RUN}-seed{seed}")
+            plans = plans or _plan_model(budget, model, tracer)
+            players[nation] = Strategist(plans, seed, tracer=tracer)
         else:
             players[nation] = BOTS[bot](seed)
     return players
 
 
-def _plan_model(budget: Budget | None, model: str | None) -> PlanModel:
+def _plan_model(budget: Budget | None, model: str | None, tracer: Tracer) -> PlanModel:
     """A language model for this game. The SDK is imported only now: the tables go without it."""
     if budget is None:
         raise SystemExit("the strategist spends real money: say how much with --budget USD")
     from pax_agentica.agents import gemini
 
     try:
-        return gemini.GeminiModel(gemini.new_client(), budget, model or gemini.DEFAULT_MODEL)
+        return gemini.GeminiModel(
+            gemini.new_client(), budget, model or gemini.DEFAULT_MODEL, tracer=tracer
+        )
     except ValueError as exc:  # no key, or a model without a known price
         raise SystemExit(str(exc)) from exc
 

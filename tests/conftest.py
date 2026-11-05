@@ -1,9 +1,17 @@
-"""Shared fixtures. `play` resolves one turn from keyword orders: play(state, france=[...])."""
+"""Shared fixtures. `play` resolves one turn from keyword orders: play(state, france=[...]).
 
-from collections.abc import Callable
+`tracer` and `spans`: Langfuse with its traces kept in memory (the real SDK, no server, no network).
+"""
+
+import uuid
+from collections.abc import Callable, Iterator
 
 import pytest
+from langfuse import Langfuse
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from pax_agentica.agents.tracing import Tracer
 from pax_agentica.engine import Action, GameState, Orders, new_game, resolve_turn
 
 type Play = Callable[..., GameState]
@@ -29,3 +37,34 @@ def play() -> Play:
         return resolve_turn(state, {n: Orders(actions=a) for n, a in orders.items()})
 
     return _play
+
+
+@pytest.fixture
+def _langfuse() -> Iterator[tuple[Langfuse, InMemorySpanExporter]]:
+    exporter = InMemorySpanExporter()
+    langfuse = Langfuse(
+        public_key=f"pk-test-{uuid.uuid4()}",  # the SDK keeps one client per key
+        secret_key="sk-test",  # noqa: S106 - a test key, never sent
+        base_url="http://127.0.0.1:9",  # nothing listens there, and nothing is sent to it
+        span_exporter=exporter,
+        tracer_provider=TracerProvider(),
+    )
+    yield langfuse, exporter
+    langfuse.shutdown()
+
+
+@pytest.fixture
+def tracer(_langfuse: tuple[Langfuse, InMemorySpanExporter]) -> Tracer:
+    return Tracer(_langfuse[0], session="test-seed1")
+
+
+@pytest.fixture
+def spans(_langfuse: tuple[Langfuse, InMemorySpanExporter]) -> Callable[[], list[ReadableSpan]]:
+    """Every span finished so far, oldest first."""
+    langfuse, exporter = _langfuse
+
+    def finished() -> list[ReadableSpan]:
+        langfuse.flush()
+        return list(exporter.get_finished_spans())
+
+    return finished
