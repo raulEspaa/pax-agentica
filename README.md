@@ -4,7 +4,7 @@
 betray each other and go to war. You watch history unfold, and one day you take a throne yourself.
 
 [![CI](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml/badge.svg)](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml)
-![Status](https://img.shields.io/badge/status-the%20game%20is%20ready%20%C2%B7%20next%3A%20the%20first%20AI%20ruler-b8860b)
+![Status](https://img.shields.io/badge/status-AI%20rulers%20%C2%B7%20RAG%20%C2%B7%20evals-b8860b)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-3776ab)
 
 <p align="center"><img src="docs/assets/cover.jpg" alt="An old-style map of three AI-ruled realms: Northreach, Ostmark and Southvale" width="760"></p>
@@ -89,13 +89,16 @@ Each milestone ends with something you can run and watch. It's built in order, o
 |---|-----------|--------------|--------|
 | 0 | **Foundations** | A repo with tests, linting, types and CI | ✅ |
 | 1 | **The game** | `pax play --seed 1`: Europe 1500, nine rule-based bots, a winner, an HTML replay | ✅ |
-| 2 | **The first AI ruler** | One nation is governed by Gemini and plays against the bots | ⏳ next |
-| 3 | **Every throne an AI** | Rulers with personalities; the same world plays out differently | |
-| 4 | **Diplomacy** | Messages, pacts and trade between nations, and betrayals | |
-| 5 | **The chronicler** | An AI historian narrates each game; the replay viewer already exists | |
-| 6 | **Memory** | Nations remember who betrayed them | |
-| 7 | **Tournaments** | Many seeded games: which personalities win, who keeps their word, what it costs | |
-| 8 | **Online** | Deployed, and you can play as one of the nations | |
+| 2 | **The first AI ruler** | One nation is governed by Gemini and plays against the bots, within a hard budget, traced in Langfuse | ✅ |
+| 3 | **Evaluation** | The strategist scored on twenty situations, as Langfuse experiments | ✅ |
+| 4 | **Diplomacy** | A LangGraph council: the strategist and a diplomat that answers letters, defended against prompt injection | ✅ |
+| 5 | **The archive and the Archivist** | Finished games in pgvector with hybrid search; an ADK agent answers questions about them with citations, checked by an LLM judge | ✅ |
+| 6 | **Memory** | Nations remember who betrayed them, from their own chronicle | |
+| 7 | **Tournaments** | Many seeded games: which rulers win, who keeps their word, what it costs | |
+| 8 | **Online** | Deployed, and you can play as one of the nations | ✅ the tables; the AI later |
+
+The AI part, piece by piece: [architecture](docs/architecture.md), [results](docs/ai-results.md),
+[plan](docs/ai-roadmap.md).
 
 ## How it's built
 
@@ -129,6 +132,18 @@ uv run pax bench --games 40                # who wins, seat by seat, over 40 see
 uv run pax press                           # store capsules and a trailer, drawn from a game of bots
 ```
 
+The AI part needs `make env`, `make db`, `make langfuse` and a Gemini key in `.env`; every command
+that calls a model takes a `--budget` in dollars and stops before it would pass it
+([`docs/agent-tools.md`](docs/agent-tools.md)):
+
+```bash
+uv run --env-file .env pax tournament --games 1 --player france=council --budget 0.25
+uv run --env-file .env pax eval --budget 0.50                  # score the strategist's plans
+uv run --env-file .env pax ingest replays/seed1.json --budget 0.05   # a game into the archive
+uv run --env-file .env pax ask "why did England attack France?" --game seed1 --budget 0.05
+uv run --env-file .env pax api --budget 0.20                   # the Archivist: POST /ask
+```
+
 ## Repository map
 
 | Path | What |
@@ -138,7 +153,8 @@ uv run pax press                           # store capsules and a trailer, drawn
 | `src/pax_agentica/runner.py`, `cli.py` | The game loop and the `pax` command |
 | `src/pax_agentica/server.py`, `web/` | Play a nation in the browser; the shared map code and the replay |
 | `src/pax_agentica/data/`, `scripts/build_map.py` | The map of Europe, built from real geography (`make map`) |
-| `src/pax_agentica/agents/` | The AI rulers (from milestone 2) |
+| `src/pax_agentica/agents/` | The AI rulers, the archive, the Archivist and their evaluations |
+| `src/pax_agentica/api.py` | The Archivist over HTTP (FastAPI), apart from the public tables |
 | `tests/` | Tests, written before the code they test |
 | `specs/` | One folder per feature: spec, plan, tasks |
 | `docs/game-rules.md` | The rules, for humans and for prompts |
