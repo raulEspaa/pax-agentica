@@ -31,6 +31,8 @@ select = ["E", "F", "I", "B", "UP", "S", "PT", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S311"] # pytest asserts; seeded random numbers are intended in tests
+# SQL built from our own constants only; every value is a query parameter
+"src/pax_agentica/agents/archive.py" = ["S608"]
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]
@@ -61,6 +63,8 @@ ai = [
     "google-genai>=2.34.0",
     "langfuse>=5.0.1",
     "langgraph>=1.2.0",
+    "pgvector>=0.4",
+    "psycopg[binary]>=3.2",
 ]
 
 [tool.uv]

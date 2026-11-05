@@ -21,6 +21,20 @@ jobs:
     name: lint, types, tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The archive's tests need Postgres with pgvector: the same image as `make db`. The password
+    # is a throwaway for this job's own database, which nothing outside the job can reach.
+    services:
+      db:
+        image: pgvector/pgvector:0.8.7-pg18-trixie
+        env:
+          POSTGRES_USER: pax
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: pax
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pax -d pax" --health-interval 3s --health-retries 10
+    env:
+      PAX_DATABASE_URL: postgresql://pax:ci-only@127.0.0.1:5432/pax
     steps:
       # Third-party actions are pinned to a commit SHA, not a movable tag.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
