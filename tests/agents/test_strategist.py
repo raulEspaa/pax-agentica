@@ -136,7 +136,8 @@ def test_gives_exactly_the_orders_of_the_bot_with_that_plan() -> None:
     bots = asyncio.run(GreedyBot(1, plan=plan).decide(view))
 
     assert mine.actions == bots.actions
-    assert mine.thoughts.startswith("France must grow before it fights.")
+    assert mine.thoughts.startswith("The plan: France must grow before it fights.")
+    assert mine.thoughts.count("France must grow") == 1
 
 
 def test_shows_the_monarch_their_own_last_plan(france: NationView) -> None:
@@ -157,7 +158,7 @@ def test_carries_out_the_plan_without_what_names_nothing_real(france: NationView
     bots = asyncio.run(GreedyBot(1, plan=cleaned).decide(france))
 
     assert mine.actions == bots.actions
-    assert mine.thoughts.startswith("West.")
+    assert mine.thoughts.startswith("The plan: West.")
     assert "conquer atlantis" in mine.thoughts
 
 
@@ -202,4 +203,4 @@ def test_keeps_following_the_last_plan_in_a_year_without_a_new_one() -> None:
     twin = GreedyBot(1, plan=plan)
     asyncio.run(twin.decide(view_for(state, "france")))
     assert mine.actions == asyncio.run(twin.decide(next_year)).actions
-    assert mine.thoughts.startswith("Save.")
+    assert mine.thoughts.startswith("The plan: Save.")

@@ -11,12 +11,18 @@ from typing import Protocol
 from pax_agentica.agents.checks import clean_plan
 from pax_agentica.agents.prompts import PlanRequest, build_request
 from pax_agentica.engine import NationView, Orders
+from pax_agentica.engine.actions import MAX_THOUGHTS_CHARS
 from pax_agentica.players.greedy_bot import GreedyBot
-from pax_agentica.players.plan import Plan, combine
+from pax_agentica.players.plan import Plan
 
 YEARS_BETWEEN_PLANS = 2
 MODEL_TIMEOUT_SECONDS = 30.0
 MAX_FAILURE_CHARS = 300  # an error can be long, and the thoughts have a limit
+
+
+def _why(exc: Exception) -> str:
+    """An error on one line, with its type: a `ValidationError` says nothing of its type."""
+    return f"{type(exc).__name__} {' '.join(str(exc).split())}"
 
 
 class PlanModel(Protocol):
@@ -72,9 +78,9 @@ class Strategist:
         realm = _Realm.of(view)
         remark = await self._new_plan(view) if self._plan_is_due(view, realm) else ""
         self._last_year = realm
-        note = self._plan.note if self._plan else ""
-        thoughts = "\n".join(line for line in (note, remark) if line)
-        return combine(await self._bot.decide(view), Orders(thoughts=thoughts))
+        orders = await self._bot.decide(view)  # its thoughts open with "The plan:" and the note
+        thoughts = "\n".join(line for line in (orders.thoughts, remark) if line)
+        return orders.model_copy(update={"thoughts": thoughts[:MAX_THOUGHTS_CHARS]})
 
     async def _new_plan(self, view: NationView) -> str:
         """Ask for a plan and follow it. Returns what the thoughts should say about it, if anything.
@@ -82,23 +88,29 @@ class Strategist:
         After a failure `_last_plan_turn` stays as it was, so the plan is due again next year."""
         request = build_request(view, self._plan)
         try:
-            answer = await self._ask(request)
+            answer, first_failure = await self._ask(request)
         except Exception as exc:  # whatever went wrong, a model never costs the nation its year
             outcome = "the last plan stands" if self._plan else "the ministers rule without one"
-            why = " ".join(str(exc).split())
-            line = f"No new plan this year, {outcome}: {type(exc).__name__} {why}"
-            return line[:MAX_FAILURE_CHARS]
+            return f"No new plan this year, {outcome}: {_why(exc)}"[:MAX_FAILURE_CHARS]
         self._plan, dropped = clean_plan(answer, view)
         self._bot.follow(self._plan)
         self._last_plan_turn = view.turn
-        return f"Dropped from the plan: {', '.join(dropped)}." if dropped else ""
+        lines = (
+            [f"The first try failed: {first_failure}"[:MAX_FAILURE_CHARS]] if first_failure else []
+        )
+        if dropped:
+            lines.append(f"Dropped from the plan: {', '.join(dropped)}.")
+        return "\n".join(lines)
 
-    async def _ask(self, request: PlanRequest) -> Plan:
-        """One attempt and one retry: the error of the second is the one that is raised."""
+    async def _ask(self, request: PlanRequest) -> tuple[Plan, str]:
+        """One attempt and one retry: the plan, and why the first attempt failed if it did.
+
+        If the retry fails too, its error is the one that is raised."""
         try:
-            return await self._attempt(request)
-        except Exception:
-            return await self._attempt(request)
+            return await self._attempt(request), ""
+        except Exception as exc:
+            first_failure = _why(exc)
+        return await self._attempt(request), first_failure
 
     async def _attempt(self, request: PlanRequest) -> Plan:
         async with asyncio.timeout(self._timeout):
