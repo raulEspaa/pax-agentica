@@ -58,6 +58,11 @@ class Tracer:
     def on(self) -> bool:
         return self._langfuse is not None
 
+    @property
+    def langfuse(self) -> "Langfuse | None":
+        """The client, for what goes beyond traces: datasets, experiments, scores."""
+        return self._langfuse
+
     @contextmanager
     def plan(self, view: NationView, why: str) -> Iterator[Step]:
         """The root of a trace: one crown asking for one plan."""

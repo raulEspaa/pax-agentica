@@ -71,6 +71,17 @@ A trace holds why the plan was asked for, the plan, what was dropped from it, an
 model with its prompt, answer, tokens and cost. The traces of one game share a session,
 `<run>-seed<seed>`. Without the keys nothing is sent.
 
+## Evaluating plans
+
+```bash
+uv run --env-file .env pax eval --budget 0.50 --model gemini-3.1-flash-lite --thinking low
+```
+
+Asks the model for a plan in twenty situations from games of greedy bots, scores each by rules
+(`valid`, `real_names`, `consistent`, `keeps_treaties`, `reachable`) and records the run in the
+Langfuse dataset `strategist-situations`, where runs with other models or prompts can be compared
+side by side ([spec 003](../specs/003-strategist-evaluation/spec.md)). `--limit N` uses fewer.
+
 ## Playing against people
 
 [Multiplayer tables](multiplayer.md) let friends play the same game in their browsers, each on a
