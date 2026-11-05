@@ -6,7 +6,9 @@ reader: it gets the question, the answer and the text of each cited chunk, lists
 source supports, and only then gives its verdict, so the verdict follows from the list.
 
 A judge is a model too, and can be wrong. Two guards:
-- It is another model from the one that answers (`JUDGE_MODEL`), so it does not grade itself.
+- It thinks harder than the model that answers (high against low). Another model would guard
+  better against a model favouring its own words, but gemini-3.5-flash-lite answered 503 (high
+  demand) to every call of the first run; `--judge-model` takes any priced model.
 - It is checked before it is trusted: `plant_a_lie` adds a claim no source holds to a real
   answer, and a judge that does not catch it is not worth its scores.
 """
@@ -18,8 +20,8 @@ from pydantic import BaseModel, Field
 from pax_agentica.agents.prompts import PlanRequest
 
 JUDGE_PROMPT_VERSION = "judge-1"
-JUDGE_MODEL = "gemini-3.5-flash-lite"  # the Archivist answers with gemini-3.1-flash-lite
-JUDGE_THINKING = "medium"  # reading claims against sources is worth some thought
+JUDGE_MODEL = "gemini-3.1-flash-lite"  # 3.5-flash-lite was unavailable (503) on 2026-11-05
+JUDGE_THINKING = "high"  # the Archivist thinks low: reading claims against sources needs more
 
 SCORES = {"full": 1.0, "partial": 0.5, "none": 0.0}
 

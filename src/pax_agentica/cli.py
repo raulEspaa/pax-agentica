@@ -181,6 +181,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     eval_archivist.add_argument("game", type=Path, help="an ingested game record")
     eval_archivist.add_argument("--model", help="the Archivist's model (default: the cheapest)")
+    eval_archivist.add_argument("--judge-model", help="the judge's model, thinking high")
     _add_archive_options(eval_archivist)
     api = sub.add_parser("api", help="serve the Archivist over HTTP: POST /ask")
     api.add_argument("--host", default="127.0.0.1")
@@ -596,7 +597,11 @@ def _eval_archivist(args: argparse.Namespace) -> int:
         raise SystemExit("an evaluation lives in Langfuse: set the LANGFUSE keys (see pax eval)")
     archivist, budget = _archivist(args, tracer)
     judge_model = gemini.GeminiModel(
-        gemini.new_client(), budget, judge.JUDGE_MODEL, judge.JUDGE_THINKING, tracer=tracer
+        gemini.new_client(),
+        budget,
+        args.judge_model or judge.JUDGE_MODEL,
+        judge.JUDGE_THINKING,
+        tracer=tracer,
     )
     record = GameRecord.model_validate_json(args.game.read_text())
     items = archivist_evals.questions(record, args.game.stem)

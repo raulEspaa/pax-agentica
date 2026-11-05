@@ -12,10 +12,14 @@ words get close vectors, so a search over it still finds things.
 import hashlib
 import math
 import re
+import time
+from collections import deque
+from collections.abc import Callable
 from typing import Literal, Protocol
 
 from google import genai
-from google.genai.types import EmbedContentConfig
+from google.genai import errors
+from google.genai.types import EmbedContentConfig, EmbedContentResponse
 
 from pax_agentica.agents.budget import Budget
 
@@ -25,6 +29,10 @@ DIMENSIONS = 768
 EMBEDDING_MODEL = "gemini-embedding-001"
 PRICE_PER_MILLION_TOKENS = 0.15  # paid tier, ai.google.dev/gemini-api/docs/pricing, 2026-11-05
 BATCH = 100  # texts per request
+# The free tier counts each text as a request, 100 a minute: stay under it, or a long ingest fails.
+TEXTS_PER_MINUTE = 50  # well under: tokens a minute are counted too
+_WINDOW_SECONDS = 60.0
+_TRIES = 3
 _CHARACTERS_PER_TOKEN_AT_LEAST = 2  # errs on the safe side, as for the plans
 
 _TASKS: dict[Purpose, str] = {"document": "RETRIEVAL_DOCUMENT", "query": "RETRIEVAL_QUERY"}
@@ -45,10 +53,22 @@ def _normalised(vector: list[float]) -> list[float]:
 class GeminiEmbedder:
     """Embeds with Gemini, within a budget: each batch is paid for before it is sent."""
 
-    def __init__(self, client: genai.Client, budget: Budget, dimensions: int = DIMENSIONS) -> None:
+    def __init__(
+        self,
+        client: genai.Client,
+        budget: Budget,
+        dimensions: int = DIMENSIONS,
+        texts_per_minute: int = TEXTS_PER_MINUTE,
+        sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._client = client
         self._budget = budget
         self._dimensions = dimensions
+        self._texts_per_minute = texts_per_minute
+        self._sleep = sleep
+        self._clock = clock
+        self._sent: deque[tuple[float, int]] = deque()  # when each recent batch went, and its size
 
     @property
     def model(self) -> str:
@@ -56,26 +76,50 @@ class GeminiEmbedder:
 
     def embed(self, texts: list[str], purpose: Purpose) -> list[list[float]]:
         vectors: list[list[float]] = []
-        for start in range(0, len(texts), BATCH):
-            batch = texts[start : start + BATCH]
+        size = min(BATCH, self._texts_per_minute)
+        for start in range(0, len(texts), size):
+            batch = texts[start : start + size]
+            self._wait_for_room(len(batch))
             # The answer gives no token count, so the estimate is what is charged: on the safe side.
             tokens = sum(len(t) for t in batch) // _CHARACTERS_PER_TOKEN_AT_LEAST
             cost = tokens * PRICE_PER_MILLION_TOKENS / 1_000_000
             self._budget.reserve(cost)
             try:
-                answer = self._client.models.embed_content(
-                    model=EMBEDDING_MODEL,
-                    contents=batch,  # with this model, one embedding per string
-                    config=EmbedContentConfig(
-                        task_type=_TASKS[purpose], output_dimensionality=self._dimensions
-                    ),
-                )
+                answer = self._send(batch, purpose)
             finally:
                 self._budget.settle(cost, cost)
             vectors.extend(_normalised(list(e.values or [])) for e in answer.embeddings or [])
         if len(vectors) != len(texts):
             raise ValueError(f"asked for {len(texts)} embeddings, got {len(vectors)}")
         return vectors
+
+    def _send(self, batch: list[str], purpose: Purpose) -> EmbedContentResponse:
+        """One request; on a 429 (the quota counts more than requests), wait and try again."""
+        for attempt in range(_TRIES):
+            try:
+                return self._client.models.embed_content(
+                    model=EMBEDDING_MODEL,
+                    contents=batch,  # with this model, one embedding per string
+                    config=EmbedContentConfig(
+                        task_type=_TASKS[purpose], output_dimensionality=self._dimensions
+                    ),
+                )
+            except errors.ClientError as exc:
+                if exc.code != 429 or attempt == _TRIES - 1:
+                    raise
+                self._sleep(_WINDOW_SECONDS)  # a refused request is not billed
+        raise AssertionError("unreachable")
+
+    def _wait_for_room(self, texts: int) -> None:
+        """Sleep until sending `texts` more keeps the last minute under the limit."""
+        while True:
+            now = self._clock()
+            while self._sent and now - self._sent[0][0] >= _WINDOW_SECONDS:
+                self._sent.popleft()
+            if sum(n for _, n in self._sent) + texts <= self._texts_per_minute:
+                self._sent.append((now, texts))
+                return
+            self._sleep(_WINDOW_SECONDS - (now - self._sent[0][0]) + 0.1)
 
 
 class WordHashEmbedder:

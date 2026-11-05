@@ -8,9 +8,11 @@ import math
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
+from types import SimpleNamespace
 
 import psycopg
 import pytest
+from google.genai import errors
 
 from pax_agentica.agents.archive import Archive, database_url
 from pax_agentica.agents.budget import Budget, BudgetExceeded
@@ -216,3 +218,52 @@ def test_without_a_password_there_is_no_url(monkeypatch: pytest.MonkeyPatch) -> 
 
     with pytest.raises(ValueError, match="PAX_DB_PASSWORD"):
         database_url()
+
+
+def test_gemini_embeddings_keep_under_the_free_tiers_rate() -> None:
+    class Client:
+        class models:
+            @staticmethod
+            def embed_content(*, contents: list[str], **_: object) -> object:
+                values = [SimpleNamespace(values=[1.0, 0.0]) for _ in contents]
+                return SimpleNamespace(embeddings=values)
+
+    now = [0.0]
+    slept: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        slept.append(seconds)
+        now[0] += seconds
+
+    embedder = GeminiEmbedder(
+        Client(),  # type: ignore[arg-type]
+        Budget(1.0),
+        dimensions=2,
+        texts_per_minute=10,
+        sleep=sleep,
+        clock=lambda: now[0],
+    )
+
+    assert len(embedder.embed(["a"] * 25, "document")) == 25
+    assert len(slept) == 2  # three batches of at most ten, a minute apart
+    assert now[0] >= 120
+
+
+def test_a_refused_batch_is_waited_for_and_sent_again() -> None:
+    sent: list[int] = []
+
+    class Client:
+        class models:
+            @staticmethod
+            def embed_content(*, contents: list[str], **_: object) -> object:
+                sent.append(len(contents))
+                if len(sent) == 1:
+                    raise errors.ClientError(429, {"error": {"code": 429, "message": "quota"}})
+                return SimpleNamespace(embeddings=[SimpleNamespace(values=[1.0]) for _ in contents])
+
+    slept: list[float] = []
+    embedder = GeminiEmbedder(Client(), Budget(1.0), dimensions=1, sleep=slept.append)  # type: ignore[arg-type]
+
+    assert len(embedder.embed(["a", "b"], "document")) == 2
+    assert sent == [2, 2]
+    assert slept == [60.0]
