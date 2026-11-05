@@ -6,4 +6,5 @@
 - [x] 4. `max_llm_calls` per question (criterion 5).
 - [x] 5. `pax_agentica.api`: `POST /ask`, 503 on a spent budget, 422 on a long question (criterion 8).
 - [x] 6. `pax ask` and `pax api`.
-- [ ] 7. A real run on an ingested game, with Raúl's approval: a handful of questions, grounded rate.
+- [x] 7. The judge, with a planted lie to check it; `pax eval-archivist` (criteria 9-11).
+- [ ] 8. A real run on an ingested game, with Raúl's approval: a handful of questions, grounded rate.

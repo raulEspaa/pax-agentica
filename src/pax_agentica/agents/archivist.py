@@ -20,8 +20,8 @@ rulers' model does, and records it in Langfuse.
 
 import re
 import uuid
-from collections.abc import AsyncGenerator, Callable
-from dataclasses import dataclass
+from collections.abc import AsyncGenerator, Callable, Collection
+from dataclasses import dataclass, field
 from typing import Any
 
 from google.adk.agents import Agent, RunConfig
@@ -85,6 +85,7 @@ class Reply:
     citations: list[str]  # the titles it cited, in order, each once
     grounded: bool  # it cited something, and only chunks it retrieved in this conversation
     session: str
+    sources: dict[str, str] = field(default_factory=dict)  # each cited chunk it retrieved: text
 
 
 def citations(answer: str) -> list[str]:
@@ -92,7 +93,7 @@ def citations(answer: str) -> list[str]:
     return list(dict.fromkeys(m.strip() for m in _CITATION.findall(answer)))
 
 
-def grounded(cited: list[str], retrieved: list[str]) -> bool:
+def grounded(cited: list[str], retrieved: Collection[str]) -> bool:
     """An answer is grounded when it cites something and every citation was retrieved."""
     return bool(cited) and set(cited) <= set(retrieved)
 
@@ -209,11 +210,11 @@ class Archivist:
             The chunks that best match, best first, each with the title to cite it by.
         """
         hits = self._search(question, tool_context.state.get("game"))
-        tool_context.state["retrieved"] = [
-            *tool_context.state.get("retrieved", []),
-            *(h.title for h in hits),
-        ]
         chunks = [{"title": h.title, "text": h.text[:MAX_CHUNK_CHARS]} for h in hits]
+        # What it has read, by title: to check its citations, and for a judge to read them.
+        tool_context.state["retrieved"] = tool_context.state.get("retrieved", {}) | {
+            c["title"]: c["text"] for c in chunks
+        }
         return {"chunks": chunks} if chunks else {"chunks": [], "note": "nothing found"}
 
     async def ask(
@@ -229,7 +230,7 @@ class Archivist:
                 app_name=APP,
                 user_id=VISITOR,
                 session_id=session,
-                state={"game": game, "retrieved": []},
+                state={"game": game, "retrieved": {}},
             )
         with self._tracer.archivist(question, session, ARCHIVIST_PROMPT_VERSION) as step:
             answer = ""
@@ -242,9 +243,10 @@ class Archivist:
                 if event.is_final_response() and event.content and event.content.parts:
                     answer = "".join(p.text or "" for p in event.content.parts if not p.thought)
             done = await self._session(session)
-            retrieved = list(done.state.get("retrieved", [])) if done else []
+            retrieved: dict[str, str] = dict(done.state.get("retrieved", {})) if done else {}
             cited = citations(answer)
-            reply = Reply(answer.strip(), cited, grounded(cited, retrieved), session)
+            sources = {t: retrieved[t] for t in cited if t in retrieved}
+            reply = Reply(answer.strip(), cited, grounded(cited, retrieved), session, sources)
             step.update(
                 output={"answer": reply.answer, "citations": cited, "grounded": reply.grounded},
                 level="DEFAULT" if reply.grounded else "WARNING",

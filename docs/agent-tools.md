@@ -103,6 +103,15 @@ what to search, up to six model calls a question. A reply says whether it is `gr
 something, and only chunks it really retrieved. `POST /ask` takes `question`, and optionally
 `game` and the `session` of the last reply to follow on from it.
 
+```bash
+uv run --env-file .env pax eval-archivist replays/seed1.json --budget 0.25
+```
+
+Asks eight questions about an ingested game and scores each reply by rules (`grounded`,
+`cites_expected`) and by an LLM judge (`faithfulness`: do the cited chunks say what the answer
+says?). The judge is checked too: given each answer with a planted false claim, `catches_lie` is
+the share it catches.
+
 ## Evaluating plans
 
 ```bash
