@@ -60,6 +60,7 @@ mapgen = [
 ]
 # The AI rulers. A group of its own, so that the image of the multiplayer tables goes without.
 ai = [
+    "google-adk>=2.13",
     "google-genai>=2.34.0",
     "langfuse>=5.0.1",
     "langgraph>=1.2.0",
@@ -69,3 +70,7 @@ ai = [
 
 [tool.uv]
 default-groups = ["dev", "ai"]
+# google-adk caps OpenTelemetry at 1.44 while langfuse 5 needs 1.45: a cautious cap, not a known
+# break (ADK only uses the stable tracing API). Lifting it keeps both on the same OTel, so one
+# trace can hold the council and the Archivist. Drop this when ADK raises its cap.
+override-dependencies = ["opentelemetry-api>=1.45,<2", "opentelemetry-sdk>=1.45,<2"]

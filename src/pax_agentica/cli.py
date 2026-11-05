@@ -23,7 +23,8 @@ from pax_agentica.players.random_bot import RandomBot
 from pax_agentica.runner import GameRecord, TurnRecord, run_game
 
 if TYPE_CHECKING:
-    from pax_agentica.agents.archive import Archive
+    from pax_agentica.agents.archive import Archive, Hit
+    from pax_agentica.agents.archivist import Archivist
     from pax_agentica.agents.embeddings import Embedder
 
 BOTS = {"greedy": GreedyBot, "random": RandomBot}
@@ -65,6 +66,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "ingest": _ingest,
         "search": _search,
         "recall": _recall,
+        "ask": _ask,
+        "api": _api,
     }[args.command]
     return handler(args)
 
@@ -167,6 +170,16 @@ def _parser() -> argparse.ArgumentParser:
     recall = sub.add_parser("recall", help="measure each kind of search on known questions")
     recall.add_argument("game", type=Path, help="an ingested game record, to ask about")
     _add_archive_options(recall)
+    ask = sub.add_parser("ask", help="ask the Archivist about finished games, with citations")
+    ask.add_argument("question")
+    ask.add_argument("--game", help="only this game (and the rules)")
+    ask.add_argument("--model", help="the Archivist's model (default: the cheapest fit)")
+    _add_archive_options(ask)
+    api = sub.add_parser("api", help="serve the Archivist over HTTP: POST /ask")
+    api.add_argument("--host", default="127.0.0.1")
+    api.add_argument("--port", type=int, default=8001)
+    api.add_argument("--model", help="the Archivist's model (default: the cheapest fit)")
+    _add_archive_options(api)
 
     host = sub.add_parser("host", help="host tables where several people play, each a nation")
     host.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to let your network in")
@@ -530,6 +543,48 @@ def _recall(args: argparse.Namespace) -> int:
     for mode, share in recall(archive, embedder, questions).items():
         print(f"  {mode:<8}{share:>6.0%}")
     _report_spending(budget)
+    return 0
+
+
+def _archivist(args: argparse.Namespace) -> tuple["Archivist", Budget]:
+    """The Archivist on the archive, with one budget for its model and the embeddings."""
+    from pax_agentica.agents.archivist import Archivist, Metered
+    from pax_agentica.agents.gemini import DEFAULT_MODEL
+
+    archive, embedder, budget = _archive_tools(args)
+    if budget is None:
+        raise SystemExit("the Archivist spends real money: say how much with --budget USD")
+    tracer = Tracer.from_env()
+    try:
+        model = Metered.gemini(args.model or DEFAULT_MODEL, budget, tracer)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+    def search(question: str, game: str | None) -> list["Hit"]:
+        return archive.search(question, embedder, game=game)
+
+    return Archivist(search, model, tracer), budget
+
+
+def _ask(args: argparse.Namespace) -> int:
+    archivist, budget = _archivist(args)
+    reply = asyncio.run(archivist.ask(args.question, game=args.game))
+    print(reply.answer)
+    print(f"\ngrounded: {reply.grounded}; cited: {', '.join(reply.citations) or 'nothing'}")
+    _report_spending(budget)
+    return 0
+
+
+def _api(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from pax_agentica.api import create_app
+
+    archivist, budget = _archivist(args)
+    try:
+        uvicorn.run(create_app(archivist), host=args.host, port=args.port)
+    finally:
+        _report_spending(budget)
     return 0
 
 
