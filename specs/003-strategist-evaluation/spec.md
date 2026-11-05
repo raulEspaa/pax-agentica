@@ -28,6 +28,24 @@ one dataset, so runs with other settings sit side by side.
    experiment run named after the model, the thinking level and the prompt version, with its
    scores and its model call traced, and the averages and the spending are printed.
 
+## Results, 2026-11-05 (prompt `strategist-1`, 20 situations each)
+
+| Run | valid | real_names | consistent | reachable | Median latency | Thinking tokens (median) | Cost |
+|---|---|---|---|---|---|---|---|
+| 3.1-flash-lite, low | 85% | 94% | 94% | 100% | 3.4 s | 122 | $0.062 |
+| 3.1-flash-lite, high | 100% | 95% | 90% | 98% | 9.2 s | 1,839 | $0.072 |
+| 3.5-flash-lite, low | 85% | 100% | 100% | 97% | 2.3 s | 0 | $0.083 |
+
+`keeps_treaties` was 100% everywhere. Costs are at paid-tier prices; the free tier billed nothing.
+
+- **Every invalid answer was the provider's, not the model's:** 5 rate limits (15 requests a minute on
+  the free tier) and 2 overloads (503). Fixed with `CALLS_PER_MINUTE` in the client.
+- **The rules do not tell these settings apart:** the gaps are one plan in twenty. More thinking costs
+  three times the latency for nothing measurable.
+- **Decision:** keep `gemini-3.1-flash-lite` with `low` as the default (cheapest, fast). Move to
+  `gemini-3.5-flash-lite` before 3.1 shuts down on 2027-05-07; at `low` it does not think at all.
+- No error message held the API key: the check left open in spec 002 is closed.
+
 ## Out of scope
 
 - An LLM judge of strategic sense: added only if the rules stop telling settings apart.

@@ -6,6 +6,7 @@ that the game can run without the SDK installed.
 """
 
 import asyncio
+from collections import deque
 from dataclasses import dataclass
 from typing import cast
 
@@ -44,6 +45,10 @@ DEFAULT_THINKING = "low"
 # A hard stop on the answer, thinking included. A plan needs under 200 tokens: the rest is thinking.
 MAX_OUTPUT_TOKENS = 4096
 MAX_CONCURRENT_CALLS = 4
+# The free tier allows 15 requests a minute per model, and the SDK's hidden retry is one more:
+# 12 calls in any minute leaves room for it. The first real evaluations lost 6 calls of 60 to 429s.
+CALLS_PER_MINUTE = 12
+_WINDOW_SECONDS = 60.0
 _SENDS_PER_CALL = 2  # see new_client
 _CHARACTERS_PER_TOKEN_AT_LEAST = 2  # tokens run nearer 4 characters: this errs on the safe side
 
@@ -78,6 +83,7 @@ class GeminiModel:
         model: str = DEFAULT_MODEL,
         thinking: str = DEFAULT_THINKING,
         tracer: Tracer | None = None,
+        calls_per_minute: int = CALLS_PER_MINUTE,
     ) -> None:
         if model not in PRICES:
             raise ValueError(f"no price for {model!r}: add it to PRICES first")
@@ -88,6 +94,22 @@ class GeminiModel:
         self._price = PRICES[model]
         self._thinking = thinking
         self._slots = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
+        self._calls_per_minute = calls_per_minute
+        self._recent: deque[float] = deque()  # when the calls of the last minute started
+        self._pacing = asyncio.Lock()
+
+    async def _wait_for_a_turn(self) -> None:
+        """Wait until fewer than `calls_per_minute` calls started in the last minute.
+
+        A window and not a fixed gap: nine crowns asking at once in the first year go at once."""
+        async with self._pacing:
+            loop = asyncio.get_running_loop()
+            while len(self._recent) >= self._calls_per_minute:
+                wait = self._recent[0] + _WINDOW_SECONDS - loop.time()
+                if wait > 0:
+                    await asyncio.sleep(wait)
+                self._recent.popleft()
+            self._recent.append(loop.time())
 
     async def write_plan(self, request: PlanRequest) -> Plan:
         settings: dict[str, str | int] = {
@@ -95,6 +117,7 @@ class GeminiModel:
             "max_output_tokens": MAX_OUTPUT_TOKENS,
         }
         async with self._slots:
+            await self._wait_for_a_turn()
             worst = worst_cost(request, self._price)
             self._budget.reserve(worst)
             with self._tracer.call(self._model, request, settings) as step:

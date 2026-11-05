@@ -189,6 +189,28 @@ def test_a_failed_call_is_an_error_in_its_trace_and_costs_the_worst(
     assert costs == {"total": pytest.approx(gemini.worst_cost(REQUEST, PRICE))}
 
 
+def test_no_more_calls_start_in_a_minute_than_allowed(
+    stub: Stub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(gemini, "_WINDOW_SECONDS", 0.3)  # a short minute, for the test
+    model = GeminiModel(stub.client(), Budget(1.0), calls_per_minute=2)
+
+    async def three() -> list[float]:
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+
+        async def one() -> float:
+            await model.write_plan(REQUEST)
+            return loop.time() - start
+
+        return sorted(await asyncio.gather(one(), one(), one()))
+
+    _, second, third = asyncio.run(three())
+
+    assert second < 0.3  # two at once
+    assert third >= 0.3  # the third waits for the window
+
+
 def test_a_model_without_a_known_price_is_refused(stub: Stub) -> None:
     with pytest.raises(ValueError, match="no price"):
         GeminiModel(stub.client(), Budget(1.0), model="gemini-unheard-of")
