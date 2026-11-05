@@ -119,7 +119,8 @@ def evaluator(judge_model: Writer) -> Callable[..., Coroutine[Any, Any, list[dic
                     }
                 )
         except Exception as exc:  # a judge that fails gives no score, rather than a wrong one
-            scores.append({"name": "judge_error", "value": 1.0, "comment": str(exc)[:300]})
+            why = f"{type(exc).__name__} {' '.join(str(exc).split())}"[:300]
+            scores.append({"name": "judge_error", "value": 1.0, "comment": why})
         return scores
 
     return evaluate
