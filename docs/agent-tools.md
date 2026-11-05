@@ -90,6 +90,19 @@ Cuts games and the rules into chunks, embeds them with `gemini-embedding-001` an
 Postgres; `search` finds them by meaning, by word or both, and `recall` measures each
 ([spec 005](../specs/005-archive/spec.md)). `--embedder word-hash` is a free offline stand-in.
 
+## The Archivist
+
+```bash
+uv run --env-file .env pax ask "why did France attack Spain?" --game seed1 --budget 0.05
+uv run --env-file .env pax api --budget 0.20     # POST http://127.0.0.1:8001/ask
+```
+
+An ADK agent that answers questions about finished games from the archive, citing each claim by
+the title of its chunk ([spec 006](../specs/006-archivist/spec.md)). It decides itself when and
+what to search, up to six model calls a question. A reply says whether it is `grounded`: it cited
+something, and only chunks it really retrieved. `POST /ask` takes `question`, and optionally
+`game` and the `session` of the last reply to follow on from it.
+
 ## Evaluating plans
 
 ```bash

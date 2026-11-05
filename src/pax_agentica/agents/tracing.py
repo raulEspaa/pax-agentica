@@ -120,17 +120,51 @@ class Tracer:
         self, model: str, request: PlanRequest, parameters: Mapping[str, str | int]
     ) -> Iterator[Step]:
         """One call to a model, inside the plan it belongs to."""
+        messages = [
+            {"role": "system", "content": request.system},
+            {"role": "user", "content": request.user},
+        ]
+        with self.generation("gemini", model, messages, parameters) as step:
+            yield step
+
+    @contextmanager
+    def generation(
+        self,
+        name: str,
+        model: str,
+        messages: list[dict[str, Any]],
+        parameters: Mapping[str, str | int],
+    ) -> Iterator[Step]:
+        """One call to a model, inside whatever step is current."""
         if self._langfuse is None:
             yield _Nothing()
             return
         with self._langfuse.start_as_current_observation(
-            name="gemini",
+            name=name,
             as_type="generation",
             model=model,
             model_parameters=dict(parameters),
-            input=[
-                {"role": "system", "content": request.system},
-                {"role": "user", "content": request.user},
-            ],
+            input=messages,
         ) as step:
+            yield step
+
+    @contextmanager
+    def archivist(self, question: str, session: str, version: str) -> Iterator[Step]:
+        """The root of a trace: one question to the Archivist. A conversation is a session."""
+        if self._langfuse is None:
+            yield _Nothing()
+            return
+        from langfuse import propagate_attributes
+
+        with (
+            self._langfuse.start_as_current_observation(
+                name="archivist", as_type="agent", input={"question": question}
+            ) as step,
+            propagate_attributes(
+                trace_name="archivist",
+                session_id=session,
+                version=version,
+                tags=["archivist"],
+            ),
+        ):
             yield step
