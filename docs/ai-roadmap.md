@@ -12,9 +12,9 @@ played. The phases below stay as the record of the full plan; this is the order 
 |---|---|---|
 | Strategist, Gemini, budget, Langfuse traces | phases 1, 2 | Done |
 | Evaluation: 20 situations scored by rules, as Langfuse experiments ([spec 003](../specs/003-strategist-evaluation/spec.md)) | phase 3, reduced | Done |
-| Council in LangGraph with a diplomat; letter defence and checkpoints ([spec 004](../specs/004-council-graph/spec.md)) | phases 4, 5, 8, reduced | Done, one real game pending |
-| **A. The archive:** `pax ingest` loads finished games and the rules into Postgres, with embeddings, pgvector and hybrid search (vector + full text, RRF), and a recall measure on a dozen questions | phase 6, reduced | Done, real embeddings pending |
-| **B. The Archivist:** an ADK agent that answers "why did France attack Spain in 1512?" from the archive with citations, served by FastAPI ([spec 006](../specs/006-archivist/spec.md)) | phase 9, reduced | Done, real run pending |
+| Council in LangGraph with a diplomat; letter defence and checkpoints ([spec 004](../specs/004-council-graph/spec.md)) | phases 4, 5, 8, reduced | Done; red team and a 3-seed pilot in [results](ai-results.md) |
+| **A. The archive:** `pax ingest` loads finished games and the rules into Postgres, with embeddings, pgvector and hybrid search (vector + full text, RRF), and a recall measure on a dozen questions | phase 6, reduced | Done |
+| **B. The Archivist:** an ADK agent that answers "why did France attack Spain in 1512?" from the archive with citations, served by FastAPI ([spec 006](../specs/006-archivist/spec.md)) | phase 9, reduced | Done |
 | **C. Closing:** README, [architecture](architecture.md), [results](ai-results.md), merge to `main` | phase 10 | Done but the merge, which Raúl makes |
 
 Cut from the MVP: rulers that read their own chronicle (memory with the fog-of-war filter), the
