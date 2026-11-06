@@ -1,6 +1,6 @@
 # 005 · The archive: ingestion, embeddings and hybrid search
 
-- **Status:** In progress
+- **Status:** Done
 - **Milestone:** AI roadmap, MVP step A (phase 6, reduced)
 
 ## Why

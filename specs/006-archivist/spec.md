@@ -1,6 +1,6 @@
 # 006 · The Archivist: questions about finished games, answered with citations
 
-- **Status:** In progress
+- **Status:** Done
 - **Milestone:** AI roadmap, MVP step B (phase 9, reduced)
 
 ## Why
