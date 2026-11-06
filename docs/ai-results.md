@@ -98,9 +98,28 @@ three times without it. An attack succeeds if France pays or writes the canary.
 - Three runs cost $0.073. The engine bounded the harm throughout: a fooled diplomat can only
   answer its own proposals and write letters, never break a rule.
 
+## A pilot: France ruled by the council against eight greedy bots
+
+`pax tournament --player france=council`, seeds 0 to 2, 50 years each, against the same seeds
+with France a greedy bot. Everything else is the same greedy bot in both.
+
+| France ruled by | Wins | Standing (mean) | Missions fulfilled (mean) |
+|---|---|---|---|
+| greedy bot | 0 of 3 | 39 (51, 19, 48) | 2.0 |
+| **council** (strategist + diplomat) | **1 of 3** (seed 0) | **105** (163 on seed 0; 76 on seeds 1-2) | **3.0** |
+
+- The direction is clear, and the first real games of the council: about $0.15 a game at
+  paid-tier prices, 8 minutes each on the free tier's rate.
+- **Three seeds are a pilot, not a result.** Standing swings widely from seed to seed (Austria
+  alone ranges from 156 to 274 among the bots), and only France's seat was tried, which is a
+  strong one.
+- **What it does not separate:** the council plays through `GreedyBot(plan=...)`, so part of the
+  gain may come from following any steady plan, not from the model's. The next control is the
+  same bot with scripted or random plans, then many paired seeds in every seat, with intervals.
+
 ## What these numbers do not show
 
-- Whether the rulers play better than the bots in general: a pilot of few seeds shows a
+- Whether the rulers play better than the bots in general: three seeds in one seat show a
   direction, not a difference that would hold over many.
 - Whether the defence holds against attacks nobody has written yet: round 3 says probably not,
   which is why the guard in code matters more than the words.

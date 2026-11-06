@@ -1,6 +1,6 @@
 # 004 · The council as a LangGraph graph
 
-- **Status:** In progress
+- **Status:** Done
 - **Milestone:** AI roadmap, phase 4 (with phase 5's letter defence and phase 8's checkpoints folded in)
 
 ## Why
