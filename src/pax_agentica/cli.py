@@ -6,7 +6,7 @@ import json
 import os
 import sys
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -19,6 +19,7 @@ from pax_agentica.engine import EventKind, GameState, NationView, Orders, new_ga
 from pax_agentica.players import Player
 from pax_agentica.players.greedy_bot import GreedyBot
 from pax_agentica.players.plan import Plan
+from pax_agentica.players.planned import RandomPlanBot, SteadyBot
 from pax_agentica.players.random_bot import RandomBot
 from pax_agentica.runner import GameRecord, TurnRecord, run_game
 
@@ -28,7 +29,13 @@ if TYPE_CHECKING:
     from pax_agentica.agents.embeddings import Embedder
     from pax_agentica.agents.gemini import RateWindow
 
-BOTS = {"greedy": GreedyBot, "random": RandomBot}
+# steady and random-plan: the greedy bot with plans no model wrote, the controls for the council
+BOTS: dict[str, Callable[[int], Player]] = {
+    "greedy": GreedyBot,
+    "random": RandomBot,
+    "steady": SteadyBot,
+    "random-plan": RandomPlanBot,
+}
 STRATEGIST = "strategist"  # needs a model and a budget, so it is not one of the BOTS
 COUNCIL = "council"  # the strategist and a diplomat, as a LangGraph graph
 RUN = datetime.now().strftime("%Y%m%d-%H%M%S")  # names this run's games in the traces
