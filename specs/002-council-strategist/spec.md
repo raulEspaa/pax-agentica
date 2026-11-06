@@ -1,6 +1,6 @@
 # 002 · The strategist: a monarch who rules by plan
 
-- **Status:** Ready
+- **Status:** Done
 - **Milestone:** M2 (the Royal Council, phases 1–2)
 - **Author:** Claude Code, at Raúl's request, from his decisions (2026-10-20)
 

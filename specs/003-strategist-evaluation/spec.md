@@ -1,6 +1,6 @@
 # 003 · Evaluating the strategist
 
-- **Status:** In progress
+- **Status:** Done
 - **Milestone:** AI roadmap, phase 3 (reduced on 2026-11-05)
 
 ## Why
