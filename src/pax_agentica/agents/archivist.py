@@ -46,7 +46,10 @@ VISITOR = "visitor"
 
 MAX_MODEL_CALLS = 6  # per question: a few searches and the answer, never a loop that spends
 MAX_OUTPUT_TOKENS = 2048
-MAX_CHUNK_CHARS = 1500  # of each chunk shown to the model
+# Of each chunk shown to the model: above any chunk the ingest makes (the longest in a 50-year
+# game is 2,739). At 1,500 it hid the end of the busiest years, and with it two successions the
+# search had found: the model read "the archive does not say".
+MAX_CHUNK_CHARS = 4000
 _CHARACTERS_PER_TOKEN_AT_LEAST = 2  # as for the plans: the estimate errs on the safe side
 _SENDS_PER_CALL = 2  # the SDK retries a failed send once, and that send is paid for too
 

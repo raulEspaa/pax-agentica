@@ -240,3 +240,21 @@ def test_the_api_refuses_questions_too_long() -> None:
     response = TestClient(create_app(agent)).post("/ask", json={"question": "x" * 501})
 
     assert response.status_code == 422
+
+
+def test_a_long_chunk_reaches_the_model_whole() -> None:
+    news = "\n".join(f"Minor news {i}." for i in range(150)) + "\nIvan IV takes the throne."
+    long = Hit("g1, 1532", "g1, 1532", news, "game:g1", "year", 1532, None, 1.0)
+    model = Scripted(model="scripted", script=search_then("Ivan IV [g1, 1532]."))
+    agent = Archivist(lambda q, g: [long], model)
+
+    asyncio.run(agent.ask("Who took the throne of Russia in 1532?"))
+
+    shown = next(
+        p.function_response.response
+        for c in model.requests[1].contents
+        for p in c.parts or []
+        if p.function_response and p.function_response.response
+    )
+    assert len(news) > 1500
+    assert shown["chunks"][0]["text"].endswith("Ivan IV takes the throne.")
