@@ -106,6 +106,8 @@ with France a greedy bot. Everything else is the same greedy bot in both.
 | France ruled by | Wins | Standing (mean) | Missions fulfilled (mean) |
 |---|---|---|---|
 | greedy bot | 0 of 3 | 39 (51, 19, 48) | 2.0 |
+| greedy bot with one fixed plan (`steady`), control | 0 of 3 | 35 | 2.0 |
+| greedy bot with a random plan every second year (`random-plan`), control | 0 of 3 | 40 | 1.7 |
 | **council** (strategist + diplomat) | **1 of 3** (seed 0) | **105** (163 on seed 0; 76 on seeds 1-2) | **3.0** |
 
 - The direction is clear, and the first real games of the council: about $0.15 a game at
@@ -113,9 +115,11 @@ with France a greedy bot. Everything else is the same greedy bot in both.
 - **Three seeds are a pilot, not a result.** Standing swings widely from seed to seed (Austria
   alone ranges from 156 to 274 among the bots), and only France's seat was tried, which is a
   strong one.
-- **What it does not separate:** the council plays through `GreedyBot(plan=...)`, so part of the
-  gain may come from following any steady plan, not from the model's. The next control is the
-  same bot with scripted or random plans, then many paired seeds in every seat, with intervals.
+- **The controls rule out the plan-following bot.** The council plays through
+  `GreedyBot(plan=...)`, so the gain could have come from following any plan. The same bot with a
+  fixed plan or a random one (`players/planned.py`, on 2026-11-06, $0) scores like the plain bot
+  (35 and 40 against 39), so on these seeds the gain is the model's plans, not the machinery.
+- What is still missing: many paired seeds in every seat, with intervals.
 
 ## What these numbers do not show
 

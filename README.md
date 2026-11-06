@@ -1,7 +1,9 @@
 # Pax Agentica
 
-**A strategy game where every nation is ruled by an AI agent.** They produce, trade, sign pacts,
-betray each other and go to war. You watch history unfold, and one day you take a throne yourself.
+**A strategy game built as an arena for AI rulers.** Nine crowns of Europe in 1500 produce,
+trade, sign pacts, betray each other and go to war. Today an AI council (a strategist and a
+diplomat on Gemini, in LangGraph) rules a throne against rule-based bots, and an AI archivist
+answers questions about the games with citations. You can take a throne yourself.
 
 [![CI](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml/badge.svg)](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml)
 ![Status](https://img.shields.io/badge/status-AI%20rulers%20%C2%B7%20RAG%20%C2%B7%20evals-b8860b)
@@ -11,7 +13,7 @@ betray each other and go to war. You watch history unfold, and one day you take 
 
 ## The idea
 
-A map of regions. A handful of nations, each governed by an AI with its own personality: the
+Where it is going: a map of regions, every nation governed by an AI with its own personality: the
 warmonger, the merchant, the schemer. Every turn they read **only what their nation can see**,
 talk to each other in plain language, propose treaties, and choose their moves. Pacts are
 promises, not rules: a nation can break one, and the others will remember.
@@ -94,11 +96,20 @@ Each milestone ends with something you can run and watch. It's built in order, o
 | 4 | **Diplomacy** | A LangGraph council: the strategist and a diplomat that answers letters, defended against prompt injection | ✅ |
 | 5 | **The archive and the Archivist** | Finished games in pgvector with hybrid search; an ADK agent answers questions about them with citations, checked by an LLM judge | ✅ |
 | 6 | **Memory** | Nations remember who betrayed them, from their own chronicle | |
-| 7 | **Tournaments** | Many seeded games: which rulers win, who keeps their word, what it costs | |
+| 7 | **Tournaments** | Many seeded games: which rulers win, who keeps their word, what it costs | A pilot: 3 seeds, with controls |
 | 8 | **Online** | Deployed, and you can play as one of the nations | ✅ the tables; the AI later |
 
 The AI part, piece by piece: [architecture](docs/architecture.md), [results](docs/ai-results.md),
-[plan](docs/ai-roadmap.md).
+[plan](docs/ai-roadmap.md). What has been measured so far, on small samples:
+
+- **Hybrid search** finds the right chunk in the first five for 83% of the questions, against 72%
+  with vectors alone and 33% with keywords alone.
+- **The Archivist** cites only what it retrieved in every answer, and an LLM judge rates 94% of
+  them faithful to their sources; the judge itself is checked with planted lies (7 of 7 caught).
+- **A red team** of nine hostile letters: the prompt defence stopped every attack it was tuned on
+  and not every new one, so a guard in code now makes a forced tribute impossible.
+- **A three-seed pilot:** France ruled by the council averaged a standing of 105 and won once;
+  the greedy bot averaged 39, and the same bot following fixed or random plans did no better.
 
 ## How it's built
 
@@ -138,10 +149,13 @@ that calls a model takes a `--budget` in dollars and stops before it would pass 
 
 ```bash
 uv run --env-file .env pax tournament --games 1 --player france=council --budget 0.25
+uv run pax tournament --games 3 --player france=random-plan     # a control: plans no model wrote, $0
 uv run --env-file .env pax eval --budget 0.50                  # score the strategist's plans
 uv run --env-file .env pax ingest replays/seed1.json --budget 0.05   # a game into the archive
 uv run --env-file .env pax ask "why did England attack France?" --game seed1 --budget 0.05
 uv run --env-file .env pax api --budget 0.20                   # the Archivist: POST /ask
+uv run --env-file .env pax eval-archivist replays/seed1.json --budget 0.10   # answers, judged by an LLM
+uv run --env-file .env pax redteam --budget 0.10               # hostile letters against the diplomat
 ```
 
 ## Repository map
@@ -149,7 +163,7 @@ uv run --env-file .env pax api --budget 0.20                   # the Archivist: 
 | Path | What |
 |------|------|
 | `src/pax_agentica/engine/` | The rules: map, economy, war, diplomacy, fog of war (pure, no I/O) |
-| `src/pax_agentica/players/` | The `Player` protocol and the baseline bots |
+| `src/pax_agentica/players/` | The `Player` protocol, the baseline bots and the council's controls |
 | `src/pax_agentica/runner.py`, `cli.py` | The game loop and the `pax` command |
 | `src/pax_agentica/server.py`, `web/` | Play a nation in the browser; the shared map code and the replay |
 | `src/pax_agentica/data/`, `scripts/build_map.py` | The map of Europe, built from real geography (`make map`) |
