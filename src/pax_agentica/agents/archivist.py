@@ -37,7 +37,7 @@ from pydantic import ConfigDict
 
 from pax_agentica.agents.archive import Hit
 from pax_agentica.agents.budget import Budget
-from pax_agentica.agents.gemini import PRICES, Price
+from pax_agentica.agents.gemini import PRICES, Price, RateWindow
 from pax_agentica.agents.tracing import Tracer
 
 ARCHIVIST_PROMPT_VERSION = "archivist-1"
@@ -113,17 +113,26 @@ class Metered(BaseLlm):
     budget: Budget
     price: Price
     tracer: Tracer
+    window: RateWindow
 
     @classmethod
-    def gemini(cls, name: str, budget: Budget, tracer: Tracer | None = None) -> "Metered":
-        """Gemini by name, with the key in GEMINI_API_KEY (ADK builds its own client)."""
+    def gemini(
+        cls,
+        name: str,
+        budget: Budget,
+        tracer: Tracer | None = None,
+        window: RateWindow | None = None,
+    ) -> "Metered":
+        """Gemini by name, with the key in GEMINI_API_KEY (ADK builds its own client).
+
+        Pass the `window` of anything else that calls the same model in this run."""
         if name not in PRICES:
             raise ValueError(f"no price for {name!r}: add it to PRICES first")
         from google.adk.models import Gemini
 
         return cls(
             model=name, inner=Gemini(model=name), budget=budget, price=PRICES[name],
-            tracer=tracer or Tracer(),
+            tracer=tracer or Tracer(), window=window or RateWindow(),
         )  # fmt: skip
 
     @property
@@ -133,6 +142,7 @@ class Metered(BaseLlm):
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse]:
+        await self.window.turn()
         worst = self._worst_cost(llm_request)
         self.budget.reserve(worst)
         spent = worst  # until the answer says what it cost

@@ -75,6 +75,30 @@ def worst_cost(request: PlanRequest, price: Price, schema: type[BaseModel] = Pla
     return _SENDS_PER_CALL * price.cost(input_tokens, MAX_OUTPUT_TOKENS)
 
 
+class RateWindow:
+    """At most `calls_per_minute` calls started in any minute. The free tier counts calls per
+    model, so everything that calls one model in a run shares one window: the Archivist and its
+    judge, on the same model, would pass the limit with a window each.
+
+    A window and not a fixed gap: nine crowns asking at once in the first year go at once."""
+
+    def __init__(self, calls_per_minute: int = CALLS_PER_MINUTE) -> None:
+        self.calls_per_minute = calls_per_minute
+        self._recent: deque[float] = deque()  # when the calls of the last minute started
+        self._pacing = asyncio.Lock()
+
+    async def turn(self) -> None:
+        """Wait until a call may start."""
+        async with self._pacing:
+            loop = asyncio.get_running_loop()
+            while len(self._recent) >= self.calls_per_minute:
+                wait = self._recent[0] + _WINDOW_SECONDS - loop.time()
+                if wait > 0:
+                    await asyncio.sleep(wait)
+                self._recent.popleft()
+            self._recent.append(loop.time())
+
+
 class GeminiModel:
     """Writes plans and letters with a Gemini model. Make one per game: its limits belong to an
     event loop, and they are shared by every crown and every kind of answer."""
@@ -87,6 +111,7 @@ class GeminiModel:
         thinking: str = DEFAULT_THINKING,
         tracer: Tracer | None = None,
         calls_per_minute: int = CALLS_PER_MINUTE,
+        window: RateWindow | None = None,
     ) -> None:
         if model not in PRICES:
             raise ValueError(f"no price for {model!r}: add it to PRICES first")
@@ -97,22 +122,7 @@ class GeminiModel:
         self._price = PRICES[model]
         self._thinking = thinking
         self._slots = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
-        self._calls_per_minute = calls_per_minute
-        self._recent: deque[float] = deque()  # when the calls of the last minute started
-        self._pacing = asyncio.Lock()
-
-    async def _wait_for_a_turn(self) -> None:
-        """Wait until fewer than `calls_per_minute` calls started in the last minute.
-
-        A window and not a fixed gap: nine crowns asking at once in the first year go at once."""
-        async with self._pacing:
-            loop = asyncio.get_running_loop()
-            while len(self._recent) >= self._calls_per_minute:
-                wait = self._recent[0] + _WINDOW_SECONDS - loop.time()
-                if wait > 0:
-                    await asyncio.sleep(wait)
-                self._recent.popleft()
-            self._recent.append(loop.time())
+        self._window = window or RateWindow(calls_per_minute)
 
     async def write_plan(self, request: PlanRequest) -> Plan:
         return await self.write(request, Plan)
@@ -127,7 +137,7 @@ class GeminiModel:
             "max_output_tokens": MAX_OUTPUT_TOKENS,
         }
         async with self._slots:
-            await self._wait_for_a_turn()
+            await self._window.turn()
             worst = worst_cost(request, self._price, schema)
             self._budget.reserve(worst)
             with self._tracer.call(self._model, request, settings) as step:

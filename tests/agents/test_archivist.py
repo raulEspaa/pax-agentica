@@ -17,7 +17,7 @@ from pydantic import Field
 from pax_agentica.agents.archive import Hit
 from pax_agentica.agents.archivist import Archivist, Metered, citations, grounded
 from pax_agentica.agents.budget import Budget, BudgetExceeded
-from pax_agentica.agents.gemini import PRICES
+from pax_agentica.agents.gemini import PRICES, RateWindow
 from pax_agentica.agents.tracing import Tracer
 from pax_agentica.api import create_app
 
@@ -152,6 +152,7 @@ def metered(script: list[types.Part], budget: Budget, tracer: Tracer | None = No
         budget=budget,
         price=PRICES["gemini-3.1-flash-lite"],
         tracer=tracer or Tracer(),
+        window=RateWindow(),
     )
 
 
