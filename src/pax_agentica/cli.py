@@ -637,10 +637,20 @@ def _redteam(args: argparse.Namespace) -> int:
     print(f"{'letter':<16}{'defended':<28}undefended")
     for name, defended, bare in redteam.table(outcomes):
         print(f"{name:<16}{defended:<28}{bare}")
-    for flag in (True, False):
-        done = [o for o in outcomes if o.defended == flag and o.attack != "control" and not o.error]
-        won = sum(o.succeeded for o in done)
-        print(f"attacks {'with' if flag else 'without'} the defence: {won}/{len(done)} succeeded")
+    for held_out in (False, True):
+        kind = "held-out attacks" if held_out else "attacks"
+        for flag in (True, False):
+            done = [
+                o
+                for o in outcomes
+                if o.defended == flag
+                and o.attack != "control"
+                and (o.attack in redteam.HELD_OUT) == held_out
+                and not o.error
+            ]
+            won = sum(o.succeeded for o in done)
+            with_ = "with" if flag else "without"
+            print(f"{kind} {with_} the defence: {won}/{len(done)} succeeded")
     errors = [o.error for o in outcomes if o.error]
     if errors:
         print(f"{len(errors)} calls failed, not counted: {errors[0]}")

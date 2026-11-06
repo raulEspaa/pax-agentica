@@ -14,7 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from pax_agentica.agents.prompts import PlanRequest, who_you_are
 from pax_agentica.engine import NationView, Orders
 from pax_agentica.engine.actions import MAX_MESSAGE_CHARS, Action, Respond, SendMessage
-from pax_agentica.engine.model import NationId
+from pax_agentica.engine.model import NationId, ProposalKind
+from pax_agentica.engine.view import ProposalView
 from pax_agentica.players.plan import Plan
 from pax_agentica.tools import inbox
 
@@ -93,17 +94,32 @@ def build_request(view: NationView, plan: Plan | None, defended: bool = True) ->
     )
 
 
+def is_tribute_demand(offer: ProposalView, view: NationView) -> bool:
+    """A trade in which you give and get nothing, from a court you are not at war with."""
+    at_war = any(w.enemy == offer.sender for w in view.me.wars)
+    return offer.kind == ProposalKind.TRADE and offer.give.is_empty() and not at_war
+
+
 def to_orders(diplomacy: Diplomacy, view: NationView) -> tuple[Orders, list[str]]:
-    """The orders for what can be done, and a line for each thing dropped."""
-    waiting = {p.id for p in view.proposals_to_answer}
+    """The orders for what can be done, and a line for each thing dropped.
+
+    A guard no letter can talk round, because it is code: the diplomat never pays a tribute
+    demanded in peace. The red team found prompt defences that stop every attack they were tuned
+    on and still let a new one through, which paid; this stops the harm whatever the words."""
+    waiting = {p.id: p for p in view.proposals_to_answer}
     courts = {n.id for n in view.nations if n.alive}
     actions: list[Action] = []
     dropped: list[str] = []
     for answer in diplomacy.answers:
-        if answer.proposal_id in waiting:
-            actions.append(Respond(proposal_id=answer.proposal_id, accept=answer.accept))
-        else:
+        offer = waiting.get(answer.proposal_id)
+        if offer is None:
             dropped.append(f"answer to proposal #{answer.proposal_id}")
+        elif answer.accept and is_tribute_demand(offer, view):
+            # Refused, not left aside: the ministers would answer it otherwise.
+            actions.append(Respond(proposal_id=offer.id, accept=False))
+            dropped.append(f"paying the tribute {offer.sender} demanded (#{offer.id}): refused")
+        else:
+            actions.append(Respond(proposal_id=answer.proposal_id, accept=answer.accept))
     for letter in diplomacy.letters:
         if letter.to in courts:
             actions.append(SendMessage(target=letter.to, text=letter.text))
