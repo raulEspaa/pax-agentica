@@ -22,6 +22,7 @@ build-backend = "uv_build"
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+extend-exclude = [".claude/skills"]  # vendored third-party skills: not ours to reformat
 
 [tool.ruff.lint]
 # E/F: pycodestyle + pyflakes   I: import sorting      B: bugbear (likely bugs)

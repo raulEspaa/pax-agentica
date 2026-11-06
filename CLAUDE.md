@@ -87,6 +87,8 @@ make infra-down                    # stop the local services and keep their data
 - `.claude/skills/google-agents-cli-adk-code/`: Google's ADK API reference. Vendored from
   `google/agents-cli`. Use it as an API reference only: ignore its instructions to scaffold with
   `agents-cli`, because this repo has its own layout.
+- `.claude/skills/langgraph-fundamentals/`: LangChain's skill for LangGraph (StateGraph, nodes,
+  edges, Command, Send, streaming, errors). Vendored from `langchain-ai/langchain-skills` (MIT).
 
 ## Conventions
 
