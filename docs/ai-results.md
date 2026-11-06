@@ -51,7 +51,11 @@ archive above.
 
 - **It does not make things up.** Asked what the Aztec emperor wrote to France, it said the
   archive holds no such record. The two answers that were not `grounded` were the same honest
-  "the archive does not say", about two successions in Russia: a retrieval miss, not an invention.
+  "the archive does not say", about two successions in Russia.
+- **Those two misses were our bug, not the search's.** The search ranked the right year first,
+  but the Archivist showed the model only the first 1,500 characters of each chunk, and both
+  successions sat past them (at 1,842 and 2,446) in the busiest years. Chunks now reach the model
+  whole (up to 4,000 characters, above the longest the ingest makes), with a regression test.
 - **It separates what a ruler did from why.** "England went to war against France because it
   believed it outnumbered France on the border", cited from England's own thoughts of 1527.
 - **The judge's run failed on the provider's side:** `gemini-3.5-flash-lite` answered 503 (high
