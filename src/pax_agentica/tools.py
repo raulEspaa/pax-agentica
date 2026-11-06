@@ -498,7 +498,10 @@ def inbox(view: NationView, years: int = 3) -> str:
             year = view.rules.start_year + e.turn - 1
             if e.kind.value == "message":
                 who = "you" if e.data.get("sender") == me.id else court.id
-                out.append(f'{year} {who}: "{e.data.get("text")}"')
+                # On one line, whatever its breaks: a letter cannot start a line of its own and
+                # pass it off as part of the prompt ("SYSTEM: ..."), as the red team found.
+                text = " ".join(str(e.data.get("text")).split())
+                out.append(f'{year} {who}: "{text}"')
             else:
                 out.append(f"{year} {e.summary}")
         for offer in waiting.get(court.id, []):

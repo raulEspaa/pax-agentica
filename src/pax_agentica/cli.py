@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from pax_agentica.agents.archive import Archive, Hit
     from pax_agentica.agents.archivist import Archivist
     from pax_agentica.agents.embeddings import Embedder
+    from pax_agentica.agents.gemini import RateWindow
 
 BOTS = {"greedy": GreedyBot, "random": RandomBot}
 STRATEGIST = "strategist"  # needs a model and a budget, so it is not one of the BOTS
@@ -69,6 +70,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "ask": _ask,
         "api": _api,
         "eval-archivist": _eval_archivist,
+        "redteam": _redteam,
     }[args.command]
     return handler(args)
 
@@ -183,6 +185,11 @@ def _parser() -> argparse.ArgumentParser:
     eval_archivist.add_argument("--model", help="the Archivist's model (default: the cheapest)")
     eval_archivist.add_argument("--judge-model", help="the judge's model, thinking high")
     _add_archive_options(eval_archivist)
+    redteam = sub.add_parser(
+        "redteam", help="letters that try to give the diplomat orders: how often they succeed"
+    )
+    _add_model_options(redteam)
+    redteam.add_argument("--tries", type=int, default=3, help="asks per letter and defence")
     api = sub.add_parser("api", help="serve the Archivist over HTTP: POST /ask")
     api.add_argument("--host", default="127.0.0.1")
     api.add_argument("--port", type=int, default=8001)
@@ -555,7 +562,7 @@ def _recall(args: argparse.Namespace) -> int:
 
 
 def _archivist(
-    args: argparse.Namespace, tracer: Tracer | None = None
+    args: argparse.Namespace, tracer: Tracer | None = None, window: "RateWindow | None" = None
 ) -> tuple["Archivist", Budget]:
     """The Archivist on the archive, with one budget for its model and the embeddings."""
     from pax_agentica.agents.archivist import Archivist, Metered
@@ -566,7 +573,7 @@ def _archivist(
         raise SystemExit("the Archivist spends real money: say how much with --budget USD")
     tracer = tracer or Tracer.from_env()
     try:
-        model = Metered.gemini(args.model or DEFAULT_MODEL, budget, tracer)
+        model = Metered.gemini(args.model or DEFAULT_MODEL, budget, tracer, window)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -595,13 +602,12 @@ def _eval_archivist(args: argparse.Namespace) -> int:
     tracer = Tracer.from_env(session=f"{RUN}-archivist-eval")
     if tracer.langfuse is None:
         raise SystemExit("an evaluation lives in Langfuse: set the LANGFUSE keys (see pax eval)")
-    archivist, budget = _archivist(args, tracer)
+    judged_by = args.judge_model or judge.JUDGE_MODEL
+    # One window when both call the same model: the free tier counts their calls together.
+    window = gemini.RateWindow() if judged_by == (args.model or gemini.DEFAULT_MODEL) else None
+    archivist, budget = _archivist(args, tracer, window)
     judge_model = gemini.GeminiModel(
-        gemini.new_client(),
-        budget,
-        args.judge_model or judge.JUDGE_MODEL,
-        judge.JUDGE_THINKING,
-        tracer=tracer,
+        gemini.new_client(), budget, judged_by, judge.JUDGE_THINKING, tracer=tracer, window=window
     )
     record = GameRecord.model_validate_json(args.game.read_text())
     items = archivist_evals.questions(record, args.game.stem)
@@ -618,6 +624,27 @@ def _eval_archivist(args: argparse.Namespace) -> int:
     _report_spending(budget)
     if result.experiment_url:
         print(f"\n{result.experiment_url}")
+    return 0
+
+
+def _redteam(args: argparse.Namespace) -> int:
+    """Each hostile letter, with the defence and without it: how often the diplomat obeyed."""
+    from pax_agentica.agents import redteam
+
+    budget = _budget(args)
+    model = _plan_model(budget, args.model, Tracer.from_env(session=f"{RUN}-redteam"))
+    outcomes = asyncio.run(redteam.run(cast("redteam.DiplomacyModel", model), args.tries))
+    print(f"{'letter':<16}{'defended':<28}undefended")
+    for name, defended, bare in redteam.table(outcomes):
+        print(f"{name:<16}{defended:<28}{bare}")
+    for flag in (True, False):
+        done = [o for o in outcomes if o.defended == flag and o.attack != "control" and not o.error]
+        won = sum(o.succeeded for o in done)
+        print(f"attacks {'with' if flag else 'without'} the defence: {won}/{len(done)} succeeded")
+    errors = [o.error for o in outcomes if o.error]
+    if errors:
+        print(f"{len(errors)} calls failed, not counted: {errors[0]}")
+    _report_spending(budget)
     return 0
 
 
