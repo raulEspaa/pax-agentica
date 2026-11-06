@@ -15,12 +15,13 @@ played. The phases below stay as the record of the full plan; this is the order 
 | Council in LangGraph with a diplomat; letter defence and checkpoints ([spec 004](../specs/004-council-graph/spec.md)) | phases 4, 5, 8, reduced | Done; red team and a 3-seed pilot in [results](ai-results.md) |
 | **A. The archive:** `pax ingest` loads finished games and the rules into Postgres, with embeddings, pgvector and hybrid search (vector + full text, RRF), and a recall measure on a dozen questions | phase 6, reduced | Done |
 | **B. The Archivist:** an ADK agent that answers "why did France attack Spain in 1512?" from the archive with citations, served by FastAPI ([spec 006](../specs/006-archivist/spec.md)) | phase 9, reduced | Done |
-| **C. Closing:** README, [architecture](architecture.md), [results](ai-results.md), merge to `main` | phase 10 | Done but the merge, which Raúl makes |
+| **C. Closing:** README, [architecture](architecture.md), [results](ai-results.md), merge to `main` | phase 10 | Done, merged on 2026-11-06 |
 
-Cut from the MVP: rulers that read their own chronicle (memory with the fog-of-war filter), the
-prompt-injection red team, MCP, a human in the loop, decisions streamed by SSE, the Postgres
-checkpointer, paired tournaments with bootstrap intervals, an LLM judge, and the written LangSmith
-comparison. Each is a later addition, not a missing piece.
+Cut from the MVP: rulers that read their own chronicle (memory with the fog-of-war filter), MCP, a
+human in the loop, decisions streamed by SSE, the Postgres checkpointer, paired tournaments with
+bootstrap intervals, and the written LangSmith comparison. Each is a later addition, not a missing
+piece. Two of the first cuts came back in small form: a red team against the diplomat and an LLM
+judge for the Archivist (see [results](ai-results.md)).
 
 ## Goals
 
