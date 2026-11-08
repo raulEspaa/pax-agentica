@@ -60,11 +60,15 @@ mapgen = [
     "shapely>=2.2.0",
 ]
 # The AI rulers. A group of its own, so that the image of the multiplayer tables goes without.
-ai = [
-    "google-adk>=2.13",
+# the AI council alone: what the public tables need to set it on a crown (see the Dockerfile)
+council = [
     "google-genai>=2.34.0",
-    "langfuse>=5.0.1",
     "langgraph>=1.2.0",
+]
+ai = [
+    { include-group = "council" },
+    "google-adk>=2.13",
+    "langfuse>=5.0.1",
     "pgvector>=0.4",
     "psycopg[binary]>=3.2",
 ]

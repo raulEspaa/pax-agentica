@@ -5,9 +5,10 @@ trade, sign pacts, betray each other and go to war. Today an AI council (a strat
 diplomat on Gemini, in LangGraph) rules a throne against rule-based bots, and an AI archivist
 answers questions about the games with citations. You can take a throne yourself.
 
-**▶ [Play it in your browser](https://pax-tables-clysgkcjqq-ew.a.run.app)**: no sign-up and no code. Open a table, pick a crown and
-play against the bots (the deployed tables run the game and its bots only; the AI council and
-the archivist run locally, see below).
+**▶ [Play it in your browser](https://pax-tables-clysgkcjqq-ew.a.run.app)**: no sign-up and no code. Open a table, pick a crown
+and set the AI council on a rival: it plans, answers your proposals and writes you letters (try
+to fool it). The rest are bots. The server spends at most $1 a day on the model; once that is
+gone, the council keeps its last plan and plays on. The archivist runs locally only.
 
 [![CI](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml/badge.svg)](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml)
 ![Status](https://img.shields.io/badge/status-AI%20rulers%20%C2%B7%20RAG%20%C2%B7%20evals-b8860b)

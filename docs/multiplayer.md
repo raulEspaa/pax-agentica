@@ -47,9 +47,18 @@ can open a table or take a seat, with no login and no code.
 
 Being open, it caps itself (`multiplayer.py`): at most **12 tables open at once** and **20 new
 tables in any hour**, counted for everyone together (a cap per address could be dodged by faking
-a header). Abandoned tables close after half an hour. The tables only run the game and its bots,
-which make no model calls, so nothing here spends on an LLM; the cost is the one Cloud Run
-instance, capped in [`deploy.md`](deploy.md).
+a header). Abandoned tables close after half an hour.
+
+**The AI council at a table.** Whoever opens a table may set the AI council (the strategist and
+the diplomat on Gemini, [`agents/council.py`](../src/pax_agentica/agents/council.py)) on up to two
+other crowns (`"ai": ["england"]`; the lobby offers one, an old rival of yours). It needs
+`GEMINI_API_KEY` and `PAX_AI_DAILY_USD` on the server
+([`agents/tables.py`](../src/pax_agentica/agents/tables.py)); without them the lobby does not
+offer it. One model and one **daily budget** serve every table, and what the day spent is saved
+beside the tables, so a restart does not hand the money out twice. When it is spent, new tables
+cannot ask for the council, and the councils already playing keep their last plan and play on
+through their bot: a game never stops for the budget. A 50-year game with one AI crown costs
+about $0.15, so $1 a day is about six games.
 
 To close it again, set `PAX_INVITE_CODE` (a secret in Secret Manager): see [`deploy.md`](deploy.md).
 

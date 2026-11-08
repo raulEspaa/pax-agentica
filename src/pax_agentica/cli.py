@@ -753,7 +753,14 @@ def _host(args: argparse.Namespace) -> int:
 
     from pax_agentica.multiplayer import create_lobby_app
 
-    app = create_lobby_app(args.saves)
+    ai = None
+    if os.environ.get("PAX_AI_DAILY_USD"):  # LangGraph and the SDK only on a server with AI
+        from pax_agentica.agents.tables import TableAI
+
+        ai = TableAI.from_env(args.saves)
+    app = create_lobby_app(args.saves, ai=ai)
+    if ai is not None:
+        print(f"The AI council may rule crowns: ${ai.budget.limit_usd:.2f} a day")
     print(f"Tables at http://{args.host}:{args.port}  (saved in {args.saves}; Ctrl+C to stop)")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning", proxy_headers=True)
     return 0

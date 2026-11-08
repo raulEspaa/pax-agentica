@@ -28,7 +28,7 @@ import secrets
 import time
 from importlib.resources import files
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
@@ -42,8 +42,12 @@ from pax_agentica.runner import GameRecord
 from pax_agentica.server import Session, add_assets, add_feedback
 from pax_agentica.viewer import europe_map, render_html, static_payload
 
+if TYPE_CHECKING:
+    from pax_agentica.agents.tables import TableAI
+
 MAX_TABLES = 12  # open at once: a 50-year game takes about 24 MB, the instance has 512
 NEW_PER_HOUR = 20  # tables opened in any hour, by everyone together
+MAX_AI = 2  # crowns at a table the AI council may rule
 NAME = re.compile(r"^[\w .'-]{1,24}$")
 IDLE_CLOSE = 3 * 24 * 3600.0  # the longest a table waits with nobody at it before it closes
 ABANDON_AFTER = 30 * 60.0  # with nobody at it this long (a game page polls every few seconds)
@@ -94,6 +98,7 @@ class TableMeta(BaseModel):
     deadline: float | None = None
     first_answer: float | None = None
     chat: list[ChatLine] = Field(default_factory=list)  # the table's talk, the last CHAT_KEPT
+    ai: list[NationId] = Field(default_factory=list)  # the crowns the AI council rules
 
 
 class TableFile(BaseModel):
@@ -108,6 +113,7 @@ class NewTable(BaseModel):
     turn_minutes: float | None = Field(default=None, ge=1, le=60 * 24)
     name: str = Field(max_length=24)
     nation: NationId
+    ai: list[NationId] = Field(default_factory=list, max_length=MAX_AI)
     code: str = ""
 
 
@@ -145,6 +151,7 @@ class Table:
                     "color": n.color,
                     "alive": n.alive,
                     "player": self.meta.seats[n.id].name if n.id in self.meta.seats else None,
+                    "ai": n.id in self.meta.ai and n.id not in self.meta.seats,
                 }
                 for n in state.nations.values()
             ],
@@ -172,9 +179,12 @@ class Lobby:
     """Every table on this server. Only a small summary of each is kept at hand; a table's
     game is read from its save when someone opens it, and let go after a while unvisited."""
 
-    def __init__(self, saves: Path, invite_code: str | None = None) -> None:
+    def __init__(
+        self, saves: Path, invite_code: str | None = None, ai: "TableAI | None" = None
+    ) -> None:
         self.saves = saves
         self.invite_code = invite_code
+        self.ai = ai  # the AI council, on a server with a model and a budget
         self.tables: dict[str, Table] = {}  # the tables in memory
         self.summaries: dict[str, dict[str, Any]] = {}  # every table, in brief
         self.seen: dict[str, float] = {}  # the save each table in memory was built from
@@ -206,6 +216,9 @@ class Lobby:
         seconds = meta.turn_minutes * 60 if meta.turn_minutes else None
         state = record.initial if record else new_game(meta.seed, max_turns=meta.max_turns)
         bots = _bots(meta.seed, list(state.nations), humans)
+        for nation in meta.ai:
+            if self.ai is not None and nation in bots:
+                bots[nation] = self.ai.ruler(meta.seed, meta.id, nation)
         if record is not None and record.turns:
             session = Session.resume(record, humans, bots, turn_seconds=seconds, names=names)
         else:
@@ -295,6 +308,9 @@ class Lobby:
         seed = req.seed if req.seed is not None else secrets.randbelow(1_000_000)
         if req.nation not in new_game(seed).nations:
             raise HTTPException(422, f"no great power called {req.nation!r}")
+        ai = list(dict.fromkeys(n for n in req.ai if n != req.nation))
+        if ai:
+            self.check_ai(ai, new_game(seed).nations)
         self.opened.append(now)
         meta = TableMeta(
             id=secrets.token_urlsafe(6),
@@ -304,6 +320,7 @@ class Lobby:
             turn_minutes=req.turn_minutes,
             created=now,
             last_active=now,
+            ai=ai,
         )
         token = secrets.token_urlsafe(16)
         meta.seats[req.nation] = Seat(name=req.name, token=token)
@@ -312,6 +329,17 @@ class Lobby:
         self._hook(table)
         table.session.save()
         return table, token
+
+    def check_ai(self, ai: list[NationId], nations: Any) -> None:
+        if self.ai is None:
+            raise HTTPException(422, "this server has no AI rulers: open the table without them")
+        if unknown := [n for n in ai if n not in nations]:
+            raise HTTPException(422, f"no great power called {unknown[0]!r}")
+        if not self.ai.status()["available"]:
+            raise HTTPException(
+                429,
+                "the AI has spent today's budget: open the table without it, or come back tomorrow",
+            )
 
     def join(self, table: Table, req: Join) -> str:
         self.check_code(req.code)
@@ -408,9 +436,11 @@ class Lobby:
                 del self.tables[table_id]
 
 
-def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
+def create_lobby_app(
+    saves: Path, invite_code: str | None = None, ai: "TableAI | None" = None
+) -> FastAPI:
     code = invite_code if invite_code is not None else os.environ.get("PAX_INVITE_CODE")
-    lobby = Lobby(saves, code)
+    lobby = Lobby(saves, code, ai)
     powers = [{"id": n.id, "name": n.name, "color": n.color} for n in new_game(1).nations.values()]
     app = FastAPI(title="Pax Agentica tables", docs_url=None, redoc_url=None)
     app.add_middleware(GZipMiddleware, minimum_size=1000)  # a game's view is mostly JSON
@@ -434,7 +464,13 @@ def create_lobby_app(saves: Path, invite_code: str | None = None) -> FastAPI:
                 pass  # a table whose clock ran out moves on, and saves its summary
         lobby.sweep()
         listed = sorted(lobby.summaries.values(), key=lambda s: -(s.get("created") or 0))
-        return {"code_required": bool(lobby.invite_code), "powers": powers, "tables": listed}
+        ai = lobby.ai.status() if lobby.ai else {"available": False, "left_usd": 0.0}
+        return {
+            "code_required": bool(lobby.invite_code),
+            "ai": ai,
+            "powers": powers,
+            "tables": listed,
+        }
 
     class CodeCheck(BaseModel):
         code: str = Field(default="", max_length=100)

@@ -89,6 +89,7 @@
       <div class="powers" id="powers"></div>
       <div class="opts">
         <label>Title<input id="title" maxlength="40" placeholder="The Italian Wars"></label>
+        <label id="aibox" hidden>Rival ruled by the AI council<select id="ai"></select><small id="aileft"></small></label>
         <label>Years<input id="years" type="number" min="5" max="100" value="50"></label>
         <label>Clock per year<select id="clock"><option value="">wait for everyone</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="60">1 hour</option><option value="1440">1 day</option></select></label>
         <details><summary>More options</summary><label>Seed (the same seed deals the same Europe)<input id="seed" type="number" min="0" placeholder="random"></label></details>
@@ -168,6 +169,19 @@
     $("powers").innerHTML = L.powers.map((n) => `<button type="button" class="power ${n.id === nation ? "on" : ""}" data-power="${n.id}">${PaxMap.flag(n.id, n.color, 28)}<span>${esc(n.name)}</span></button>`).join("");
     document.querySelectorAll("[data-power]").forEach((b) => b.onclick = () => { nation = b.dataset.power; store.set("pax-throne", nation); powers(); });
     $("openbtn").textContent = `Open the table as ${L.powers.find((n) => n.id === nation).name}`;
+    rivals();
+  }
+  // the AI council (a strategist and a diplomat on Gemini) may rule one crown: by default an old rival of yours
+  const RIVAL = {england: "france", france: "england", spain: "france", austria: "ottomans", ottomans: "austria",
+    sweden: "russia", russia: "sweden", poland: "russia", brandenburg: "poland"};
+  function rivals() {
+    const ai = L.ai || {}, others = L.powers.filter((n) => n.id !== nation);
+    $("aibox").hidden = !ai.available;
+    if (!ai.available) return;
+    const pick = others.some((n) => n.id === $("ai").value) ? $("ai").value : RIVAL[nation] || others[0].id;
+    $("ai").innerHTML = `<option value="">no AI: bots only</option>` + others.map((n) => `<option value="${n.id}">${esc(n.name)}</option>`).join("");
+    $("ai").value = pick;
+    $("aileft").textContent = `Write it letters and try to fool it. $${ai.left_usd.toFixed(2)} of AI left today.`;
   }
   const ago = (ts) => { const m = Math.round((Date.now() / 1000 - ts) / 60);
     return m < 2 ? "just now" : m < 90 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
@@ -175,12 +189,12 @@
   async function refresh() {
     L = await (await fetch("/api/lobby")).json();
     $("codebox").hidden = !L.code_required;
-    if (!$("powers").children.length) powers();
+    if (!$("powers").children.length) powers(); else rivals();
     const open = L.tables.filter((t) => !t.closed), closed = L.tables.filter((t) => t.closed);
     $("tables").innerHTML = open.length ? open.map((t) => {
       const mine = seatOf(t.id);
       const seats = t.nations.map((n) => `<div class="seatbox ${n.player ? "taken" : ""} ${n.alive ? "" : "fallen"}">${PaxMap.flag(n.id, n.color, 22)}
-        <div>${esc(n.name)}<small>${n.player ? `👤 ${esc(n.player)}` : n.alive ? "a bot, for now" : "fallen"}</small></div>
+        <div>${esc(n.name)}<small>${n.player ? `👤 ${esc(n.player)}` : !n.alive ? "fallen" : n.ai ? "🤖 the AI council" : "a bot, for now"}</small></div>
         ${!n.player && n.alive && !t.finished && !mine ? `<button class="btn" data-join="${t.id}" data-nation="${n.id}">Take</button>` : ""}</div>`).join("");
       return `<div class="table ${mine ? "mine" : ""}" id="t-${t.id}"><div class="thead"><b>${esc(t.title)}</b>
         <span>${t.finished ? `ended${winner(t)}` : `${t.year}, year ${t.turn} of ${t.max_turns}`}</span>
@@ -205,6 +219,7 @@
     const body = {...me(), title: $("title").value.trim() || "A new age", nation, years: +$("years").value || 50};
     if ($("clock").value) body.turn_minutes = +$("clock").value;
     if ($("seed").value !== "") body.seed = +$("seed").value;
+    if (!$("aibox").hidden && $("ai").value) body.ai = [$("ai").value];
     $("openbtn").disabled = true;
     try { const r = await post("/api/tables", body); store.set(`pax-seat-${r.table}`, r.token); location.href = `/t/${r.table}`; }
     catch (err) { say(err.message); $("openbtn").disabled = false; }

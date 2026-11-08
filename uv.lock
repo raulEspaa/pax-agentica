@@ -1397,6 +1397,10 @@ ai = [
     { name = "pgvector" },
     { name = "psycopg", extra = ["binary"] },
 ]
+council = [
+    { name = "google-genai" },
+    { name = "langgraph" },
+]
 dev = [
     { name = "httpx" },
     { name = "hypothesis" },
@@ -1425,6 +1429,10 @@ ai = [
     { name = "langgraph", specifier = ">=1.2.0" },
     { name = "pgvector", specifier = ">=0.4" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+]
+council = [
+    { name = "google-genai", specifier = ">=2.34.0" },
+    { name = "langgraph", specifier = ">=1.2.0" },
 ]
 dev = [
     { name = "httpx", specifier = ">=0.28.1" },

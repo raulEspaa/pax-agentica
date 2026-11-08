@@ -3517,5 +3517,10 @@
  "the burden of empire: works and development {0}% dearer": "la carga del imperio: obras y desarrollo un {0}% más caros",
  "revanche for {0} lost provinces: +{1}% manpower and morale": "revancha por {0} provincias perdidas: +{1}% de levas y moral",
  "revanche ×{0}": "revancha ×{0}",
- "it costs {0}; importing the {1} you lack would cost {2} ducats more, and you have {3}": "cuesta {0}; importar los {1} que te faltan costaría {2} ducados más, y tienes {3}"
+ "it costs {0}; importing the {1} you lack would cost {2} ducats more, and you have {3}": "cuesta {0}; importar los {1} que te faltan costaría {2} ducados más, y tienes {3}",
+ "Rival ruled by the AI council": "Rival gobernado por el consejo de IA",
+ "no AI: bots only": "sin IA: solo bots",
+ "Write it letters and try to fool it. ${0} of AI left today.": "Escríbele cartas e intenta engañarlo. Quedan {0} $ de IA hoy.",
+ "🤖 the AI council": "🤖 el consejo de IA",
+ "the AI council": "el consejo de IA"
 }
