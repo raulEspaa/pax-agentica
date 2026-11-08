@@ -28,14 +28,14 @@ import secrets
 import time
 from importlib.resources import files
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
-from pax_agentica.engine import NationId, Orders, new_game
+from pax_agentica.engine import NationId, Orders, new_game, view_for
 from pax_agentica.players import Player
 from pax_agentica.players.greedy_bot import GreedyBot
 from pax_agentica.runner import GameRecord
@@ -44,6 +44,7 @@ from pax_agentica.viewer import europe_map, render_html, static_payload
 
 if TYPE_CHECKING:
     from pax_agentica.agents.tables import TableAI
+    from pax_agentica.engine import NationView
 
 MAX_TABLES = 12  # open at once: a 50-year game takes about 24 MB, the instance has 512
 NEW_PER_HOUR = 20  # tables opened in any hour, by everyone together
@@ -156,6 +157,15 @@ class Table:
                 for n in state.nations.values()
             ],
         }
+
+
+@runtime_checkable
+class Thinker(Protocol):
+    """An AI ruler that can start on a year's orders early (agents.tables.ThinksAhead)."""
+
+    def thinking_on(self) -> int | None: ...
+
+    def think(self, view: "NationView") -> object: ...
 
 
 def abandoned_after(turn_minutes: float | None) -> float:
@@ -341,6 +351,15 @@ class Lobby:
                 "the AI has spent today's budget: open the table without it, or come back tomorrow",
             )
 
+    def think_ahead(self, table: Table) -> None:
+        """Let the AI rulers start on this year's orders while the humans play theirs."""
+        session = table.session
+        if session.state.finished or table.meta.closed:
+            return
+        for nation, ruler in session.rulers.items():
+            if isinstance(ruler, Thinker) and ruler.thinking_on() != session.state.turn:
+                ruler.think(view_for(session.state, nation))
+
     def join(self, table: Table, req: Join) -> str:
         self.check_code(req.code)
         self._open(table)
@@ -514,6 +533,7 @@ def create_lobby_app(
         nation = lobby.seat_of(table, x_seat)
         if not table.meta.closed:
             await table.session.tick()
+            lobby.think_ahead(table)
         return table.session.payload(nation) | {"table": table.summary()}
 
     @app.get("/api/t/{table_id}/status")
@@ -523,6 +543,7 @@ def create_lobby_app(
         session = table.session
         if not table.meta.closed:
             await session.tick()
+            lobby.think_ahead(table)
         left = session.deadline - time.time() if session.deadline is not None else None
         return {
             "turn": session.state.turn,
@@ -581,6 +602,7 @@ def create_lobby_app(
         nation = lobby.seat_of(table, x_seat)
         playable(table)
         await table.session.submit(nation, orders)
+        lobby.think_ahead(table)  # the next year, at once
         return table.session.payload(nation) | {"table": table.summary()}
 
     @app.post("/api/t/{table_id}/draft")

@@ -1,6 +1,8 @@
 """The AI council at the public tables: who may ask for it, who pays, and what happens when the
 day's money is spent."""
 
+import asyncio
+import time
 from pathlib import Path
 
 import pytest
@@ -106,3 +108,35 @@ def test_from_env_needs_a_key_and_a_limit(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setenv("GEMINI_API_KEY", "not-a-real-key")
     monkeypatch.delenv("PAX_AI_DAILY_USD")
     assert TableAI.from_env(tmp_path) is None
+
+
+class Slow(Paid):
+    """A model that takes a while, and counts how many plans it has started."""
+
+    def __init__(self, budget: DailyBudget) -> None:
+        super().__init__(budget)
+        self.started = 0
+
+    async def write_plan(self, request: PlanRequest) -> Plan:
+        self.started += 1
+        await asyncio.sleep(0.2)
+        return await super().write_plan(request)
+
+
+def test_the_council_thinks_while_the_humans_play(tmp_path: Path) -> None:
+    budget = DailyBudget(1.0)
+    model = Slow(budget)
+    client = TestClient(create_lobby_app(tmp_path, invite_code="", ai=TableAI(model, budget)))
+    with client:  # one event loop for every request, as on the server
+        opened = open_table(client, ai=["england"])
+        seat = {"X-Seat": opened["token"]}
+        client.get(f"/api/t/{opened['table']}/status", headers=seat)  # the page looks
+        deadline = time.monotonic() + 5
+        while not model.started and time.monotonic() < deadline:  # it runs on the server's loop
+            time.sleep(0.01)
+        assert model.started == 1  # before anyone ended the year
+        client.get(f"/api/t/{opened['table']}/status", headers=seat)
+        assert model.started == 1  # once a year, however often the page looks
+        r = client.post(f"/api/t/{opened['table']}/turn", json={"actions": []}, headers=seat)
+        assert r.status_code == 200
+        assert len(model.plans) == 1

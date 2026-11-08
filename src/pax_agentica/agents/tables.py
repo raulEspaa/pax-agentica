@@ -11,15 +11,47 @@ never stopped by the budget.
 Imported only by a server that has both: the image for tables without AI goes without LangGraph.
 """
 
+import asyncio
 import os
 from pathlib import Path
 
 from pax_agentica.agents.budget import DailyBudget
 from pax_agentica.agents.council import Council, CouncilModel
-from pax_agentica.engine import NationId
+from pax_agentica.engine import NationId, NationView, Orders
 from pax_agentica.players import Player
 
 BUDGET_FILE = "ai-budget.json"  # beside the tables' saves, so a restart remembers the day
+TIMEOUT_SECONDS = 50.0  # per try: thinking ahead hides it, and the model's latency varies a lot
+
+
+class ThinksAhead:
+    """A ruler that starts deciding when the year begins, not when the humans end it.
+
+    Its orders depend only on its view, and the view is fixed from the start of the year, so it
+    can think while the humans play: a model that takes half a minute is not waited for."""
+
+    def __init__(self, ruler: Player) -> None:
+        self.ruler = ruler
+        self._turn: int | None = None
+        self._thinking: asyncio.Task[Orders] | None = None
+
+    @property
+    def name(self) -> str:
+        return self.ruler.name
+
+    def thinking_on(self) -> int | None:
+        """The year it is thinking about, if any."""
+        return self._turn
+
+    def think(self, view: NationView) -> asyncio.Task[Orders]:
+        """Start on this year's orders, if not started yet. Needs a running event loop."""
+        if self._thinking is None or self._turn != view.turn:
+            self._turn = view.turn
+            self._thinking = asyncio.get_running_loop().create_task(self.ruler.decide(view))
+        return self._thinking
+
+    async def decide(self, view: NationView) -> Orders:
+        return await self.think(view)
 
 
 class TableAI:
@@ -43,7 +75,8 @@ class TableAI:
 
     def ruler(self, seed: int, table: str, nation: NationId) -> Player:
         """A council of its own for this crown at this table (its memory is its thread)."""
-        return Council(self.model, seed, thread=f"{table}:{nation}")
+        council = Council(self.model, seed, TIMEOUT_SECONDS, thread=f"{table}:{nation}")
+        return ThinksAhead(council)
 
     def status(self) -> dict[str, float | bool]:
         left = self.budget.left_usd
