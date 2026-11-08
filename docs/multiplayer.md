@@ -60,6 +60,12 @@ cannot ask for the council, and the councils already playing keep their last pla
 through their bot: a game never stops for the budget. A 50-year game with one AI crown costs
 about $0.15, so $1 a day is about six games.
 
+**It thinks while you play.** Gemini's latency for the same plan ranged from 9 to over 45 seconds
+on 2026-11-08, and a human who ended the year waited a minute for the council to time out twice.
+A council's orders depend only on its view, which is fixed from the start of the year, so
+`ThinksAhead` starts deciding the first time the page looks at the table, and the year resolves
+on a decision already made: on Cloud Run a year now ends in about a second.
+
 To close it again, set `PAX_INVITE_CODE` (a secret in Secret Manager): see [`deploy.md`](deploy.md).
 
 To try the image locally first: `make image`, then open `http://localhost:8080`.
