@@ -42,10 +42,15 @@ Friends on the same network open `http://<your machine's address>:8000`. Tables 
 ## On the internet
 
 The tables run on Cloud Run, and every push to `main` that passes CI is deployed by itself:
-see [`deploy.md`](deploy.md) for the address, the invitation code and how it works. Without the
-invitation code nobody can open a table or take a seat; share it only with your testers.
+see [`deploy.md`](deploy.md) for how it works. It lives at <https://pax-tables-clysgkcjqq-ew.a.run.app> and is **open**: anyone
+can open a table or take a seat, with no login and no code.
 
-There is no login and no rate limit beyond the invitation code and at most 30 open tables:
-it is meant for a closed test with friends, not for strangers.
+Being open, it caps itself (`multiplayer.py`): at most **12 tables open at once** and **20 new
+tables in any hour**, counted for everyone together (a cap per address could be dodged by faking
+a header). Abandoned tables close after half an hour. The tables only run the game and its bots,
+which make no model calls, so nothing here spends on an LLM; the cost is the one Cloud Run
+instance, capped in [`deploy.md`](deploy.md).
+
+To close it again, set `PAX_INVITE_CODE` (a secret in Secret Manager): see [`deploy.md`](deploy.md).
 
 To try the image locally first: `make image`, then open `http://localhost:8080`.

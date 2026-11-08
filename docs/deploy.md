@@ -24,10 +24,11 @@ The job reads four repository **variables** (not secrets): `GCP_PROJECT`, `GCP_R
 
 | Piece | Setting |
 |---|---|
-| Service | `pax-tables`, public, at most **one instance** (games live in its memory), scale to zero |
+| Service | `pax-tables`, public and open (no invitation code), at most **one instance** (games live in its memory), 1 CPU, 512 MB, scale to zero |
+| Limits | 12 tables open at once, 20 new tables an hour (`multiplayer.py`); bots only, so no model calls |
 | Runtime account | `pax-runtime`: may read the invitation code and write the tables bucket, nothing else |
 | Tables | bucket `pax-agentica-261016-tables`, mounted at `/data`; one JSON file per table, written after every year |
-| Invitation code | Secret Manager `pax-invite-code`, given to the service as `PAX_INVITE_CODE` |
+| Invitation code | **off** since 2026-11-08 (the deploy removes `PAX_INVITE_CODE`); the secret `pax-invite-code` is kept to turn it back on |
 | Budget | an alert at 50%, 90% and 100% of 10 EUR a month |
 
 Tables close by themselves when their last player leaves, after three days without anyone
@@ -38,6 +39,14 @@ and memory stays small; one 50-year game takes about 24 MB, its save about 2 MB.
 
 During a roll-out the old and the new revision run side by side for a few seconds; a table is
 read again from its save whenever another revision has written it since, so no year is lost.
+
+**What it can cost at worst:** Cloud Run bills only while it serves requests, and one instance of
+1 CPU and 512 MB is the ceiling. Light use stays inside the free tier (about 50 hours of busy CPU
+a month); someone hammering it nonstop for a whole month would cost roughly 60 EUR, and the budget
+alert says so at 5 EUR. If that happens, stop the service (below) and look at the logs.
+
+To require a code again, put back `--set-secrets "PAX_INVITE_CODE=pax-invite-code:latest"` in
+place of `--remove-secrets PAX_INVITE_CODE` in the deploy job and in `scripts/deploy_tables.sh`.
 
 ## Common tasks
 
@@ -63,6 +72,10 @@ gcloud secrets versions disable <old version> --secret pax-invite-code --project
 
 # or a random one
 python3 -c "import secrets; print(''.join(secrets.choice('abcdefghjkmnpqrstuvwxyz23456789') for _ in range(10)))" | gcloud secrets versions add pax-invite-code --project pax-agentica-261016 --data-file=-
+
+# shut it off at once: strangers get a 403 from Google's front door and nothing runs or is
+# billed; the next deploy (--allow-unauthenticated) opens it again
+gcloud run services remove-iam-policy-binding pax-tables --project pax-agentica-261016 --region europe-west1 --member allUsers --role roles/run.invoker
 
 # the server's logs
 gcloud run services logs read pax-tables --project pax-agentica-261016 --region europe-west1 --limit 50

@@ -20,7 +20,7 @@ gcloud run deploy "$SERVICE" --project "$GCP_PROJECT" --region "$REGION" --sourc
   --execution-environment gen2 \
   --add-volume "name=tables,type=cloud-storage,bucket=$GCP_PROJECT-tables" \
   --add-volume-mount "volume=tables,mount-path=/data" \
-  --set-secrets "PAX_INVITE_CODE=pax-invite-code:latest" \
+  --remove-secrets PAX_INVITE_CODE \
   --max-instances 1 --min-instances 0 --concurrency 80 --cpu 1 --memory 512Mi \
   --allow-unauthenticated \
   --labels "app=pax-agentica,commit=$(git rev-parse --short HEAD)"

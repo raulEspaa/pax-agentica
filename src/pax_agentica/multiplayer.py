@@ -14,10 +14,11 @@ half an hour (longer for tables whose years last longer), when nobody has looked
 them, or once the game is over; a closed table keeps its replay for a week, then goes. A table
 nobody has looked at for a while is let go from memory and read again when someone returns.
 
-Set PAX_INVITE_CODE to require a code to open a table or take a seat (for a server on the
-internet); several codes, separated by commas, each work (one for friends, one for a group of
-testers, each withdrawn on its own). Nothing else is private: this is for playing with
-friends, not strangers.
+Set PAX_INVITE_CODE to require a code to open a table or take a seat; several codes, separated
+by commas, each work (one for friends, one for a group of testers, each withdrawn on its own).
+Without a code the server is open to anyone, so it caps itself: at most MAX_TABLES open at once
+and NEW_PER_HOUR new tables in any hour, whoever asks (a cap per address could be dodged by
+faking a header). Bots cost no model calls, so the server's whole bill is its own CPU and memory.
 """
 
 import json
@@ -41,7 +42,8 @@ from pax_agentica.runner import GameRecord
 from pax_agentica.server import Session, add_assets, add_feedback
 from pax_agentica.viewer import europe_map, render_html, static_payload
 
-MAX_TABLES = 30  # open at once
+MAX_TABLES = 12  # open at once: a 50-year game takes about 24 MB, the instance has 512
+NEW_PER_HOUR = 20  # tables opened in any hour, by everyone together
 NAME = re.compile(r"^[\w .'-]{1,24}$")
 IDLE_CLOSE = 3 * 24 * 3600.0  # the longest a table waits with nobody at it before it closes
 ABANDON_AFTER = 30 * 60.0  # with nobody at it this long (a game page polls every few seconds)
@@ -177,6 +179,7 @@ class Lobby:
         self.summaries: dict[str, dict[str, Any]] = {}  # every table, in brief
         self.seen: dict[str, float] = {}  # the save each table in memory was built from
         self.swept = 0.0
+        self.opened: list[float] = []  # when the tables of the last hour were opened
         saves.mkdir(parents=True, exist_ok=True)
         for path in sorted(saves.glob("*.summary.json")):
             try:
@@ -283,10 +286,16 @@ class Lobby:
         self.sweep(force=True)
         if self.open_count() >= MAX_TABLES:
             raise HTTPException(429, "this server has enough tables already")
+        now = time.time()
+        self.opened = [t for t in self.opened if now - t < 3600]
+        if len(self.opened) >= NEW_PER_HOUR:
+            raise HTTPException(
+                429, "many tables were opened this hour: join one, or come back later"
+            )
         seed = req.seed if req.seed is not None else secrets.randbelow(1_000_000)
         if req.nation not in new_game(seed).nations:
             raise HTTPException(422, f"no great power called {req.nation!r}")
-        now = time.time()
+        self.opened.append(now)
         meta = TableMeta(
             id=secrets.token_urlsafe(6),
             title=req.title.strip() or "A new age",

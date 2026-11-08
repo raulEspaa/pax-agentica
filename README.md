@@ -5,6 +5,10 @@ trade, sign pacts, betray each other and go to war. Today an AI council (a strat
 diplomat on Gemini, in LangGraph) rules a throne against rule-based bots, and an AI archivist
 answers questions about the games with citations. You can take a throne yourself.
 
+**▶ [Play it in your browser](https://pax-tables-clysgkcjqq-ew.a.run.app)**: no sign-up and no code. Open a table, pick a crown and
+play against the bots (the deployed tables run the game and its bots only; the AI council and
+the archivist run locally, see below).
+
 [![CI](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml/badge.svg)](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml)
 ![Status](https://img.shields.io/badge/status-AI%20rulers%20%C2%B7%20RAG%20%C2%B7%20evals-b8860b)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-3776ab)
@@ -72,8 +76,8 @@ reparations.
 
 **With friends, too.** `pax host` serves tables where several people each take a throne in
 their browsers and bots hold the rest; a year passes when everyone has ended it, or when the
-table's clock runs out. It runs on a laptop for the local network or on Cloud Run with an
-invitation code ([`docs/multiplayer.md`](docs/multiplayer.md)); every push to `main` that passes CI
+table's clock runs out. It runs on a laptop for the local network or [on Cloud Run](https://pax-tables-clysgkcjqq-ew.a.run.app), open
+to anyone and capped so it stays cheap ([`docs/multiplayer.md`](docs/multiplayer.md)); every push to `main` that passes CI
 deploys itself ([`docs/deploy.md`](docs/deploy.md)). The AI rulers get the same
 view plus a briefing, calculators and a tournament runner ([`docs/agent-tools.md`](docs/agent-tools.md)).
 

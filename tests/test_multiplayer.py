@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from pax_agentica import multiplayer
 from pax_agentica.multiplayer import abandoned_after, create_lobby_app
 
 RECRUIT = {"actions": [{"type": "recruit", "province": "paris", "regiments": 1}]}
@@ -305,3 +306,27 @@ def test_players_talk_at_the_table_aloud_and_aside(
     assert status["chat"] == 1
     later = lobby.get(f"/api/t/{table}/chat?after=1", headers={"X-Seat": pedro}).json()["lines"]
     assert [c["name"] for c in later] == ["Anne"]
+
+
+def test_an_open_server_caps_the_tables_opened_in_an_hour(
+    lobby: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(multiplayer, "NEW_PER_HOUR", 2)
+    bad = lobby.post("/api/tables", json={"name": "Anne", "nation": "atlantis", "years": 10})
+    assert bad.status_code == 422  # a refused table does not use up the hour
+    open_table(lobby)
+    open_table(lobby)
+    r = lobby.post("/api/tables", json={"name": "Anne", "nation": "france", "years": 10})
+    assert r.status_code == 429
+    assert "this hour" in r.json()["detail"]
+
+
+def test_an_open_server_caps_the_tables_open_at_once(
+    lobby: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(multiplayer, "MAX_TABLES", 2)
+    open_table(lobby)
+    open_table(lobby)
+    r = lobby.post("/api/tables", json={"name": "Anne", "nation": "france", "years": 10})
+    assert r.status_code == 429
+    assert "enough tables" in r.json()["detail"]
