@@ -29,6 +29,7 @@ The job reads four repository **variables** (not secrets): `GCP_PROJECT`, `GCP_R
 | AI council | `GEMINI_API_KEY` from Secret Manager `gemini-api-key`; `PAX_AI_DAILY_USD=1`, the most the server spends on the model in a day (UTC), recorded in the bucket as `ai-budget.json` |
 | Runtime account | `pax-runtime`: may read the invitation code and write the tables bucket, nothing else |
 | Tables | bucket `pax-agentica-261016-tables`, mounted at `/data`; one JSON file per table, written after every year |
+| Analytics | NDJSON events in the same bucket, `analytics/<kind>/dt=YYYY-MM-DD/`: a row per closed table and per AI decision; read by BigQuery external tables in the dataset `pax_analytics` ([analytics.md](analytics.md)) |
 | Invitation code | **off** since 2026-11-08 (the deploy sets only the Gemini secret); `pax-invite-code` is kept to turn it back on |
 | Budget | an alert at 50%, 90% and 100% of 10 EUR a month |
 
@@ -96,7 +97,25 @@ gcloud storage ls gs://pax-agentica-261016-tables
 
 # the testers' notes, newest last
 gcloud storage cat "gs://pax-agentica-261016-tables/feedback/*.json"
+
+# the analytics events, and a saved query over them (docs/analytics.md)
+gcloud storage ls -r gs://pax-agentica-261016-tables/analytics
+bq query --project_id pax-agentica-261016 --nouse_legacy_sql < scripts/bigquery/queries/cost_per_game.sql
 ```
+
+## Analytics in BigQuery (once)
+
+The server writes its events to the bucket by itself; BigQuery only needs the dataset and the
+external tables over them. Run this once (and again after changing a schema in
+`scripts/bigquery/`), as someone with `roles/bigquery.admin` on the project:
+
+```bash
+gcloud services enable bigquery.googleapis.com --project pax-agentica-261016
+scripts/bigquery_setup.sh
+```
+
+The runtime account needs nothing new. Queries cost about nothing: a few MB scanned, inside the
+free terabyte a month. See [analytics.md](analytics.md).
 
 ## Setting it up again from nothing
 
@@ -109,5 +128,5 @@ two service accounts; grant `pax-runtime` `storage.objectUser` on the bucket and
 create the workload identity pool `github` with an OIDC provider for
 `https://token.actions.githubusercontent.com` restricted to this repository's `main`, and let
 that principal set impersonate `pax-deployer` (`iam.workloadIdentityUser`); set the four
-repository variables. [`scripts/deploy_tables.sh`](../scripts/deploy_tables.sh) deploys the same
+repository variables; then the analytics dataset above. [`scripts/deploy_tables.sh`](../scripts/deploy_tables.sh) deploys the same
 service by hand, from this machine, if GitHub Actions is ever unavailable.

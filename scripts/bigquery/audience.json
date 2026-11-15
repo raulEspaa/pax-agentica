@@ -1,0 +1,13 @@
+[
+  {"name": "at", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "source", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "table_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "nation", "type": "STRING", "mode": "NULLABLE", "description": "the AI crown that replied"},
+  {"name": "turn", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "year", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "model", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "cost_usd", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "model_calls", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "latency_s", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "error", "type": "STRING", "mode": "NULLABLE"}
+]

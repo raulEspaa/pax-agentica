@@ -1,0 +1,21 @@
+[
+  {"name": "at", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "source", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "table_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "nation", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "turn", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "year", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "model", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "cost_usd", "type": "FLOAT", "mode": "NULLABLE", "description": "real cost of this decision's model calls, retries and failures included"},
+  {"name": "model_calls", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "latency_s", "type": "FLOAT", "mode": "NULLABLE", "description": "from starting to think to the orders"},
+  {"name": "plan_asked", "type": "BOOLEAN", "mode": "NULLABLE"},
+  {"name": "plan_written", "type": "BOOLEAN", "mode": "NULLABLE"},
+  {"name": "diplomacy_asked", "type": "BOOLEAN", "mode": "NULLABLE"},
+  {"name": "diplomacy_written", "type": "BOOLEAN", "mode": "NULLABLE"},
+  {"name": "letters", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "failures", "type": "STRING", "mode": "REPEATED", "description": "kind:ExceptionName, one per failed try"},
+  {"name": "timed_out", "type": "BOOLEAN", "mode": "NULLABLE"},
+  {"name": "fallback", "type": "BOOLEAN", "mode": "NULLABLE", "description": "something asked for never came: the last plan or the bot stood in"},
+  {"name": "error", "type": "STRING", "mode": "NULLABLE", "description": "the decision itself failed: the crown did nothing that year"}
+]

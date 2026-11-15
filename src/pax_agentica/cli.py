@@ -78,6 +78,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "api": _api,
         "eval-archivist": _eval_archivist,
         "redteam": _redteam,
+        "analytics": _analytics,
     }[args.command]
     return handler(args)
 
@@ -160,6 +161,7 @@ def _parser() -> argparse.ArgumentParser:
         "--player", action="append", default=[], metavar="NATION=BOT", help="override one ruler"
     )
     _add_model_options(tour)
+    tour.add_argument("--save", type=Path, metavar="DIR", help="write each game's record here")
 
     evaluate = sub.add_parser(
         "eval", help="score a model's plans on the dataset of situations, in Langfuse"
@@ -209,6 +211,14 @@ def _parser() -> argparse.ArgumentParser:
     host.add_argument(
         "--saves", type=Path, default=Path("saves/tables"), help="where tables are kept"
     )
+
+    analytics = sub.add_parser("analytics", help="analytics rows for BigQuery (docs/analytics.md)")
+    what = analytics.add_subparsers(dest="action", required=True)
+    export = what.add_parser(
+        "export", help="turn game records and table saves into games.ndjson, for bq load"
+    )
+    export.add_argument("games", nargs="+", type=Path, help="play/tournament --save, table saves")
+    export.add_argument("--out", type=Path, required=True, help="the directory to write")
 
     bench = sub.add_parser("bench", help="play many seeded games and count the winners")
     bench.add_argument("--games", type=int, default=20)
@@ -443,6 +453,9 @@ def _tournament(args: argparse.Namespace) -> int:
             finals.append(now)
 
         record = asyncio.run(run_game(state, players, on_turn=keep))
+        if args.save:
+            args.save.mkdir(parents=True, exist_ok=True)
+            (args.save / f"seed-{seed}.json").write_text(record.model_dump_json())
         last = finals[-1]
         for nation, player in players.items():
             rulers[nation] = player.name
@@ -763,6 +776,18 @@ def _host(args: argparse.Namespace) -> int:
         print(f"The AI council may rule crowns: ${ai.budget.limit_usd:.2f} a day")
     print(f"Tables at http://{args.host}:{args.port}  (saved in {args.saves}; Ctrl+C to stop)")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning", proxy_headers=True)
+    return 0
+
+
+def _analytics(args: argparse.Namespace) -> int:
+    from pax_agentica.analytics import export_games
+
+    rows = export_games(args.games, args.out)
+    print(f"wrote {rows} games to {args.out / 'games.ndjson'}")
+    print(
+        "load it with: bq load --source_format=NEWLINE_DELIMITED_JSON "
+        f"pax_analytics.local_games {args.out / 'games.ndjson'} scripts/bigquery/games.json"
+    )
     return 0
 
 
