@@ -5,4 +5,4 @@ and what I would do differently.
 
 | # | Note | Milestone |
 |---|------|-----------|
-| — | (none yet) | — |
+| 008 | [Memory and audiences: a small RAG inside each ruler](008-memory-and-audience.md) | AI roadmap, step D |

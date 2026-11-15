@@ -68,6 +68,27 @@ A council's orders depend only on its view, which is fixed from the start of the
 `ThinksAhead` starts deciding the first time the page looks at the table, and the year resolves
 on a decision already made: on Cloud Run a year now ends in about a second.
 
+**An audience with an AI court.** A letter to an AI crown is read the next year and answered
+the year after. In the table's chat a player may instead pick "🤖 Audience with <its monarch>":
+the crown's model answers at once, in the monarch's voice, as a private line only that player
+sees (`ChatLine.ai`). It is words only: the reply orders nothing and signs nothing, and may bluff
+or lie; a treaty still needs a proposal the engine decides on. The player's words reach the model
+as untrusted data, like letters (one line each, inside `<audience>` tags they cannot close). Each
+seat may say three words a year to each AI court (`AUDIENCE_WORDS`), one at a time, with the
+usual pause between words. Each answer is a model call on the same daily budget: when the day is
+spent the audience is refused (429); when the model fails or takes more than 30 seconds the court
+"hears you out in silence", and the game goes on. The exchange enters the crown's memory, so its
+diplomat meets it the next year, even with no letter on its desk. A message costs about $0.001
+(about 1,000 tokens in and a few hundred out on `gemini-3.1-flash-lite`); $0.013 is set aside
+while it is in flight.
+
+**The courts remember.** Each AI crown keeps a memory of its dealings with every court
+(treaties, betrayals, wars, tributes, letters, grudges, audiences), taken from its own view only,
+embedded on the same budget and kept in `saves/tables/memory/<table>.<nation>.json`; the file goes
+when the table does. When the budget is spent the memory still works, by words and dates. See
+[`architecture.md`](architecture.md#memory) and spec
+[008](../specs/008-memory-and-audience/spec.md).
+
 To close it again, set `PAX_INVITE_CODE` (a secret in Secret Manager): see [`deploy.md`](deploy.md).
 
 To try the image locally first: `make image`, then open `http://localhost:8080`.

@@ -60,6 +60,38 @@ flowchart LR
 - **CI never calls a model.** Every test uses a fake model, a fake embedder or a scripted ADK
   model; the database tests run against the same pgvector image as `make db`.
 
+## Memory
+
+At the public tables each AI crown's council keeps a `Chronicle`
+([`agents/memory.py`](../src/pax_agentica/agents/memory.py), spec
+[008](../specs/008-memory-and-audience/spec.md)): its dealings with every court as short dated
+lines.
+
+```mermaid
+flowchart LR
+  view["its NationView, each year"] --> entries["entries_from(view)<br/>letters, treaties, betrayals,<br/>wars, tributes, grudges"]
+  audience["audiences it gave"] --> chronicle
+  entries --> embed["Embeddings<br/>in a thread, on the budget;<br/>a failure leaves no vector"] --> chronicle[("Chronicle<br/>memory/&lt;table&gt;.&lt;nation&gt;.json")]
+  chronicle --> recall["recall(court, question)<br/>vector + words + recency, RRF"]
+  recall --> diplomat["diplomat: WHAT YOU REMEMBER OF court"]
+  recall --> reply["audience: the monarch's answer"]
+```
+
+- **Fog of war by construction.** `observe` takes a `NationView` and nothing else, so the
+  memory holds only what that crown witnessed; a test sends a secret letter between two other
+  courts and checks it never gets in.
+- **Search within one court**, three rankings fused by RRF as in the archive: meaning (cosine),
+  words (names and provinces) and recency. A spent budget or a slow embedder leaves words and
+  recency, never an error.
+- **Kept in a file, not rebuilt.** Rebuilding from the game record would replay every past view
+  and embed it again (minutes at the free tier's 50 texts a minute), and audiences are not in the
+  record; the file holds 256-dimension vectors rounded to four decimals.
+- **Outside the graph's state.** A checkpoint would copy the vectors every year; the memory is an
+  object on the council, like the bot. Without one (the default, for tournaments and evaluations)
+  the council plays as before.
+- **Untrusted text.** Entries quote letters and audiences: one line each, inside `<memory>` tags
+  that `diplomat.fence` keeps them from closing.
+
 ## Why each piece
 
 | Piece | Chosen | Instead of | Because |
