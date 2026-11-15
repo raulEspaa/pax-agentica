@@ -11,11 +11,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from pax_agentica.agents import meter
+from pax_agentica.agents.audience import Reply
 from pax_agentica.agents.budget import Budget, DailyBudget
 from pax_agentica.agents.council import Council
 from pax_agentica.agents.diplomat import Diplomacy, Letter
 from pax_agentica.agents.prompts import PlanRequest
-from pax_agentica.agents.tables import MeteredModel, Recorded, TableAI, audience
+from pax_agentica.agents.tables import MeteredModel, Recorded, TableAI, metered_audience
 from pax_agentica.analytics import AudienceRow, DecisionRow
 from pax_agentica.engine import new_game, view_for
 from pax_agentica.multiplayer import create_lobby_app
@@ -50,6 +51,10 @@ class Priced:
     async def write_diplomacy(self, request: PlanRequest) -> Diplomacy:
         await self._pay()
         return Diplomacy(letters=[Letter(to="spain", text="Peace.")] * self.letters)
+
+    async def write_reply(self, request: PlanRequest) -> Reply:
+        await self._pay()
+        return Reply(text="Well met.")
 
 
 class Hangs:
@@ -139,7 +144,9 @@ def test_an_audience_reply_is_measured_and_reported(fits_schema: FitsSchema) -> 
         return "Well met."
 
     view = view_for(new_game(3), "spain")
-    said = asyncio.run(audience(reply(), table="t1", view=view, model="m", report=rows.append))
+    said = asyncio.run(
+        metered_audience(reply(), table="t1", view=view, model="m", report=rows.append)
+    )
     assert said == "Well met."
     [row] = rows
     assert (row.nation, row.cost_usd, row.model_calls) == ("spain", 0.002, 1)

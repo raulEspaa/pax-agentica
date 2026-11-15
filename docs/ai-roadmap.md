@@ -16,8 +16,10 @@ played. The phases below stay as the record of the full plan; this is the order 
 | **A. The archive:** `pax ingest` loads finished games and the rules into Postgres, with embeddings, pgvector and hybrid search (vector + full text, RRF), and a recall measure on a dozen questions | phase 6, reduced | Done |
 | **B. The Archivist:** an ADK agent that answers "why did France attack Spain in 1512?" from the archive with citations, served by FastAPI ([spec 006](../specs/006-archivist/spec.md)) | phase 9, reduced | Done |
 | **C. Closing:** README, [architecture](architecture.md), [results](ai-results.md), merge to `main` | phase 10 | Done, merged on 2026-11-06 |
+| **D. Memory and audiences** at the public tables: each AI crown's chronicle of treaties and betrayals, from its own views, embedded and searched (vector + words + recency, RRF); a player can speak to an AI crown and hear its monarch at once ([spec 008](../specs/008-memory-and-audience/spec.md)) | phase 6 (chronicle), reduced | v0 with fakes; a real run to do |
 
-Cut from the MVP: rulers that read their own chronicle (memory with the fog-of-war filter), MCP, a
+Cut from the MVP (the chronicle came back at the tables in step D): rulers that read their own
+chronicle (memory with the fog-of-war filter), MCP, a
 human in the loop, decisions streamed by SSE, the Postgres checkpointer, paired tournaments with
 bootstrap intervals, and the written LangSmith comparison. Each is a later addition, not a missing
 piece. Three of the first cuts came back in small form: a red team against the diplomat and an LLM

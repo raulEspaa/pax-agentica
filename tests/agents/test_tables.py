@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from pax_agentica.agents.audience import Reply
 from pax_agentica.agents.budget import DailyBudget
 from pax_agentica.agents.diplomat import Diplomacy
 from pax_agentica.agents.prompts import PlanRequest
@@ -25,6 +26,7 @@ class Paid:
         self.budget = budget
         self.price = price
         self.plans: list[PlanRequest] = []
+        self.replies: list[PlanRequest] = []
 
     async def write_plan(self, request: PlanRequest) -> Plan:
         self.budget.reserve(self.price)
@@ -34,6 +36,12 @@ class Paid:
 
     async def write_diplomacy(self, request: PlanRequest) -> Diplomacy:
         return Diplomacy()
+
+    async def write_reply(self, request: PlanRequest) -> Reply:
+        self.budget.reserve(self.price)
+        self.budget.settle(self.price, self.price)
+        self.replies.append(request)
+        return Reply(text="We shall think on it, cousin.")
 
 
 def server(tmp_path: Path, limit: float = 1.0) -> tuple[TestClient, Paid]:

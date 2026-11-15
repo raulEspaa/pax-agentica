@@ -16,6 +16,8 @@ The same decisions as `Strategist` (spec 002), written as a graph:
   `error_handler`) instead of the try/except of `Strategist._ask`.
 
 The greedy bot keeps its own memory of the game, so it lives in the `Council`, not in the state.
+So does the optional `Chronicle` (spec 008): the crown's memory of each court, with vectors that
+a checkpoint would copy every year. Without one (the default) the council plays as it did.
 """
 
 from dataclasses import dataclass
@@ -33,6 +35,7 @@ from pax_agentica.agents import diplomat, prompts
 from pax_agentica.agents.budget import BudgetExceeded
 from pax_agentica.agents.checks import clean_plan
 from pax_agentica.agents.diplomat import Diplomacy
+from pax_agentica.agents.memory import Chronicle, question_about
 from pax_agentica.agents.prompts import PlanRequest
 from pax_agentica.agents.strategist import (
     MAX_FAILURE_CHARS,
@@ -112,12 +115,14 @@ class Council:
         checkpointer: BaseCheckpointSaver[Any] | None = None,
         tracer: Tracer | None = None,
         thread: str = "",
+        memory: Chronicle | None = None,
     ) -> None:
         self._model = model
         self._bot = GreedyBot(seed)
         self._graph = self._build(timeout, checkpointer or InMemorySaver())
         self._tracer = tracer or Tracer()
         self._thread = thread
+        self.memory = memory
 
     @property
     def name(self) -> str:
@@ -129,14 +134,41 @@ class Council:
 
     async def decide(self, view: NationView) -> Orders:
         year: Memory = {"why": "", "remarks": [], "envoy": None}
+        if self.memory is not None:
+            await self.memory.observe(view)  # never raises for want of money or an embedder
         with self._tracer.council(view) as traced:
-            config: Any = {
-                "configurable": {"thread_id": self._thread or view.me.id},
-                "run_name": "graph",
-                **traced,
-            }
+            config: Any = {**self._config(view), "run_name": "graph", **traced}
             state = await self._graph.ainvoke(year, config, context=Year(view))
         return Orders.model_validate(state["orders"])
+
+    async def plan_in_force(self, view: NationView) -> Plan | None:
+        """The plan the council keeps for this crown, if it has written one."""
+        snapshot = await self._graph.aget_state(self._config(view))
+        plan = snapshot.values.get("plan") if snapshot.values else None
+        return Plan.model_validate(plan) if plan else None
+
+    def _config(self, view: NationView) -> Any:
+        return {"configurable": {"thread_id": self._thread or view.me.id}}
+
+    async def remembered(self, view: NationView) -> dict[str, list[str]]:
+        """What the memory recalls of each court on the desk, and of each court given an audience
+        since last year (so that what was said there reaches the diplomat)."""
+        if self.memory is None:
+            return {}
+        heard = self.memory.audiences_since(view.turn - 1)
+        courts = sorted(desk_courts(view) | heard)
+        recalled = await self.memory.recall_all({c: question_about(view, c) for c in courts})
+        out: dict[str, list[str]] = {}
+        for court, found in recalled.items():
+            fresh = [
+                e
+                for e in self.memory.about(court)
+                if e.kind == "audience" and e.turn >= view.turn - 1 and e not in found
+            ]
+            lines = [e.text for e in sorted([*found, *fresh], key=lambda e: e.turn)]
+            if lines:
+                out[court] = lines
+        return out
 
     # ------------------------------------------------------------ the graph
 
@@ -187,8 +219,11 @@ class Council:
         return "strategist" if state["why"] else self._to_the_desk(state, runtime=runtime)
 
     def _to_the_desk(self, state: Memory, *, runtime: Runtime[Year]) -> Next:
-        """The diplomat only in a year when someone wrote or proposed something."""
-        return "diplomat" if inbox(runtime.context.view) else "ministers"
+        """The diplomat only in a year when someone wrote or proposed something, or after an
+        audience the crown gave last year."""
+        view = runtime.context.view
+        heard = self.memory.audiences_since(view.turn - 1) if self.memory else set()
+        return "diplomat" if inbox(view) or heard else "ministers"
 
     async def _strategist(self, state: Memory, *, runtime: Runtime[Year]) -> Memory:
         view = runtime.context.view
@@ -209,7 +244,7 @@ class Council:
     async def _diplomat(self, state: Memory, *, runtime: Runtime[Year]) -> Memory:
         view = runtime.context.view
         plan = Plan.model_validate(state["plan"]) if state.get("plan") else None
-        request = diplomat.build_request(view, plan)
+        request = diplomat.build_request(view, plan, remembered=await self.remembered(view))
         if request is None:
             return {}
         orders, dropped = diplomat.to_orders(await self._model.write_diplomacy(request), view)
@@ -242,3 +277,15 @@ def _failure(error: NodeError) -> Exception:
     """What made the node fail: an `Exception`, since a cancellation is never handled here."""
     cause = error.error
     return cause if isinstance(cause, Exception) else RuntimeError(repr(cause))
+
+
+def desk_courts(view: NationView, years: int = 3) -> set[str]:
+    """The courts on the diplomat's desk: those that wrote or were written to in the last `years`
+    (as `inbox` counts them), or that wait for an answer."""
+    waiting = {p.sender for p in view.proposals_to_answer}
+    return {
+        c.id
+        for c in view.nations
+        if c.alive
+        and (c.id in waiting or any(e.turn > view.turn - years for e in c.correspondence))
+    }

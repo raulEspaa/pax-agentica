@@ -21,6 +21,9 @@ and NEW_PER_HOUR new tables in any hour, whoever asks (a cap per address could b
 faking a header). Bots cost no model calls, so the server's whole bill is its own CPU and memory.
 
 A seat's view is also served to MCP clients at `POST /mcp`, read-only (`mcp_server.TablesMCP`).
+
+At a table with AI crowns, a player may also speak to one of them alone, and its monarch answers
+at once (an audience, spec 008): words only, a few a year, paid from the AI's daily budget.
 """
 
 import json
@@ -68,6 +71,7 @@ SWEEP_EVERY = 60.0
 CHAT_CHARS = 400  # the longest word at the table
 CHAT_KEPT = 300  # lines a table keeps
 CHAT_PAUSE = 1.5  # seconds between two words of the same player
+AUDIENCE_WORDS = 3  # words a seat may say to one AI court in a year: each costs a model call
 
 
 class Seat(BaseModel):
@@ -83,8 +87,9 @@ class ChatLine(BaseModel):
     nation: NationId
     name: str  # the player's name
     text: str
-    to: NationId | None = None  # a private word to this seat
+    to: NationId | None = None  # a private word to this seat, or to an AI crown (an audience)
     at: float
+    ai: bool = False  # said by an AI crown, in an audience
 
 
 class Chat(BaseModel):
@@ -141,6 +146,7 @@ class Table:
         self.meta = meta
         self.session = session
         self.visited = time.time()
+        self.audiences: set[NationId] = set()  # seats waiting for an AI crown's answer
 
     def summary(self) -> dict[str, Any]:
         state = self.session.state
@@ -316,6 +322,8 @@ class Lobby:
         self.seen.pop(table_id, None)
         for path in (self._path(table_id), self._summary_path(table_id)):
             path.unlink(missing_ok=True)
+        if self.ai is not None:
+            self.ai.forget(table_id)
 
     # ------------------------------------------------------------ the life of a table
 
@@ -388,6 +396,96 @@ class Lobby:
         for nation, ruler in session.rulers.items():
             if isinstance(ruler, Thinker) and ruler.thinking_on() != session.state.turn:
                 ruler.think(view_for(session.state, nation))
+
+    def ai_courts(self, table: Table) -> list[NationId]:
+        """The crowns the AI council rules at this table now: those that give audiences."""
+        if self.ai is None:
+            return []
+        state = table.session.state
+        return [
+            n
+            for n in table.meta.ai
+            if n not in table.meta.seats and n in table.session.rulers and state.nations[n].alive
+        ]
+
+    async def audience(self, table: Table, nation: NationId, to: NationId, text: str) -> ChatLine:
+        """A seated player speaks to an AI crown, and its monarch answers at once. Both lines go
+        into the table's talk, seen by that seat alone; returns the answer.
+
+        Refused (429) past AUDIENCE_WORDS a year to that court, while the last answer is awaited,
+        or when the day's budget is spent. If the model fails or is too slow, the court answers
+        with silence, and the game goes on."""
+        session = table.session
+        state = session.state
+        if self.ai is None or state.finished or to not in self.ai_courts(table):
+            raise HTTPException(422, "that court gives no audience")
+        this_year = [
+            c for c in table.meta.chat if c.turn == state.turn and {c.nation, c.to} == {nation, to}
+        ]
+        if sum(c.nation == nation for c in this_year) >= AUDIENCE_WORDS:
+            raise HTTPException(
+                429,
+                f"you have spoken to that court {AUDIENCE_WORDS} times this year: "
+                "it will hear you again next year",
+            )
+        if nation in table.audiences:
+            raise HTTPException(429, "the court is still considering your last words")
+        if not self.ai.status()["available"]:
+            raise HTTPException(
+                429, "the AI has spent today's budget: the courts give no audience until tomorrow"
+            )
+        from pax_agentica.agents.audience import Said  # the AI only on a server that has it
+
+        said = [Said(theirs=c.nation == nation, text=c.text) for c in this_year]
+        said.append(Said(theirs=True, text=text))
+        self.say(table, nation, text, to)
+        view = view_for(state, to)
+        ruler = view.me.ruler
+        speaker = f"{ruler.title} {ruler.name}" if ruler else view.me.name
+        table.audiences.add(nation)
+        try:
+            from pax_agentica.agents.tables import metered_audience
+
+            reply = await metered_audience(
+                self.ai.audience(
+                    session.rulers[to], view, nation, table.meta.seats[nation].name, said
+                ),
+                table=table.meta.id,
+                view=view,
+                model=self.ai.model.name,
+                report=self.analytics.emit,
+            )
+            answer = reply.text
+        except Exception:  # the day's money spent, too slow, or failed: the court is silent
+            answer = f"{speaker} hears you out in silence. The court will answer another day."
+        finally:
+            table.audiences.discard(nation)
+        return self.say(table, to, answer, nation, name=speaker, ai=True)
+
+    def say(
+        self,
+        table: Table,
+        nation: NationId,
+        text: str,
+        to: NationId | None = None,
+        name: str | None = None,
+        ai: bool = False,
+    ) -> ChatLine:
+        """A line into the table's talk, saved with the table."""
+        chat = table.meta.chat
+        line = ChatLine(
+            n=(chat[-1].n if chat else 0) + 1,
+            turn=table.session.state.turn,
+            nation=nation,
+            name=name or table.meta.seats[nation].name,
+            text=text,
+            to=to,
+            at=time.time(),
+            ai=ai,
+        )
+        table.meta.chat = [*chat, line][-CHAT_KEPT:]
+        table.session.save()
+        return line
 
     def join(self, table: Table, req: Join) -> str:
         self.check_code(req.code)
@@ -627,32 +725,28 @@ def create_lobby_app(
         return {"lines": [c.model_dump() for c in heard(table, nation) if c.n > after]}
 
     @app.post("/api/t/{table_id}/chat")
-    def say(table_id: str, req: Chat, x_seat: str | None = Header(default=None)) -> Any:
-        """Speak at the table, to all or to one player. Bots do not listen: write them letters."""
+    async def say(table_id: str, req: Chat, x_seat: str | None = Header(default=None)) -> Any:
+        """Speak at the table, to all or to one player, or to an AI crown, whose monarch answers
+        at once (an audience). Bots do not listen: write them letters."""
         table = lobby.table(table_id)
         nation = lobby.seat_of(table, x_seat)
         playable(table)
         text = " ".join(req.text.split())
         if not text:
             raise HTTPException(422, "say something")
-        if req.to is not None and (req.to == nation or req.to not in table.meta.seats):
-            raise HTTPException(422, "only another player at this table can be spoken to alone")
-        now = time.time()
+        to = req.to
+        audience = to is not None and to in lobby.ai_courts(table)
+        if to is not None and not audience and (to == nation or to not in table.meta.seats):
+            raise HTTPException(
+                422, "only another player or an AI court at this table can be spoken to alone"
+            )
         mine = [c for c in table.meta.chat if c.nation == nation]
-        if mine and now - mine[-1].at < CHAT_PAUSE:
+        if mine and time.time() - mine[-1].at < CHAT_PAUSE:
             raise HTTPException(429, "a moment: let the others answer")
-        line = ChatLine(
-            n=(table.meta.chat[-1].n if table.meta.chat else 0) + 1,
-            turn=table.session.state.turn,
-            nation=nation,
-            name=table.meta.seats[nation].name,
-            text=text,
-            to=req.to,
-            at=now,
-        )
-        table.meta.chat = [*table.meta.chat, line][-CHAT_KEPT:]
-        table.session.save()
-        return {"line": line.model_dump()}
+        if audience and to is not None:
+            reply = await lobby.audience(table, nation, to, text)
+            return {"reply": reply.model_dump()}
+        return {"line": lobby.say(table, nation, text, to).model_dump()}
 
     @app.post("/api/t/{table_id}/turn")
     async def turn(

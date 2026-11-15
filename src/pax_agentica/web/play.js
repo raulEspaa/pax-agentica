@@ -111,8 +111,9 @@
   const who = (nid) => `${nameOf(nid)}${G.humans && G.humans[nid] ? ` (${G.humans[nid]})` : ""}`;
   // ------------------------------------------------------------------ the table's talk
   // Players at one table speak aloud to all or aside to one; bots do not listen (they read
-  // letters). The lines come with the status the page already polls for.
-  const talk = {lines: [], last: 0, seen: 0, open: false};
+  // letters). An AI court (🤖) gives an audience: its monarch answers at once, to you alone, a
+  // few words a year (spec 008). The lines come with the status the page already polls for.
+  const talk = {lines: [], last: 0, seen: 0, open: false, considering: null};
   async function hear() {
     if (!TABLE) return;
     try {
@@ -122,25 +123,39 @@
     } catch {}
     chatBox();
   }
+  const aiCourts = () => ((G.table && G.table.nations) || []).filter((n) => n.ai && n.alive && n.id !== G.human).map((n) => n.id);
+  const monarch = (nid) => { const r = (V.nations.find((n) => n.id === nid) || {}).ruler; return r ? `${r.title} ${r.name}` : nameOf(nid); };
   function chatBox() {
-    const wrap = $("chatwrap"), humans = Object.keys(G.humans || {});
-    wrap.hidden = !TABLE || humans.length < 2;
+    const wrap = $("chatwrap"), humans = Object.keys(G.humans || {}), courts = aiCourts();
+    wrap.hidden = !TABLE || (humans.length < 2 && !courts.length);
     if (wrap.hidden) return;
     if (talk.open) talk.seen = talk.last;
     const unread = talk.lines.filter((l) => l.n > talk.seen && l.nation !== G.human).length;
     $("chatbtn").innerHTML = I("users") + (unread ? `<span class="count">${unread}</span>` : "");
     const others = humans.filter((n) => n !== G.human);
-    const line = (l) => `<div class="line ${l.to ? "aside" : ""}"><b style="color:${mix(N[nIndex[l.nation]].color, "#ffffff", .45)}">${esc(l.name)}</b> <small>${esc(nameOf(l.nation))}${l.to ? `, ${l.nation === G.human ? `to ${esc(G.humans[l.to] || nameOf(l.to))}` : "to you alone"}` : ""}, ${R.startYear + l.turn - 1}</small><div>${esc(l.text)}</div></div>`;
-    const box = $("chatbox"), keep = box.querySelector("input")?.value || "", to = box.querySelector("select")?.value || "";
-    box.innerHTML = `<h4>The table</h4><div class="lines">${talk.lines.map(line).join("") || `<p class="muted">Nobody has spoken yet. Bots do not listen here: write them letters.</p>`}</div>
-      <form><select class="field" aria-label="To whom"><option value="">To all</option>${others.map((n) => `<option value="${n}" ${to === n ? "selected" : ""}>Aside to ${esc(G.humans[n])} (${esc(nameOf(n))})</option>`).join("")}</select>
-        <input class="field" maxlength="400" placeholder="Say something to the table" value="${esc(keep)}"><button class="btn" type="submit">Say</button></form>`;
+    const whom = (nid) => G.humans[nid] || (courts.includes(nid) ? monarch(nid) : nameOf(nid));
+    const line = (l) => `<div class="line ${l.to ? "aside" : ""}"><b style="color:${mix(N[nIndex[l.nation]].color, "#ffffff", .45)}">${l.ai ? "🤖 " : ""}<span translate="no">${esc(l.name)}</span></b> <small>${esc(nameOf(l.nation))}${l.to ? `, ${l.nation === G.human ? `to ${esc(whom(l.to))}` : "to you alone"}` : ""}, ${R.startYear + l.turn - 1}</small><div translate="no">${esc(l.text)}</div></div>`;
+    const box = $("chatbox"), keep = box.querySelector("input")?.value || "", to = box.querySelector("select")?.value || (others.length ? "" : courts[0] || "");
+    const waiting = talk.considering ? `<p class="muted">🤖 The court is considering your words…</p>` : "";
+    const empty = courts.length ? "Nobody has spoken yet. The AI courts (🤖) give audiences: three words a year each. Bots do not listen here: write them letters."
+      : "Nobody has spoken yet. Bots do not listen here: write them letters.";
+    box.innerHTML = `<h4>The table</h4><div class="lines">${talk.lines.map(line).join("") || (waiting ? "" : `<p class="muted">${empty}</p>`)}${waiting}</div>
+      <form><select class="field" aria-label="To whom">${others.length ? `<option value="">To all</option>` : ""}${others.map((n) => `<option value="${n}" ${to === n ? "selected" : ""}>Aside to ${esc(G.humans[n])} (${esc(nameOf(n))})</option>`).join("")}${courts.map((n) => `<option value="${n}" ${to === n ? "selected" : ""}>🤖 Audience with ${esc(monarch(n))} (${esc(nameOf(n))})</option>`).join("")}</select>
+        <input class="field" maxlength="400" placeholder="Say something to the table" value="${esc(keep)}" ${talk.considering ? "disabled" : ""}><button class="btn" type="submit" ${talk.considering ? "disabled" : ""}>Say</button></form>`;
     const lines = box.querySelector(".lines"); lines.scrollTop = lines.scrollHeight;
     box.querySelector("form").onsubmit = async (e) => { e.preventDefault();
       const input = box.querySelector("input"), text = input.value.trim(), target = box.querySelector("select").value || null;
-      if (!text) return;
-      const r = await api("/chat", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, to: target})});
-      if (r.ok) { input.value = ""; await hear(); box.querySelector("input")?.focus(); } else flash((await r.json()).detail || "Not said."); };
+      if (!text || talk.considering) return;
+      const asking = target && courts.includes(target);
+      if (asking) { talk.considering = target; input.value = ""; chatBox(); }
+      let kept = "";
+      try {
+        const r = await api("/chat", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, to: target})});
+        if (r.ok) input.value = "";
+        else { kept = text; flash((await r.json()).detail || "Not said."); }
+      } catch { kept = text; flash("Not said."); }
+      talk.considering = null; await hear();
+      const field = $("chatbox").querySelector("input"); if (field) { if (kept) field.value = kept; field.focus(); } };
   }
   function banner() {
     const fallen = !V.me.provinces.length;

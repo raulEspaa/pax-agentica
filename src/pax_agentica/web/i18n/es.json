@@ -3524,5 +3524,14 @@
  "Write them letters, ask them for an audience, try to fool them. ${0} of AI left today.": "Escríbeles cartas, pídeles audiencia, intenta engañarlos. Quedan {0} $ de IA hoy.",
  "no AI: bots only": "sin IA: solo bots",
  "🤖 the AI council": "🤖 el consejo de IA",
- "the AI council": "el consejo de IA"
+ "the AI council": "el consejo de IA",
+ "Audience with {0} ({1})": "Audiencia con {0} ({1})",
+ "The court is considering your words…": "La corte medita tus palabras…",
+ "Nobody has spoken yet. The AI courts (🤖) give audiences: three words a year each. Bots do not listen here: write them letters.": "Nadie ha hablado aún. Las cortes de IA (🤖) conceden audiencias: tres palabras al año cada una. Los bots no escuchan aquí: escríbeles cartas.",
+ "{0} hears you out in silence. The court will answer another day.": "{0} te escucha en silencio. La corte responderá otro día.",
+ "you have spoken to that court 3 times this year: it will hear you again next year": "ya has hablado tres veces con esa corte este año: te escuchará de nuevo el año que viene",
+ "the court is still considering your last words": "la corte aún medita tus últimas palabras",
+ "the AI has spent today's budget: the courts give no audience until tomorrow": "la IA ha gastado el presupuesto de hoy: las cortes no conceden audiencias hasta mañana",
+ "that court gives no audience": "esa corte no concede audiencias",
+ "only another player or an AI court at this table can be spoken to alone": "solo se puede hablar en privado con otro jugador o con una corte de IA de esta mesa"
 }
