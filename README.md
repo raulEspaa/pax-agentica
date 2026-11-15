@@ -5,16 +5,19 @@ A strategy game built as an arena for AI rulers.
 [![CI](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml/badge.svg)](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-3776ab)
 
-Nine crowns of Europe in 1500 produce, trade, sign pacts, betray each other and go to war. Today
-an AI council (a strategist and a diplomat on Gemini, in LangGraph) rules a throne against
-rule-based bots, and an AI archivist answers questions about finished games with citations. You
-can take a throne yourself.
+Nine crowns of Europe in 1500 produce, trade, sign pacts, betray each other and go to war. Every
+rival crown can be ruled by an AI council (a strategist and a diplomat on Gemini, in LangGraph)
+that plans, writes letters, talks with you in an audience and remembers, with embeddings, the
+treaties and betrayals it lived through. An AI archivist answers questions about finished games
+with citations. You can take a throne yourself.
 
 [Play it in your browser](https://pax-tables-clysgkcjqq-ew.a.run.app). No sign-up and nothing to
-install: open a table, pick a crown and set the AI council on a rival. It plans, answers your
-proposals and writes you letters, so you can try to fool it. The other crowns are bots. The
-server spends at most $1 a day on the model; once that is gone, the council keeps its last plan
-and plays on. The archivist runs locally only.
+install: open a table, pick a crown and set the AI council on all eight rivals (or one). They
+plan, answer your proposals, write you letters and answer you at once in an audience, so you can
+try to fool them. The server spends at most $3 a day on the model; once that is gone, the
+councils keep their last plan and play on. Your seat's view is also served over
+[MCP](docs/multiplayer.md#your-seat-over-mcp), and every game and AI decision lands in
+[BigQuery](docs/analytics.md). The archivist runs locally only.
 
 <p align="center"><img src="docs/assets/cover.jpg" alt="An old-style map of three AI-ruled realms: Northreach, Ostmark and Southvale" width="760"></p>
 
@@ -111,9 +114,9 @@ time.
 | 3 | Evaluation | The strategist scored on twenty situations, as Langfuse experiments | Done |
 | 4 | Diplomacy | A LangGraph council: the strategist and a diplomat that answers letters, defended against prompt injection | Done |
 | 5 | The archive and the Archivist | Finished games in pgvector with hybrid search; an ADK agent answers questions about them with citations, checked by an LLM judge | Done |
-| 6 | Memory | Nations remember who betrayed them, from their own chronicle | Not yet |
-| 7 | Tournaments | Many seeded games: which rulers win, who keeps their word, what it costs | Pilot: 3 seeds, with controls |
-| 8 | Online | Deployed, and you can play as one of the nations | Tables done; AI later |
+| 6 | Memory | Nations remember who betrayed them, from their own views, with embeddings and hybrid recall ([spec 008](specs/008-memory-and-audience/spec.md)) | Done |
+| 7 | Tournaments | Many seeded games: which rulers win, who keeps their word ([honesty eval](specs/010-honesty/spec.md)), what it costs | Pilots, with controls |
+| 8 | Online | Deployed: play against eight AI crowns, talk to them, reach your seat over MCP ([spec 007](specs/007-mcp/spec.md)), analytics in BigQuery ([spec 009](specs/009-analytics/spec.md)) | Done |
 
 ## Results so far
 
