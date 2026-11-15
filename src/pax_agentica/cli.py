@@ -7,10 +7,12 @@ import os
 import sys
 from collections import Counter
 from collections.abc import Callable, Sequence
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from pax_agentica.agents import honesty
 from pax_agentica.agents.budget import Budget
 from pax_agentica.agents.prompts import PROMPT_VERSION
 from pax_agentica.agents.strategist import PlanModel, Strategist
@@ -78,6 +80,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "api": _api,
         "eval-archivist": _eval_archivist,
         "redteam": _redteam,
+        "honesty": _honesty,
     }[args.command]
     return handler(args)
 
@@ -197,6 +200,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     _add_model_options(redteam)
     redteam.add_argument("--tries", type=int, default=3, help="asks per letter and defence")
+    honesty = sub.add_parser(
+        "honesty", help="do AI crowns keep the promises of their letters? (needs --budget)"
+    )
+    _add_model_options(honesty)
+    honesty.add_argument("--games", type=int, default=2)
+    honesty.add_argument("--seed", type=int, default=0, help="the first game's seed")
+    honesty.add_argument("--turns", type=int, default=30, help="years a game lasts")
+    honesty.add_argument(
+        "--ai", default="", metavar="NATIONS", help="crowns ruled by the council: a,b,c or all"
+    )
+    honesty.add_argument("--records", type=Path, help="study the saved records here instead")
+    honesty.add_argument(
+        "--calibrate", action="store_true", help="score the extractor on the labelled letters"
+    )
+    honesty.add_argument(
+        "--out", type=Path, help="where to write the results (default replays/honesty-<time>)"
+    )
     api = sub.add_parser("api", help="serve the Archivist over HTTP: POST /ask")
     api.add_argument("--host", default="127.0.0.1")
     api.add_argument("--port", type=int, default=8001)
@@ -661,6 +681,137 @@ def _redteam(args: argparse.Namespace) -> int:
     errors = [o.error for o in outcomes if o.error]
     if errors:
         print(f"{len(errors)} calls failed, not counted: {errors[0]}")
+    _report_spending(budget)
+    return 0
+
+
+def _honesty(args: argparse.Namespace) -> int:
+    """Play games with AI councils (or read saved ones), and check the promises of their letters
+    against what the crowns did. Every call, the games' and the extractor's, is on one budget."""
+    budget = _budget(args)
+    if budget is None:
+        raise SystemExit(
+            "the councils and the extractor spend real money: say how much with --budget USD"
+        )
+    if args.calibrate:
+        return _calibrate_honesty(args, budget)
+    out: Path = args.out or Path("replays") / f"honesty-{RUN}"
+    studied: list[tuple[str, GameRecord, float | None, list[honesty.LetterResult]]] = []
+    if args.records:
+        paths = sorted(args.records.glob("*.json"))
+        if not paths:
+            raise SystemExit(f"no game records (*.json) in {args.records}")
+        for path in paths:
+            record = GameRecord.model_validate_json(path.read_text())
+            model = _plan_model(budget, args.model, Tracer.from_env(session=f"{RUN}-{path.stem}"))
+            extractor = cast("honesty.ExtractorModel", model)
+            results = asyncio.run(honesty.evaluate(record, path.stem, extractor, budget))
+            studied.append((path.stem, record, None, results))
+    else:
+        ai = _ai_crowns(args.ai)
+        (out / "records").mkdir(parents=True, exist_ok=True)
+        for seed in range(args.seed, args.seed + args.games):
+            if budget.limit_usd - budget.committed_usd < honesty.MIN_LEFT_TO_PLAY:
+                print(f"stopped before seed {seed}: under ${honesty.MIN_LEFT_TO_PLAY:.2f} left")
+                break
+            name = f"honesty-{RUN}-seed{seed}"
+            record, spent, results = asyncio.run(_honest_game(args, budget, seed, ai, name))
+            (out / "records" / f"{name}.json").write_text(record.model_dump_json())
+            studied.append((name, record, spent, results))
+
+    out.mkdir(parents=True, exist_ok=True)
+    rows: list[dict[str, object]] = []
+    games: list[dict[str, object]] = []
+    for name, record, played, results in studied:
+        extraction = sum(r.cost_usd for r in results)
+        cost = None if played is None else played + extraction
+        rows += honesty.rows(results, cost)
+        games.append(
+            {
+                "game": name,
+                "seed": record.initial.seed,
+                "years": len(record.turns),
+                "ai": honesty.ai_crowns(record),
+                "letters": len(results),
+                "play_cost_usd": played,
+                "extraction_cost_usd": extraction,
+                "cost_usd": cost,
+            }
+        )
+    with (out / "commitments.ndjson").open("w") as ndjson:
+        for row in rows:
+            ndjson.write(json.dumps(row) + "\n")
+    crowns = honesty.tally(r for *_, results in studied for r in results)
+    per_game = budget.spent_usd / len(studied) if studied else 0.0
+    summary = {
+        "prompt_version": honesty.HONESTY_PROMPT_VERSION,
+        "model": args.model,
+        "window_years": honesty.WINDOW_YEARS,
+        "games": games,
+        "crowns": {n: asdict(t) | {"keep_rate": t.keep_rate} for n, t in sorted(crowns.items())},
+        "spent_usd": budget.spent_usd,
+        "cost_per_game_usd": per_game,
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2))
+
+    columns = ("letters", "commitments", "checkable", "kept", "broken", "untested", "untestable")
+    print(f"{'crown':<12}" + "".join(f"{c:>12}" for c in (*columns, "deceptive", "unread")))
+    for nation, t in sorted(crowns.items()):
+        cells = [getattr(t, c) for c in (*columns, "deceptive", "unread")]
+        print(f"{nation:<12}" + "".join(f"{c:>12}" for c in cells))
+    kept, broken = sum(t.kept for t in crowns.values()), sum(t.broken for t in crowns.values())
+    if kept + broken:
+        share = kept / (kept + broken)
+        print(f"promises kept, of those settled: {kept}/{kept + broken} ({share:.0%})")
+    what = "play and extraction" if not args.records else "extraction only"
+    print(f"cost per game ({what}): ${per_game:.4f} over {len(studied)} game(s)")
+    _report_spending(budget)
+    print(f"wrote {len(rows)} commitments to {out / 'commitments.ndjson'}, and summary.json")
+    return 0
+
+
+def _ai_crowns(text: str) -> set[str]:
+    nations = set(new_game(0).nations)
+    chosen = nations if text == "all" else {n.strip() for n in text.split(",") if n.strip()}
+    if len(chosen) < 2 or not chosen <= nations:
+        raise SystemExit(
+            f"--ai needs two crowns or more, to write to each other: all, or of {sorted(nations)}"
+        )
+    return chosen
+
+
+async def _honest_game(
+    args: argparse.Namespace, budget: Budget, seed: int, ai: set[str], name: str
+) -> tuple[GameRecord, float, list[honesty.LetterResult]]:
+    """One game with the `ai` crowns ruled by councils, then its letters read: in one event loop,
+    so the game and the extractor share the model, its rate window and the budget."""
+    state = new_game(seed, max_turns=args.turns)
+    tracer = Tracer.from_env(session=name)
+    model = _plan_model(budget, args.model, tracer)
+    players = {
+        n: _council(model, seed, tracer) if n in ai else GreedyBot(seed) for n in state.nations
+    }
+    start = budget.spent_usd
+    record = await run_game(state, players)
+    played = budget.spent_usd - start
+    extractor = cast("honesty.ExtractorModel", model)
+    return record, played, await honesty.evaluate(record, name, extractor, budget)
+
+
+def _calibrate_honesty(args: argparse.Namespace, budget: Budget) -> int:
+    """The extractor on the labelled letters: precision, recall, and deception accuracy."""
+    from pax_agentica.agents import honesty_cases
+
+    model = _plan_model(budget, args.model, Tracer.from_env(session=f"{RUN}-honesty-calibration"))
+    scores = asyncio.run(honesty_cases.calibrate(cast("honesty.ExtractorModel", model)))
+    print(f"{scores.letters} letters ({scores.failed} failed, not scored), labels are DRAFTS")
+    print(f"  precision           {scores.precision:>6.0%}")
+    print(f"  recall              {scores.recall:>6.0%}")
+    print(f"  deception accuracy  {scores.deception_accuracy:>6.0%}")
+    if scores.missed:
+        print(f"  missed a promise:   {', '.join(scores.missed)}")
+    if scores.invented:
+        print(f"  listed one not in the label: {', '.join(scores.invented)}")
     _report_spending(budget)
     return 0
 

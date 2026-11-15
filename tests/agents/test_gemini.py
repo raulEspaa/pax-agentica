@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from pax_agentica.agents import gemini
 from pax_agentica.agents.budget import Budget, BudgetExceeded
 from pax_agentica.agents.gemini import DEFAULT_MODEL, GeminiModel, IncompleteAnswer, Price
+from pax_agentica.agents.honesty import Commitment, Extraction
 from pax_agentica.agents.prompts import PlanRequest
 from pax_agentica.agents.strategist import Strategist
 from pax_agentica.agents.tracing import Tracer
@@ -99,6 +100,15 @@ def test_sends_who_and_what_and_the_schema_and_asks_not_to_be_stored(stub: Stub)
     assert body["response_format"]["schema"] == Plan.model_json_schema()
     assert body["generation_config"]["thinking_level"] == "low"
     assert body["generation_config"]["max_output_tokens"] == gemini.MAX_OUTPUT_TOKENS
+
+
+def test_reads_a_letters_commitments_with_their_own_schema(stub: Stub) -> None:
+    stub.reply = answer('{"commitments": [{"to": "spain", "kind": "pay", "quote": "100 ducats"}]}')
+
+    found = asyncio.run(GeminiModel(stub.client(), Budget(1.0)).write_commitments(REQUEST))
+
+    assert found == Extraction(commitments=[Commitment(to="spain", kind="pay", quote="100 ducats")])
+    assert stub.bodies[0]["response_format"]["schema"] == Extraction.model_json_schema()
 
 
 def test_charges_what_the_call_really_cost_counting_the_thinking(stub: Stub) -> None:
