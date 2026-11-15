@@ -19,7 +19,7 @@ TYPES = {"INTEGER": "INT64", "FLOAT": "FLOAT64", "BOOLEAN": "BOOL"}  # legacy na
 
 def column_type(field: dict[str, Any]) -> str:
     if field["type"] == "RECORD":
-        inner = ", ".join(f"{f['name']} {column_type(f)}" for f in field["fields"])
+        inner = ", ".join(f"`{f['name']}` {column_type(f)}" for f in field["fields"])
         kind = f"STRUCT<{inner}>"
     else:
         kind = TYPES.get(field["type"], field["type"])
@@ -28,7 +28,7 @@ def column_type(field: dict[str, Any]) -> str:
 
 def ddl(kind: str, project: str, dataset: str, bucket: str) -> str:
     fields = json.loads((SCHEMAS / f"{kind}.json").read_text(encoding="utf-8"))
-    columns = ",\n".join(f"  {f['name']} {column_type(f)}" for f in fields)
+    columns = ",\n".join(f"  `{f['name']}` {column_type(f)}" for f in fields)
     prefix = f"gs://{bucket}/analytics/{kind}"
     return (
         f"CREATE OR REPLACE EXTERNAL TABLE `{project}.{dataset}.{kind}` (\n{columns}\n)\n"

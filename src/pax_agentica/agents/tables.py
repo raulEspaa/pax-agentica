@@ -8,6 +8,8 @@ never stopped by the budget.
     GEMINI_API_KEY=...          # the key; without it the tables have no AI
     PAX_AI_DAILY_USD=3          # the most the server spends on models in a day (UTC)
     PAX_AI_CALLS_PER_MINUTE=60  # optional: the model's pace; the default suits the free tier
+    PAX_AI_CONCURRENT_CALLS=16  # optional: calls in flight at once; eight crowns writing to each
+                                # other made ~25 calls a year, and 4 at once queued them for ~50 s
     PAX_AI_TEXTS_PER_MINUTE=50  # optional: the embedder's pace (the free tier allows 100)
 
 Each council keeps a memory of the courts (spec 008), embedded with `gemini-embedding-001` on
@@ -259,7 +261,8 @@ class TableAI:
         embedder = embeddings.GeminiEmbedder(
             client, budget, dimensions=MEMORY_DIMENSIONS, texts_per_minute=texts
         )
-        model = gemini.GeminiModel(client, budget, calls_per_minute=pace)
+        at_once = int(os.environ.get("PAX_AI_CONCURRENT_CALLS", gemini.MAX_CONCURRENT_CALLS))
+        model = gemini.GeminiModel(client, budget, calls_per_minute=pace, concurrent_calls=at_once)
         return cls(model, budget, embedder, saves)
 
     def memory_path(self, table: str, nation: NationId) -> Path | None:

@@ -177,5 +177,6 @@ def test_the_ddl_has_one_partitioned_external_table_per_kind() -> None:
         assert f"CREATE OR REPLACE EXTERNAL TABLE `p.pax_analytics.{kind}`" in out
         assert f"hive_partition_uri_prefix = 'gs://b/analytics/{kind}'" in out
     assert out.count("WITH PARTITION COLUMNS (dt DATE)") == len(KINDS)
-    assert "standings ARRAY<STRUCT<nation STRING" in out
-    assert "failures ARRAY<STRING>" in out
+    assert "`standings` ARRAY<STRUCT<`nation` STRING" in out
+    assert "`failures` ARRAY<STRING>" in out
+    assert "`at` TIMESTAMP" in out  # AT is a reserved word: unquoted, BigQuery refused the DDL

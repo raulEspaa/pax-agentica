@@ -157,3 +157,19 @@ About **$0**:
 
 Turn it off: nothing to turn off on the server side beyond the files it writes;
 `bq rm -r -f pax-agentica-261016:pax_analytics` removes the dataset (the files stay in the bucket).
+
+## First reading (2026-11-15)
+
+The first table in production with all eight rivals ruled by the council (5 years, one human) gave,
+from `decision_cost_latency.sql` and a query by year:
+
+| Year | Decisions | Model calls | Mean latency | Cost |
+|---|---|---|---|---|
+| 1 | 8 | 9 | 50 s | $0.021 |
+| 2 | 8 | 8 | 11 s | $0.006 |
+| 3-5 | 24 | 78 | 47-52 s | $0.078 |
+
+$0.105 in all, $0.0026 a decision. The latency was the queue, not the model: from the third year
+the eight crowns write to each other, about 25 calls a year, and the model let only 4 run at once.
+`PAX_AI_CONCURRENT_CALLS=16` came from this reading. It is the kind of question this table exists
+to answer: one query, no logs to grep.

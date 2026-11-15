@@ -26,7 +26,7 @@ The job reads four repository **variables** (not secrets): `GCP_PROJECT`, `GCP_R
 |---|---|
 | Service | `pax-tables`, public and open (no invitation code), at most **one instance** (games live in its memory), 1 CPU, 512 MB, scale to zero |
 | Limits | 12 tables open at once, 20 new tables an hour (`multiplayer.py`) |
-| AI council | up to every rival of a table (8 crowns); `PAX_AI_CALLS_PER_MINUTE=60` and `PAX_AI_TEXTS_PER_MINUTE=300` (paid tier: model calls and embedded memory entries a minute); `GEMINI_API_KEY` from Secret Manager `gemini-api-key`; `PAX_AI_DAILY_USD=3`, the most the server spends on the model in a day (UTC), recorded in the bucket as `ai-budget.json` |
+| AI council | up to every rival of a table (8 crowns); `PAX_AI_CALLS_PER_MINUTE=60` and `PAX_AI_TEXTS_PER_MINUTE=300` (paid tier: model calls and embedded memory entries a minute) and `PAX_AI_CONCURRENT_CALLS=16` (calls in flight at once); `GEMINI_API_KEY` from Secret Manager `gemini-api-key`; `PAX_AI_DAILY_USD=3`, the most the server spends on the model in a day (UTC), recorded in the bucket as `ai-budget.json` |
 | Runtime account | `pax-runtime`: may read the invitation code and write the tables bucket, nothing else |
 | Tables | bucket `pax-agentica-261016-tables`, mounted at `/data`; one JSON file per table, written after every year |
 | Analytics | NDJSON events in the same bucket, `analytics/<kind>/dt=YYYY-MM-DD/`: a row per closed table and per AI decision; read by BigQuery external tables in the dataset `pax_analytics` ([analytics.md](analytics.md)) |

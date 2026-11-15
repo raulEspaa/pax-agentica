@@ -114,6 +114,7 @@ class GeminiModel:
         tracer: Tracer | None = None,
         calls_per_minute: int = CALLS_PER_MINUTE,
         window: RateWindow | None = None,
+        concurrent_calls: int = MAX_CONCURRENT_CALLS,
     ) -> None:
         if model not in PRICES:
             raise ValueError(f"no price for {model!r}: add it to PRICES first")
@@ -123,7 +124,7 @@ class GeminiModel:
         self._model = model
         self._price = PRICES[model]
         self._thinking = thinking
-        self._slots = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
+        self._slots = asyncio.Semaphore(concurrent_calls)
         self._window = window or RateWindow(calls_per_minute)
 
     @property
