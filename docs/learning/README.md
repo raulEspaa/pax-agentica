@@ -5,4 +5,4 @@ and what I would do differently.
 
 | # | Note | Milestone |
 |---|------|-----------|
-| — | (none yet) | — |
+| 010 | [Honesty: what an agent says against what it does](010-honesty.md) (draft) | AI evaluation |
