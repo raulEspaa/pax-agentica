@@ -69,3 +69,50 @@ on a decision already made: on Cloud Run a year now ends in about a second.
 To close it again, set `PAX_INVITE_CODE` (a secret in Secret Manager): see [`deploy.md`](deploy.md).
 
 To try the image locally first: `make image`, then open `http://localhost:8080`.
+
+## Your seat over MCP
+
+The tables also serve a seat's view to any MCP client, at `POST /mcp` (Streamable HTTP,
+[spec 007](../specs/007-mcp/spec.md)): the briefing, the compact view, the inbox and the
+calculators of the [agent tools](agent-tools.md#over-mcp), all read-only. Orders still go through
+the page (`POST /api/t/{table}/turn`).
+
+- **Which table:** the `X-Table` header, with the table's id.
+- **Which seat:** its token, in `Authorization: Bearer <token>` (or `X-Seat`, as the page sends
+  it). Both are in the lobby's *seat link*: `/t/<table>?seat=<token>`.
+- No token: 401. A token that is no seat at that table: 403. No such table: 404. A token only
+  ever reads its own nation, exactly what the page shows that player.
+- The transport is **stateless**, with JSON answers: no MCP session is kept, each request is
+  checked on its own, any instance can answer, and the server holds nothing new.
+
+```bash
+claude mcp add --transport http pax-table https://pax-tables-clysgkcjqq-ew.a.run.app/mcp \
+  --header "X-Table: <table>" --header "Authorization: Bearer <token>"
+```
+
+Claude Desktop reaches a remote server that needs headers through the `mcp-remote` bridge:
+
+```json
+{
+  "mcpServers": {
+    "pax-table": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://pax-tables-clysgkcjqq-ew.a.run.app/mcp",
+               "--header", "X-Table:${PAX_TABLE}", "--header", "Authorization:Bearer ${PAX_SEAT}"],
+      "env": {"PAX_TABLE": "<table>", "PAX_SEAT": "<token>"}
+    }
+  }
+}
+```
+
+Or by hand, with no handshake first (the server is stateless):
+
+```bash
+curl -s https://pax-tables-clysgkcjqq-ew.a.run.app/mcp -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" -H "X-Table: <table>" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"briefing","arguments":{}}}'
+```
+
+The seat token is the whole credential, as it is for the page: whoever has it reads that nation's
+view (and, through the page, plays it).
