@@ -5,4 +5,4 @@ and what I would do differently.
 
 | # | Note | Milestone |
 |---|------|-----------|
-| — | (none yet) | — |
+| 007 | [A nation's view over MCP](007-mcp.md) | AI roadmap, phase 7 (reduced) |

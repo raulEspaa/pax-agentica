@@ -20,8 +20,9 @@ played. The phases below stay as the record of the full plan; this is the order 
 Cut from the MVP: rulers that read their own chronicle (memory with the fog-of-war filter), MCP, a
 human in the loop, decisions streamed by SSE, the Postgres checkpointer, paired tournaments with
 bootstrap intervals, and the written LangSmith comparison. Each is a later addition, not a missing
-piece. Two of the first cuts came back in small form: a red team against the diplomat and an LLM
-judge for the Archivist (see [results](ai-results.md)).
+piece. Three of the first cuts came back in small form: a red team against the diplomat and an LLM
+judge for the Archivist (see [results](ai-results.md)), and an MCP server over the rulers' tools,
+local and on the public tables ([spec 007](../specs/007-mcp/spec.md)).
 
 ## Goals
 
@@ -173,7 +174,8 @@ more in a tournament? If not, that is reported.
 ### 7. Tools and MCP (spec 006) (M)
 
 Battle odds and targets as tools for the model, and an MCP server exposing them. Evaluate better
-plans against the extra tokens and latency.
+plans against the extra tokens and latency. The MCP server is done ([spec 007](../specs/007-mcp/spec.md));
+the evaluation is not.
 
 ### 8. Durable execution (M)
 

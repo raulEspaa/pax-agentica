@@ -48,6 +48,44 @@ For a language model's tool calling, `TOOL_SPECS` describes them as JSON-schema 
 `call_tool(view, name, args)` answers a call with a small dict, or `{"error": ...}` for the model
 to read and correct.
 
+## Over MCP
+
+The same tools, for any [MCP](https://modelcontextprotocol.io) client (Claude Code, Claude
+Desktop, an IDE, another framework), from
+[`mcp_server.py`](../src/pax_agentica/mcp_server.py) ([spec 007](../specs/007-mcp/spec.md)):
+`briefing`, `compact_view` and `inbox` as text, and the four calculators with `TOOL_SPECS` as
+their input schemas and `call_tool`'s dict as their answer. Every tool is read-only and reads one
+nation's view: the server is given that view (stdio) or finds it from the caller's seat (HTTP),
+so no argument can name another nation.
+
+```bash
+uv run pax mcp france --seed 1               # a fresh game, over stdio
+uv run pax mcp france --seed 1 --turn 20     # after 19 years of greedy bots, as `pax brief`
+uv run pax mcp france --game game.json       # a game saved by `pax play --save game.json`
+```
+
+In Claude Code (run from the repo):
+
+```bash
+claude mcp add pax -- uv run pax mcp france --seed 1
+```
+
+In Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "pax": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/pax-agentica", "run", "pax", "mcp", "france", "--seed", "1"]
+    }
+  }
+}
+```
+
+A seat at a public table is served the same way over HTTP: see
+[multiplayer](multiplayer.md#your-seat-over-mcp).
+
 ## Tournaments
 
 ```bash

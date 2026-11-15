@@ -79,6 +79,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "eval-archivist": _eval_archivist,
         "redteam": _redteam,
         "analytics": _analytics,
+        "mcp": _mcp,
     }[args.command]
     return handler(args)
 
@@ -151,6 +152,13 @@ def _parser() -> argparse.ArgumentParser:
         "--compact", action="store_true", help="the compact view a planning ruler reads"
     )
     page.add_argument("--inbox", action="store_true", help="the letters and proposals received")
+
+    mcp = sub.add_parser("mcp", help="serve a nation's view to an MCP client, over stdio")
+    mcp.add_argument("nation")
+    mcp.add_argument("--seed", type=int, default=1)
+    start = mcp.add_mutually_exclusive_group()
+    start.add_argument("--turn", type=int, default=1, help="play greedy bots up to this year first")
+    start.add_argument("--game", type=Path, help="a game record saved by `pax play --save`")
 
     tour = sub.add_parser("tournament", help="many seeds, mixed rulers, a table of results")
     tour.add_argument("--games", type=int, default=20)
@@ -415,25 +423,53 @@ def _view(args: argparse.Namespace) -> int:
     return 0
 
 
-def _brief(args: argparse.Namespace) -> int:
-    from pax_agentica.tools import briefing, compact_view, inbox
-
-    state = new_game(args.seed, max_turns=max(50, args.turn))
-    if args.nation not in state.nations:
-        print(
-            f"unknown nation {args.nation!r}; try one of {sorted(state.nations)}", file=sys.stderr
-        )
-        return 2
-    if args.turn > 1:  # play the bots up to that year, so the page has a story to tell
-        bots: dict[str, Player] = {n: GreedyBot(args.seed) for n in state.nations}
+def _state_at(seed: int, turn: int) -> GameState:
+    """A fresh game, or one played by greedy bots up to `turn` so a page has a story to tell."""
+    state = new_game(seed, max_turns=max(50, turn))
+    if turn > 1:
+        bots: dict[str, Player] = {n: GreedyBot(seed) for n in state.nations}
         played: list[GameState] = []
-        state.max_turns = args.turn
+        state.max_turns = turn
         asyncio.run(run_game(state, bots, on_turn=lambda _t, s: played.append(s)))
         state = played[-1] if played else state
         state.max_turns = 50  # the page reads as a year in a full game, not the last one
-    view = view_for(state, args.nation)
+    return state
+
+
+def _brief(args: argparse.Namespace) -> int:
+    from pax_agentica.tools import briefing, compact_view, inbox
+
+    if args.nation not in new_game(args.seed).nations:
+        print(
+            f"unknown nation {args.nation!r}; try one of {sorted(new_game(args.seed).nations)}",
+            file=sys.stderr,
+        )
+        return 2
+    view = view_for(_state_at(args.seed, args.turn), args.nation)
     page = compact_view if args.compact else inbox if args.inbox else briefing
     print(page(view) or "(nothing)")
+    return 0
+
+
+def _mcp(args: argparse.Namespace) -> int:
+    """Serve one nation's view over stdio. Nothing but the protocol may go to stdout."""
+    from pax_agentica.engine import resolve_turn
+    from pax_agentica.mcp_server import serve_stdio
+
+    record = (
+        GameRecord.model_validate_json(args.game.read_text(encoding="utf-8")) if args.game else None
+    )
+    nations = record.initial.nations if record else new_game(args.seed).nations
+    if args.nation not in nations:
+        print(f"unknown nation {args.nation!r}; try one of {sorted(nations)}", file=sys.stderr)
+        return 2
+    if record is None:
+        state = _state_at(args.seed, args.turn)
+    else:  # the engine is deterministic: the recorded orders rebuild the game
+        state = record.initial
+        for turn in record.turns:
+            state = resolve_turn(state, turn.orders)
+    serve_stdio(view_for(state, args.nation))
     return 0
 
 
