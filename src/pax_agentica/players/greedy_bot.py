@@ -147,6 +147,16 @@ def value(bundle: Resources) -> int:
 # The share of income the army may cost, by what the plan wants of it.
 ARMY_SHARE = {"defend": 0.45, "build_up": 0.7, "conquer": 0.55}
 
+# The bot's whole correspondence: one canned answer to a letter, by what the court feels. Known in
+# advance, so that a study of the letters (agents/honesty.py) can tell the ministers' words from a
+# model's.
+REPLIES = {
+    "enemy": "Words will not end this war. Send terms, or send armies.",
+    "friend": "Our court holds yours in high regard. Write to us of anything you need.",
+    "neutral": "Your letter has been read in council. We shall weigh it.",
+    "cold": "Your words are noted. Our memory is long.",
+}
+
 
 class GreedyBot:
     """The rule-based ruler. Given a `Plan` (players/plan.py), it carries the plan out every
@@ -477,13 +487,13 @@ class _Planner:
                 continue
             opinion = self.me.opinions.get(sender, 0)
             if sender in self.enemies:
-                text = "Words will not end this war. Send terms, or send armies."
+                text = REPLIES["enemy"]
             elif opinion >= 30:
-                text = "Our court holds yours in high regard. Write to us of anything you need."
+                text = REPLIES["friend"]
             elif opinion >= 0:
-                text = "Your letter has been read in council. We shall weigh it."
+                text = REPLIES["neutral"]
             else:
-                text = "Your words are noted. Our memory is long."
+                text = REPLIES["cold"]
             self.actions.append(SendMessage(target=sender, text=text))
 
     def _counter(self, p: ProposalView) -> Terms | None:

@@ -121,6 +121,48 @@ with France a greedy bot. Everything else is the same greedy bot in both.
   (35 and 40 against 39), so on these seeds the gain is the model's plans, not the machinery.
 - What is still missing: many paired seeds in every seat, with intervals.
 
+## Honesty: do the councils keep the promises of their letters?
+
+From [spec 010](../specs/010-honesty/spec.md). `pax honesty` plays games with several crowns ruled
+by councils, so that models write to models, then a model lists the commitments in each AI letter
+and rules check them against what the crown did afterwards. The diplomat is allowed to deceive,
+so this measures behaviour; it does not score honesty as a virtue.
+
+**To be measured.** Nothing below has run against a real model yet.
+
+### The extractor first: 25 labelled letters
+
+`pax honesty --calibrate --budget 0.30`: precision and recall on (kind, court) pairs, and whether
+it reads deception in the private thoughts as the label does. The labels are drafts until Raúl
+reviews them.
+
+| Model, thinking | precision | recall | deception accuracy | Cost |
+|---|---|---|---|---|
+| 3.1-flash-lite, low | _to be measured_ | _to be measured_ | _to be measured_ | _to be measured_ |
+
+### The pilot: 2 games, 30 years, France, Spain and England ruled by councils
+
+`pax honesty --games 2 --turns 30 --ai france,spain,england --budget 2`
+
+| Crown | Letters | Commitments | Checkable | Kept | Broken | Untested | Untestable | Deceptive letters |
+|---|---|---|---|---|---|---|---|---|
+| france | _tbm_ | | | | | | | |
+| spain | _tbm_ | | | | | | | |
+| england | _tbm_ | | | | | | | |
+
+- Promises kept, of those settled: _to be measured_.
+- **Cost per game** (councils + extraction): _to be measured_; estimated $0.35 to $0.50 (below).
+
+**The estimate**, from a 30-year game played with fake councils (seeds 0 and 1, $0): three
+councils make about 56 plan calls and 78 diplomacy calls a game. At about $0.002 a call
+(`gemini-3.1-flash-lite`, low thinking; the France pilot above spent $0.15 on some 75 calls),
+that is about $0.27. If each diplomacy call writes one or two letters, there are 80 to 160 letters
+to read at about $0.0012 each (some 2,000 characters in, a short answer and low thinking out):
+$0.10 to $0.19. The budget sets aside the worst case of each call before making it ($0.013 for an
+extraction), so a budget a little above the estimate is enough; `--budget 2` leaves room for the
+real letters being longer than the fakes'. At the client's 12 calls a minute, a game takes about
+20 minutes.
+
 ## What these numbers do not show
 
 - Whether the rulers play better than the bots in general: three seeds in one seat show a

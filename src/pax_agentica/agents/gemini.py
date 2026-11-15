@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from pax_agentica.agents.budget import Budget
 from pax_agentica.agents.diplomat import Diplomacy
+from pax_agentica.agents.honesty import Extraction
 from pax_agentica.agents.prompts import PlanRequest
 from pax_agentica.agents.tracing import Step, Tracer
 from pax_agentica.players.plan import Plan
@@ -134,6 +135,10 @@ class GeminiModel:
 
     async def write_diplomacy(self, request: PlanRequest) -> Diplomacy:
         return await self.write(request, Diplomacy)
+
+    async def write_commitments(self, request: PlanRequest) -> Extraction:
+        """The promises of a letter, for the honesty evaluation (spec 010)."""
+        return await self.write(request, Extraction)
 
     async def write[T: BaseModel](self, request: PlanRequest, schema: type[T]) -> T:
         """An answer in the shape of `schema`, which the provider is asked to keep to."""
