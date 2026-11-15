@@ -15,6 +15,7 @@ from google.genai.interactions import Interaction, Usage
 from google.genai.types import HttpOptions, HttpRetryOptions
 from pydantic import BaseModel
 
+from pax_agentica.agents.audience import Reply
 from pax_agentica.agents.budget import Budget
 from pax_agentica.agents.diplomat import Diplomacy
 from pax_agentica.agents.prompts import PlanRequest
@@ -129,6 +130,9 @@ class GeminiModel:
 
     async def write_diplomacy(self, request: PlanRequest) -> Diplomacy:
         return await self.write(request, Diplomacy)
+
+    async def write_reply(self, request: PlanRequest) -> Reply:
+        return await self.write(request, Reply)
 
     async def write[T: BaseModel](self, request: PlanRequest, schema: type[T]) -> T:
         """An answer in the shape of `schema`, which the provider is asked to keep to."""

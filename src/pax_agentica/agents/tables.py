@@ -8,21 +8,42 @@ never stopped by the budget.
     GEMINI_API_KEY=...          # the key; without it the tables have no AI
     PAX_AI_DAILY_USD=3          # the most the server spends on models in a day (UTC)
     PAX_AI_CALLS_PER_MINUTE=60  # optional: the model's pace; the default suits the free tier
+    PAX_AI_TEXTS_PER_MINUTE=50  # optional: the embedder's pace (the free tier allows 100)
+
+Each council keeps a memory of the courts (spec 008), embedded with `gemini-embedding-001` on
+the same budget and kept in `memory/<table>.<nation>.json` beside the saves. A seated player may
+also ask an AI crown for an audience: `audience` answers in the monarch's voice, in words only.
 
 Imported only by a server that has both: the image for tables without AI goes without LangGraph.
 """
 
 import asyncio
 import os
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Protocol
 
+from pax_agentica.agents import audience
+from pax_agentica.agents.audience import Reply, Said
 from pax_agentica.agents.budget import DailyBudget
 from pax_agentica.agents.council import Council, CouncilModel
+from pax_agentica.agents.embeddings import Embedder
+from pax_agentica.agents.memory import Chronicle, Embeddings
+from pax_agentica.agents.prompts import PlanRequest
 from pax_agentica.engine import NationId, NationView, Orders
 from pax_agentica.players import Player
 
 BUDGET_FILE = "ai-budget.json"  # beside the tables' saves, so a restart remembers the day
+MEMORY_DIR = "memory"  # beside the tables' saves: one file per AI crown and table
+MEMORY_DIMENSIONS = 256  # a crown's memory is small: a quarter of the archive's, and its files
 TIMEOUT_SECONDS = 50.0  # per try: thinking ahead hides it, and the model's latency varies a lot
+AUDIENCE_TIMEOUT_SECONDS = 30.0  # a player is waiting for this one: past it, the court is silent
+
+
+class TableModel(CouncilModel, Protocol):
+    """The council's model, which at the tables also answers audiences."""
+
+    async def write_reply(self, request: PlanRequest) -> Reply: ...
 
 
 class ThinksAhead:
@@ -58,9 +79,17 @@ class ThinksAhead:
 class TableAI:
     """Makes a council for any crown at any table, all spending from one budget."""
 
-    def __init__(self, model: CouncilModel, budget: DailyBudget) -> None:
+    def __init__(
+        self,
+        model: TableModel,
+        budget: DailyBudget,
+        embedder: Embedder | None = None,
+        saves: Path | None = None,
+    ) -> None:
         self.model = model
         self.budget = budget
+        self.embeddings = Embeddings(embedder) if embedder is not None else None
+        self.saves = saves  # where the memories are kept; None keeps them in memory only
 
     @classmethod
     def from_env(cls, saves: Path) -> "TableAI | None":
@@ -72,13 +101,58 @@ class TableAI:
 
         saves.mkdir(parents=True, exist_ok=True)
         budget = DailyBudget(float(limit), saves / BUDGET_FILE)
+        from pax_agentica.agents import embeddings
+
         pace = int(os.environ.get("PAX_AI_CALLS_PER_MINUTE", gemini.CALLS_PER_MINUTE))
-        return cls(gemini.GeminiModel(gemini.new_client(), budget, calls_per_minute=pace), budget)
+        texts = int(os.environ.get("PAX_AI_TEXTS_PER_MINUTE", embeddings.TEXTS_PER_MINUTE))
+        client = gemini.new_client()
+        embedder = embeddings.GeminiEmbedder(
+            client, budget, dimensions=MEMORY_DIMENSIONS, texts_per_minute=texts
+        )
+        model = gemini.GeminiModel(client, budget, calls_per_minute=pace)
+        return cls(model, budget, embedder, saves)
+
+    def memory_path(self, table: str, nation: NationId) -> Path | None:
+        return self.saves / MEMORY_DIR / f"{table}.{nation}.json" if self.saves else None
 
     def ruler(self, seed: int, table: str, nation: NationId) -> Player:
-        """A council of its own for this crown at this table (its memory is its thread)."""
-        council = Council(self.model, seed, TIMEOUT_SECONDS, thread=f"{table}:{nation}")
+        """A council of its own for this crown at this table (its plans are its thread), with its
+        memory of the courts read back from its file."""
+        memory = Chronicle(self.embeddings, self.memory_path(table, nation))
+        council = Council(
+            self.model, seed, TIMEOUT_SECONDS, thread=f"{table}:{nation}", memory=memory
+        )
         return ThinksAhead(council)
+
+    def forget(self, table: str) -> None:
+        """Delete the memories of a table that is gone."""
+        if self.saves is not None:
+            for path in (self.saves / MEMORY_DIR).glob(f"{table}.*.json"):
+                path.unlink(missing_ok=True)
+
+    async def audience(
+        self, ruler: Player, view: NationView, guest: NationId, envoy: str, said: Sequence[Said]
+    ) -> Reply:
+        """The answer of the crown whose `view` this is, ruled by `ruler`, to the envoy of `guest`
+        (a player called `envoy`) at the end of `said`. Raises `BudgetExceeded` when the day's
+        money is spent, `TimeoutError` past the timeout, and whatever the model raises."""
+        council = ruler.ruler if isinstance(ruler, ThinksAhead) else ruler
+        if not isinstance(council, Council):
+            raise TypeError("only the AI council gives audiences")
+        plan = await council.plan_in_force(view)
+        memory = council.memory
+        last = said[-1].text if said else ""
+        remembered = []
+        if memory is not None:
+            question = f"{guest}: promises, treaties, betrayals and wars. {last}"
+            found = await memory.recall(guest, question)
+            remembered = [e.text for e in sorted(found, key=lambda e: e.turn)]  # oldest first
+        request = audience.build_request(view, plan, guest, envoy, said, remembered)
+        async with asyncio.timeout(AUDIENCE_TIMEOUT_SECONDS):
+            reply = await self.model.write_reply(request)
+        if memory is not None:
+            await memory.remember_audience(view, guest, envoy, last, reply.text)
+        return reply
 
     def status(self) -> dict[str, float | bool]:
         left = self.budget.left_usd

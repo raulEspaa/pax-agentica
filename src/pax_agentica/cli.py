@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from pax_agentica.agents.archivist import Archivist
     from pax_agentica.agents.embeddings import Embedder
     from pax_agentica.agents.gemini import RateWindow
+    from pax_agentica.agents.tables import TableModel
 
 # steady and random-plan: the greedy bot with plans no model wrote, the controls for the council
 BOTS: dict[str, Callable[[int], Player]] = {
@@ -78,6 +79,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "api": _api,
         "eval-archivist": _eval_archivist,
         "redteam": _redteam,
+        "audience": _audience,
     }[args.command]
     return handler(args)
 
@@ -197,6 +199,17 @@ def _parser() -> argparse.ArgumentParser:
     )
     _add_model_options(redteam)
     redteam.add_argument("--tries", type=int, default=3, help="asks per letter and defence")
+    hearing = sub.add_parser(
+        "audience", help="speak to an AI crown at the start of a game, and hear its answer"
+    )
+    hearing.add_argument("words", help="what your envoy says")
+    hearing.add_argument("--nation", default="england", help="the AI crown that answers")
+    hearing.add_argument("--as", dest="guest", default="france", help="the crown you speak for")
+    hearing.add_argument("--seed", type=int, default=1)
+    hearing.add_argument(
+        "--prompt", action="store_true", help="print the prompt instead: no model is called"
+    )
+    _add_model_options(hearing)
     api = sub.add_parser("api", help="serve the Archivist over HTTP: POST /ask")
     api.add_argument("--host", default="127.0.0.1")
     api.add_argument("--port", type=int, default=8001)
@@ -631,6 +644,36 @@ def _eval_archivist(args: argparse.Namespace) -> int:
     _report_spending(budget)
     if result.experiment_url:
         print(f"\n{result.experiment_url}")
+    return 0
+
+
+def _audience(args: argparse.Namespace) -> int:
+    """One audience, as at a table: the crown's council has no plan yet, and no memory but the
+    first year's view. Calls the model once (plus its retry at worst), within --budget."""
+    from pax_agentica.agents import audience
+    from pax_agentica.agents.audience import Said
+
+    state = new_game(args.seed)
+    if args.nation not in state.nations or args.guest not in state.nations:
+        raise SystemExit(f"nations: {sorted(state.nations)}")
+    view = view_for(state, args.nation)
+    said = [Said(theirs=True, text=args.words)]
+    if args.prompt:
+        request = audience.build_request(view, None, args.guest, "the envoy", said)
+        print(f"{request.system}\n---\n{request.user}")
+        return 0
+    from pax_agentica.agents.budget import DailyBudget
+    from pax_agentica.agents.tables import TableAI
+
+    if not args.budget:
+        raise SystemExit("an audience spends real money: say how much with --budget USD")
+    budget = DailyBudget(args.budget)
+    model = _plan_model(budget, args.model, Tracer.from_env(session=f"{RUN}-audience"))
+    ai = TableAI(cast("TableModel", model), budget)
+    ruler = ai.ruler(args.seed, "cli", args.nation)
+    reply = asyncio.run(ai.audience(ruler, view, args.guest, "the envoy", said))
+    print(f"{view.me.name}: {reply.text}\n(private: {reply.note})")
+    _report_spending(budget)
     return 0
 
 
