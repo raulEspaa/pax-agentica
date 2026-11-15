@@ -6,7 +6,8 @@ refused before they are made; the council keeps its last plan and its bot plays 
 never stopped by the budget.
 
     GEMINI_API_KEY=...          # the key; without it the tables have no AI
-    PAX_AI_DAILY_USD=1          # the most the server spends on models in a day (UTC)
+    PAX_AI_DAILY_USD=3          # the most the server spends on models in a day (UTC)
+    PAX_AI_CALLS_PER_MINUTE=60  # optional: the model's pace; the default suits the free tier
 
 Imported only by a server that has both: the image for tables without AI goes without LangGraph.
 """
@@ -71,7 +72,8 @@ class TableAI:
 
         saves.mkdir(parents=True, exist_ok=True)
         budget = DailyBudget(float(limit), saves / BUDGET_FILE)
-        return cls(gemini.GeminiModel(gemini.new_client(), budget), budget)
+        pace = int(os.environ.get("PAX_AI_CALLS_PER_MINUTE", gemini.CALLS_PER_MINUTE))
+        return cls(gemini.GeminiModel(gemini.new_client(), budget, calls_per_minute=pace), budget)
 
     def ruler(self, seed: int, table: str, nation: NationId) -> Player:
         """A council of its own for this crown at this table (its memory is its thread)."""

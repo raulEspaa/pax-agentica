@@ -140,3 +140,23 @@ def test_the_council_thinks_while_the_humans_play(tmp_path: Path) -> None:
         r = client.post(f"/api/t/{opened['table']}/turn", json={"actions": []}, headers=seat)
         assert r.status_code == 200
         assert len(model.plans) == 1
+
+
+def test_every_rival_may_be_ruled_by_the_council(tmp_path: Path) -> None:
+    client, model = server(tmp_path)
+    rivals = [
+        "england",
+        "spain",
+        "austria",
+        "ottomans",
+        "sweden",
+        "russia",
+        "poland",
+        "brandenburg",
+    ]
+    opened = open_table(client, ai=rivals)
+    seat = {"X-Seat": opened["token"]}
+    client.post(f"/api/t/{opened['table']}/turn", json={"actions": []}, headers=seat)
+    game = client.get(f"/api/t/{opened['table']}/game", headers=seat).json()
+    assert all(game["rulers"][n] == "council" for n in rivals)
+    assert len(model.plans) == len(rivals)  # each crown its own council, each its first plan

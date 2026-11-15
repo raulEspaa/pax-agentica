@@ -3518,9 +3518,11 @@
  "revanche for {0} lost provinces: +{1}% manpower and morale": "revancha por {0} provincias perdidas: +{1}% de levas y moral",
  "revanche ×{0}": "revancha ×{0}",
  "it costs {0}; importing the {1} you lack would cost {2} ducats more, and you have {3}": "cuesta {0}; importar los {1} que te faltan costaría {2} ducados más, y tienes {3}",
- "Rival ruled by the AI council": "Rival gobernado por el consejo de IA",
+ "Rivals ruled by the AI council": "Rivales gobernados por el consejo de IA",
+ "every rival: all eight crowns": "todos los rivales: las ocho coronas",
+ "only {0}": "solo {0}",
+ "Write them letters, ask them for an audience, try to fool them. ${0} of AI left today.": "Escríbeles cartas, pídeles audiencia, intenta engañarlos. Quedan {0} $ de IA hoy.",
  "no AI: bots only": "sin IA: solo bots",
- "Write it letters and try to fool it. ${0} of AI left today.": "Escríbele cartas e intenta engañarlo. Quedan {0} $ de IA hoy.",
  "🤖 the AI council": "🤖 el consejo de IA",
  "the AI council": "el consejo de IA"
 }

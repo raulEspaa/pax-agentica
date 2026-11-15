@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 
 MAX_TABLES = 12  # open at once: a 50-year game takes about 24 MB, the instance has 512
 NEW_PER_HOUR = 20  # tables opened in any hour, by everyone together
-MAX_AI = 2  # crowns at a table the AI council may rule
+MAX_AI = 8  # crowns at a table the AI council may rule: every rival of a lone player
 NAME = re.compile(r"^[\w .'-]{1,24}$")
 IDLE_CLOSE = 3 * 24 * 3600.0  # the longest a table waits with nobody at it before it closes
 ABANDON_AFTER = 30 * 60.0  # with nobody at it this long (a game page polls every few seconds)

@@ -26,7 +26,7 @@ The job reads four repository **variables** (not secrets): `GCP_PROJECT`, `GCP_R
 |---|---|
 | Service | `pax-tables`, public and open (no invitation code), at most **one instance** (games live in its memory), 1 CPU, 512 MB, scale to zero |
 | Limits | 12 tables open at once, 20 new tables an hour (`multiplayer.py`) |
-| AI council | `GEMINI_API_KEY` from Secret Manager `gemini-api-key`; `PAX_AI_DAILY_USD=1`, the most the server spends on the model in a day (UTC), recorded in the bucket as `ai-budget.json` |
+| AI council | up to every rival of a table (8 crowns); `PAX_AI_CALLS_PER_MINUTE=60` (paid tier); `GEMINI_API_KEY` from Secret Manager `gemini-api-key`; `PAX_AI_DAILY_USD=3`, the most the server spends on the model in a day (UTC), recorded in the bucket as `ai-budget.json` |
 | Runtime account | `pax-runtime`: may read the invitation code and write the tables bucket, nothing else |
 | Tables | bucket `pax-agentica-261016-tables`, mounted at `/data`; one JSON file per table, written after every year |
 | Invitation code | **off** since 2026-11-08 (the deploy sets only the Gemini secret); `pax-invite-code` is kept to turn it back on |
@@ -41,7 +41,7 @@ and memory stays small; one 50-year game takes about 24 MB, its save about 2 MB.
 During a roll-out the old and the new revision run side by side for a few seconds; a table is
 read again from its save whenever another revision has written it since, so no year is lost.
 
-**What it can cost at worst:** the model, at most $1 a day (about 30 USD a month if every day
+**What it can cost at worst:** the model, at most $3 a day (about 90 USD a month if every day
 were spent). Cloud Run bills only while it serves requests, and one instance of
 1 CPU and 512 MB is the ceiling. Light use stays inside the free tier (about 50 hours of busy CPU
 a month); someone hammering it nonstop for a whole month would cost roughly 60 EUR, and the budget
