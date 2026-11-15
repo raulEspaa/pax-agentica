@@ -10,101 +10,177 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/map.css">
 <style>
-  /* map.css locks the page for the game's full-screen map; the lobby is a page that scrolls */
+  /* map.css locks the page for the game's full-screen map; the lobby is a page that scrolls.
+     One bold thing: the charter, a vellum sheet where a new table is drawn up and sealed.
+     Everything else stays dark walnut and quiet. */
   html, body { height: auto; min-height: 100%; overflow-x: hidden; overflow-y: auto; }
-  body { margin: 0; min-height: 100vh; background: var(--wood); color: var(--ink); font: 17px/1.45 var(--body); }
-  main { max-width: 1080px; margin: 0 auto; padding: 26px 16px 60px; }
-  .hero { display: flex; gap: 18px; align-items: center; margin-bottom: 20px; }
-  .hero img { width: 68px; height: 68px; flex: none; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .6)); }
-  h1 { font: 700 36px var(--display); color: var(--brass-hi); letter-spacing: .06em; margin: 0; }
-  .lead { color: var(--ink-2); margin: 2px 0 0; max-width: 700px; }
-  h2 { display: flex; align-items: center; gap: 10px; font: 700 20px var(--display); color: var(--brass-hi); margin: 0 0 12px; }
-  h2 .num { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--brass-face); color: var(--engraved); font-size: 17px; flex: none; }
-  h2 .ok { margin-left: auto; font: 600 15px var(--body); color: #9fd08f; }
-  .panel { background: var(--leather); border: 1px solid var(--brass-lo); padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
-  .panel.done { border-color: #4f7a45; }
-  .who { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  label { display: grid; gap: 4px; font-size: 14.5px; color: var(--ink-3); }
-  label b { color: var(--ink-2); font-weight: 600; font-size: 15.5px; }
-  input, select { font: 17px var(--body); background: var(--walnut-lo); color: var(--ink); border: 1px solid var(--brass-lo); padding: 8px 10px; min-width: 0; border-radius: 3px; }
-  input:focus, select:focus { outline: 2px solid var(--brass); outline-offset: 1px; }
-  .codewrap { position: relative; display: block; } .codewrap input { width: 100%; box-sizing: border-box; padding-right: 130px; }
-  #codeok { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-weight: 700; font-size: 15px; }
-  #codeok.ok { color: #9fd08f; } #codeok.bad { color: #e88a74; }
-  .hint { font-size: 15px; color: var(--ink-2); margin: 10px 0 0; }
-  .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-  .choice .panel { margin-bottom: 0; }
-  .locked { opacity: .45; pointer-events: none; filter: grayscale(.5); }
-  .powers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 4px 0 14px; }
-  .power { display: flex; align-items: center; gap: 8px; padding: 7px 8px; cursor: pointer; background: var(--walnut-lo); border: 1px solid var(--brass-lo); border-radius: 4px; color: var(--ink); font: 15px var(--body); text-align: left; }
-  .power:hover { border-color: var(--brass); }
-  .power.on { border-color: var(--brass-hi); box-shadow: 0 0 0 1px var(--brass-hi), 0 0 12px rgba(236, 208, 140, .25); background: var(--leather-hi); }
-  .opts { display: grid; grid-template-columns: 1.5fr .8fr 1.1fr; gap: 10px; margin-bottom: 14px; }
-  .opts details { grid-column: 1 / -1; color: var(--ink-3); font-size: 14px; }
-  .opts details label { margin-top: 6px; max-width: 260px; }
-  .bigbtn { width: 100%; height: 50px; font: 700 18px var(--display); letter-spacing: .04em; color: var(--engraved); background: var(--brass-face); border: 1px solid #4a3312; border-radius: 4px; cursor: pointer; box-shadow: 0 3px 8px rgba(0, 0, 0, .5); }
-  .bigbtn[disabled] { opacity: .5; cursor: default; }
-  .btn { font: 600 14px var(--body); color: var(--engraved); background: var(--brass-face); border: 1px solid #4a3312; padding: 5px 12px; cursor: pointer; border-radius: 3px; text-decoration: none; display: inline-block; }
-  .tables { display: grid; gap: 10px; }
-  .table { background: var(--walnut-lo); border: 1px solid var(--brass-lo); padding: 10px 12px; }
-  .table.mine { border-color: var(--brass); box-shadow: inset 3px 0 0 var(--brass); }
-  .table.closedt { opacity: .7; padding: 8px 12px; margin-bottom: 6px; }
-  .thead { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
-  .thead b { font: 700 17px var(--display); color: var(--brass-hi); }
-  .thead span { color: var(--ink-3); font-size: 14px; }
-  .seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 5px; margin-top: 8px; }
-  .seatbox { display: flex; gap: 6px; align-items: center; padding: 4px 6px; background: var(--leather); border: 1px solid var(--brass-lo); font-size: 14px; }
-  .seatbox > div { flex: 1; min-width: 0; } .seatbox small { display: block; color: var(--ink-3); font-size: 12px; }
-  .seatbox.taken small { color: var(--brass-hi); } .seatbox.fallen { opacity: .45; }
-  .seatbox .btn { padding: 2px 8px; font-size: 13px; }
-  .msg { margin: 10px 0 0; color: #e88a74; min-height: 1.2em; font-size: 15px; }
-  .note { color: var(--ink-3); font-size: 14px; }
+  body { margin: 0; min-height: 100vh; background: var(--wood); color: var(--ink); font: 17px/1.5 var(--body); }
+  main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 56px; }
   a { color: var(--brass-hi); }
   [hidden] { display: none !important; }
-  .hero > div { position: relative; } .langpick { position: absolute; top: 4px; right: 0; font: inherit; font-size: 14px; background: transparent; color: var(--ink-2, #e8d6ae); border: 1px solid #6a5030; padding: 2px 6px; }
-  @media (max-height: 820px), (max-width: 1100px) { body { font-size: 15.5px; } main { padding-top: 14px; } .hero img { width: 52px; height: 52px; } h1 { font-size: 30px; } .panel { padding: 12px 14px; } .power { padding: 5px 6px; font-size: 14px; } .bigbtn { height: 42px; } }
-  @media (max-width: 800px) { .who, .choice, .opts { grid-template-columns: 1fr; } .powers { grid-template-columns: 1fr 1fr; } h1 { font-size: 28px; } }
+  :focus-visible { outline: 2px solid var(--brass-hi); outline-offset: 2px; }
+
+  /* the masthead */
+  .top { display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: center; margin-bottom: 26px; }
+  .top img { width: 64px; height: 64px; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .6)); }
+  h1 { font: 700 38px/1.1 var(--display); color: var(--brass-hi); letter-spacing: .05em; margin: 0; }
+  .lead { margin: 4px 0 0; color: var(--ink-2); max-width: 62ch; }
+  .langpick { align-self: start; font: 15px var(--body); background: transparent; color: var(--ink-2); border: 1px solid var(--brass-lo); padding: 3px 8px; border-radius: 3px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+
+  /* the charter: vellum, sepia ink, a wax seal for a button */
+  .charter { background: var(--vellum-tex), linear-gradient(180deg, #f3e7c9 0%, var(--vellum) 60%, var(--vellum-2) 100%);
+    color: var(--sepia); padding: 26px 30px 28px; border-radius: 2px;
+    box-shadow: 0 1px 0 #fff8 inset, 0 0 0 1px #8a6d3f, 0 14px 34px rgba(0, 0, 0, .55); }
+  .charter h2 { font: 700 24px var(--display); margin: 0 0 4px; color: var(--sepia); letter-spacing: .03em; }
+  .charter .sub { margin: 0 0 18px; color: var(--sepia-2); font-style: italic; }
+  .field { display: grid; gap: 6px; margin: 0 0 18px; }
+  .field > span, legend { font: 600 16px var(--body); color: var(--sepia); padding: 0; }
+  .field small, .charter small { color: var(--sepia-2); font-size: 14.5px; }
+  fieldset { border: 0; margin: 0 0 18px; padding: 0; min-width: 0; }
+  .charter input, .charter select { font: 17px var(--body); color: var(--sepia); background: #fffaf0b0; border: 1px solid #a8895a;
+    border-bottom-width: 2px; padding: 8px 10px; border-radius: 2px; min-width: 0; width: 100%; box-sizing: border-box; }
+  .charter input:focus, .charter select:focus { outline: 2px solid #8f3b2e; outline-offset: 1px; }
+  .codewrap { position: relative; } .codewrap input { padding-right: 140px; }
+  #codeok { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-weight: 600; font-size: 15px; }
+  #codeok.ok { color: #2f6b34; } #codeok.bad { color: #8f3b2e; }
+
+  .crowns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+  .crown { display: flex; align-items: center; gap: 10px; padding: 9px 10px; cursor: pointer; text-align: left;
+    background: #fffaf060; border: 1px solid #b89a68; border-radius: 3px; color: var(--sepia); font: 16px/1.2 var(--body); }
+  .crown:hover { background: #fffaf0b8; }
+  .crown[aria-pressed="true"] { background: #fffdf6; border-color: #8f3b2e; box-shadow: 0 0 0 2px #8f3b2e; font-weight: 600; }
+  .crown svg { flex: none; }
+
+  .rivals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+  .rival { position: relative; display: grid; gap: 2px; padding: 10px 12px; border: 1px solid #b89a68; border-radius: 3px;
+    background: #fffaf060; cursor: pointer; }
+  .rival input { position: absolute; opacity: 0; pointer-events: none; }
+  .rival b { font-weight: 600; }
+  .rival span { font-size: 14px; color: var(--sepia-2); line-height: 1.3; }
+  .rival:has(input:checked) { background: #fffdf6; border-color: #8f3b2e; box-shadow: 0 0 0 2px #8f3b2e; }
+  .rival:has(input:focus-visible) { outline: 2px solid #8f3b2e; outline-offset: 2px; }
+  #onerival { margin-top: 8px; }
+  #aileft { display: block; margin-top: 8px; }
+
+  .settings { display: grid; grid-template-columns: 1.6fr .7fr 1.1fr; gap: 12px; }
+  .settings .field { margin: 0; }
+  details.more { margin: 12px 0 0; color: var(--sepia-2); font-size: 15px; }
+  details.more .field { margin: 8px 0 0; max-width: 280px; }
+
+  .seal { display: flex; align-items: center; gap: 16px; margin-top: 22px; }
+  .bigbtn { flex: 1; min-height: 52px; font: 700 18px var(--display); letter-spacing: .04em; color: #fbe9d2;
+    background: radial-gradient(circle at 30% 25%, #b8483a 0%, #8f2f24 55%, #6a1f17 100%); border: 1px solid #4d150f;
+    border-radius: 4px; cursor: pointer; box-shadow: 0 3px 0 #4d150f, 0 6px 14px rgba(60, 20, 10, .35); }
+  .bigbtn:hover:not([disabled]) { filter: brightness(1.08); }
+  .bigbtn:active:not([disabled]) { transform: translateY(2px); box-shadow: 0 1px 0 #4d150f; }
+  .bigbtn[disabled] { opacity: .45; cursor: default; }
+  .msg { margin: 10px 0 0; color: #8f3b2e; font-size: 15px; }
+  .msg:empty { display: none; }
+  .after { margin: 4px 0 0; color: var(--sepia-2); font-size: 14.5px; }
+
+  /* the tables in play: dark and compact */
+  .side h2 { font: 700 21px var(--display); color: var(--brass-hi); margin: 2px 0 12px; letter-spacing: .03em; }
+  .side .note, .foot { color: var(--ink-3); font-size: 15px; }
+  .tables { display: grid; gap: 12px; }
+  .table { background: rgba(20, 13, 7, .82); border: 1px solid var(--brass-lo); border-radius: 3px; padding: 14px 16px; }
+  .table.mine { border-color: var(--ally); box-shadow: inset 4px 0 0 var(--ally); }
+  .thead { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .thead b { font: 700 18px/1.2 var(--display); color: var(--brass-hi); }
+  .when { color: var(--ink-3); font-size: 14px; white-space: nowrap; }
+  .year { display: flex; align-items: center; gap: 10px; margin: 8px 0 10px; font-size: 15px; color: var(--ink-2); }
+  .bar { flex: 1; height: 5px; background: #ffffff14; border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--brass); }
+  .who { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 15px; color: var(--ink-2); margin-bottom: 8px; }
+  .who span { display: inline-flex; align-items: center; gap: 6px; }
+  .free { display: flex; flex-wrap: wrap; gap: 6px; }
+  .free .lbl { width: 100%; font-size: 14px; color: var(--ink-3); }
+  .take { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px 4px 5px; font: 15px var(--body); color: var(--ink);
+    background: var(--leather-hi); border: 1px solid var(--brass-lo); border-radius: 3px; cursor: pointer; }
+  .take:hover { border-color: var(--brass-hi); background: #3a2a1b; }
+  .take small { color: var(--ink-3); font-size: 13px; }
+  .acts { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+  .btn { font: 600 15px var(--body); color: var(--engraved); background: var(--brass-face); border: 1px solid #4a3312; padding: 6px 16px;
+    cursor: pointer; border-radius: 3px; text-decoration: none; display: inline-block; }
+  .empty { padding: 18px; border: 1px dashed var(--brass-lo); border-radius: 3px; color: var(--ink-2); }
+  details.closed { margin-top: 18px; }
+  details.closed summary { cursor: pointer; color: var(--ink-2); font: 600 16px var(--body); }
+  .past { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid #ffffff12; font-size: 15px; color: var(--ink-2); }
+  .foot { margin-top: 30px; max-width: 70ch; }
+
+  @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
+  @media (max-width: 620px) {
+    main { padding: 18px 14px 40px; } h1 { font-size: 28px; } .top { grid-template-columns: auto 1fr; gap: 12px; }
+    .top img { width: 48px; height: 48px; } .langpick { grid-column: 1 / -1; justify-self: start; grid-row: 3; }
+    .lead { grid-column: 1 / -1; } .charter { padding: 20px 16px 22px; }
+    .crowns { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rivals, .settings { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <main>
-  <header class="hero"><img src="/static/favicon.svg" alt=""><div>
-    <h1>Pax Agentica</h1><select id="lang" class="langpick" aria-label="Language" translate="no"></select>
-    <p class="lead">Europe, 1500. Take a throne and rule it: your friends take others, bots rule the rest. A year passes once every player has ended it, or when the table's clock runs out. A table closes when its players leave it, or when nobody has had it open for half an hour (longer for tables whose years last longer).</p></div></header>
-
-  <section class="panel" id="step1">
-    <h2><span class="num">1</span> Who you are <span class="ok" id="step1ok" hidden>✓ ready</span></h2>
-    <div class="who">
-      <label><b>Your name at court</b><input id="name" maxlength="24" placeholder="Isabella" autocomplete="nickname"></label>
-      <label id="codebox"><b>Invitation code</b>
-        <span class="codewrap"><input id="code" autocomplete="off" spellcheck="false" placeholder="ask whoever invited you"><span id="codeok"></span></span></label>
+  <header class="top">
+    <img src="/static/favicon.svg" alt="">
+    <div>
+      <h1>Pax Agentica</h1>
+      <p class="lead">Europe, 1500. Take a crown and rule it for fifty years. The other crowns are ruled by an AI council that plans, writes letters, gives audiences and remembers who betrayed it.</p>
     </div>
-    <p class="hint" id="step1hint"></p>
-  </section>
+    <select id="lang" class="langpick" aria-label="Language" translate="no"></select>
+  </header>
 
-  <div class="choice" id="step2">
-    <section class="panel">
-      <h2><span class="num">2</span> Open a new table</h2>
-      <div class="note">Choose your throne:</div>
-      <div class="powers" id="powers"></div>
-      <div class="opts">
-        <label>Title<input id="title" maxlength="40" placeholder="The Italian Wars"></label>
-        <label id="aibox" hidden>Rivals ruled by the AI council<select id="ai"></select><small id="aileft"></small></label>
-        <label>Years<input id="years" type="number" min="5" max="100" value="50"></label>
-        <label>Clock per year<select id="clock"><option value="">wait for everyone</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="60">1 hour</option><option value="1440">1 day</option></select></label>
-        <details><summary>More options</summary><label>Seed (the same seed deals the same Europe)<input id="seed" type="number" min="0" placeholder="random"></label></details>
+  <div class="layout">
+    <section class="charter" aria-labelledby="newtable">
+      <h2 id="newtable">Open a new table</h2>
+      <p class="sub">Choose your crown and your rivals. Friends can take the crowns left over.</p>
+
+      <div id="step1">
+        <label class="field"><span>Your name at court</span>
+          <input id="name" maxlength="24" placeholder="Isabella" autocomplete="nickname"></label>
+        <label class="field" id="codebox"><span>Invitation code</span>
+          <span class="codewrap"><input id="code" autocomplete="off" spellcheck="false" placeholder="ask whoever invited you"><span id="codeok"></span></span></label>
+        <p class="msg" id="step1hint" role="status"></p>
       </div>
-      <button class="bigbtn" id="openbtn">Open the table as France</button>
-      <p class="msg" id="msg"></p>
-      <p class="note">Then send the page's address to your friends: they take the thrones left.</p>
+
+      <fieldset>
+        <legend>Your crown</legend>
+        <div class="crowns" id="powers"></div>
+      </fieldset>
+
+      <fieldset id="aibox" hidden>
+        <legend>Your rivals</legend>
+        <div class="rivals">
+          <label class="rival"><input type="radio" name="rivals" value="all" checked><b>All eight by AI</b><span>Every other crown thinks and writes</span></label>
+          <label class="rival"><input type="radio" name="rivals" value="one"><b>One AI rival</b><span>The rest are rule-based bots</span></label>
+          <label class="rival"><input type="radio" name="rivals" value="none"><b>Bots only</b><span>No AI at the table</span></label>
+        </div>
+        <select id="ai" aria-label="The rival ruled by the AI" hidden></select>
+        <small id="aileft"></small>
+      </fieldset>
+
+      <div class="settings">
+        <label class="field"><span>Title</span><input id="title" maxlength="40" placeholder="The Italian Wars"></label>
+        <label class="field"><span>Years</span><input id="years" type="number" min="5" max="100" value="50"></label>
+        <label class="field"><span>Time per year</span><select id="clock"><option value="">wait for everyone</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="60">1 hour</option><option value="1440">1 day</option></select></label>
+      </div>
+      <details class="more"><summary>More options</summary>
+        <label class="field"><span>Seed</span><input id="seed" type="number" min="0" placeholder="random"><small>The same seed deals the same Europe.</small></label>
+      </details>
+
+      <div class="seal"><button class="bigbtn" id="openbtn">Open the table as France</button></div>
+      <p class="msg" id="msg" role="alert"></p>
+      <p class="after">Once it opens, send the page's address to your friends.</p>
     </section>
-    <section class="panel">
-      <h2><span class="num">2</span> …or join a table</h2>
+
+    <section class="side" id="step2" aria-labelledby="inplay">
+      <h2 id="inplay">Tables in play</h2>
       <div class="tables" id="tables"><p class="note">Loading…</p></div>
+      <div id="closed"></div>
     </section>
   </div>
-  <div id="closed" style="margin-top:16px"></div>
-  <p class="note">Your seats are remembered by this browser. To play from another device, open the seat link a table gives you there.</p>
+
+  <p class="foot">This browser remembers your seats. To play from another device, open there the seat link your table gives you. A year passes when every player has ended it, or when the table's clock runs out; a table nobody has open for half an hour closes.</p>
 </main>
 <script src="/static/i18n.js"></script>
 <script src="/static/map.js"></script>
@@ -127,7 +203,7 @@
   if (linked) { store.set("pax-code", linked); history.replaceState(null, "", location.pathname + (want ? `?table=${want}` : "")); }
   $("name").value = store.get("pax-name") || "";
   $("code").value = linked || store.get("pax-code") || "";
-  let L = null, codeOk = false, nation = store.get("pax-throne") || "france";
+  let L = null, codeOk = false, ready = false, nation = store.get("pax-throne") || "france";
 
   const say = (text) => { $("msg").textContent = text; };
   async function checkCode() {
@@ -142,17 +218,16 @@
     if (codeOk) store.set("pax-code", code);
     gate();
   }
-  // the second step opens once the first is done
+  // a name (and a code, on a server that asks for one) before opening or taking a seat
   function gate() {
-    const name = $("name").value.trim(), ready = !!name && codeOk;
+    const name = $("name").value.trim();
+    ready = !!name && codeOk;
     if (name) store.set("pax-name", name);
-    $("step1").classList.toggle("done", ready);
-    $("step1ok").hidden = !ready;
-    $("step2").classList.toggle("locked", !ready);
     $("openbtn").disabled = !ready;
-    $("step1hint").textContent = ready ? `Welcome, ${name}. Now open a new table, or take a free throne at one below.`
+    document.querySelectorAll("[data-join]").forEach((b) => b.disabled = !ready);
+    $("step1hint").textContent = ready ? ""
       : !name ? "Write the name the other players will see."
-      : !$("code").value.trim() ? "Now the invitation code: ask whoever invited you, or open their invitation link. Capitals and spaces don't matter."
+      : !$("code").value.trim() ? "Now the invitation code: ask whoever invited you, or open their invitation link."
       : "That code is not right: check it with whoever invited you.";
   }
   $("name").addEventListener("input", gate);
@@ -164,55 +239,64 @@
     if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : r.statusText);
     return data;
   }
+  const named = (id) => L.powers.find((n) => n.id === id)?.name || id;
   function powers() {
     if (!L.powers.some((n) => n.id === nation)) nation = L.powers[0].id;
-    $("powers").innerHTML = L.powers.map((n) => `<button type="button" class="power ${n.id === nation ? "on" : ""}" data-power="${n.id}">${PaxMap.flag(n.id, n.color, 28)}<span>${esc(n.name)}</span></button>`).join("");
+    $("powers").innerHTML = L.powers.map((n) => `<button type="button" class="crown" aria-pressed="${n.id === nation}" data-power="${n.id}">${PaxMap.flag(n.id, n.color, 30)}<span>${esc(n.name)}</span></button>`).join("");
     document.querySelectorAll("[data-power]").forEach((b) => b.onclick = () => { nation = b.dataset.power; store.set("pax-throne", nation); powers(); });
-    $("openbtn").textContent = `Open the table as ${L.powers.find((n) => n.id === nation).name}`;
+    $("openbtn").textContent = `Open the table as ${named(nation)}`;
     rivals();
   }
-  // the AI council (a strategist and a diplomat on Gemini) may rule every rival, or one: by default all of them
+  // the AI council (a strategist and a diplomat on Gemini) may rule every rival, or one, or none
+  const mode = () => document.querySelector("input[name=rivals]:checked")?.value || "all";
   function rivals() {
     const ai = L.ai || {}, others = L.powers.filter((n) => n.id !== nation);
     $("aibox").hidden = !ai.available;
     if (!ai.available) return;
-    const old = $("ai").value, keep = old === "*" || old === "" || others.some((n) => n.id === old);
-    $("ai").innerHTML = `<option value="*">every rival: all eight crowns</option>`
-      + others.map((n) => `<option value="${n.id}">only ${esc(n.name)}</option>`).join("")
-      + `<option value="">no AI: bots only</option>`;
-    $("ai").value = keep && $("ai").dataset.set ? old : "*";
-    $("ai").onchange = () => { $("ai").dataset.set = "1"; };
+    const old = $("ai").value;
+    $("ai").innerHTML = others.map((n) => `<option value="${n.id}">${esc(n.name)}</option>`).join("");
+    $("ai").value = others.some((n) => n.id === old) ? old : others[0].id;
+    $("ai").hidden = mode() !== "one";
     $("aileft").textContent = `Write them letters, ask them for an audience, try to fool them. $${ai.left_usd.toFixed(2)} of AI left today.`;
   }
+  document.querySelectorAll("input[name=rivals]").forEach((r) => r.onchange = rivals);
   const ago = (ts) => { const m = Math.round((Date.now() / 1000 - ts) / 60);
     return m < 2 ? "just now" : m < 90 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
-  const winner = (t) => t.winner ? `: ${esc(t.nations.find((n) => n.id === t.winner)?.name || t.winner)} won` : "";
+  const winner = (t) => t.winner ? `: ${esc(named(t.winner))} won` : "";
+  function tableCard(t) {
+    const mine = seatOf(t.id);
+    const players = t.nations.filter((n) => n.player), ai = t.nations.filter((n) => n.ai && n.alive && !n.player);
+    const free = t.nations.filter((n) => !n.player && n.alive);
+    const done = Math.min(100, Math.round(100 * (t.turn - 1) / Math.max(1, t.max_turns)));
+    const who = players.map((n) => `<span>${PaxMap.flag(n.id, n.color, 18)} ${esc(n.player)}</span>`).join("")
+      + (ai.length ? `<span>🤖 ${ai.length === 1 ? `${esc(ai[0].name)} by the AI` : `${ai.length} crowns by the AI`}</span>` : "");
+    const seats = !mine && !t.finished && free.length ? `<div class="free"><span class="lbl">Take a free crown:</span>${free.map((n) =>
+      `<button type="button" class="take" data-join="${t.id}" data-nation="${n.id}" ${ready ? "" : "disabled"}>${PaxMap.flag(n.id, n.color, 18)}${esc(n.name)}${n.ai ? " <small>🤖</small>" : ""}</button>`).join("")}</div>` : "";
+    const acts = mine ? `<div class="acts"><a class="btn" href="/t/${t.id}">Play</a><a href="/t/${t.id}?seat=${encodeURIComponent(mine)}" data-copy>Copy your seat link</a></div>`
+      : t.finished ? `<div class="acts"><a href="/t/${t.id}/replay">Watch the replay</a></div>` : "";
+    return `<article class="table ${mine ? "mine" : ""}" id="t-${t.id}">
+      <div class="thead"><b>${esc(t.title)}</b><span class="when">${ago(Math.max(t.last_active || 0, t.created || 0))}</span></div>
+      <div class="year">${t.finished ? `Ended${winner(t)}` : `<span>${t.year}, year ${t.turn} of ${t.max_turns}</span><span class="bar"><i style="width:${done}%"></i></span><span>${t.turn_minutes ? `${t.turn_minutes} min a year` : "waits for everyone"}</span>`}</div>
+      ${who ? `<div class="who">${who}</div>` : ""}${seats}${acts}</article>`;
+  }
   async function refresh() {
     L = await (await fetch("/api/lobby")).json();
     $("codebox").hidden = !L.code_required;
     if (!$("powers").children.length) powers(); else rivals();
     const open = L.tables.filter((t) => !t.closed), closed = L.tables.filter((t) => t.closed);
-    $("tables").innerHTML = open.length ? open.map((t) => {
-      const mine = seatOf(t.id);
-      const seats = t.nations.map((n) => `<div class="seatbox ${n.player ? "taken" : ""} ${n.alive ? "" : "fallen"}">${PaxMap.flag(n.id, n.color, 22)}
-        <div>${esc(n.name)}<small>${n.player ? `👤 ${esc(n.player)}` : !n.alive ? "fallen" : n.ai ? "🤖 the AI council" : "a bot, for now"}</small></div>
-        ${!n.player && n.alive && !t.finished && !mine ? `<button class="btn" data-join="${t.id}" data-nation="${n.id}">Take</button>` : ""}</div>`).join("");
-      return `<div class="table ${mine ? "mine" : ""}" id="t-${t.id}"><div class="thead"><b>${esc(t.title)}</b>
-        <span>${t.finished ? `ended${winner(t)}` : `${t.year}, year ${t.turn} of ${t.max_turns}`}</span>
-        <span>${t.turn_minutes ? `${t.turn_minutes} min a year` : "waits for everyone"}</span>
-        <span>played ${ago(Math.max(t.last_active || 0, t.created || 0))}</span>
-        ${mine ? `<a class="btn" href="/t/${t.id}">Play</a> <a href="/t/${t.id}?seat=${encodeURIComponent(mine)}" data-copy>seat link</a>` : ""}
-        ${t.finished ? `<a href="/t/${t.id}/replay">replay</a>` : ""}</div>
-        <div class="seats">${seats}</div></div>`; }).join("") : `<p class="note">No table is open yet. Open the first one!</p>`;
-    $("closed").innerHTML = closed.length ? `<section class="panel"><h2>Closed lately</h2>` + closed.map((t) => `<div class="table closedt"><div class="thead"><b>${esc(t.title)}</b>
-      <span>${esc(t.closed)}${winner(t)}, in ${t.year}</span>${t.turn > 1 ? `<a href="/t/${t.id}/replay">replay</a>` : ""}</div></div>`).join("")
-      + `<p class="note">A closed table keeps its replay for a week.</p></section>` : "";
+    const keep = $("closed").querySelector("details")?.open;
+    $("tables").innerHTML = open.length ? open.map(tableCard).join("")
+      : `<p class="empty">No table is open right now. Open the first one, and the AI will be waiting for you.</p>`;
+    $("closed").innerHTML = closed.length ? `<details class="closed" ${keep ? "open" : ""}><summary>Closed lately (${closed.length})</summary>`
+      + closed.map((t) => `<div class="past"><span>${esc(t.title)}: ${esc(t.closed)}${winner(t)}, in ${t.year}</span>${t.turn > 1 ? `<a href="/t/${t.id}/replay">Replay</a>` : ""}</div>`).join("")
+      + `<p class="note">A closed table keeps its replay for a week.</p></details>` : "";
     document.querySelectorAll("[data-join]").forEach((b) => b.onclick = () => join(b.dataset.join, b.dataset.nation));
     document.querySelectorAll("[data-copy]").forEach((a) => a.onclick = (e) => { e.preventDefault();
-      navigator.clipboard?.writeText(new URL(a.getAttribute("href"), location.href).href); a.textContent = "copied: keep it secret"; });
+      navigator.clipboard?.writeText(new URL(a.getAttribute("href"), location.href).href); a.textContent = "Copied: keep it secret"; });
     if (want && $(`t-${want}`)) $(`t-${want}`).scrollIntoView({block: "center"});
   }
   async function join(table, n) {
+    if (!ready) { $("name").focus(); return gate(); }
     try { const r = await post(`/api/t/${table}/join`, {...me(), nation: n}); store.set(`pax-seat-${r.table}`, r.token); location.href = `/t/${r.table}`; }
     catch (err) { alert(err.message); refresh(); }
   }
@@ -220,8 +304,11 @@
     const body = {...me(), title: $("title").value.trim() || "A new age", nation, years: +$("years").value || 50};
     if ($("clock").value) body.turn_minutes = +$("clock").value;
     if ($("seed").value !== "") body.seed = +$("seed").value;
-    const pick = $("ai").value;
-    if (!$("aibox").hidden && pick) body.ai = pick === "*" ? L.powers.map((n) => n.id).filter((n) => n !== nation) : [pick];
+    if (!$("aibox").hidden) {
+      const m = mode();
+      if (m === "all") body.ai = L.powers.map((n) => n.id).filter((n) => n !== nation);
+      else if (m === "one") body.ai = [$("ai").value];
+    }
     $("openbtn").disabled = true;
     try { const r = await post("/api/tables", body); store.set(`pax-seat-${r.table}`, r.token); location.href = `/t/${r.table}`; }
     catch (err) { say(err.message); $("openbtn").disabled = false; }
