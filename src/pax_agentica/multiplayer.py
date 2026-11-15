@@ -19,6 +19,8 @@ by commas, each work (one for friends, one for a group of testers, each withdraw
 Without a code the server is open to anyone, so it caps itself: at most MAX_TABLES open at once
 and NEW_PER_HOUR new tables in any hour, whoever asks (a cap per address could be dodged by
 faking a header). Bots cost no model calls, so the server's whole bill is its own CPU and memory.
+
+A seat's view is also served to MCP clients at `POST /mcp`, read-only (`mcp_server.TablesMCP`).
 """
 
 import json
@@ -26,6 +28,8 @@ import os
 import re
 import secrets
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -34,8 +38,10 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
+from starlette.routing import Route
 
 from pax_agentica.engine import NationId, Orders, new_game, view_for
+from pax_agentica.mcp_server import TablesMCP
 from pax_agentica.players import Player
 from pax_agentica.players.greedy_bot import GreedyBot
 from pax_agentica.runner import GameRecord
@@ -461,7 +467,15 @@ def create_lobby_app(
     code = invite_code if invite_code is not None else os.environ.get("PAX_INVITE_CODE")
     lobby = Lobby(saves, code, ai)
     powers = [{"id": n.id, "name": n.name, "color": n.color} for n in new_game(1).nations.values()]
-    app = FastAPI(title="Pax Agentica tables", docs_url=None, redoc_url=None)
+    mcp = TablesMCP(lobby)  # a seat's view over MCP: POST /mcp (spec 007)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        async with mcp.running():
+            yield
+
+    app = FastAPI(title="Pax Agentica tables", docs_url=None, redoc_url=None, lifespan=lifespan)
+    app.router.routes.append(Route("/mcp", mcp, methods=["GET", "POST", "DELETE"]))  # raw ASGI
     app.add_middleware(GZipMiddleware, minimum_size=1000)  # a game's view is mostly JSON
     web = files("pax_agentica").joinpath("web")
     static = static_payload(new_game(1), europe_map())
