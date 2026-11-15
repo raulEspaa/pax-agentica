@@ -22,10 +22,12 @@ faking a header). Bots cost no model calls, so the server's whole bill is its ow
 """
 
 import json
+import logging
 import os
 import re
 import secrets
 import time
+from collections.abc import Callable
 from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -35,6 +37,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
+from pax_agentica.analytics import Analytics, DecisionRow, game_row
 from pax_agentica.engine import NationId, Orders, new_game, view_for
 from pax_agentica.players import Player
 from pax_agentica.players.greedy_bot import GreedyBot
@@ -45,6 +48,8 @@ from pax_agentica.viewer import europe_map, render_html, static_payload
 if TYPE_CHECKING:
     from pax_agentica.agents.tables import TableAI
     from pax_agentica.engine import NationView
+
+log = logging.getLogger(__name__)
 
 MAX_TABLES = 12  # open at once: a 50-year game takes about 24 MB, the instance has 512
 NEW_PER_HOUR = 20  # tables opened in any hour, by everyone together
@@ -100,6 +105,8 @@ class TableMeta(BaseModel):
     first_answer: float | None = None
     chat: list[ChatLine] = Field(default_factory=list)  # the table's talk, the last CHAT_KEPT
     ai: list[NationId] = Field(default_factory=list)  # the crowns the AI council rules
+    ai_spent_usd: float = 0.0  # what its councils have spent, for analytics
+    humans_ever: list[NationId] = Field(default_factory=list)  # every crown a human took
 
 
 class TableFile(BaseModel):
@@ -190,11 +197,17 @@ class Lobby:
     game is read from its save when someone opens it, and let go after a while unvisited."""
 
     def __init__(
-        self, saves: Path, invite_code: str | None = None, ai: "TableAI | None" = None
+        self,
+        saves: Path,
+        invite_code: str | None = None,
+        ai: "TableAI | None" = None,
+        analytics: Analytics | None = None,
     ) -> None:
         self.saves = saves
         self.invite_code = invite_code
         self.ai = ai  # the AI council, on a server with a model and a budget
+        # events for BigQuery, beside the saves (docs/analytics.md)
+        self.analytics = analytics or Analytics(saves / "analytics")
         self.tables: dict[str, Table] = {}  # the tables in memory
         self.summaries: dict[str, dict[str, Any]] = {}  # every table, in brief
         self.seen: dict[str, float] = {}  # the save each table in memory was built from
@@ -228,7 +241,7 @@ class Lobby:
         bots = _bots(meta.seed, list(state.nations), humans)
         for nation in meta.ai:
             if self.ai is not None and nation in bots:
-                bots[nation] = self.ai.ruler(meta.seed, meta.id, nation)
+                bots[nation] = self.ai.ruler(meta.seed, meta.id, nation, self._decided(meta))
         if record is not None and record.turns:
             session = Session.resume(record, humans, bots, turn_seconds=seconds, names=names)
         else:
@@ -239,6 +252,16 @@ class Lobby:
         if meta.deadline is not None:
             session.deadline = meta.deadline
         return session
+
+    def _decided(self, meta: TableMeta) -> Callable[[DecisionRow], None]:
+        """Where a council's decisions go: the table's spend (saved with its next save), and an
+        analytics row."""
+
+        def report(row: DecisionRow) -> None:
+            meta.ai_spent_usd += row.cost_usd
+            self.analytics.emit(row)
+
+        return report
 
     def _read(self, table_id: str) -> Table | None:
         path = self._path(table_id)
@@ -334,6 +357,7 @@ class Lobby:
         )
         token = secrets.token_urlsafe(16)
         meta.seats[req.nation] = Seat(name=req.name, token=token)
+        meta.humans_ever = [req.nation]
         table = Table(meta, self._session(meta))
         self.tables[meta.id] = table
         self._hook(table)
@@ -372,6 +396,8 @@ class Lobby:
             raise HTTPException(409, f"{state.nations[req.nation].name} is taken")
         token = secrets.token_urlsafe(16)
         table.meta.seats[req.nation] = Seat(name=req.name, token=token)
+        if req.nation not in table.meta.humans_ever:
+            table.meta.humans_ever.append(req.nation)
         table.meta.last_active = time.time()
         table.session.seat(req.nation, req.name)
         table.session.save()
@@ -394,6 +420,27 @@ class Lobby:
         table.meta.closed_at = time.time()
         table.session.deadline = None
         table.session.save()
+        self._report_game(table)
+
+    def _report_game(self, table: Table) -> None:
+        """The `games` row of a table that has just closed. Never fails the close."""
+        meta = table.meta
+        try:
+            row = game_row(
+                table.session.record,
+                source=self.analytics.source,
+                table_id=meta.id,
+                started_at=meta.created,
+                ended_at=meta.closed_at,
+                closed_reason=meta.closed,
+                humans=meta.humans_ever or list(meta.seats),
+                ai=meta.ai,
+                ai_cost_usd=round(meta.ai_spent_usd, 8) if meta.ai else None,
+            )
+        except Exception:
+            log.exception("analytics: could not describe table %s", meta.id)
+            return
+        self.analytics.emit(row)
 
     def _open(self, table: Table) -> None:
         if table.meta.closed:

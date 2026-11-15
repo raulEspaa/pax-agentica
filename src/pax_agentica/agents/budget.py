@@ -8,6 +8,8 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from pax_agentica.agents import meter
+
 
 class BudgetExceeded(Exception):
     """A call was refused: it could cost more than what is left."""
@@ -36,9 +38,12 @@ class Budget:
         self._held_usd += usd
 
     def settle(self, reserved_usd: float, spent_usd: float) -> None:
-        """A call has ended: release what was set aside and record what it cost."""
+        """A call has ended: release what was set aside and record what it cost, here and on
+        the meter of the decision that made the call, if it is measured."""
         self._held_usd -= reserved_usd
         self.spent_usd += spent_usd
+        if (decision := meter.current()) is not None:
+            decision.charge(spent_usd)
 
 
 class DailyBudget(Budget):

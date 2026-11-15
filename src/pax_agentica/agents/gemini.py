@@ -124,6 +124,11 @@ class GeminiModel:
         self._slots = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
         self._window = window or RateWindow(calls_per_minute)
 
+    @property
+    def name(self) -> str:
+        """The model's id, as analytics records it."""
+        return self._model
+
     async def write_plan(self, request: PlanRequest) -> Plan:
         return await self.write(request, Plan)
 

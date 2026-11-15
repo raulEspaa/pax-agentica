@@ -1,0 +1,24 @@
+[
+  {"name": "source", "type": "STRING", "mode": "NULLABLE", "description": "tables (the public server) or local (pax analytics export)"},
+  {"name": "table_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "seed", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "started_at", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "ended_at", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "closed_reason", "type": "STRING", "mode": "NULLABLE", "description": "everyone left, over; null for a local game"},
+  {"name": "years_played", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "max_years", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "finished", "type": "BOOLEAN", "mode": "NULLABLE"},
+  {"name": "winner", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "humans", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "human_nations", "type": "STRING", "mode": "REPEATED"},
+  {"name": "ai_nations", "type": "STRING", "mode": "REPEATED"},
+  {"name": "ai_cost_usd", "type": "FLOAT", "mode": "NULLABLE", "description": "what the table's councils spent; null without AI crowns"},
+  {"name": "standings", "type": "RECORD", "mode": "REPEATED", "fields": [
+    {"name": "nation", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "ruler", "type": "STRING", "mode": "NULLABLE", "description": "human, council, strategist or a bot's name"},
+    {"name": "standing", "type": "INTEGER", "mode": "NULLABLE"},
+    {"name": "score", "type": "INTEGER", "mode": "NULLABLE"},
+    {"name": "alive", "type": "BOOLEAN", "mode": "NULLABLE"},
+    {"name": "provinces", "type": "INTEGER", "mode": "NULLABLE"}
+  ]}
+]
