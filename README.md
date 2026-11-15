@@ -1,135 +1,149 @@
 # Pax Agentica
 
-**A strategy game built as an arena for AI rulers.** Nine crowns of Europe in 1500 produce,
-trade, sign pacts, betray each other and go to war. Today an AI council (a strategist and a
-diplomat on Gemini, in LangGraph) rules a throne against rule-based bots, and an AI archivist
-answers questions about the games with citations. You can take a throne yourself.
-
-**▶ [Play it in your browser](https://pax-tables-clysgkcjqq-ew.a.run.app)**: no sign-up and no code. Open a table, pick a crown
-and set the AI council on a rival: it plans, answers your proposals and writes you letters (try
-to fool it). The rest are bots. The server spends at most $1 a day on the model; once that is
-gone, the council keeps its last plan and plays on. The archivist runs locally only.
+A strategy game built as an arena for AI rulers.
 
 [![CI](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml/badge.svg)](https://github.com/raulEspaa/pax-agentica/actions/workflows/ci.yml)
-![Status](https://img.shields.io/badge/status-AI%20rulers%20%C2%B7%20RAG%20%C2%B7%20evals-b8860b)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-3776ab)
+
+Nine crowns of Europe in 1500 produce, trade, sign pacts, betray each other and go to war. Today
+an AI council (a strategist and a diplomat on Gemini, in LangGraph) rules a throne against
+rule-based bots, and an AI archivist answers questions about finished games with citations. You
+can take a throne yourself.
+
+[Play it in your browser](https://pax-tables-clysgkcjqq-ew.a.run.app). No sign-up and nothing to
+install: open a table, pick a crown and set the AI council on a rival. It plans, answers your
+proposals and writes you letters, so you can try to fool it. The other crowns are bots. The
+server spends at most $1 a day on the model; once that is gone, the council keeps its last plan
+and plays on. The archivist runs locally only.
 
 <p align="center"><img src="docs/assets/cover.jpg" alt="An old-style map of three AI-ruled realms: Northreach, Ostmark and Southvale" width="760"></p>
 
 ## The idea
 
-Where it is going: a map of regions, every nation governed by an AI with its own personality: the
-warmonger, the merchant, the schemer. Every turn they read **only what their nation can see**,
-talk to each other in plain language, propose treaties, and choose their moves. Pacts are
-promises, not rules: a nation can break one, and the others will remember.
+The goal is a map where every nation is governed by an AI with its own personality (the
+warmonger, the merchant, the schemer). Each turn they read only what their nation can see, talk
+to each other in plain language, propose treaties and choose their moves. A pact is not enforced
+by the rules: a nation can break one, and the others will remember.
 
-**The AI proposes, the engine decides.** Agents return structured actions; a deterministic game
-engine checks that each move is legal and resolves it. No language model ever touches the game
-state directly, so a clever (or confused) agent can't cheat its way to victory.
+Agents return structured actions, and a deterministic game engine checks that each move is legal
+and resolves it. No language model touches the game state directly, so an agent that is clever
+or confused cannot cheat.
 
 ## The game: Europe, 1500
 
-An arcade grand strategy game: **104 provinces** from Lisbon to the Volga, **nine great powers**
+An arcade grand strategy game with 104 provinces from Lisbon to the Volga, nine great powers
 (England, France, Spain, the Danubian Austria, the Ottomans, Sweden, Russia, Poland-Lithuania and
-Brandenburg-Prussia)
-and a scatter of independent minors to swallow. Every province is known for one of fourteen
-trade goods, from grain and fish to silver, spices and gold, and can deepen its mines, vineyards
-or looms. Six resources (ducats, manpower, iron, grain, timber and goods) feed recruiting,
-development, civil and military buildings (some of which consume), manufactories, great works
-and stability, with a European market whose prices move with what every court buys and sells. Armies mix pikemen,
-archers, cavalry and artillery, each with its ground; sixteen historical monuments, from
-Westminster Abbey to Hagia Sophia, reward whoever holds them. A tree of learning unlocks new
-buildings and powers; every throne has a historical ruler who ages and dies, and a council of
-three advisors; named generals lead the armies.
+Brandenburg-Prussia) and a number of independent minors to absorb.
 
-Every crown has five historical missions (France wants Milan and Naples, Spain the gold of Seville and the Barbary coast, the Ottomans Vienna), and a full treasury can buy glory through patronage or Landsknechte by the regiment. Wars are fought for war score: provinces are occupied, walls besieged, exhaustion mounts, and only a peace moves a border. Prestige, faith and the events of the age (the Reformation, plague, the Fuggers' loans) give every reign its decisions.
+- Economy: every province is known for one of fourteen trade goods, from grain and fish to
+  silver, spices and gold, and can deepen its mines, vineyards or looms. Six resources (ducats,
+  manpower, iron, grain, timber and goods) pay for recruiting, development, civil and military
+  buildings (some of which consume resources), manufactories, great works and stability. A
+  European market sets prices from what every court buys and sells.
+- War: armies mix pikemen, archers, cavalry and artillery, each suited to its ground, and named
+  generals lead them. Wars are fought for war score: provinces are occupied, walls besieged and
+  exhaustion mounts, but only a peace treaty moves a border.
+- Rulers: every throne has a historical ruler who ages and dies, and a council of three advisors.
+  A tree of learning unlocks new buildings and powers. Sixteen historical monuments, from
+  Westminster Abbey to Hagia Sophia, reward whoever holds them.
+- Goals and events: every crown has five historical missions (France wants Milan and Naples,
+  Spain the gold of Seville and the Barbary coast, the Ottomans Vienna). A full treasury can buy
+  glory through patronage, or Landsknechte by the regiment. Prestige, faith and the events of the
+  age (the Reformation, plague, the Fuggers' loans) present each reign with decisions.
 
-Diplomacy is the heart of it, because the other thrones will be AI agents. Courts ally, sign
-pacts, trade and send letters; each holds an opinion of every other, raised by gifts and
-treaties and wrecked by betrayal. Peace is negotiated: provinces, gold, a yearly tribute or a cap
-on the loser's army, with counter-offers and notes going back and forth until both sides sign.
-Courts declare friends and rivals in public, proclaim to all Europe, and every ruler has a
-character; behind each decision the record keeps the ruler's private reasoning and the counsel of
-each advisor, so a replay shows not only what each kingdom did but why.
+Diplomacy matters most, because the other thrones are meant to be AI agents. Courts ally, sign
+pacts, trade and send letters. Each holds an opinion of every other, raised by gifts and treaties
+and damaged by betrayal. Peace is negotiated (provinces, gold, a yearly tribute or a cap on the
+loser's army), with counter-offers and notes going back and forth until both sides sign. Courts
+declare friends and rivals in public and make proclamations to all of Europe. Behind each
+decision the record keeps the ruler's private reasoning and each advisor's counsel, so a replay
+shows why each kingdom acted, not only what it did.
+
 The full rules are in [`docs/game-rules.md`](docs/game-rules.md).
 
 <p align="center"><img src="docs/assets/replay.jpg" alt="The HTML replay: a political map of Europe in 1529 inside an engraved neatline, with nation names, armies, the ledger and the chronicle of the year" width="760"></p>
 
-The map is real geography: modern administrative regions from
+The map uses real geography: modern administrative regions from
 [Natural Earth](https://www.naturalearthdata.com/) (public domain), merged into the game's
-provinces, with real rivers and the land outside play shown as wasteland. The replay
-is one self-contained HTML file: political, terrain, development and diplomacy map modes, zoom,
-a ledger, a chronicle, and a deed for every province with its production and its buildings.
+provinces, with real rivers and the land outside play shown as wasteland. The replay is a single
+self-contained HTML file with political, terrain, development and diplomacy map modes, zoom, a
+ledger, a chronicle, and a deed for every province listing its production and buildings.
 
-The pictures are of the period too: the rulers' portraits, a town view for every province, and
-the scenes of the age (Bruegel's *Triumph of Death* for the plague, Ter Borch's *Treaty of
-Münster* for a peace) are paintings and engravings in the public domain from Wikimedia Commons,
-fetched and credited by [`scripts/fetch_art.py`](scripts/fetch_art.py) (see the `CREDITS.md`
-beside each folder in `src/pax_agentica/web/`).
+The images are from the period as well. The rulers' portraits, a town view for every province,
+and the scenes of the age (Bruegel's *Triumph of Death* for the plague, Ter Borch's *Treaty of
+Münster* for a peace) are public-domain paintings and engravings from Wikimedia Commons, fetched
+and credited by [`scripts/fetch_art.py`](scripts/fetch_art.py) (see the `CREDITS.md` in each
+folder under `src/pax_agentica/web/`).
 
-The page speaks English and Spanish (more languages are a dictionary away: see
-[`docs/translations.md`](docs/translations.md)); the engine and the AI rulers stay in English.
+The page is available in English and Spanish; adding a language means adding a dictionary (see
+[`docs/translations.md`](docs/translations.md)). The engine and the AI rulers work in English.
 
-**You can play it.** `pax serve` puts you on one throne against the others: you see your
-nation exactly as an AI ruler does (fog of war included), recruit, build, march, and treat with
-the other courts: alliances, pacts, trade, tribute, letters, calls to arms and peace with
-reparations.
+### Playing
 
-**With friends, too.** `pax host` serves tables where several people each take a throne in
-their browsers and bots hold the rest; a year passes when everyone has ended it, or when the
-table's clock runs out. It runs on a laptop for the local network or [on Cloud Run](https://pax-tables-clysgkcjqq-ew.a.run.app), open
-to anyone and capped so it stays cheap ([`docs/multiplayer.md`](docs/multiplayer.md)); every push to `main` that passes CI
-deploys itself ([`docs/deploy.md`](docs/deploy.md)). The AI rulers get the same
-view plus a briefing, calculators and a tournament runner ([`docs/agent-tools.md`](docs/agent-tools.md)).
+`pax serve` puts you on one throne against the others. You see your nation exactly as an AI ruler
+does, fog of war included. You can recruit, build, march, and deal with the other courts:
+alliances, pacts, trade, tribute, letters, calls to arms and peace with reparations.
+
+`pax host` serves multiplayer tables where several people each take a throne in their browsers
+and bots hold the rest. A year passes when everyone has ended it, or when the table's clock runs
+out. It runs on a laptop for the local network, or [on Cloud Run](https://pax-tables-clysgkcjqq-ew.a.run.app),
+open to anyone and capped to keep it cheap ([`docs/multiplayer.md`](docs/multiplayer.md)). Every
+push to `main` that passes CI deploys automatically ([`docs/deploy.md`](docs/deploy.md)). The AI
+rulers get the same view plus a briefing, calculators and a tournament runner
+([`docs/agent-tools.md`](docs/agent-tools.md)).
 
 <p align="center"><img src="docs/assets/play.jpg" alt="The play page: France in 1501, its treasury across the top, its neighbours under the fog of war, and the Realm office with the yearly balance" width="760"></p>
 
-With nine rule-based "greedy" bots, Spain and France win most games by swallowing the minors
-around them, and Austria, squeezed between France and the Turk, is often carved up. Holding them back takes diplomacy, and that's the AI
-rulers' job.
+With nine rule-based "greedy" bots, a few powers win most games by absorbing the minors around
+them (the latest 32-game balance run in [`docs/roadmap.md`](docs/roadmap.md): Austria 12, Spain
+10, France 9). Holding them back takes diplomacy, which is the AI rulers' job.
 
 ## Roadmap
 
-Each milestone ends with something you can run and watch. It's built in order, one at a time.
+Each milestone ends with something you can run and watch. They are built in order, one at a
+time.
 
 | # | Milestone | What you see | Status |
 |---|-----------|--------------|--------|
-| 0 | **Foundations** | A repo with tests, linting, types and CI | ✅ |
-| 1 | **The game** | `pax play --seed 1`: Europe 1500, nine rule-based bots, a winner, an HTML replay | ✅ |
-| 2 | **The first AI ruler** | One nation is governed by Gemini and plays against the bots, within a hard budget, traced in Langfuse | ✅ |
-| 3 | **Evaluation** | The strategist scored on twenty situations, as Langfuse experiments | ✅ |
-| 4 | **Diplomacy** | A LangGraph council: the strategist and a diplomat that answers letters, defended against prompt injection | ✅ |
-| 5 | **The archive and the Archivist** | Finished games in pgvector with hybrid search; an ADK agent answers questions about them with citations, checked by an LLM judge | ✅ |
-| 6 | **Memory** | Nations remember who betrayed them, from their own chronicle | |
-| 7 | **Tournaments** | Many seeded games: which rulers win, who keeps their word, what it costs | A pilot: 3 seeds, with controls |
-| 8 | **Online** | Deployed, and you can play as one of the nations | ✅ the tables; the AI later |
+| 0 | Foundations | A repo with tests, linting, types and CI | Done |
+| 1 | The game | `pax play --seed 1`: Europe 1500, nine rule-based bots, a winner, an HTML replay | Done |
+| 2 | The first AI ruler | One nation is governed by Gemini and plays against the bots, within a hard budget, traced in Langfuse | Done |
+| 3 | Evaluation | The strategist scored on twenty situations, as Langfuse experiments | Done |
+| 4 | Diplomacy | A LangGraph council: the strategist and a diplomat that answers letters, defended against prompt injection | Done |
+| 5 | The archive and the Archivist | Finished games in pgvector with hybrid search; an ADK agent answers questions about them with citations, checked by an LLM judge | Done |
+| 6 | Memory | Nations remember who betrayed them, from their own chronicle | Not yet |
+| 7 | Tournaments | Many seeded games: which rulers win, who keeps their word, what it costs | Pilot: 3 seeds, with controls |
+| 8 | Online | Deployed, and you can play as one of the nations | Tables done; AI later |
 
-The AI part, piece by piece: [architecture](docs/architecture.md), [results](docs/ai-results.md),
-[plan](docs/ai-roadmap.md). What has been measured so far, on small samples:
+## Results so far
 
-- **Hybrid search** finds the right chunk in the first five for 83% of the questions, against 72%
-  with vectors alone and 33% with keywords alone.
-- **The Archivist** cites only what it retrieved in every answer, and an LLM judge rates 94% of
-  them faithful to their sources; the judge itself is checked with planted lies (7 of 7 caught).
-- **A red team** of nine hostile letters: the prompt defence stopped every attack it was tuned on
-  and not every new one, so a guard in code now makes a forced tribute impossible.
-- **A three-seed pilot:** France ruled by the council averaged a standing of 105 and won once;
-  the greedy bot averaged 39, and the same bot following fixed or random plans did no better.
+Details: [architecture](docs/architecture.md), [results](docs/ai-results.md),
+[plan](docs/ai-roadmap.md). All of these come from small samples, so read them as a direction
+rather than a benchmark.
+
+- Hybrid search finds the right chunk in the top five for 83% of the questions, against 72% with
+  vectors alone and 33% with keywords alone.
+- The Archivist cites only chunks it retrieved, in every answer, and an LLM judge rates 94% of
+  the answers faithful to their sources. The judge itself is checked with planted false claims
+  (it caught 7 of 7).
+- A red team of nine hostile letters: the prompt defence stopped every attack it was tuned on but
+  not every new one, so a guard in code now makes a forced tribute impossible.
+- A three-seed pilot: France ruled by the council averaged a standing of 105 and won once. The
+  greedy bot averaged 39, and the same bot following fixed or random plans did no better.
 
 ## How it's built
 
-This is a learning project in **AI engineering**, so the work is split
-([ADR 0002](docs/adr/0002-who-writes-what.md)):
+This is a learning project in AI engineering, and the work is split between me and an AI
+assistant ([ADR 0002](docs/adr/0002-who-writes-what.md)). Claude Code wrote the game (the pure,
+deterministic, fully tested engine in `engine/`, the baseline bots, the runner, the CLI and the
+replay viewer); I wrote the AI rulers by hand (prompts, structured output, validation, retries,
+frameworks, memory and evaluation), with Claude Code acting only as tutor and reviewer under the
+rules in [`CLAUDE.md`](CLAUDE.md).
 
-- **The game is built by Claude Code**: a pure, deterministic, fully tested engine (`engine/`),
-  the baseline bots, the runner, the CLI and the replay viewer. It is the arena, not the lesson.
-- **The AI rulers are built by me, by hand**: prompts, structured output, validation, retries,
-  frameworks, memory and evaluation. There, Claude Code is a tutor and reviewer, not the author.
-  The rules it follows are in [`CLAUDE.md`](CLAUDE.md).
-- **Spec first, then tests, then code.** Every feature starts as a one-page spec with testable
-  acceptance criteria ([`specs/`](specs/README.md)), then test-driven development: red, green,
-  refactor.
-- **Decisions are written down** as ADRs ([`docs/adr/`](docs/adr/README.md)), and every finished
+- Spec first, then tests, then code. Every feature starts as a one-page spec with testable
+  acceptance criteria ([`specs/`](specs/README.md)), followed by test-driven development (red,
+  green, refactor).
+- Decisions are recorded as ADRs ([`docs/adr/`](docs/adr/README.md)), and every finished
   milestone gets a learning note ([`docs/learning/`](docs/learning/README.md)).
 
 ## Run it
@@ -148,8 +162,8 @@ uv run pax bench --games 40                # who wins, seat by seat, over 40 see
 uv run pax press                           # store capsules and a trailer, drawn from a game of bots
 ```
 
-The AI part needs `make env`, `make db`, `make langfuse` and a Gemini key in `.env`; every command
-that calls a model takes a `--budget` in dollars and stops before it would pass it
+The AI part needs `make env`, `make db`, `make langfuse` and a Gemini key in `.env`. Every
+command that calls a model takes a `--budget` in dollars and stops before it would exceed it
 ([`docs/agent-tools.md`](docs/agent-tools.md)):
 
 ```bash
@@ -173,7 +187,7 @@ uv run --env-file .env pax redteam --budget 0.10               # hostile letters
 | `src/pax_agentica/server.py`, `web/` | Play a nation in the browser; the shared map code and the replay |
 | `src/pax_agentica/data/`, `scripts/build_map.py` | The map of Europe, built from real geography (`make map`) |
 | `src/pax_agentica/agents/` | The AI rulers, the archive, the Archivist and their evaluations |
-| `src/pax_agentica/api.py` | The Archivist over HTTP (FastAPI), apart from the public tables |
+| `src/pax_agentica/api.py` | The Archivist over HTTP (FastAPI), separate from the public tables |
 | `tests/` | Tests, written before the code they test |
 | `specs/` | One folder per feature: spec, plan, tasks |
 | `docs/game-rules.md` | The rules, for humans and for prompts |
