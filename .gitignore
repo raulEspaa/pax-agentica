@@ -28,3 +28,6 @@ saves/
 .vscode/
 .idea/
 .DS_Store
+
+# agents' git worktrees (Claude Code)
+.claude/worktrees/
