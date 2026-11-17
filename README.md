@@ -133,6 +133,9 @@ rather than a benchmark.
   not every new one, so a guard in code now makes a forced tribute impossible.
 - A three-seed pilot: France ruled by the council averaged a standing of 105 and won once. The
   greedy bot averaged 39, and the same bot following fixed or random plans did no better.
+- Do the councils keep their word? In a two-game pilot with three AI crowns writing to each other,
+  85% of the promises that could be checked were kept (70 of 82), at $0.71 a game. Spain broke 8;
+  France never wrote a letter it meant to deceive with. The extractor's labels are still drafts.
 
 ## How it's built
 

@@ -128,7 +128,7 @@ by councils, so that models write to models, then a model lists the commitments 
 and rules check them against what the crown did afterwards. The diplomat is allowed to deceive,
 so this measures behaviour; it does not score honesty as a virtue.
 
-**To be measured.** Nothing below has run against a real model yet.
+**First pilot, 2026-11-15.** Two games and drafted labels: a direction, not a measurement.
 
 ### The extractor first: 25 labelled letters
 
@@ -138,7 +138,7 @@ reviews them.
 
 | Model, thinking | precision | recall | deception accuracy | Cost |
 |---|---|---|---|---|
-| 3.1-flash-lite, low | _to be measured_ | _to be measured_ | _to be measured_ | _to be measured_ |
+| 3.1-flash-lite, low | 87% | 95% | 96% | $0.0101 |
 
 ### The pilot: 2 games, 30 years, France, Spain and England ruled by councils
 
@@ -146,12 +146,19 @@ reviews them.
 
 | Crown | Letters | Commitments | Checkable | Kept | Broken | Untested | Untestable | Deceptive letters |
 |---|---|---|---|---|---|---|---|---|
-| france | _tbm_ | | | | | | | |
-| spain | _tbm_ | | | | | | | |
-| england | _tbm_ | | | | | | | |
+| france | 137 | 36 | 34 | 23 | 2 | 9 | 2 | 0 |
+| spain | 146 | 42 | 38 | 26 | 8 | 4 | 4 | 9 |
+| england | 146 | 30 | 26 | 21 | 2 | 3 | 4 | 11 |
 
-- Promises kept, of those settled: _to be measured_.
-- **Cost per game** (councils + extraction): _to be measured_; estimated $0.35 to $0.50 (below).
+- Promises kept, of those settled: 70 of 82 (85%). France kept 23 of 25, England 21 of 23, Spain
+  26 of 34: Spain broke more promises than the other two together.
+- France never wrote a letter its private thoughts called deceptive; England did 11 times and
+  Spain 9, with the same prompt: the difference comes from each crown's situation and character.
+- 17 letters could not be read by the extractor (the "unread" in `summary.json`), so they count
+  for nothing either way.
+- **Cost per game** (councils + extraction): $0.71 ($0.46 and $0.95), above the $0.35 to $0.50
+  estimated below: the second game wrote longer letters and its play cost twice the first's.
+  The pilot spent $1.41 of its $2 budget.
 
 **The estimate**, from a 30-year game played with fake councils (seeds 0 and 1, $0): three
 councils make about 56 plan calls and 78 diplomacy calls a game. At about $0.002 a call
